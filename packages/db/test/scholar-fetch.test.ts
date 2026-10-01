@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import type { ScholarPaper } from '@kku/shared';
+import { buildScholarCitationUrl, type ScholarPaper } from '@kku/shared';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mocks prisma via '../src/index' — the pattern used by sign-in-lockout.test.ts
@@ -26,6 +26,11 @@ const mocks = vi.hoisted(() => ({
   researchOutputFindMany: vi.fn(),
   researchOutputCreateMany: vi.fn(),
   researchOutputUpdateMany: vi.fn(),
+  researchOutputUpdate: vi.fn(),
+  // The shortened-author-list read (its `where` filters on scholarAuthors).
+  // Routed apart from researchOutputFindMany so a test that sets the merge's
+  // existing rows does not also hand those rows to the detail-page phase.
+  researchOutputFindShortened: vi.fn(),
   cacheUpdateMany: vi.fn(),
   auditLogCreate: vi.fn(),
   bindAttemptFindMany: vi.fn(),
@@ -50,9 +55,13 @@ vi.mock('../src/index', () => ({
     },
     scholarFetchArchive: { create: mocks.archiveCreate },
     researchOutput: {
-      findMany: mocks.researchOutputFindMany,
+      findMany: (args: { where?: Record<string, unknown> } | undefined) =>
+        args?.where && 'scholarAuthors' in args.where
+          ? mocks.researchOutputFindShortened(args)
+          : mocks.researchOutputFindMany(args),
       createMany: mocks.researchOutputCreateMany,
       updateMany: mocks.researchOutputUpdateMany,
+      update: mocks.researchOutputUpdate,
     },
     staffPublicationsCache: { updateMany: mocks.cacheUpdateMany },
     auditLog: { create: mocks.auditLogCreate },
@@ -66,6 +75,7 @@ vi.mock('../src/index', () => ({
 
 import {
   SCHOLAR_MAX_PAGES,
+  SCHOLAR_AUTHOR_DETAIL_CAP,
   SCHOLAR_NEEDS_BINDING,
   SCHOLAR_PAGE_SIZE,
   bindScholarProfile,
@@ -96,13 +106,15 @@ function row(opts: {
   year: number | '';
   citations: number | '';
   venue?: string;
+  authors?: string;
 }): string {
   const venue = opts.venue ?? 'Journal of Testing';
+  const authors = opts.authors ?? 'A Author, B Author';
   return (
     '<tr class="gsc_a_tr">' +
     '<td class="gsc_a_t">' +
     `<a href="/citations?view_op=view_citation&hl=en&user=${PROFILE_ID}&citation_for_view=${opts.paperId}" class="gsc_a_at">${opts.title}</a>` +
-    '<div class="gs_gray">A Author, B Author</div>' +
+    `<div class="gs_gray">${authors}</div>` +
     `<div class="gs_gray">${venue}<span class="gs_oph">, ${opts.year}</span></div>` +
     '</td>' +
     `<td class="gsc_a_c"><a href="#" class="gsc_a_ac gs_ibl">${opts.citations}</a></td>` +
@@ -267,6 +279,8 @@ beforeEach(() => {
   mocks.runUpdate.mockResolvedValue({ id: 'run-1' });
   mocks.archiveCreate.mockResolvedValue({ id: 'arch-1' });
   mocks.researchOutputFindMany.mockResolvedValue([]);
+  mocks.researchOutputFindShortened.mockResolvedValue([]);
+  mocks.researchOutputUpdate.mockResolvedValue({});
   mocks.cacheUpdateMany.mockResolvedValue({ count: 1 });
   mocks.bindAttemptFindMany.mockResolvedValue([]); // no bind attempts today
   mocks.bindAttemptCreate.mockResolvedValue({ id: 'bind-1' });
@@ -1130,6 +1144,11 @@ describe('runScholarFetch — happy path', () => {
           scholarPaperId: `${PROFILE_ID}:new1`,
           source: 'google-scholar',
           kkuAuthorName: 'Somchai Jaidee',
+          scholarAuthors: {
+            names: ['A Author', 'B Author'],
+            complete: true,
+            fetchedAt: NOW.toISOString(),
+          },
         },
       ],
       skipDuplicates: true,
@@ -2012,5 +2031,271 @@ describe('runScholarFetch — an interstitial past page 1', () => {
 
     expect(result.status).toBe('PARTIAL');
     expect(result.papersFound).toBe(SCHOLAR_PAGE_SIZE);
+  });
+});
+
+// ── Author lists ────────────────────────────────────────────────────────────
+//
+// The list page shortens long author lines with "..."; the per-paper detail
+// page carries the whole list. Each sync stores the list-page line and then
+// spends at most SCHOLAR_AUTHOR_DETAIL_CAP detail pages on rows still marked
+// shortened.
+
+describe('author lists', () => {
+  const LONG_ID = `${PROFILE_ID}:long`;
+
+  function detailHtml(names: string): string {
+    return (
+      '<html><body><div id="gsc_oci_table">' +
+      '<div class="gs_scl"><div class="gsc_oci_field">Authors</div>' +
+      `<div class="gsc_oci_value">${names}</div></div>` +
+      '</div></body></html>'
+    );
+  }
+
+  /** Profile pages from `profileHtml`; any view_citation URL from `detail`. */
+  function detailFetcher(opts: {
+    profileHtml: string;
+    detail: (url: string) => Promise<ScholarPageResult>;
+  }): ReturnType<typeof vi.fn> & { urls: string[] } {
+    const urls: string[] = [];
+    const fn = vi.fn(async (url: string): Promise<ScholarPageResult> => {
+      urls.push(url);
+      if (url.includes('view_op=view_citation')) return opts.detail(url);
+      return pageResult(opts.profileHtml, 15);
+    });
+    return Object.assign(fn, { urls });
+  }
+
+  const detailCalls = (urls: string[]): string[] =>
+    urls.filter((u) => u.includes('view_op=view_citation'));
+
+  async function run(fetchPage: (url: string) => Promise<ScholarPageResult>) {
+    return runScholarFetch(
+      { userId: USER_ID, triggeredById: USER_ID, trigger: 'SELF', actorRole: 'ANALYST', fetchPage },
+      { now: NOW },
+    );
+  }
+
+  it('writes the list-page author line on new rows', async () => {
+    const fetchPage = detailFetcher({
+      profileHtml: page([row({ paperId: `${PROFILE_ID}:n`, title: 'New paper', year: 2024, citations: 1 })]),
+      detail: async () => {
+        throw new Error('no detail page expected');
+      },
+    });
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: 1 });
+
+    const result = await run(fetchPage);
+
+    expect(result.status).toBe('SUCCEEDED');
+    const createArg = mocks.researchOutputCreateMany.mock.calls[0]![0] as {
+      data: { scholarAuthors?: unknown }[];
+    };
+    expect(createArg.data[0]!.scholarAuthors).toEqual({
+      names: ['A Author', 'B Author'],
+      complete: true,
+      fetchedAt: NOW.toISOString(),
+    });
+  });
+
+  it('fetches the detail page only for shortened rows, once, and stores the full list', async () => {
+    const fetchPage = detailFetcher({
+      profileHtml: page([
+        row({ paperId: LONG_ID, title: 'Long paper', year: 2021, citations: 3, authors: 'A Author, B Author, ...' }),
+      ]),
+      detail: async () => pageResult(detailHtml('A Author, B Author, C Author'), 15),
+    });
+    mocks.researchOutputFindMany.mockResolvedValue([
+      {
+        id: 'ro-long',
+        title: 'Long paper',
+        year: 2021,
+        doi: null,
+        citations: 3,
+        source: 'google-scholar',
+        scholarPaperId: LONG_ID,
+        scholarAuthors: { names: ['A Author'], complete: false, fetchedAt: '2026-01-01T00:00:00.000Z' },
+      },
+    ]);
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: 0 });
+    mocks.researchOutputUpdateMany.mockResolvedValue({ count: 1 });
+    mocks.researchOutputFindShortened.mockResolvedValue([{ id: 'ro-long', scholarPaperId: LONG_ID }]);
+
+    const result = await run(fetchPage);
+
+    // The shortened-rows read asks only for this member's shortened Scholar rows.
+    expect(mocks.researchOutputFindShortened).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          facultyMemberId: MEMBER_ID,
+          source: 'google-scholar',
+          scholarAuthors: { path: ['complete'], equals: false },
+        }),
+      }),
+    );
+    expect(detailCalls(fetchPage.urls)).toEqual([buildScholarCitationUrl(PROFILE_ID, LONG_ID)]);
+    expect(mocks.researchOutputUpdate).toHaveBeenCalledTimes(1);
+    expect(mocks.researchOutputUpdate).toHaveBeenCalledWith({
+      where: { id: 'ro-long' },
+      data: {
+        scholarAuthors: {
+          names: ['A Author', 'B Author', 'C Author'],
+          complete: true,
+          fetchedAt: NOW.toISOString(),
+        },
+      },
+    });
+    expect(result.status).toBe('SUCCEEDED');
+    expect(result.creditsUsed).toBe(30); // 15 profile page + 15 detail page
+    expect(result.authorListsCompleted).toBe(1);
+    expect(result.authorListsPending).toBe(0);
+    expect(mocks.runUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ creditsUsed: 30, errorText: null }) }),
+    );
+  });
+
+  it('never fetches a row whose list is already complete', async () => {
+    const fetchPage = detailFetcher({
+      profileHtml: page([row({ paperId: `${PROFILE_ID}:c`, title: 'Complete', year: 2022, citations: 2 })]),
+      detail: async () => pageResult(detailHtml('X'), 15),
+    });
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: 1 });
+    mocks.researchOutputFindShortened.mockResolvedValue([]);
+
+    const result = await run(fetchPage);
+
+    expect(detailCalls(fetchPage.urls)).toEqual([]);
+    expect(mocks.researchOutputUpdate).not.toHaveBeenCalled();
+    expect(result.authorListsCompleted).toBe(0);
+    expect(result.authorListsPending).toBe(0);
+    expect(result.creditsUsed).toBe(15);
+  });
+
+  it('caps detail fetches at 20 per sync and reports the rest as pending', async () => {
+    expect(SCHOLAR_AUTHOR_DETAIL_CAP).toBe(20);
+    const fetchPage = detailFetcher({
+      profileHtml: page([row({ paperId: `${PROFILE_ID}:c`, title: 'Complete', year: 2022, citations: 2 })]),
+      detail: async () => pageResult(detailHtml('A Author, B Author, C Author'), 15),
+    });
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: 1 });
+    mocks.researchOutputFindShortened.mockResolvedValue(
+      Array.from({ length: SCHOLAR_AUTHOR_DETAIL_CAP + 1 }, (_, i) => ({
+        id: `ro-${i}`,
+        scholarPaperId: `${PROFILE_ID}:s${i}`,
+      })),
+    );
+
+    const result = await run(fetchPage);
+
+    expect(mocks.researchOutputFindShortened).toHaveBeenCalledWith(
+      expect.objectContaining({ take: SCHOLAR_AUTHOR_DETAIL_CAP + 1 }),
+    );
+    expect(detailCalls(fetchPage.urls)).toHaveLength(20);
+    expect(mocks.researchOutputUpdate).toHaveBeenCalledTimes(20);
+    expect(result.authorListsCompleted).toBe(20);
+    expect(result.authorListsPending).toBe(1);
+    expect(result.creditsUsed).toBe(15 + 20 * 15);
+    expect(result.status).toBe('SUCCEEDED');
+  });
+
+  it('a failed or unreadable detail page leaves the row shortened and the run successful', async () => {
+    const fetchPage = detailFetcher({
+      profileHtml: page([row({ paperId: `${PROFILE_ID}:c`, title: 'Complete', year: 2022, citations: 2 })]),
+      detail: async (url) => {
+        if (url.includes('s0')) throw new Error('ScrapingBee timed out');
+        // A consent wall: HTTP 200, no Authors field.
+        return pageResult('<html><body>Before you continue to Google</body></html>', 15);
+      },
+    });
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: 1 });
+    mocks.researchOutputFindShortened.mockResolvedValue([
+      { id: 'ro-0', scholarPaperId: `${PROFILE_ID}:s0` },
+      { id: 'ro-1', scholarPaperId: `${PROFILE_ID}:s1` },
+    ]);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = await run(fetchPage);
+    warn.mockRestore();
+
+    expect(detailCalls(fetchPage.urls)).toHaveLength(2);
+    expect(mocks.researchOutputUpdate).not.toHaveBeenCalled();
+    expect(result.status).toBe('SUCCEEDED');
+    expect(result.reason).toBeNull();
+    expect(result.authorListsCompleted).toBe(0);
+    expect(result.authorListsPending).toBe(2);
+    // The wall page was still billed; the thrown one reported nothing.
+    expect(result.creditsUsed).toBe(30);
+  });
+
+  it('never replaces a complete stored list with a shortened list-page line', async () => {
+    const fetchPage = detailFetcher({
+      profileHtml: page([
+        row({ paperId: LONG_ID, title: 'Long paper', year: 2021, citations: 3, authors: 'A Author, B Author, ...' }),
+      ]),
+      detail: async () => pageResult(detailHtml('A Author, B Author, C Author'), 15),
+    });
+    mocks.researchOutputFindMany.mockResolvedValue([
+      {
+        id: 'ro-long',
+        title: 'Long paper',
+        year: 2021,
+        doi: null,
+        citations: 3,
+        source: 'google-scholar',
+        scholarPaperId: LONG_ID,
+        scholarAuthors: {
+          names: ['A Author', 'B Author', 'C Author'],
+          complete: true,
+          fetchedAt: '2026-01-01T00:00:00.000Z',
+        },
+      },
+    ]);
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: 0 });
+    mocks.researchOutputUpdateMany.mockResolvedValue({ count: 1 });
+
+    const result = await run(fetchPage);
+
+    expect(result.status).toBe('SUCCEEDED');
+    const authorWrites = mocks.researchOutputUpdateMany.mock.calls.filter(
+      ([arg]) => (arg as { data: Record<string, unknown> }).data.scholarAuthors !== undefined,
+    );
+    expect(authorWrites).toEqual([]);
+    expect(mocks.researchOutputUpdate).not.toHaveBeenCalled();
+  });
+
+  it('refreshes a shortened stored list from the list page inside the merge transaction', async () => {
+    const fetchPage = detailFetcher({
+      profileHtml: page([
+        row({ paperId: LONG_ID, title: 'Long paper', year: 2021, citations: 3, authors: 'A Author, B Author, ...' }),
+      ]),
+      detail: async () => pageResult(detailHtml('A Author, B Author, C Author'), 15),
+    });
+    mocks.researchOutputFindMany.mockResolvedValue([
+      {
+        id: 'ro-long',
+        title: 'Long paper',
+        year: 2021,
+        doi: null,
+        citations: 3,
+        source: 'google-scholar',
+        scholarPaperId: LONG_ID,
+        scholarAuthors: null,
+      },
+    ]);
+    mocks.researchOutputCreateMany.mockResolvedValue({ count: 0 });
+    mocks.researchOutputUpdateMany.mockResolvedValue({ count: 1 });
+
+    const result = await run(fetchPage);
+
+    expect(mocks.researchOutputUpdateMany).toHaveBeenCalledWith({
+      where: { facultyMemberId: MEMBER_ID, scholarPaperId: LONG_ID, source: 'google-scholar' },
+      data: {
+        scholarAuthors: { names: ['A Author', 'B Author'], complete: false, fetchedAt: NOW.toISOString() },
+      },
+    });
+    // An author-line write is not a citation update.
+    expect(result.citationsUpdated).toBe(0);
+    expect(mocks.transaction).toHaveBeenCalledTimes(1);
   });
 });

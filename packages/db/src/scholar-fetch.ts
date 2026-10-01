@@ -86,8 +86,10 @@ import {
   DEFAULT_SCHOLAR_BIND_MAX_PER_DAY,
   SCHOLAR_LEDGER_LOOKBACK_MS,
   SCHOLAR_PARSER_VERSION,
+  buildScholarCitationUrl,
   decideScholarBindQuota,
   decideScholarQuota,
+  parseScholarCitationAuthors,
   parseScholarProfileIdentity,
   parseScholarProfileUrl,
   parseScholarPublications,
@@ -209,6 +211,39 @@ const ROW_MARKER = /class="gsc_a_tr"/g;
 export const SCHOLAR_RESEARCH_OUTPUT_SOURCE = 'google-scholar';
 const SOURCE = SCHOLAR_RESEARCH_OUTPUT_SOURCE;
 
+/**
+ * Detail pages fetched per sync for papers whose author list Scholar shortened.
+ *
+ * The profile list page cuts long author lines with "..."; only the paper's
+ * own view_citation page carries the whole list, at 15 credits a page. A
+ * bound, current record pays this once per paper — a completed list is never
+ * fetched again — so the cap only bounds the first sync of a large library,
+ * and whatever it leaves is picked up by the next one.
+ */
+export const SCHOLAR_AUTHOR_DETAIL_CAP = 20;
+
+/**
+ * The shape stored in `research_outputs.scholar_authors`. A type alias, not an
+ * interface: Prisma's JSON input type needs the implicit index signature only
+ * an alias carries.
+ */
+type StoredScholarAuthors = {
+  names: string[];
+  /** False when the list is Scholar's shortened one ("A, B, ..."). */
+  complete: boolean;
+  fetchedAt: string;
+};
+
+function scholarAuthorsValue(names: string[], complete: boolean, now: Date): StoredScholarAuthors {
+  return { names, complete, fetchedAt: now.toISOString() };
+}
+
+function isCompleteStored(value: unknown): boolean {
+  return (
+    typeof value === 'object' && value !== null && (value as { complete?: unknown }).complete === true
+  );
+}
+
 // ── Public types ──────────────────────────────────────────────────────────
 
 export interface RunScholarFetchInput {
@@ -258,6 +293,15 @@ export interface ScholarFetchResult {
   papersSkippedNoYear: number;
   creditsUsed: number;
   searchQuery: string | null;
+  /** Shortened author lists replaced by the full list from a detail page this sync. */
+  authorListsCompleted: number;
+  /**
+   * Scholar rows still holding a shortened list after this sync — past the
+   * per-sync cap, or whose detail page failed. Informational only: it is NOT a
+   * run note, because a note turns the run PARTIAL and the papers themselves
+   * all arrived.
+   */
+  authorListsPending: number;
 }
 
 /**
@@ -969,14 +1013,39 @@ async function applyMergePlan(input: {
   memberId: string;
   searchQuery: string;
   usable: ScholarPaper[];
+  now: Date;
 }): Promise<{ papersInserted: number; citationsUpdated: number }> {
-  const { memberId, searchQuery, usable } = input;
+  const { memberId, searchQuery, usable, now } = input;
 
   const existing = await prisma.researchOutput.findMany({
     where: { facultyMemberId: memberId },
-    select: { id: true, title: true, year: true, doi: true, citations: true },
+    select: {
+      id: true,
+      title: true,
+      year: true,
+      doi: true,
+      citations: true,
+      source: true,
+      scholarPaperId: true,
+      scholarAuthors: true,
+    },
   });
   const plan = planScholarMerge({ scholar: usable, existing });
+
+  // Author lines for Scholar rows already held. Only a row whose stored list is
+  // absent or shortened is written — a complete list (from a detail page) is
+  // never replaced by the list page's line, which may itself be shortened.
+  const storedAuthorsByPaperId = new Map<string, unknown>();
+  for (const row of existing) {
+    if (row.source === SOURCE && row.scholarPaperId) {
+      storedAuthorsByPaperId.set(row.scholarPaperId, row.scholarAuthors);
+    }
+  }
+  const authorLineUpdates = usable.flatMap((p) => {
+    if (!p.authors || !storedAuthorsByPaperId.has(p.scholarPaperId)) return [];
+    if (isCompleteStored(storedAuthorsByPaperId.get(p.scholarPaperId))) return [];
+    return [{ scholarPaperId: p.scholarPaperId, authors: p.authors }];
+  });
 
   const insertRows = plan.inserts.map((p) => ({
     facultyMemberId: memberId,
@@ -991,6 +1060,9 @@ async function applyMergePlan(input: {
     // Whose Scholar profile this row came off — the same reconciliation
     // handle the kku-research connector writes.
     kkuAuthorName: searchQuery,
+    scholarAuthors: p.authors
+      ? scholarAuthorsValue(p.authors.names, p.authors.complete, now)
+      : undefined,
   }));
 
   const [insertResult, ...updateResults] = await prisma.$transaction([
@@ -1011,12 +1083,85 @@ async function applyMergePlan(input: {
         data: { citations: u.citations, scholarPaperId: u.scholarPaperId },
       }),
     ),
+    // Author lines: scoped to this member's own Scholar rows and to the one
+    // column. `scholarAuthors` only ever moves from absent/shortened to a line
+    // or a complete list — never from complete back to shortened (filtered
+    // above). Title, venue, year and source are untouched here too.
+    ...authorLineUpdates.map((a) =>
+      prisma.researchOutput.updateMany({
+        where: { facultyMemberId: memberId, scholarPaperId: a.scholarPaperId, source: SOURCE },
+        data: { scholarAuthors: scholarAuthorsValue(a.authors.names, a.authors.complete, now) },
+      }),
+    ),
   ]);
 
+  // The author-line writes ride at the end of the same transaction; they are
+  // not citation updates and must not be counted as such.
+  const citationResults = updateResults.slice(0, plan.citationUpdates.length);
   return {
     papersInserted: insertResult?.count ?? 0,
-    citationsUpdated: updateResults.reduce((sum, r) => sum + (r?.count ?? 0), 0),
+    citationsUpdated: citationResults.reduce((sum, r) => sum + (r?.count ?? 0), 0),
   };
+}
+
+// ── Phase: complete shortened author lists ────────────────────────────────
+
+interface AuthorDetailOutcome {
+  completed: number;
+  pending: number;
+}
+
+/**
+ * Fetch the detail page for up to SCHOLAR_AUTHOR_DETAIL_CAP of this member's
+ * Scholar rows whose stored author list is the shortened one, and store the
+ * full list. Once complete, a row is never selected again, so each paper costs
+ * one detail page for its lifetime.
+ *
+ * Each page is independent and a failure is non-fatal: a timeout, or a wall
+ * with no Authors field, leaves that row shortened for the next sync. The
+ * papers were already imported by the merge; this phase only improves them.
+ */
+async function completeShortenedAuthorLists(input: {
+  memberId: string;
+  profileId: string;
+  fetchPage: ScholarPageFetcher;
+  progress: ScholarFetchProgress;
+  now: Date;
+}): Promise<AuthorDetailOutcome> {
+  const rows = await prisma.researchOutput.findMany({
+    where: {
+      facultyMemberId: input.memberId,
+      source: SOURCE,
+      scholarPaperId: { not: null },
+      scholarAuthors: { path: ['complete'], equals: false },
+    },
+    select: { id: true, scholarPaperId: true },
+    orderBy: { year: 'desc' },
+    // One past the cap, so "more are waiting" is known without a count query.
+    take: SCHOLAR_AUTHOR_DETAIL_CAP + 1,
+  });
+  const batch = rows.slice(0, SCHOLAR_AUTHOR_DETAIL_CAP);
+  let completed = 0;
+  for (const row of batch) {
+    if (!row.scholarPaperId) continue;
+    try {
+      const page = await input.fetchPage(buildScholarCitationUrl(input.profileId, row.scholarPaperId));
+      addCredits(input.progress, page.creditsUsed);
+      const names = parseScholarCitationAuthors(page.html);
+      if (!names) continue;
+      await prisma.researchOutput.update({
+        where: { id: row.id },
+        data: { scholarAuthors: scholarAuthorsValue(names, true, input.now) },
+      });
+      completed += 1;
+    } catch (err) {
+      console.warn(
+        `[scholar-fetch] author detail page failed for row=${row.id}:`,
+        describeError(err),
+      );
+    }
+  }
+  return { completed, pending: rows.length - completed };
 }
 
 // ── Run bookkeeping ───────────────────────────────────────────────────────
@@ -1533,7 +1678,27 @@ export async function runScholarFetch(
       memberId: member.id,
       searchQuery,
       usable,
+      now: clock(),
     });
+
+    // ── 6a. Complete shortened author lists from detail pages ────────────
+    // After the merge, so rows inserted this sync are eligible at once. Never
+    // fails the run: the import is committed and this only enriches it.
+    let authorLists: AuthorDetailOutcome = { completed: 0, pending: 0 };
+    try {
+      authorLists = await completeShortenedAuthorLists({
+        memberId: member.id,
+        profileId,
+        fetchPage,
+        progress,
+        now: clock(),
+      });
+    } catch (err) {
+      console.warn(
+        `[scholar-fetch] author-list phase failed for member=${member.id}:`,
+        describeError(err),
+      );
+    }
 
     // ── 7. Expire the publications cache ─────────────────────────────────
     await expireStaffPublicationsCache(member.id);
@@ -1587,6 +1752,8 @@ export async function runScholarFetch(
       papersSkippedNoYear,
       creditsUsed,
       searchQuery,
+      authorListsCompleted: authorLists.completed,
+      authorListsPending: authorLists.pending,
     };
   } catch (err) {
     // Nothing reached ResearchOutput: every write to it lives inside the
@@ -1633,15 +1800,26 @@ export async function runScholarFetch(
       papersSkippedNoYear: 0,
       creditsUsed,
       searchQuery,
+      authorListsCompleted: 0,
+      authorListsPending: 0,
     };
   }
 }
 
 function emptyCounts(): Pick<
   ScholarFetchResult,
-  'papersFound' | 'papersInserted' | 'citationsUpdated' | 'papersSkippedNoYear' | 'creditsUsed' | 'retryAt'
+  | 'papersFound'
+  | 'papersInserted'
+  | 'citationsUpdated'
+  | 'papersSkippedNoYear'
+  | 'creditsUsed'
+  | 'retryAt'
+  | 'authorListsCompleted'
+  | 'authorListsPending'
 > {
   return {
+    authorListsCompleted: 0,
+    authorListsPending: 0,
     papersFound: 0,
     papersInserted: 0,
     citationsUpdated: 0,
