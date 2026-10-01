@@ -250,10 +250,16 @@ export function formatAuthorApa(a: AuthorName): string {
  *   2 authors:   "Smith, J. K., & Lee, A. (2024). ..."
  *   3-20 authors:"A, B., B, C., & C, D. (2024). ..."
  *   21+ authors: first 19 + ", ..., " + last (per APA 7 §9.8)
+ *
+ * The "&" asserts the list is whole, so only a complete list
+ * (`authorsAreComplete`) gets it. A partial list — Google Scholar shortened
+ * it, or only the KKU authors are known — names every author it has and ends
+ * with ", …": no ampersand and no 21+ truncation. Same rule as the /profile
+ * byline (apps/web/app/profile/apa-author-list.tsx).
  */
 export function formatApa(p: PublicationEntry): string {
   const authors = p.authors.length > 0 ? p.authors : kkuAuthorsAsAuthorNames(p);
-  const authorBlock = formatApaAuthorList(authors);
+  const authorBlock = formatApaAuthorList(authors, p.authorsAreComplete);
   const venue = p.venue ? ` *${p.venue}*.` : '';
   const link = p.doi ? ` https://doi.org/${p.doi}` : '';
   const trailingDot = /[.!?]$/.test(p.title) ? '' : '.';
@@ -282,10 +288,12 @@ export function kkuAuthorsAsAuthorNames(p: PublicationEntry): AuthorName[] {
   });
 }
 
-function formatApaAuthorList(authors: AuthorName[]): string {
+function formatApaAuthorList(authors: AuthorName[], complete: boolean): string {
   if (authors.length === 0) return '';
   const formatted = authors.map(formatAuthorApa).filter(Boolean);
   if (formatted.length === 0) return '';
+  // A partial list never claims to be whole: every name, then ", …".
+  if (!complete) return `${formatted.join(', ')}, …`;
   // APA's serial period: each author block ends with a "." iff the
   // last token is an initial. `withTrailingDot()` collapses any
   // duplicate periods (e.g. "Smith, D." + "." → "Smith, D." not "..").
