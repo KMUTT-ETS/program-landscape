@@ -13,6 +13,7 @@ import { BookOpen, Camera, GraduationCap, Sparkles, Globe2, Award } from 'lucide
 import type { AuthorName, ProfileData, PublicationEntry } from '@/lib/profile-types';
 import { formatAuthorApa, kkuAuthorsAsAuthorNames } from '@/lib/profile-types';
 import { AvatarUploader } from './avatar-uploader';
+import { PublicationMetaRow } from './publication-meta-row';
 
 // Profile-page client component. Owns:
 //   - TH/EN toggle (visible string flips, but the data-bilingual fields
@@ -295,6 +296,7 @@ export function ProfileView({
             publications={profile.publications}
             ownerSurname={ownerSurname}
             t={t}
+            lang={lang}
             // Gated here rather than trusted to every caller: the panel is
             // owner-only, `publicMode` already encodes exactly that, and
             // /p/[slug] passing no slot today is a convention, not a
@@ -926,28 +928,6 @@ function ResearchSummarySection({
                 }
               />
             </dl>
-            {research.topVenues.length > 0 && (
-              <div className="border-t border-border-subtle pt-4">
-                <h3 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-tertiary">
-                  Top venues
-                </h3>
-                <ul className="mt-3 space-y-2">
-                  {research.topVenues.map((v) => (
-                    <li
-                      key={v.venue}
-                      className="flex items-center justify-between gap-3 text-sm"
-                    >
-                      <span className="min-w-0 truncate text-text-primary">
-                        {v.venue}
-                      </span>
-                      <Badge tone="neutral" size="sm">
-                        {v.count}
-                      </Badge>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
           </div>
         )}
       </Card>
@@ -1374,11 +1354,13 @@ function PublicationsSection({
   publications,
   ownerSurname,
   t,
+  lang,
   scholarSlot = null,
 }: {
   publications: PublicationEntry[];
   ownerSurname: string | null;
   t: (typeof T)[Lang];
+  lang: Lang;
   scholarSlot?: React.ReactNode;
 }) {
   // Paginated 20 per page. Authors with 100+ papers get a clean
@@ -1429,43 +1411,7 @@ function PublicationsSection({
                   </span>
                   <div className="min-w-0 flex-1">
                     <PublicationApaLine pub={p} ownerSurname={ownerSurname} />
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-text-tertiary">
-                      <span className="tabular-nums">{p.year}</span>
-                      {p.citations > 0 && (
-                        <Badge tone="neutral" size="sm">
-                          {p.citations} {t.citations}
-                        </Badge>
-                      )}
-                      <Badge tone="neutral" size="sm">
-                        {p.type}
-                      </Badge>
-                      {p.authors.length > 0 && (
-                        <span>
-                          {p.authors.length} authors
-                        </span>
-                      )}
-                      {!p.authorsAreComplete && (
-                        <span
-                          className="italic"
-                          title="Tried kkuscholar, OpenAlex, and Scopus — none returned a co-author list for this paper."
-                        >
-                          (co-authors could not be fetched)
-                        </span>
-                      )}
-                      {p.scopusId && (
-                        <span className="font-mono">Scopus:{p.scopusId}</span>
-                      )}
-                      {p.pmid && (
-                        <a
-                          href={`https://pubmed.ncbi.nlm.nih.gov/${p.pmid}/`}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                          className="text-accent-default hover:underline"
-                        >
-                          PubMed:{p.pmid}
-                        </a>
-                      )}
-                    </div>
+                    <PublicationMetaRow pub={p} lang={lang} />
                   </div>
                 </li>
               ))}
