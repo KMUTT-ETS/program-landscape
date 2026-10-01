@@ -4,7 +4,9 @@ import {
   ScrapingBeeAuthError,
   ScrapingBeeConfigError,
   ScrapingBeeQuotaError,
+  ScrapingBeeTransientError,
 } from '@kku/shared/src/scholar/scrapingbee';
+import { Prisma } from '@prisma/client';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Mocks prisma via '../src/index' — the pattern used by sign-in-lockout.test.ts
@@ -2234,6 +2236,19 @@ describe('author lists', () => {
         orderBy: [{ year: 'desc' }, { id: 'asc' }],
       }),
     );
+    // Abandoned rows are excluded in the query itself, so they cannot fill the
+    // candidate window. An OR, not a NOT: on Postgres a NOT over a missing JSON
+    // path is NULL and would also drop every never-attempted row.
+    expect(mocks.researchOutputFindShortened).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: [
+            { scholarAuthors: { path: ['detailAttempts'], equals: Prisma.AnyNull } },
+            { scholarAuthors: { path: ['detailAttempts'], lt: SCHOLAR_AUTHOR_DETAIL_MAX_ATTEMPTS } },
+          ],
+        }),
+      }),
+    );
     expect(detailCalls(fetchPage.urls)).toHaveLength(20);
     expect(mocks.researchOutputUpdate).toHaveBeenCalledTimes(20);
     expect(result.authorListsCompleted).toBe(20);
@@ -2462,6 +2477,7 @@ describe('author lists', () => {
     ['quota', () => new ScrapingBeeQuotaError()],
     ['auth', () => new ScrapingBeeAuthError(401)],
     ['config', () => new ScrapingBeeConfigError('SCRAPINGBEE_API_KEY is not set')],
+    ['transient (outage)', () => new ScrapingBeeTransientError(503, 'HTTP 503')],
   ] as const) {
     it(`stops after one fetch on a ScrapingBee ${label} error, records no attempt, and keeps the run`, async () => {
       const fetchPage = detailFetcher({

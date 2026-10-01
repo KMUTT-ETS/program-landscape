@@ -81,7 +81,7 @@
 
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import type { Prisma, ResearchOutputType } from '@prisma/client';
+import { Prisma, type ResearchOutputType } from '@prisma/client';
 import {
   DEFAULT_SCHOLAR_BIND_MAX_PER_DAY,
   SCHOLAR_AUTHOR_DETAIL_CAP,
@@ -243,7 +243,8 @@ const SCHOLAR_AUTHOR_DETAIL_MAX_CONSECUTIVE_FAILURES = 2;
 
 /**
  * ScrapingBee errors that no further page this sync can get past: the plan is
- * out of credits, the key is rejected, or the transport is unconfigured. Matched
+ * out of credits, the key is rejected, the transport is unconfigured, or the
+ * service is down even after the transport's retry. Matched
  * by `name` — the classes live in the transport module, which this package does
  * not import (see the header on `fetchPage`).
  */
@@ -251,6 +252,10 @@ const SCRAPINGBEE_STOP_ERRORS = new Set([
   'ScrapingBeeQuotaError',
   'ScrapingBeeAuthError',
   'ScrapingBeeConfigError',
+  // An outage that survived the transport's own retry. Not the paper's fault,
+  // so it must not charge an attempt — three outages would otherwise abandon a
+  // paper whose detail page was never actually read.
+  'ScrapingBeeTransientError',
 ]);
 
 /**
@@ -1195,7 +1200,7 @@ interface AuthorDetailOutcome {
  * fetched again). Each failure — a wall with no Authors field, a thrown error,
  * or a detail page that is itself shortened — is recorded on the row. Two
  * consecutive failures end the phase for this sync, and a ScrapingBee quota,
- * auth or config error ends it at once. None of this fails the run: the papers
+ * auth, config or outage error ends it at once with no attempt charged. None of this fails the run: the papers
  * were already imported by the merge; this phase only improves them.
  */
 async function completeShortenedAuthorLists(input: {
@@ -1212,13 +1217,26 @@ async function completeShortenedAuthorLists(input: {
   } as const;
   const shortened = { path: ['complete'], equals: false };
   const candidates = await prisma.researchOutput.findMany({
-    where: { ...scope, scholarAuthors: shortened },
+    where: {
+      ...scope,
+      scholarAuthors: shortened,
+      // Abandoned rows are left out here, not only in memory below, so they
+      // cannot fill the bounded candidate window and starve rows still worth
+      // a try. An OR rather than a NOT: on Postgres a NOT over a JSON path the
+      // row does not have evaluates to NULL and would drop every row that was
+      // never attempted (measured on dev: 3 shortened rows -> 0).
+      OR: [
+        { scholarAuthors: { path: ['detailAttempts'], equals: Prisma.AnyNull } },
+        { scholarAuthors: { path: ['detailAttempts'], lt: SCHOLAR_AUTHOR_DETAIL_MAX_ATTEMPTS } },
+      ],
+    },
     select: { id: true, scholarPaperId: true, year: true, scholarAuthors: true },
     orderBy: [{ year: 'desc' }, { id: 'asc' }],
     take: SCHOLAR_AUTHOR_DETAIL_CANDIDATES,
   });
   const batch = candidates
     .map((row) => ({ row, attempts: detailAttemptsOf(row.scholarAuthors) }))
+    // Second guard: the query already excludes abandoned rows.
     .filter((c) => c.attempts < SCHOLAR_AUTHOR_DETAIL_MAX_ATTEMPTS)
     .sort(
       (a, b) =>
