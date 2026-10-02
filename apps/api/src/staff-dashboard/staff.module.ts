@@ -6,6 +6,7 @@ import { StaffEvaluationsController } from './staff-evaluations.controller';
 import { StaffEvaluationsService } from './staff-evaluations.service';
 import { TeachingTalentController } from './teaching-talent.controller';
 import { TeachingTalentService } from './teaching-talent.service';
+import { GrantsService } from './grants.service';
 import { CacheService } from '../common/cache.service';
 import { DataSourcesModule } from '../data-sources/data-sources.module';
 
@@ -17,6 +18,7 @@ import { DataSourcesModule } from '../data-sources/data-sources.module';
     TeachingWorkloadService,
     StaffEvaluationsService,
     TeachingTalentService,
+    GrantsService,
     CacheService,
   ],
   // Exported so AnalystModule can inject these services for the

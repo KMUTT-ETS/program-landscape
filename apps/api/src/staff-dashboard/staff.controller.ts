@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
 import type { SessionUser } from '@kku/shared';
 import { prisma } from '@kku/db';
@@ -13,6 +13,7 @@ import {
   resolveOfferingScope,
 } from '../common';
 import { StaffService } from './staff.service';
+import { GrantsService } from './grants.service';
 import {
   TeachingWorkloadService,
   type TeachingWorkloadFilter,
@@ -24,6 +25,7 @@ const STAFF_REFRESH_SLUGS = [
   'unicon-ds2003',
   'unicon-ds2004',
   'kku-hr-processed',
+  'kku-research-services',
 ] as const;
 type StaffSlug = (typeof STAFF_REFRESH_SLUGS)[number];
 
@@ -82,6 +84,28 @@ const yearValidator = z
     message: 'year must be an integer between 1900 and 2100',
   });
 
+const GrantTypeArray = z
+  .union([z.string(), z.array(z.string())])
+  .optional()
+  .transform((v): Array<'RESEARCH' | 'ACADEMIC_SERVICE' | 'CONSULTING' | 'OTHER'> => {
+    const arr = v === undefined ? [] : Array.isArray(v) ? v : [v];
+    return arr.filter((x): x is 'RESEARCH' | 'ACADEMIC_SERVICE' | 'CONSULTING' | 'OTHER' =>
+      ['RESEARCH', 'ACADEMIC_SERVICE', 'CONSULTING', 'OTHER'].includes(x));
+  });
+
+const beYear = z.coerce.number().int().min(2500).max(2700).optional();
+
+const GrantsFilterSchema = z.object({
+  facultyName: StringArray,
+  yearFrom: beYear,
+  yearTo: beYear,
+  type: GrantTypeArray,
+  funder: StringArray,
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(10).max(200).default(50),
+  sort: z.enum(['year', 'budget', 'title']).default('year'),
+});
+
 const ResearchFilterSchema = z.object({
   facultyName: StringArray,
   sources: StringArray,
@@ -106,6 +130,7 @@ export class StaffController {
     private readonly staff: StaffService,
     private readonly queue: IngestionQueueService,
     private readonly teaching: TeachingWorkloadService,
+    private readonly grants: GrantsService,
   ) {}
 
   @Get('filter-options')
@@ -217,6 +242,27 @@ export class StaffController {
     if (clamped === null)
       return this.staff.researchOutput({ ...q, facultyName: ['__none__'] });
     return this.staff.researchOutput(clamped);
+  }
+
+  @Get('grants')
+  @Authorized('institution:read:dashboard')
+  async grantsDashboard(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(GrantsFilterSchema)) q: z.infer<typeof GrantsFilterSchema>,
+  ) {
+    await assertCanSeeFacultyDashboards(user);
+    const clamped = await clampFacultyNameFilter(q, user);
+    return this.grants.dashboard(clamped ?? { ...q, facultyName: ['__none__'] });
+  }
+
+  @Get('grants/:id')
+  @Authorized('institution:read:dashboard')
+  async grantDetail(@AuthSession() user: SessionUser, @Param('id') id: string) {
+    await assertCanSeeFacultyDashboards(user);
+    const clamped = await clampFacultyNameFilter({ facultyName: [] as string[] }, user);
+    // all-scope → clamp returns the filter unchanged (empty) → no restriction.
+    const names = clamped === null ? ['__none__'] : clamped.facultyName.length > 0 ? clamped.facultyName : null;
+    return this.grants.detail(id, names);
   }
 
   @Get('compensation')
