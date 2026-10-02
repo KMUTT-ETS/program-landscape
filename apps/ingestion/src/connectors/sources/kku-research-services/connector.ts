@@ -69,10 +69,10 @@ export class KkuResearchServicesRealConnector extends ApiConnector implements Co
   async fetch(ctx: ConnectorContext): Promise<RawRecord[]> {
     const cfg = configFromEnv(ENV_PREFIX);
     const { rawProjects, rawCos } = await withConnection(cfg, async (conn) => {
-      // insert_date / accept_date are TIMESTAMP columns, which MySQL renders in
-      // the SESSION time zone. transforms.parseBangkokDateTime reads them as
-      // +07:00, so pin the session to Bangkok rather than trusting the server
-      // default. (DATETIME columns are unaffected.)
+      // insert_date is a TIMESTAMP column, which MySQL renders in the SESSION
+      // time zone; transforms.parseBangkokDateTime reads it as +07:00, so pin
+      // the session to Bangkok rather than trusting the server default.
+      // accept_date is DATETIME and is unaffected by this setting.
       await conn.query("SET time_zone = '+07:00'");
       return {
         rawProjects: await query(conn, PROJECTS_SQL),
@@ -124,61 +124,67 @@ export class KkuResearchServicesRealConnector extends ApiConnector implements Co
 
   async load(ctx: ConnectorContext, _normalized: NormalizedRecord[]): Promise<LoadResult> {
     if (!this.fetched) throw new Error('fetch() must run before load()');
-    const f = this.fetched;
-    const { projects, cos } = f;
+    // The instance lives for the worker's lifetime: drop the fetched rows once
+    // this run is done so they are not held between runs or seen by a later one.
+    try {
+      const f = this.fetched;
+      const { projects, cos } = f;
 
-    const current = await prisma.researchServiceProject.count();
-    const refusal = shrinkGuardMessage(projects.length, current);
-    if (refusal) throw new NonRetryableError('SNAPSHOT_SHRANK', refusal);
+      const current = await prisma.researchServiceProject.count();
+      const refusal = shrinkGuardMessage(projects.length, current);
+      if (refusal) throw new NonRetryableError('SNAPSHOT_SHRANK', refusal);
 
-    const plan = planSnapshot(projects, cos, await buildIdentityIndex(projects, cos));
+      const plan = planSnapshot(projects, cos, await buildIdentityIndex(projects, cos));
 
-    await prisma.$transaction(
-      async (tx) => {
-        await tx.researchServiceProjectMember.deleteMany({});
-        await tx.researchServiceProject.deleteMany({});
-        for (let i = 0; i < plan.projects.length; i += CHUNK) {
-          await tx.researchServiceProject.createMany({
-            data: plan.projects.slice(i, i + CHUNK).map((p) => ({ ...p, ingestionRunId: ctx.runId })),
-          });
-        }
-        for (let i = 0; i < plan.members.length; i += CHUNK) {
-          await tx.researchServiceProjectMember.createMany({
-            data: plan.members.slice(i, i + CHUNK).map((m) => ({ ...m, ingestionRunId: ctx.runId })),
-          });
-        }
-      },
-      { timeout: 120_000, maxWait: 10_000 },
-    );
+      await prisma.$transaction(
+        async (tx) => {
+          await tx.researchServiceProjectMember.deleteMany({});
+          await tx.researchServiceProject.deleteMany({});
+          for (let i = 0; i < plan.projects.length; i += CHUNK) {
+            await tx.researchServiceProject.createMany({
+              data: plan.projects.slice(i, i + CHUNK).map((p) => ({ ...p, ingestionRunId: ctx.runId })),
+            });
+          }
+          for (let i = 0; i < plan.members.length; i += CHUNK) {
+            await tx.researchServiceProjectMember.createMany({
+              data: plan.members.slice(i, i + CHUNK).map((m) => ({ ...m, ingestionRunId: ctx.runId })),
+            });
+          }
+        },
+        { timeout: 120_000, maxWait: 10_000 },
+      );
 
-    const s = plan.stats;
-    return {
-      recordsFetched: f.projectRowsFetched + f.coRowsFetched,
-      recordsLoaded: plan.projects.length + plan.members.length,
-      recordsFailed: f.invalidProjects + f.invalidCoRows,
-      metadata: {
-        projectsFetched: f.projectRowsFetched,
-        coRowsFetched: f.coRowsFetched,
-        invalidProjects: f.invalidProjects,
-        invalidCoRows: f.invalidCoRows,
-        invalidProjectSamples: f.invalidProjectSamples,
-        invalidCoSamples: f.invalidCoSamples,
-        membersLoaded: plan.members.length,
-        projectsWithMatchedLead: s.projectsWithMatchedLead,
-        // Per-person rates, comparable to the spec's measured match rates.
-        leadPeople: s.leadPeople,
-        leadPeopleMatched: s.leadPeopleMatched,
-        leadMatchRate: s.leadPeople ? s.leadPeopleMatched / s.leadPeople : null,
-        coSixDigit: s.coSixDigit,
-        coMatched: s.coMatched,
-        coPeopleSixDigit: s.coPeopleSixDigit,
-        coPeopleMatched: s.coPeopleMatched,
-        coMatchRate: s.coPeopleSixDigit ? s.coPeopleMatched / s.coPeopleSixDigit : null,
-        coOtherIds: s.coOtherIds,
-        coOrphansNotInView: s.coOrphans,
-        unmatchedUnitSamples: s.unmatchedUnitSamples,
-      },
-    };
+      const s = plan.stats;
+      return {
+        recordsFetched: f.projectRowsFetched + f.coRowsFetched,
+        recordsLoaded: plan.projects.length + plan.members.length,
+        recordsFailed: f.invalidProjects + f.invalidCoRows,
+        metadata: {
+          projectsFetched: f.projectRowsFetched,
+          coRowsFetched: f.coRowsFetched,
+          invalidProjects: f.invalidProjects,
+          invalidCoRows: f.invalidCoRows,
+          invalidProjectSamples: f.invalidProjectSamples,
+          invalidCoSamples: f.invalidCoSamples,
+          membersLoaded: plan.members.length,
+          projectsWithMatchedLead: s.projectsWithMatchedLead,
+          // Per-person rates, comparable to the spec's measured match rates.
+          leadPeople: s.leadPeople,
+          leadPeopleMatched: s.leadPeopleMatched,
+          leadMatchRate: s.leadPeople ? s.leadPeopleMatched / s.leadPeople : null,
+          coSixDigit: s.coSixDigit,
+          coMatched: s.coMatched,
+          coPeopleSixDigit: s.coPeopleSixDigit,
+          coPeopleMatched: s.coPeopleMatched,
+          coMatchRate: s.coPeopleSixDigit ? s.coPeopleMatched / s.coPeopleSixDigit : null,
+          coOtherIds: s.coOtherIds,
+          coOrphansNotInView: s.coOrphans,
+          unmatchedUnitSamples: s.unmatchedUnitSamples,
+        },
+      };
+    } finally {
+      this.fetched = null;
+    }
   }
 }
 

@@ -196,7 +196,11 @@ export interface SnapshotStats {
   projects: number;
   /** Projects whose lead resolved to a faculty member (a per-project count). */
   projectsWithMatchedLead: number;
-  /** Distinct lead identities (citizen hash, else email); leads with neither are not counted. */
+  /**
+   * Distinct lead identities (citizen hash, else email); leads with neither are not counted.
+   * A lead identified by hash on one project and only by email on another counts twice, so
+   * this can slightly overstate distinct people (leadPeopleMatched dedupes by staff id).
+   */
   leadPeople: number;
   /** Distinct faculty members resolved as a lead. */
   leadPeopleMatched: number;
