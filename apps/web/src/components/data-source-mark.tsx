@@ -51,6 +51,7 @@ export function acknowledgementHref(source: DataSourceMarkSlug): string {
 /** Driver labels in the health score whose value is computed from a marked source. */
 export const DRIVER_SOURCE_MARK: Record<string, DataSourceMarkSlug> = {
   jobthai_demand_alignment: 'jobthai',
+  external_grant_engagement: 'kku-research-services',
 };
 
 /** The mark for a health-score driver, or nothing when the driver has no marked source. */

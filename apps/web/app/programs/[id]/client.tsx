@@ -46,6 +46,7 @@ import {
 // thing by a floor of 60 — see the helper for why it is not 0.
 import { dqRadarDomain } from '@/lib/dq-radar-domain';
 import { DataSourceMark, DriverSourceMark, acknowledgementHref } from '@/components/data-source-mark';
+import { grantDriverNullNote } from '@/lib/grant-driver-note';
 import ReactMarkdown from 'react-markdown';
 import type {
   DeepDiveAiPeers,
@@ -4876,6 +4877,7 @@ const DRIVER_LABEL_LOOKUP: Record<string, string> = {
   publications_per_faculty: 'Publications per faculty (3 yr)',
   retirement_horizon_5y: '5-yr retirement headroom',
   student_faculty_ratio: 'Student / faculty ratio',
+  external_grant_engagement: 'External grant engagement (3 FY)',
   // Outcomes
   tcas_min_score_percentile: 'TCAS min-score percentile',
   employment_rate: 'Graduate employment rate',
@@ -4983,6 +4985,9 @@ function HealthScoreBreakdown({
                           {d.value === null ? 'no data' : Math.round(d.value)}
                         </span>
                       </div>
+                      {d.value === null && grantDriverNullNote(d.raw) && (
+                        <p className="mt-0.5 text-xs text-text-tertiary">{grantDriverNullNote(d.raw)}</p>
+                      )}
                       {d.raw !== undefined && d.raw !== null && (
                         <RawPayload raw={d.raw} />
                       )}
