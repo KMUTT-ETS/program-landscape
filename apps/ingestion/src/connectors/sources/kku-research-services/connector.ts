@@ -94,7 +94,10 @@ export class KkuResearchServicesRealConnector extends ApiConnector implements Co
       );
     }
     if (projects.valid.length === 0) {
-      throw new NonRetryableError('EMPTY_DATA', 'project view returned 0 valid rows — refusing to wipe the snapshot');
+      throw new NonRetryableError(
+        'EMPTY_DATA',
+        'project view returned 0 valid rows — refusing to wipe the snapshot',
+      );
     }
     if (projects.invalidCount + cos.invalidCount > 0) {
       ctx.log.warn(
@@ -111,14 +114,21 @@ export class KkuResearchServicesRealConnector extends ApiConnector implements Co
       invalidProjectSamples: projects.invalidSamples,
       invalidCoSamples: cos.invalidSamples,
     };
-    ctx.log.info(`fetched ${projects.valid.length} projects, ${cos.valid.length} co-investigator rows`);
+    ctx.log.info(
+      `fetched ${projects.valid.length} projects, ${cos.valid.length} co-investigator rows`,
+    );
     // One synthetic record: the snapshot is planned and loaded as a whole in load().
     return [{ externalId: 'snapshot', data: {}, sourceTimestamp: new Date() }];
   }
 
   async transform(_ctx: ConnectorContext, raw: RawRecord): Promise<NormalizedRecord[]> {
     return [
-      { target: 'research_service_snapshot', externalId: raw.externalId, payload: {}, freshnessDate: raw.sourceTimestamp },
+      {
+        target: 'research_service_snapshot',
+        externalId: raw.externalId,
+        payload: {},
+        freshnessDate: raw.sourceTimestamp,
+      },
     ];
   }
 
@@ -142,12 +152,16 @@ export class KkuResearchServicesRealConnector extends ApiConnector implements Co
           await tx.researchServiceProject.deleteMany({});
           for (let i = 0; i < plan.projects.length; i += CHUNK) {
             await tx.researchServiceProject.createMany({
-              data: plan.projects.slice(i, i + CHUNK).map((p) => ({ ...p, ingestionRunId: ctx.runId })),
+              data: plan.projects
+                .slice(i, i + CHUNK)
+                .map((p) => ({ ...p, ingestionRunId: ctx.runId })),
             });
           }
           for (let i = 0; i < plan.members.length; i += CHUNK) {
             await tx.researchServiceProjectMember.createMany({
-              data: plan.members.slice(i, i + CHUNK).map((m) => ({ ...m, ingestionRunId: ctx.runId })),
+              data: plan.members
+                .slice(i, i + CHUNK)
+                .map((m) => ({ ...m, ingestionRunId: ctx.runId })),
             });
           }
         },
@@ -190,13 +204,26 @@ export class KkuResearchServicesRealConnector extends ApiConnector implements Co
 
 /** Batch lookups only — never one query per row. */
 async function buildIdentityIndex(projects: ProjectRow[], cos: CoRow[]): Promise<IdentityIndex> {
-  const hashes = [...new Set(projects.map((p) => p.head_citizen_hash).filter((h): h is string => !!h))];
+  const hashes = [
+    ...new Set(projects.map((p) => p.head_citizen_hash).filter((h): h is string => !!h)),
+  ];
   const emails = [...new Set(projects.map((p) => p.lead_email).filter((e): e is string => !!e))];
-  const empIds = [...new Set(cos.map((c) => c.kku_id?.trim() ?? '').filter((k) => /^\d{6}$/.test(k)))];
-  const sel = { id: true, facultyId: true, citizenIdHash: true, kkuEmail: true, employeeId: true } as const;
+  const empIds = [
+    ...new Set(cos.map((c) => c.kku_id?.trim() ?? '').filter((k) => /^\d{6}$/.test(k))),
+  ];
+  const sel = {
+    id: true,
+    facultyId: true,
+    citizenIdHash: true,
+    kkuEmail: true,
+    employeeId: true,
+  } as const;
   const [byHash, byEmail, byEmp, faculties] = await Promise.all([
     prisma.facultyMember.findMany({ where: { citizenIdHash: { in: hashes } }, select: sel }),
-    prisma.facultyMember.findMany({ where: { kkuEmail: { in: emails, mode: 'insensitive' } }, select: sel }),
+    prisma.facultyMember.findMany({
+      where: { kkuEmail: { in: emails, mode: 'insensitive' } },
+      select: sel,
+    }),
     // Prefer an active record when an employee id appears on more than one row.
     prisma.facultyMember.findMany({
       where: { employeeId: { in: empIds } },
@@ -205,7 +232,10 @@ async function buildIdentityIndex(projects: ProjectRow[], cos: CoRow[]): Promise
     }),
     prisma.faculty.findMany({ select: { id: true, nameTh: true } }),
   ]);
-  const ref = (m: { id: string; facultyId: string | null }): StaffRef => ({ id: m.id, facultyId: m.facultyId });
+  const ref = (m: { id: string; facultyId: string | null }): StaffRef => ({
+    id: m.id,
+    facultyId: m.facultyId,
+  });
   const idx: IdentityIndex = {
     byCitizenHash: new Map(),
     byEmail: new Map(),
@@ -215,6 +245,8 @@ async function buildIdentityIndex(projects: ProjectRow[], cos: CoRow[]): Promise
   };
   for (const m of byHash) if (m.citizenIdHash) idx.byCitizenHash.set(m.citizenIdHash, ref(m));
   for (const m of byEmail) if (m.kkuEmail) idx.byEmail.set(m.kkuEmail.toLowerCase(), ref(m));
-  for (const m of byEmp) if (m.employeeId && !idx.byEmployeeId.has(m.employeeId)) idx.byEmployeeId.set(m.employeeId, ref(m));
+  for (const m of byEmp)
+    if (m.employeeId && !idx.byEmployeeId.has(m.employeeId))
+      idx.byEmployeeId.set(m.employeeId, ref(m));
   return idx;
 }

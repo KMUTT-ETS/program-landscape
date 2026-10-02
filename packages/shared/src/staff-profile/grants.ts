@@ -59,7 +59,12 @@ export function summariseStaffGrants(
       a.sourceProposalId - b.sourceProposalId,
   );
   const day = bangkokDay(today);
-  const byType: Record<GrantProjectType, number> = { RESEARCH: 0, ACADEMIC_SERVICE: 0, CONSULTING: 0, OTHER: 0 };
+  const byType: Record<GrantProjectType, number> = {
+    RESEARCH: 0,
+    ACADEMIC_SERVICE: 0,
+    CONSULTING: 0,
+    OTHER: 0,
+  };
   let led = 0;
   let active = 0;
   for (const p of projects) {

@@ -41,16 +41,26 @@ const project = (over: Partial<ProjectRow> = {}): ProjectRow => ({
   ...over,
 });
 const co = (over: Partial<CoRow> = {}): CoRow => ({
-  co_id: 1, proposal_id: 'a'.repeat(32), fullname: 'นาง ข', kku_id: '123456', dept: null, ...over,
+  co_id: 1,
+  proposal_id: 'a'.repeat(32),
+  fullname: 'นาง ข',
+  kku_id: '123456',
+  dept: null,
+  ...over,
 });
 const emptyIndex = (): IdentityIndex => ({
-  byCitizenHash: new Map(), byEmail: new Map(), byEmployeeId: new Map(),
-  facultyIdByName: new Map(), facultyNameById: new Map(),
+  byCitizenHash: new Map(),
+  byEmail: new Map(),
+  byEmployeeId: new Map(),
+  facultyIdByName: new Map(),
+  facultyNameById: new Map(),
 });
 
 describe('SQL contract', () => {
   it('hashes the citizen id inside MySQL and never selects it raw', () => {
-    expect(PROJECTS_SQL).toContain("SHA2(REPLACE(REPLACE(TRIM(head_citizen), '-', ''), ' ', ''), 256)");
+    expect(PROJECTS_SQL).toContain(
+      "SHA2(REPLACE(REPLACE(TRIM(head_citizen), '-', ''), ' ', ''), 256)",
+    );
     expect(PROJECTS_SQL).not.toMatch(/head_citizen\s*,/);
     expect(PROJECTS_SQL).not.toMatch(/SELECT\s+\*/i);
     expect(CO_INVESTIGATORS_SQL).not.toMatch(/SELECT\s+\*/i);
@@ -58,7 +68,9 @@ describe('SQL contract', () => {
 
   it('the SQL hash equals hashCitizenId for digit ids with dashes or spaces', () => {
     const raw = '1-2345-67890-12-3';
-    const sqlEquivalent = createHash('sha256').update(raw.replace(/-/g, '').replace(/ /g, '')).digest('hex');
+    const sqlEquivalent = createHash('sha256')
+      .update(raw.replace(/-/g, '').replace(/ /g, ''))
+      .digest('hex');
     expect(sqlEquivalent).toBe(hashCitizenId(raw));
   });
 });
@@ -74,7 +86,9 @@ describe('mapProjectType', () => {
 
 describe('parseBangkokDateTime', () => {
   it('reads MySQL datetimes as Bangkok local time', () => {
-    expect(parseBangkokDateTime('2025-10-01 00:00:00')?.toISOString()).toBe('2025-09-30T17:00:00.000Z');
+    expect(parseBangkokDateTime('2025-10-01 00:00:00')?.toISOString()).toBe(
+      '2025-09-30T17:00:00.000Z',
+    );
     expect(parseBangkokDateTime(null)).toBeNull();
     expect(parseBangkokDateTime('0000-00-00 00:00:00')).toBeNull();
   });
@@ -85,9 +99,18 @@ describe('planSnapshot', () => {
     const plan = planSnapshot([project()], [], emptyIndex());
     const p = plan.projects[0]!;
     expect(p).toMatchObject({
-      id: 'rsp-101', sourceProposalId: 101, titleTh: 'โครงการทดสอบ', titleEn: null, type: 'RESEARCH',
-      typeRaw: 'งานวิจัย', fiscalYearBe: 2568, budgetThb: 500000n, funderName: 'วช.',
-      workflowStatus: 'RAD ตรวจสอบแล้ว', leadUnitName: 'คณะวิศวกรรมศาสตร์', leadFacultyName: 'คณะวิศวกรรมศาสตร์',
+      id: 'rsp-101',
+      sourceProposalId: 101,
+      titleTh: 'โครงการทดสอบ',
+      titleEn: null,
+      type: 'RESEARCH',
+      typeRaw: 'งานวิจัย',
+      fiscalYearBe: 2568,
+      budgetThb: 500000n,
+      funderName: 'วช.',
+      workflowStatus: 'RAD ตรวจสอบแล้ว',
+      leadUnitName: 'คณะวิศวกรรมศาสตร์',
+      leadFacultyName: 'คณะวิศวกรรมศาสตร์',
     });
   });
 
@@ -122,7 +145,11 @@ describe('planSnapshot', () => {
   it('matches 6-digit co-investigator ids to employee ids and keeps junk ids unmatched', () => {
     const idx = emptyIndex();
     idx.byEmployeeId.set('123456', { id: 'fm-co', facultyId: null });
-    const plan = planSnapshot([project()], [co(), co({ co_id: 2, kku_id: '0' }), co({ co_id: 3, kku_id: null })], idx);
+    const plan = planSnapshot(
+      [project()],
+      [co(), co({ co_id: 2, kku_id: '0' }), co({ co_id: 3, kku_id: null })],
+      idx,
+    );
     const cos = plan.members.filter((m) => m.role === 'CO_INVESTIGATOR');
     expect(cos).toHaveLength(3);
     expect(cos.map((m) => m.facultyMemberId)).toEqual(['fm-co', null, null]);
@@ -149,8 +176,18 @@ describe('per-person match stats', () => {
     const rows = [
       project(),
       project({ proposal_id: 102, proposal_id_md5: 'c'.repeat(32) }),
-      project({ proposal_id: 103, proposal_id_md5: 'd'.repeat(32), head_citizen_hash: null, lead_email: 'x@kku.ac.th' }),
-      project({ proposal_id: 104, proposal_id_md5: 'e'.repeat(32), head_citizen_hash: null, lead_email: null }),
+      project({
+        proposal_id: 103,
+        proposal_id_md5: 'd'.repeat(32),
+        head_citizen_hash: null,
+        lead_email: 'x@kku.ac.th',
+      }),
+      project({
+        proposal_id: 104,
+        proposal_id_md5: 'e'.repeat(32),
+        head_citizen_hash: null,
+        lead_email: null,
+      }),
     ];
     const s = planSnapshot(rows, [], idx).stats;
     expect(s.projectsWithMatchedLead).toBe(2);
@@ -189,7 +226,11 @@ describe('partitionRows', () => {
   });
 
   it('caps samples at 20 and never samples a non-identifier value', () => {
-    const rows = Array.from({ length: 30 }, (_, i) => ({ co_id: i, proposal_id: null, fullname: 'secret' }));
+    const rows = Array.from({ length: 30 }, (_, i) => ({
+      co_id: i,
+      proposal_id: null,
+      fullname: 'secret',
+    }));
     const r = partitionRows(rows, CoRowSchema, 'co_id');
     expect(r.invalidCount).toBe(30);
     expect(r.invalidSamples).toHaveLength(20);

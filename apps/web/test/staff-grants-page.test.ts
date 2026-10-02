@@ -21,6 +21,7 @@ describe('staff grants dashboard', () => {
     expect((src.match(/<ProvenanceButton/g) ?? []).length).toBeGreaterThanOrEqual(4);
     expect(src).toContain('<FreshnessBadge');
     expect(src).toContain('<DataSourceMark source="kku-research-services"');
-    expect(src).toContain('add up to more than the KKU total');
+    // Prettier may wrap the sentence across lines; compare with whitespace collapsed.
+    expect(src.replace(/\s+/g, ' ')).toContain('add up to more than the KKU total');
   });
 });

@@ -21,7 +21,10 @@ const TODAY = new Date('2026-10-02T05:00:00Z');
 describe('summariseStaffGrants', () => {
   it('counts led and co-investigator projects and types', () => {
     const s = summariseStaffGrants(
-      [e({ sourceProposalId: 1 }), e({ sourceProposalId: 2, role: 'CO_INVESTIGATOR', type: 'ACADEMIC_SERVICE' })],
+      [
+        e({ sourceProposalId: 1 }),
+        e({ sourceProposalId: 2, role: 'CO_INVESTIGATOR', type: 'ACADEMIC_SERVICE' }),
+      ],
       TODAY,
       null,
     );
@@ -32,7 +35,10 @@ describe('summariseStaffGrants', () => {
 
   it('keeps one entry per project, preferring LEAD when a person is listed twice', () => {
     const s = summariseStaffGrants(
-      [e({ sourceProposalId: 7, role: 'CO_INVESTIGATOR' }), e({ sourceProposalId: 7, role: 'LEAD' })],
+      [
+        e({ sourceProposalId: 7, role: 'CO_INVESTIGATOR' }),
+        e({ sourceProposalId: 7, role: 'LEAD' }),
+      ],
       TODAY,
       null,
     );
@@ -80,7 +86,10 @@ describe('summariseStaffGrants', () => {
 
   it('keeps LEAD when LEAD is seen first and CO_INVESTIGATOR follows', () => {
     const s = summariseStaffGrants(
-      [e({ sourceProposalId: 7, role: 'LEAD' }), e({ sourceProposalId: 7, role: 'CO_INVESTIGATOR' })],
+      [
+        e({ sourceProposalId: 7, role: 'LEAD' }),
+        e({ sourceProposalId: 7, role: 'CO_INVESTIGATOR' }),
+      ],
       TODAY,
       null,
     );

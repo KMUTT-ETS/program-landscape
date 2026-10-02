@@ -8,7 +8,10 @@ import {
 import { ApiError, type ApiMeta } from '@kku/shared';
 import { CacheService } from '../common/cache.service';
 
-const SOURCE = { id: 'kku-research-services', name: 'KKU Research & Academic Services (external grants)' };
+const SOURCE = {
+  id: 'kku-research-services',
+  name: 'KKU Research & Academic Services (external grants)',
+};
 const CAVEATS = [
   'Faculty figures count a project for every faculty with a team member on it, so they add up to more than the KKU total.',
   'Budget is the whole project budget. It is not split between team members or faculties.',
@@ -31,7 +34,9 @@ export function detailScopeNames(clamped: { facultyName: string[] } | null): str
 export class GrantsService {
   constructor(@Optional() private readonly cache?: CacheService) {}
 
-  async dashboard(f: GrantsFilter): Promise<{ data: Awaited<ReturnType<typeof getGrantsDashboard>>; meta: ApiMeta }> {
+  async dashboard(
+    f: GrantsFilter,
+  ): Promise<{ data: Awaited<ReturnType<typeof getGrantsDashboard>>; meta: ApiMeta }> {
     const fresh = await grantsFreshness();
     // The run id is in the key, so the next daily sync invalidates every entry.
     // keyOf sorts keys but not array contents, so sort the list filters here:
@@ -53,16 +58,26 @@ export class GrantsService {
       sources: [SOURCE],
       caveats: CAVEATS,
       methodologyParameters: [
-        { label: 'Staff matched to HR records', value: `${membersMatched} of ${membersTotal} team members (${pct}%)` },
+        {
+          label: 'Staff matched to HR records',
+          value: `${membersMatched} of ${membersTotal} team members (${pct}%)`,
+        },
       ],
     };
     return { data, meta };
   }
 
   async detail(id: string, facultyNames: string[] | null) {
-    const [d, fresh] = await Promise.all([getGrantProjectDetail(id, facultyNames), grantsFreshness()]);
+    const [d, fresh] = await Promise.all([
+      getGrantProjectDetail(id, facultyNames),
+      grantsFreshness(),
+    ]);
     if (!d) throw new ApiError('NOT_FOUND', 'Project not found');
-    const meta: ApiMeta = { freshnessDate: fresh?.completedAt.toISOString() ?? null, sources: [SOURCE], caveats: CAVEATS };
+    const meta: ApiMeta = {
+      freshnessDate: fresh?.completedAt.toISOString() ?? null,
+      sources: [SOURCE],
+      caveats: CAVEATS,
+    };
     return { data: d, meta };
   }
 }

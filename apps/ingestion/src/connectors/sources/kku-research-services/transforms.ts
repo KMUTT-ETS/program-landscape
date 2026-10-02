@@ -45,7 +45,10 @@ export const ProjectRowSchema = z.object({
   proposal_status2: z.string(),
   proposal_dept: z.string(),
   proposal_head: nullableText,
-  head_citizen_hash: z.string().regex(/^[0-9a-f]{64}$/).nullable(),
+  head_citizen_hash: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/)
+    .nullable(),
   lead_email: nullableText,
   acro: nullableText,
   pmu_okr: nullableText,
@@ -98,7 +101,10 @@ export function partitionRows<T>(
     }
     invalidCount += 1;
     if (invalidSamples.length < MAX_INVALID_SAMPLES) {
-      const raw = row !== null && typeof row === 'object' ? (row as Record<string, unknown>)[idKey] : undefined;
+      const raw =
+        row !== null && typeof row === 'object'
+          ? (row as Record<string, unknown>)[idKey]
+          : undefined;
       const id = typeof raw === 'string' || typeof raw === 'number' ? raw : null;
       invalidSamples.push({ id, path: parsed.error.issues[0]?.path.join('.') ?? '' });
     }
@@ -232,7 +238,10 @@ export function planSnapshot(
   const unmatchedUnits = new Set<string>();
   const resolveFaculty = (staff: StaffRef | undefined, unitName: string | null) => {
     if (staff?.facultyId) {
-      return { facultyId: staff.facultyId, facultyName: idx.facultyNameById.get(staff.facultyId) ?? unitName };
+      return {
+        facultyId: staff.facultyId,
+        facultyName: idx.facultyNameById.get(staff.facultyId) ?? unitName,
+      };
     }
     if (!unitName) return { facultyId: null, facultyName: null };
     const id = idx.facultyIdByName.get(unitName) ?? null;

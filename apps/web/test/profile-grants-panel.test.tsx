@@ -8,11 +8,25 @@ import type { StaffGrantsSummary } from '@kku/shared';
 import { GrantsPanel, type GrantsPanelState } from '../app/profile/grants-panel';
 
 const summary = (over: Partial<StaffGrantsSummary> = {}): StaffGrantsSummary => ({
-  led: 1, coInvestigator: 1, active: 1,
+  led: 1,
+  coInvestigator: 1,
+  active: 1,
   byType: { RESEARCH: 1, ACADEMIC_SERVICE: 1, CONSULTING: 0, OTHER: 0 },
   projects: [
-    { sourceProposalId: 1, titleTh: 'โครงการหนึ่ง', titleEn: 'Project one', type: 'RESEARCH', role: 'LEAD', fiscalYearBe: 2569,
-      startDate: '2025-10-01', endDate: '2026-09-30', funderName: 'วช.', budgetThb: 1500000, workflowStatus: 'x', teamSize: 3 },
+    {
+      sourceProposalId: 1,
+      titleTh: 'โครงการหนึ่ง',
+      titleEn: 'Project one',
+      type: 'RESEARCH',
+      role: 'LEAD',
+      fiscalYearBe: 2569,
+      startDate: '2025-10-01',
+      endDate: '2026-09-30',
+      funderName: 'วช.',
+      budgetThb: 1500000,
+      workflowStatus: 'x',
+      teamSize: 3,
+    },
   ],
   freshnessDate: '2026-10-02T04:00:00.000Z',
   ...over,
@@ -43,7 +57,9 @@ describe('GrantsPanel', () => {
 
   it('says plainly when the person is not linked, has no projects, or the read failed', () => {
     expect(render('unlinked')).toContain('link you to the grants system');
-    expect(render(summary({ projects: [], led: 0, coInvestigator: 0, active: 0 }))).toContain('No external grants on record');
+    expect(render(summary({ projects: [], led: 0, coInvestigator: 0, active: 0 }))).toContain(
+      'No external grants on record',
+    );
     expect(render('unavailable')).toContain('unavailable');
   });
 });
@@ -64,6 +80,7 @@ describe('GrantsPanel stays owner-only and client-safe', () => {
 
   it('imports only types from @kku/shared', () => {
     const src = read('app', 'profile', 'grants-panel.tsx');
-    for (const m of src.match(/^import[^;]*from '@kku\/shared[^']*';/gm) ?? []) expect(m).toMatch(/^import type\b/);
+    for (const m of src.match(/^import[^;]*from '@kku\/shared[^']*';/gm) ?? [])
+      expect(m).toMatch(/^import type\b/);
   });
 });

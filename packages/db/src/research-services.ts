@@ -66,8 +66,20 @@ export interface GrantsTableRow {
 }
 
 export interface GrantsDashboard {
-  kpis: { projects: number; budgetThb: number; staffInvolved: number; membersTotal: number; membersMatched: number };
-  trend: Array<{ fiscalYearBe: number; RESEARCH: number; ACADEMIC_SERVICE: number; OTHER: number; budgetThb: number }>;
+  kpis: {
+    projects: number;
+    budgetThb: number;
+    staffInvolved: number;
+    membersTotal: number;
+    membersMatched: number;
+  };
+  trend: Array<{
+    fiscalYearBe: number;
+    RESEARCH: number;
+    ACADEMIC_SERVICE: number;
+    OTHER: number;
+    budgetThb: number;
+  }>;
   byFaculty: Array<{ facultyName: string; led: number; coOnly: number; total: number }>;
   topFunders: Array<{ funderName: string | null; projects: number; budgetThb: number }>;
   table: { total: number; page: number; pageSize: number; rows: GrantsTableRow[] };
@@ -75,7 +87,10 @@ export interface GrantsDashboard {
 
 const num = (b: bigint | null): number | null => (b === null ? null : Number(b));
 
-export function aggregateGrants(rows: readonly GrantProjectRow[], f: GrantsFilter): GrantsDashboard {
+export function aggregateGrants(
+  rows: readonly GrantProjectRow[],
+  f: GrantsFilter,
+): GrantsDashboard {
   const facultyFilter = f.facultyName.length > 0 ? new Set(f.facultyName) : null;
   const staff = new Set<string>();
   let membersTotal = 0;
@@ -95,14 +110,22 @@ export function aggregateGrants(rows: readonly GrantProjectRow[], f: GrantsFilte
         staff.add(m.facultyMemberId);
       }
     }
-    const t = trend.get(r.fiscalYearBe) ?? { fiscalYearBe: r.fiscalYearBe, RESEARCH: 0, ACADEMIC_SERVICE: 0, OTHER: 0, budgetThb: 0 };
+    const t = trend.get(r.fiscalYearBe) ?? {
+      fiscalYearBe: r.fiscalYearBe,
+      RESEARCH: 0,
+      ACADEMIC_SERVICE: 0,
+      OTHER: 0,
+      budgetThb: 0,
+    };
     if (r.type === 'RESEARCH') t.RESEARCH += 1;
     else if (r.type === 'ACADEMIC_SERVICE') t.ACADEMIC_SERVICE += 1;
     else t.OTHER += 1;
     t.budgetThb += b;
     trend.set(r.fiscalYearBe, t);
 
-    const participating = new Set(r.members.map((m) => m.facultyName).filter((n): n is string => !!n));
+    const participating = new Set(
+      r.members.map((m) => m.facultyName).filter((n): n is string => !!n),
+    );
     if (r.leadFacultyName) participating.add(r.leadFacultyName);
     for (const name of participating) {
       if (facultyFilter && !facultyFilter.has(name)) continue;
@@ -126,7 +149,13 @@ export function aggregateGrants(rows: readonly GrantProjectRow[], f: GrantsFilte
   const start = (f.page - 1) * f.pageSize;
 
   return {
-    kpis: { projects: rows.length, budgetThb: budget, staffInvolved: staff.size, membersTotal, membersMatched },
+    kpis: {
+      projects: rows.length,
+      budgetThb: budget,
+      staffInvolved: staff.size,
+      membersTotal,
+      membersMatched,
+    },
     trend: [...trend.values()].sort((a, b) => a.fiscalYearBe - b.fiscalYearBe),
     byFaculty: [...fac.entries()]
       .map(([facultyName, v]) => ({ facultyName, ...v, total: v.led + v.coOnly }))
@@ -162,13 +191,25 @@ export function aggregateGrants(rows: readonly GrantProjectRow[], f: GrantsFilte
 }
 
 const PROJECT_SELECT = {
-  id: true, sourceProposalId: true, titleTh: true, titleEn: true, type: true, fiscalYearBe: true,
-  startDate: true, endDate: true, budgetThb: true, funderName: true, workflowStatus: true, leadFacultyName: true,
+  id: true,
+  sourceProposalId: true,
+  titleTh: true,
+  titleEn: true,
+  type: true,
+  fiscalYearBe: true,
+  startDate: true,
+  endDate: true,
+  budgetThb: true,
+  funderName: true,
+  workflowStatus: true,
+  leadFacultyName: true,
   members: { select: { role: true, facultyMemberId: true, displayName: true, facultyName: true } },
 } as const;
 
 /** A project is in a faculty scope when ANY team member is. Shared by the rows and the filter options so they cannot drift. */
-function scopeWhere(facultyName: string[]): { members?: { some: { facultyName: { in: string[] } } } } {
+function scopeWhere(facultyName: string[]): {
+  members?: { some: { facultyName: { in: string[] } } };
+} {
   return facultyName.length > 0 ? { members: { some: { facultyName: { in: facultyName } } } } : {};
 }
 
@@ -198,10 +239,18 @@ export async function grantsFreshness(): Promise<{ runId: string; completedAt: D
 
 export async function getGrantsDashboard(
   f: GrantsFilter,
-): Promise<GrantsDashboard & { options: { yearMin: number | null; yearMax: number | null; funders: string[] } }> {
+): Promise<
+  GrantsDashboard & {
+    options: { yearMin: number | null; yearMax: number | null; funders: string[] };
+  }
+> {
   const [rows, years, funderRows] = await Promise.all([
     loadRows(f),
-    prisma.researchServiceProject.aggregate({ where: { ...realDataWhere(), ...scopeWhere(f.facultyName) }, _min: { fiscalYearBe: true }, _max: { fiscalYearBe: true } }),
+    prisma.researchServiceProject.aggregate({
+      where: { ...realDataWhere(), ...scopeWhere(f.facultyName) },
+      _min: { fiscalYearBe: true },
+      _max: { fiscalYearBe: true },
+    }),
     prisma.researchServiceProject.groupBy({
       by: ['funderName'],
       where: { ...realDataWhere(), ...scopeWhere(f.facultyName), funderName: { not: null } },
@@ -234,7 +283,12 @@ export interface GrantProjectDetail {
   keywords: string | null;
   workflowStatus: string;
   leadFacultyName: string;
-  team: Array<{ role: 'LEAD' | 'CO_INVESTIGATOR'; displayName: string | null; facultyName: string | null; matched: boolean }>;
+  team: Array<{
+    role: 'LEAD' | 'CO_INVESTIGATOR';
+    displayName: string | null;
+    facultyName: string | null;
+    matched: boolean;
+  }>;
 }
 
 /** Null when the project does not exist or no team member is inside `facultyNames` (null = all). */
@@ -249,8 +303,19 @@ export async function getGrantProjectDetail(
       ...(facultyNames ? { members: { some: { facultyName: { in: facultyNames } } } } : {}),
     },
     select: {
-      id: true, titleTh: true, titleEn: true, type: true, typeRaw: true, fiscalYearBe: true, startDate: true,
-      endDate: true, budgetThb: true, funderName: true, keywords: true, workflowStatus: true, leadFacultyName: true,
+      id: true,
+      titleTh: true,
+      titleEn: true,
+      type: true,
+      typeRaw: true,
+      fiscalYearBe: true,
+      startDate: true,
+      endDate: true,
+      budgetThb: true,
+      funderName: true,
+      keywords: true,
+      workflowStatus: true,
+      leadFacultyName: true,
       members: {
         select: { role: true, displayName: true, facultyName: true, facultyMemberId: true },
         orderBy: [{ role: 'asc' }, { displayName: 'asc' }],
@@ -259,10 +324,25 @@ export async function getGrantProjectDetail(
   });
   if (!p) return null;
   return {
-    id: p.id, titleTh: p.titleTh, titleEn: p.titleEn, type: p.type, typeRaw: p.typeRaw, fiscalYearBe: p.fiscalYearBe,
-    startDate: bangkokDay(p.startDate), endDate: bangkokDay(p.endDate), budgetThb: num(p.budgetThb),
-    funderName: p.funderName, keywords: p.keywords, workflowStatus: p.workflowStatus, leadFacultyName: p.leadFacultyName,
-    team: p.members.map((m) => ({ role: m.role, displayName: m.displayName, facultyName: m.facultyName, matched: !!m.facultyMemberId })),
+    id: p.id,
+    titleTh: p.titleTh,
+    titleEn: p.titleEn,
+    type: p.type,
+    typeRaw: p.typeRaw,
+    fiscalYearBe: p.fiscalYearBe,
+    startDate: bangkokDay(p.startDate),
+    endDate: bangkokDay(p.endDate),
+    budgetThb: num(p.budgetThb),
+    funderName: p.funderName,
+    keywords: p.keywords,
+    workflowStatus: p.workflowStatus,
+    leadFacultyName: p.leadFacultyName,
+    team: p.members.map((m) => ({
+      role: m.role,
+      displayName: m.displayName,
+      facultyName: m.facultyName,
+      matched: !!m.facultyMemberId,
+    })),
   };
 }
 
@@ -270,7 +350,10 @@ function bangkokDay(d: Date | null): string | null {
   return d ? new Date(d.getTime() + 7 * 3600_000).toISOString().slice(0, 10) : null;
 }
 
-export function toStaffGrantEntry(r: GrantProjectRow, role: 'LEAD' | 'CO_INVESTIGATOR'): StaffGrantEntry {
+export function toStaffGrantEntry(
+  r: GrantProjectRow,
+  role: 'LEAD' | 'CO_INVESTIGATOR',
+): StaffGrantEntry {
   return {
     sourceProposalId: r.sourceProposalId,
     titleTh: r.titleTh,

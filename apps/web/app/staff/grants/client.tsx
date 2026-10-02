@@ -73,7 +73,9 @@ export function GrantsClient({
     router.push(`/staff/grants?${qs}`, { scroll: false });
   };
   const { kpis } = data;
-  const coverage = kpis.membersTotal ? `${Math.round((kpis.membersMatched / kpis.membersTotal) * 100)}%` : '—';
+  const coverage = kpis.membersTotal
+    ? `${Math.round((kpis.membersMatched / kpis.membersTotal) * 100)}%`
+    : '—';
 
   return (
     <div className="flex flex-col gap-4">
@@ -85,7 +87,10 @@ export function GrantsClient({
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-sm font-semibold text-text-primary">Key figures</h2>
           <ProvenanceButton title="Grants — key figures" meta={meta} size="xs" />
-          <DataSourceMark source="kku-research-services" href={acknowledgementHref('kku-research-services')} />
+          <DataSourceMark
+            source="kku-research-services"
+            href={acknowledgementHref('kku-research-services')}
+          />
           <span className="ml-auto">
             <FreshnessBadge freshnessDate={meta.freshnessDate} label="grants data" />
           </span>
@@ -93,7 +98,11 @@ export function GrantsClient({
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <Kpi label="Projects" value={kpis.projects.toLocaleString('en-US')} />
           <Kpi label="Total budget" value={thb(kpis.budgetThb)} hint="each project counted once" />
-          <Kpi label="Staff involved" value={kpis.staffInvolved.toLocaleString('en-US')} hint="matched to HR records" />
+          <Kpi
+            label="Staff involved"
+            value={kpis.staffInvolved.toLocaleString('en-US')}
+            hint="matched to HR records"
+          />
           <Kpi
             label="Match coverage"
             value={coverage}
@@ -101,8 +110,8 @@ export function GrantsClient({
           />
         </div>
         <p className="text-xs text-text-tertiary">
-          A project appears when any team member is in the faculties you can see or have selected; its team list may
-          include people from other faculties.
+          A project appears when any team member is in the faculties you can see or have selected;
+          its team list may include people from other faculties.
         </p>
       </section>
 
@@ -122,7 +131,8 @@ export function GrantsClient({
           <DataSourceMark source="kku-research-services" />
         </div>
         <p className="mt-1 text-xs text-text-tertiary">
-          A project counts for every faculty with a team member on it, so these rows add up to more than the KKU total.
+          A project counts for every faculty with a team member on it, so these rows add up to more
+          than the KKU total.
         </p>
         {data.byFaculty.length === 0 ? (
           <p className="mt-3 text-sm text-text-tertiary">No faculties match these filters.</p>
@@ -141,8 +151,12 @@ export function GrantsClient({
                 <tr key={r.facultyName} className="border-t border-subtle">
                   <td className="py-2 pr-4">{r.facultyName}</td>
                   <td className="py-2 text-right tabular-nums">{r.led.toLocaleString('en-US')}</td>
-                  <td className="py-2 text-right tabular-nums">{r.coOnly.toLocaleString('en-US')}</td>
-                  <td className="py-2 text-right font-medium tabular-nums">{r.total.toLocaleString('en-US')}</td>
+                  <td className="py-2 text-right tabular-nums">
+                    {r.coOnly.toLocaleString('en-US')}
+                  </td>
+                  <td className="py-2 text-right font-medium tabular-nums">
+                    {r.total.toLocaleString('en-US')}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -207,7 +221,8 @@ function Kpi({ label, value, hint }: { label: string; value: string; hint?: stri
 }
 
 function TrendChart({ trend }: { trend: GrantsResponse['trend'] }) {
-  if (trend.length === 0) return <p className="mt-3 text-sm text-text-tertiary">No projects match these filters.</p>;
+  if (trend.length === 0)
+    return <p className="mt-3 text-sm text-text-tertiary">No projects match these filters.</p>;
   const W = 640;
   const H = 180;
   const pad = { l: 8, r: 8, t: 16, b: 24 };
@@ -218,7 +233,12 @@ function TrendChart({ trend }: { trend: GrantsResponse['trend'] }) {
   const labelEvery = Math.ceil(trend.length / 14);
   return (
     <figure className="mt-3">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Projects per fiscal year by type">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="h-auto w-full"
+        role="img"
+        aria-label="Projects per fiscal year by type"
+      >
         {trend.map((t, i) => {
           const x = pad.l + i * bw + bw * 0.15;
           const w = bw * 0.7;
@@ -230,16 +250,44 @@ function TrendChart({ trend }: { trend: GrantsResponse['trend'] }) {
           return (
             <g key={t.fiscalYearBe}>
               <title>{`FY ${t.fiscalYearBe}: ${t.RESEARCH} research, ${t.ACADEMIC_SERVICE} academic service, ${t.OTHER} other (incl. consulting) — ${thb(t.budgetThb)}`}</title>
-              <rect x={x} y={base - r} width={w} height={r} style={{ fill: 'oklch(var(--color-chart-1))' }} />
-              <rect x={x} y={base - r - s} width={w} height={s} style={{ fill: 'oklch(var(--color-chart-3))' }} />
-              <rect x={x} y={base - r - s - o} width={w} height={o} style={{ fill: 'oklch(var(--color-chart-6))' }} />
+              <rect
+                x={x}
+                y={base - r}
+                width={w}
+                height={r}
+                style={{ fill: 'oklch(var(--color-chart-1))' }}
+              />
+              <rect
+                x={x}
+                y={base - r - s}
+                width={w}
+                height={s}
+                style={{ fill: 'oklch(var(--color-chart-3))' }}
+              />
+              <rect
+                x={x}
+                y={base - r - s - o}
+                width={w}
+                height={o}
+                style={{ fill: 'oklch(var(--color-chart-6))' }}
+              />
               {total === max ? (
-                <text x={x + w / 2} y={base - r - s - o - 4} textAnchor="middle" className="fill-text-tertiary text-[10px] tabular-nums">
+                <text
+                  x={x + w / 2}
+                  y={base - r - s - o - 4}
+                  textAnchor="middle"
+                  className="fill-text-tertiary text-[10px] tabular-nums"
+                >
                   {total}
                 </text>
               ) : null}
               {i % labelEvery === 0 ? (
-                <text x={x + w / 2} y={H - 8} textAnchor="middle" className="fill-text-tertiary text-[10px] tabular-nums">
+                <text
+                  x={x + w / 2}
+                  y={H - 8}
+                  textAnchor="middle"
+                  className="fill-text-tertiary text-[10px] tabular-nums"
+                >
                   {t.fiscalYearBe}
                 </text>
               ) : null}
@@ -259,7 +307,11 @@ function TrendChart({ trend }: { trend: GrantsResponse['trend'] }) {
         aria-label="Budget per fiscal year"
       >
         {trend.map((t, i) => (
-          <span key={t.fiscalYearBe} className="whitespace-nowrap text-center" title={`FY ${t.fiscalYearBe}: ${thb(t.budgetThb)}`}>
+          <span
+            key={t.fiscalYearBe}
+            className="whitespace-nowrap text-center"
+            title={`FY ${t.fiscalYearBe}: ${thb(t.budgetThb)}`}
+          >
             {i % labelEvery === 0 ? thb(t.budgetThb) : ''}
           </span>
         ))}
@@ -268,7 +320,9 @@ function TrendChart({ trend }: { trend: GrantsResponse['trend'] }) {
         <Legend color="--color-chart-1" label="Research" />
         <Legend color="--color-chart-3" label="Academic service" />
         <Legend color="--color-chart-6" label="Other (incl. consulting)" />
-        <span className="text-text-tertiary">Projects per fiscal year (BE); the row under the bars is each year’s total budget.</span>
+        <span className="text-text-tertiary">
+          Projects per fiscal year (BE); the row under the bars is each year’s total budget.
+        </span>
       </figcaption>
     </figure>
   );
@@ -347,18 +401,24 @@ function ProjectTable({
                 >
                   <td className="py-2 pr-4">
                     <div>{r.titleTh}</div>
-                    {r.titleEn ? <div className="text-xs text-text-tertiary">{r.titleEn}</div> : null}
+                    {r.titleEn ? (
+                      <div className="text-xs text-text-tertiary">{r.titleEn}</div>
+                    ) : null}
                   </td>
                   <td className="py-2 pr-4">{TYPE_LABEL[r.type]}</td>
                   <td className="py-2 text-right tabular-nums">{r.fiscalYearBe}</td>
                   <td className="py-2 pl-4 pr-4">
-                    <div className={r.leadName ? '' : 'text-text-tertiary'}>{r.leadName ?? 'Not recorded'}</div>
+                    <div className={r.leadName ? '' : 'text-text-tertiary'}>
+                      {r.leadName ?? 'Not recorded'}
+                    </div>
                     <div className="text-xs text-text-tertiary">{r.leadFacultyName}</div>
                   </td>
                   <td className="py-2 pr-4">
                     {r.funderName ?? <span className="text-text-tertiary">Not recorded</span>}
                   </td>
-                  <td className={`py-2 text-right tabular-nums ${r.budgetThb === null ? 'text-text-tertiary' : ''}`}>
+                  <td
+                    className={`py-2 text-right tabular-nums ${r.budgetThb === null ? 'text-text-tertiary' : ''}`}
+                  >
                     {thb(r.budgetThb)}
                   </td>
                   <td className="py-2 text-right tabular-nums">{r.teamSize}</td>
@@ -397,7 +457,10 @@ function ProjectTable({
 const isoDay = (d: string | null) => (d ? d.slice(0, 10) : null);
 
 function ProjectPanel({ id, onClose }: { id: string; onClose: () => void }) {
-  const [state, setState] = React.useState<{ detail: GrantProjectDetail | null; error: string | null }>({
+  const [state, setState] = React.useState<{
+    detail: GrantProjectDetail | null;
+    error: string | null;
+  }>({
     detail: null,
     error: null,
   });
@@ -406,7 +469,10 @@ function ProjectPanel({ id, onClose }: { id: string; onClose: () => void }) {
     setState({ detail: null, error: null });
     fetch(`/api/proxy/staff/grants/${encodeURIComponent(id)}`)
       .then(async (r) => {
-        const payload = (await r.json()) as { data: GrantProjectDetail | null; error?: { message?: string } };
+        const payload = (await r.json()) as {
+          data: GrantProjectDetail | null;
+          error?: { message?: string };
+        };
         if (!r.ok || !payload.data) throw new Error(payload.error?.message ?? `HTTP ${r.status}`);
         return payload.data;
       })
@@ -424,7 +490,9 @@ function ProjectPanel({ id, onClose }: { id: string; onClose: () => void }) {
   return (
     <RightPanel open onOpenChange={(o) => !o && onClose()} title={d?.titleTh ?? 'Project'}>
       {state.error ? (
-        <p className="text-sm text-text-tertiary">This project is unavailable or outside your scope.</p>
+        <p className="text-sm text-text-tertiary">
+          This project is unavailable or outside your scope.
+        </p>
       ) : !d ? (
         <div className="h-24 animate-pulse rounded-md bg-surface-2" />
       ) : (
@@ -440,7 +508,9 @@ function ProjectPanel({ id, onClose }: { id: string; onClose: () => void }) {
               {isoDay(d.startDate) ?? '—'} – {isoDay(d.endDate) ?? '—'}
             </dd>
             <dt className="text-text-tertiary">Funder</dt>
-            <dd className={d.funderName ? '' : 'text-text-tertiary'}>{d.funderName ?? 'Not recorded'}</dd>
+            <dd className={d.funderName ? '' : 'text-text-tertiary'}>
+              {d.funderName ?? 'Not recorded'}
+            </dd>
             <dt className="text-text-tertiary">Budget</dt>
             <dd className="tabular-nums">
               {thb(d.budgetThb)} <span className="text-text-tertiary">(whole project)</span>
@@ -457,7 +527,10 @@ function ProjectPanel({ id, onClose }: { id: string; onClose: () => void }) {
           <h3 className="text-xs font-semibold text-text-tertiary">Team</h3>
           <ul className="flex flex-col">
             {d.team.map((m, i) => (
-              <li key={i} className="flex items-baseline justify-between gap-6 border-t border-subtle py-2">
+              <li
+                key={i}
+                className="flex items-baseline justify-between gap-6 border-t border-subtle py-2"
+              >
                 <span>
                   <span className={m.displayName ? '' : 'text-text-tertiary'}>
                     {m.displayName ?? 'Name not recorded'}
@@ -504,7 +577,9 @@ function FilterBar({
       />
       <MultiSelectField
         label="Type"
-        options={(Object.entries(TYPE_LABEL) as Array<[GrantType, string]>).map(([value, label]) => ({ value, label }))}
+        options={(Object.entries(TYPE_LABEL) as Array<[GrantType, string]>).map(
+          ([value, label]) => ({ value, label }),
+        )}
         selected={f.type}
         onChange={(v) => push({ type: v })}
         preserveOrder
@@ -515,8 +590,18 @@ function FilterBar({
         selected={f.funder}
         onChange={(v) => push({ funder: v })}
       />
-      <YearSelect label="From FY" value={f.yearFrom} years={years} onChange={(v) => push({ yearFrom: v })} />
-      <YearSelect label="To FY" value={f.yearTo} years={years} onChange={(v) => push({ yearTo: v })} />
+      <YearSelect
+        label="From FY"
+        value={f.yearFrom}
+        years={years}
+        onChange={(v) => push({ yearFrom: v })}
+      />
+      <YearSelect
+        label="To FY"
+        value={f.yearTo}
+        years={years}
+        onChange={(v) => push({ yearTo: v })}
+      />
     </div>
   );
 }

@@ -20,7 +20,12 @@ const L = {
     active: 'Active now',
     lead: 'Lead',
     projectTotal: 'project total',
-    types: { RESEARCH: 'Research', ACADEMIC_SERVICE: 'Academic service', CONSULTING: 'Consulting', OTHER: 'Other' },
+    types: {
+      RESEARCH: 'Research',
+      ACADEMIC_SERVICE: 'Academic service',
+      CONSULTING: 'Consulting',
+      OTHER: 'Other',
+    },
     fy: (y: number) => `FY ${y}`,
     unlinked: "We couldn't link you to the grants system.",
     empty: 'No external grants on record.',
@@ -40,7 +45,12 @@ const L = {
     active: 'กำลังดำเนินการ',
     lead: 'หัวหน้า',
     projectTotal: 'งบรวมโครงการ',
-    types: { RESEARCH: 'วิจัย', ACADEMIC_SERVICE: 'บริการวิชาการ', CONSULTING: 'ที่ปรึกษา', OTHER: 'อื่นๆ' },
+    types: {
+      RESEARCH: 'วิจัย',
+      ACADEMIC_SERVICE: 'บริการวิชาการ',
+      CONSULTING: 'ที่ปรึกษา',
+      OTHER: 'อื่นๆ',
+    },
     fy: (y: number) => `ปีงบ ${y}`,
     unlinked: 'ไม่สามารถเชื่อมโยงคุณกับระบบทุนวิจัยได้',
     empty: 'ไม่มีข้อมูลทุนภายนอก',
@@ -48,7 +58,8 @@ const L = {
     freshnessLabel: 'ข้อมูลทุน',
     source: 'ระบบงานวิจัยและบริการวิชาการ มข. (ทุนภายนอก)',
     caveats: [
-      'งบประมาณเป็นงบรวมของโครงการ ไม่ใช่ส่วนของคุณ', 'เฉพาะโครงการทุนภายนอก ซิงก์ทุกวันจากกองบริหารงานวิจัย',
+      'งบประมาณเป็นงบรวมของโครงการ ไม่ใช่ส่วนของคุณ',
+      'เฉพาะโครงการทุนภายนอก ซิงก์ทุกวันจากกองบริหารงานวิจัย',
       'กำลังดำเนินการ นับเฉพาะโครงการที่วันนี้อยู่ระหว่างวันเริ่มและวันสิ้นสุด โครงการที่ไม่มีวันใดวันหนึ่งจะไม่ถูกนับ',
     ],
   },
@@ -59,8 +70,12 @@ const thb = (n: number | null) => (n === null ? '—' : `฿${n.toLocaleString('
 function Kpi({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-lg border border-subtle bg-surface-2/40 p-3">
-      <dt className="text-[10px] font-semibold uppercase tracking-[0.1em] text-text-tertiary">{label}</dt>
-      <dd className="mt-1 text-2xl font-bold tabular-nums leading-none text-text-primary">{value}</dd>
+      <dt className="text-[10px] font-semibold uppercase tracking-[0.1em] text-text-tertiary">
+        {label}
+      </dt>
+      <dd className="mt-1 text-2xl font-bold tabular-nums leading-none text-text-primary">
+        {value}
+      </dd>
     </div>
   );
 }
@@ -78,7 +93,9 @@ export function GrantsPanel({ state, lang }: { state: GrantsPanelState; lang: La
     return (
       <Section title={title}>
         <Card className="p-5" elevation="lg">
-          <p className="text-sm text-text-secondary">{state === 'unlinked' ? t.unlinked : t.unavailable}</p>
+          <p className="text-sm text-text-secondary">
+            {state === 'unlinked' ? t.unlinked : t.unavailable}
+          </p>
         </Card>
       </Section>
     );
@@ -110,9 +127,14 @@ export function GrantsPanel({ state, lang }: { state: GrantsPanelState; lang: La
             </dl>
             <ul className="mt-4 flex flex-col">
               {state.projects.map((p) => (
-                <li key={p.sourceProposalId} className="flex flex-col gap-1 border-t border-subtle py-3">
+                <li
+                  key={p.sourceProposalId}
+                  className="flex flex-col gap-1 border-t border-subtle py-3"
+                >
                   <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <span className="rounded-md bg-surface-2 px-1.5 py-0.5">{p.role === 'LEAD' ? t.lead : t.co}</span>
+                    <span className="rounded-md bg-surface-2 px-1.5 py-0.5">
+                      {p.role === 'LEAD' ? t.lead : t.co}
+                    </span>
                     <span className="rounded-md bg-surface-2 px-1.5 py-0.5">{t.types[p.type]}</span>
                     <span className="text-text-tertiary">{t.fy(p.fiscalYearBe)}</span>
                   </div>
@@ -124,7 +146,8 @@ export function GrantsPanel({ state, lang }: { state: GrantsPanelState; lang: La
                       {p.startDate && p.endDate ? ` · ${p.startDate} – ${p.endDate}` : ''}
                     </span>
                     <span className="tabular-nums">
-                      {thb(p.budgetThb)} <span className="text-text-tertiary">({t.projectTotal})</span>
+                      {thb(p.budgetThb)}{' '}
+                      <span className="text-text-tertiary">({t.projectTotal})</span>
                     </span>
                   </div>
                 </li>
