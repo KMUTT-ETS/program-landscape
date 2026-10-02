@@ -57,7 +57,8 @@ describe('teachingEvaluation section', () => {
   };
 
   it('is a grantable section, listed last so existing grants keep their order', () => {
-    expect(STAFF_PROFILE_SECTIONS.at(-1)).toBe('teachingEvaluation');
+    expect(STAFF_PROFILE_SECTIONS.at(-2)).toBe('teachingEvaluation');
+    expect(STAFF_PROFILE_SECTIONS.at(-1)).toBe('grants');
   });
 
   it('has a readable label for every section', () => {
@@ -74,5 +75,27 @@ describe('teachingEvaluation section', () => {
   it('pins the 1-5 scale', () => {
     const bad = { ...evaluation, scale: { min: 0, max: 5 } };
     expect(StaffProfileResponseDataSchema.safeParse({ person, teachingEvaluation: bad }).success).toBe(false);
+  });
+});
+
+describe('grants section', () => {
+  it('is a grantable section with a readable label', () => {
+    expect(STAFF_PROFILE_SECTIONS).toContain('grants');
+    expect(STAFF_PROFILE_SECTION_LABELS.grants).toBe('Research & academic service grants');
+  });
+
+  it('accepts a grants payload and rejects one carrying a hash', () => {
+    const base = StaffProfileResponseDataSchema.shape.grants.unwrap();
+    const ok = {
+      led: 1, coInvestigator: 0, active: 0,
+      byType: { RESEARCH: 1, ACADEMIC_SERVICE: 0, CONSULTING: 0, OTHER: 0 },
+      projects: [{
+        sourceProposalId: 1, titleTh: 'ก', titleEn: null, type: 'RESEARCH', role: 'LEAD', fiscalYearBe: 2568,
+        startDate: null, endDate: null, funderName: null, budgetThb: 1000, workflowStatus: 'x', teamSize: 2,
+      }],
+    };
+    expect(base.safeParse(ok).success).toBe(true);
+    const strictProject = base.shape.projects.element;
+    expect(strictProject.safeParse({ ...ok.projects[0], citizenIdHash: 'a'.repeat(64) }).success).toBe(false);
   });
 });

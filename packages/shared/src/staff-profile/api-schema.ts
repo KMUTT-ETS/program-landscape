@@ -18,6 +18,8 @@ export const STAFF_PROFILE_SECTIONS = [
   'publications',
   // Performance data about the person: opt-in, never granted by default.
   'teachingEvaluation',
+  // Funding records about the person: opt-in, never granted by default.
+  'grants',
 ] as const;
 export type StaffProfileSection = (typeof STAFF_PROFILE_SECTIONS)[number];
 
@@ -29,6 +31,7 @@ export const STAFF_PROFILE_SECTION_LABELS: Record<StaffProfileSection, string> =
   research: 'Research summary',
   publications: 'Publications',
   teachingEvaluation: 'Teaching evaluation',
+  grants: 'Research & academic service grants',
 };
 
 export const StaffProfileLookupSchema = z.union([
@@ -197,6 +200,40 @@ export const StaffProfileResponseDataSchema = z.object({
       ),
     })
     .nullable()
+    .optional(),
+  // Granted → always an object (empty lists when nothing is on record);
+  // withheld → key absent and listed in sectionsWithheld.
+  grants: z
+    .object({
+      led: z.number(),
+      coInvestigator: z.number(),
+      active: z.number(),
+      byType: z.object({
+        RESEARCH: z.number(),
+        ACADEMIC_SERVICE: z.number(),
+        CONSULTING: z.number(),
+        OTHER: z.number(),
+      }),
+      projects: z.array(
+        z
+          .object({
+            sourceProposalId: z.number(),
+            titleTh: z.string(),
+            titleEn: z.string().nullable(),
+            type: z.enum(['RESEARCH', 'ACADEMIC_SERVICE', 'CONSULTING', 'OTHER']),
+            role: z.enum(['LEAD', 'CO_INVESTIGATOR']),
+            fiscalYearBe: z.number(),
+            startDate: z.string().nullable(),
+            endDate: z.string().nullable(),
+            funderName: z.string().nullable(),
+            /** Whole-project budget, not this person's share. */
+            budgetThb: z.number().nullable(),
+            workflowStatus: z.string(),
+            teamSize: z.number(),
+          })
+          .strict(),
+      ),
+    })
     .optional(),
 });
 export type StaffProfileResponseData = z.infer<typeof StaffProfileResponseDataSchema>;
