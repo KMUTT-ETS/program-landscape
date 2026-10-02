@@ -79,4 +79,23 @@ describe('greenHistoryGate', () => {
     expect(g.open).toBe(true);
     if (g.open) expect(g.successfulDaysLast30).toBe(30);
   });
+
+  it('ignores runs completed after `now`', () => {
+    const past = new Date(NOW.getTime() - 50 * DAY);
+    expect(greenHistoryGate([new Date(NOW.getTime() - DAY)], past)).toEqual({ open: false, reason: 'source-not-synced' });
+    const g = greenHistoryGate([...daily(60).map((d) => new Date(d.getTime() - 50 * DAY)), NOW], past);
+    expect(g.open).toBe(true);
+  });
+
+  it('counts green days against exactly 30 Bangkok calendar dates', () => {
+    // 31 daily runs reach back to 30 days ago at 07:12 — the 31st date is outside the window.
+    const g = greenHistoryGate(daily(45), NOW);
+    expect(g.open).toBe(true);
+    if (g.open) expect(g.successfulDaysLast30).toBe(30);
+  });
+
+  it('reports stale before awaiting-history when both apply', () => {
+    const g = greenHistoryGate([new Date(NOW.getTime() - 5 * DAY)], NOW);
+    expect(g).toMatchObject({ open: false, reason: 'source-stale' });
+  });
 });

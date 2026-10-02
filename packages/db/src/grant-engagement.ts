@@ -58,18 +58,21 @@ export type GrantGate =
  * success is within 72 h. Reason precedence: not-synced, stale, awaiting history.
  */
 export function greenHistoryGate(successTimes: readonly Date[], now: Date): GrantGate {
-  if (successTimes.length === 0) return { open: false, reason: 'source-not-synced' };
-  const times = successTimes.map((d) => d.getTime());
+  // A run completed after `now` has not happened yet as far as this instant is concerned.
+  const times = successTimes.map((d) => d.getTime()).filter((t) => t <= now.getTime());
+  if (times.length === 0) return { open: false, reason: 'source-not-synced' };
   const first = Math.min(...times);
   const last = Math.max(...times);
   const lastSuccessAt = new Date(last).toISOString();
   if (now.getTime() - last > STALE_AFTER_MS) return { open: false, reason: 'source-stale', lastSuccessAt };
   const daysOfHistory = Math.floor((now.getTime() - first) / DAY_MS);
-  const windowStart = now.getTime() - HISTORY_DAYS * DAY_MS;
-  const greenDays = new Set(
-    times.filter((t) => t > windowStart && t <= now.getTime()).map((t) => bangkokParts(new Date(t)).day),
+  // Exactly the last 30 Bangkok calendar dates: today and the 29 before it.
+  const windowDays = new Set(
+    Array.from({ length: HISTORY_DAYS }, (_, i) => bangkokParts(new Date(now.getTime() - i * DAY_MS)).day),
   );
-  const successfulDaysLast30 = Math.min(greenDays.size, HISTORY_DAYS);
+  const successfulDaysLast30 = new Set(
+    times.map((t) => bangkokParts(new Date(t)).day).filter((day) => windowDays.has(day)),
+  ).size;
   if (daysOfHistory < HISTORY_DAYS || successfulDaysLast30 < MIN_GREEN_DAYS) {
     return { open: false, reason: 'awaiting-green-history', daysOfHistory, successfulDaysLast30 };
   }
@@ -77,27 +80,38 @@ export function greenHistoryGate(successTimes: readonly Date[], now: Date): Gran
 }
 
 const GATE_TTL_MS = 5 * 60_000;
-let gateCache: { at: number; gate: GrantGate } | null = null;
+let gateCache: { at: number; promise: Promise<GrantGate> } | null = null;
 
 /** Test hook: drop the cached gate. */
 export function __resetGrantGateCache(): void {
   gateCache = null;
 }
 
-/** The green-history gate for the grants source, cached per process for 5 minutes
- *  so scoring every programme costs one query. */
-export async function loadGrantGate(now: Date = new Date()): Promise<GrantGate> {
-  if (gateCache && now.getTime() - gateCache.at < GATE_TTL_MS) return gateCache.gate;
+async function computeGrantGate(now: Date): Promise<GrantGate> {
   const runs = await prisma.ingestionRun.findMany({
     where: { status: 'SUCCEEDED', completedAt: { not: null }, dataSource: { slug: GRANTS_SOURCE } },
     select: { completedAt: true },
   });
-  const gate = greenHistoryGate(
+  return greenHistoryGate(
     runs.map((r) => r.completedAt).filter((d): d is Date => d !== null),
     now,
   );
-  gateCache = { at: now.getTime(), gate };
-  return gate;
+}
+
+/** The green-history gate for the grants source. Against the real clock it is cached
+ *  per process for 5 minutes (the in-flight promise is shared, so concurrent cold
+ *  callers cost one query and a failure is never cached). An explicit `now` always
+ *  computes fresh and never touches the cache. */
+export function loadGrantGate(now?: Date): Promise<GrantGate> {
+  if (now) return computeGrantGate(now);
+  const t = Date.now();
+  if (gateCache && t - gateCache.at < GATE_TTL_MS) return gateCache.promise;
+  const entry = { at: t, promise: computeGrantGate(new Date(t)) };
+  gateCache = entry;
+  entry.promise.catch(() => {
+    if (gateCache === entry) gateCache = null;
+  });
+  return entry.promise;
 }
 
 /** Staff (of `memberIds`) on at least one project — lead or co-investigator — in the window. */
@@ -127,14 +141,14 @@ export interface GrantEngagementDriver {
 /** The finished capability driver for a set of DISTINCT active staff ids. */
 export async function grantEngagementDriver(
   memberIds: readonly string[],
-  now: Date = new Date(),
+  now?: Date,
 ): Promise<GrantEngagementDriver> {
   const gate = await loadGrantGate(now);
   if (!gate.open) {
     const { open: _open, ...why } = gate;
     return { label: GRANT_ENGAGEMENT_LABEL, value: null, raw: { ...why, staff: memberIds.length } };
   }
-  const window = grantWindow(now);
+  const window = grantWindow(now ?? new Date());
   const funded = await fundedStaffIds(memberIds, window);
   const fundedStaff = funded.size;
   return {

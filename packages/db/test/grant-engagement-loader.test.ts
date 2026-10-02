@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   runFindMany: vi.fn(),
@@ -24,11 +24,43 @@ beforeEach(() => {
   __resetGrantGateCache();
 });
 
+afterEach(() => vi.useRealTimers());
+
+describe('loadGrantGate cache', () => {
+  it('never caches or serves the cache for an explicit now', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    mocks.runFindMany.mockResolvedValue(daily(40));
+    const future = new Date(NOW.getTime() + 400 * DAY);
+    const f = await loadGrantGate(future);
+    expect(f.open).toBe(false); // stale at the future instant
+    const real = await loadGrantGate();
+    expect(real.open).toBe(true);
+    expect(mocks.runFindMany).toHaveBeenCalledTimes(2);
+  });
+
+  it('shares one query between concurrent cold callers', async () => {
+    mocks.runFindMany.mockResolvedValue(daily(40));
+    await Promise.all([loadGrantGate(), loadGrantGate()]);
+    expect(mocks.runFindMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not cache a failure', async () => {
+    mocks.runFindMany.mockRejectedValueOnce(new Error('db down'));
+    await expect(loadGrantGate()).rejects.toThrow('db down');
+    mocks.runFindMany.mockResolvedValue([]);
+    await expect(loadGrantGate()).resolves.toEqual({ open: false, reason: 'source-not-synced' });
+    expect(mocks.runFindMany).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('loadGrantGate', () => {
   it('reads successful runs of the grants source once and caches the result', async () => {
     mocks.runFindMany.mockResolvedValue(daily(40));
-    const a = await loadGrantGate(NOW);
-    const b = await loadGrantGate(NOW);
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    const a = await loadGrantGate();
+    const b = await loadGrantGate();
     expect(a.open).toBe(true);
     expect(b).toEqual(a);
     expect(mocks.runFindMany).toHaveBeenCalledTimes(1);
