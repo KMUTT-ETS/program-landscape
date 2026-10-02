@@ -48,6 +48,31 @@ describe('dumpByCitizenHash', () => {
     expect(out.apiRequestLogs).toEqual([]);
     expect(out.staffPublicationsCache).toEqual([]);
   });
+
+  it('includes grant memberships found by the lead hash or through the staff records', async () => {
+    const { db, model } = stubDb({
+      facultyMember: { findMany: vi.fn(async () => [{ id: 'fm1' }]) },
+      researchServiceProjectMember: { findMany: vi.fn(async () => [{ id: 'g1' }]) },
+    });
+    const out = await dumpByCitizenHash(db, 'abc');
+    expect(model('researchServiceProjectMember').findMany).toHaveBeenCalledWith({
+      where: { OR: [{ citizenIdHash: 'abc' }, { facultyMemberId: { in: ['fm1'] } }] },
+      orderBy: { id: 'asc' },
+      include: { project: true },
+    });
+    expect(out.researchServiceProjectMembers).toEqual([{ id: 'g1' }]);
+  });
+
+  it('still finds an unmatched lead row by hash when no staff record matches', async () => {
+    const { db, model } = stubDb({
+      researchServiceProjectMember: { findMany: vi.fn(async () => [{ id: 'g2' }]) },
+    });
+    const out = await dumpByCitizenHash(db, 'abc');
+    expect(model('researchServiceProjectMember').findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { OR: [{ citizenIdHash: 'abc' }] } }),
+    );
+    expect(out.researchServiceProjectMembers).toEqual([{ id: 'g2' }]);
+  });
 });
 
 describe('dumpByUserId', () => {
@@ -87,5 +112,18 @@ describe('dumpByUserId', () => {
     expect(resolve).not.toHaveBeenCalled();
     expect(model('apiRequestLog').findMany).not.toHaveBeenCalled();
     expect(out.staffRecord).toEqual({ facultyMemberIds: [], matchedBy: null });
+  });
+
+  it('includes grant memberships reached through the user\'s staff records', async () => {
+    const { db, model } = stubDb({
+      user: { findUnique: vi.fn(async () => ({ id: 'u1', employeeId: 'E1', name: 'x' })) },
+      facultyMember: { findMany: vi.fn(async () => [{ id: 'fm1' }]) },
+      researchServiceProjectMember: { findMany: vi.fn(async () => [{ id: 'g1' }]) },
+    });
+    const out = await dumpByUserId(db, 'u1');
+    expect(model('researchServiceProjectMember').findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { OR: [{ facultyMemberId: { in: ['fm1'] } }] } }),
+    );
+    expect(out.researchServiceProjectMembers).toEqual([{ id: 'g1' }]);
   });
 });

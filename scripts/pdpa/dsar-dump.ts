@@ -14,11 +14,32 @@ export type ResolveStaffForUser = (user: {
 }) => Promise<string | null>;
 
 /** Staff-record-keyed personal data that is not keyed by citizen hash: the
- *  staff-profile publications cache, and the external API's call log (which
- *  system looked this person up, and when). */
-async function dumpByFacultyMemberIds(db: PrismaClient, ids: string[]) {
-  if (ids.length === 0) return { staffPublicationsCache: [], apiRequestLogs: [] };
-  const [staffPublicationsCache, apiRequestLogs] = await Promise.all([
+ *  staff-profile publications cache, the external API's call log (which
+ *  system looked this person up, and when), and research-service grant
+ *  memberships. A lead row also carries the citizen hash and can be unmatched
+ *  to any staff record, so the hash-keyed entry point passes `citizenIdHash`
+ *  to catch those too. */
+async function dumpByFacultyMemberIds(db: PrismaClient, ids: string[], citizenIdHash?: string) {
+  const grantWhere = [
+    ...(citizenIdHash ? [{ citizenIdHash }] : []),
+    ...(ids.length > 0 ? [{ facultyMemberId: { in: ids } }] : []),
+  ];
+  const grantsQuery = () =>
+    grantWhere.length === 0
+      ? Promise.resolve([])
+      : db.researchServiceProjectMember.findMany({
+          where: { OR: grantWhere },
+          orderBy: { id: 'asc' },
+          include: { project: true },
+        });
+  if (ids.length === 0) {
+    return {
+      staffPublicationsCache: [],
+      apiRequestLogs: [],
+      researchServiceProjectMembers: await grantsQuery(),
+    };
+  }
+  const [staffPublicationsCache, apiRequestLogs, researchServiceProjectMembers] = await Promise.all([
     db.staffPublicationsCache.findMany({
       where: { facultyMemberId: { in: ids } },
       orderBy: { facultyMemberId: 'asc' },
@@ -30,11 +51,12 @@ async function dumpByFacultyMemberIds(db: PrismaClient, ids: string[]) {
       // about its keys beyond the row's own key id.
       include: { client: { select: { name: true } } },
     }),
+    grantsQuery(),
   ]);
-  return { staffPublicationsCache, apiRequestLogs };
+  return { staffPublicationsCache, apiRequestLogs, researchServiceProjectMembers };
 }
 
-// ── Hash-keyed dump (covers HR / staff / DS2003 / lifecycle) ────────
+// ── Hash-keyed dump (covers HR / staff / DS2003 / lifecycle / grants) ────────
 export async function dumpByCitizenHash(db: PrismaClient, hash: string) {
   const [
     facultyMembers,
@@ -73,6 +95,7 @@ export async function dumpByCitizenHash(db: PrismaClient, hash: string) {
   const byStaffRecord = await dumpByFacultyMemberIds(
     db,
     facultyMembers.map((m) => m.id),
+    hash,
   );
 
   return {
