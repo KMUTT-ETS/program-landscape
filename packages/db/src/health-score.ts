@@ -9,6 +9,7 @@ import { JOBTHAI_MIN_LINK_SCORE, JOBTHAI_MIN_POSTINGS_FOR_SIGNAL, JOBTHAI_MIN_RE
 import { programJobThaiSkillCoverage } from './jobthai';
 import { DEMAND_SOURCE_LINKEDIN, demandMatchSourceWhere } from './demand-match-sources';
 import { getAcademicYearContext } from './academic-year';
+import { GRANT_ENGAGEMENT_LABEL, grantEngagementDriver } from './grant-engagement';
 import { pickFinancialYear } from './financial-year';
 import {
   dqCompetencyByScope,
@@ -204,7 +205,14 @@ export const FLAGSHIP_REVENUE_FLOOR_THB = 3_000_000;
 //      2026-09-13). The pair keeps its weight of two drivers in the Relevance
 //      mean and only the split inside it changes; when one source is null the
 //      other counts as a single driver. See LABOUR_MARKET_DEMAND_WEIGHTS.
-export const HEALTH_SCORE_VERSION = 'health-score.v5.2';
+//
+// v5.3 (2026-10-02) — capability gains external_grant_engagement: the share
+//   of a programme's active teaching staff on at least one externally funded
+//   project (research_service_project_members) in the last 3 complete Thai
+//   fiscal years, 60% -> 100. Null, never 0, until the kku-research-services
+//   sync has 30 days of green history. Built by grantEngagementDriver
+//   (packages/db/src/grant-engagement.ts) at both program and scope.
+export const HEALTH_SCORE_VERSION = 'health-score.v5.3';
 
 // ── Cost-allocation methodology (gap #5) ────────────────────────────
 // The Financial dimension's `net_contribution_per_student` +
@@ -332,6 +340,7 @@ export const DIMENSION_DRIVERS = {
     'publications_per_faculty',
     'retirement_horizon_5y',
     'student_faculty_ratio',
+    GRANT_ENGAGEMENT_LABEL,
   ],
   outcomes: [
     'tcas_min_score_percentile',
@@ -1376,15 +1385,20 @@ async function scoreCapabilityProgram(programId: string): Promise<HealthScore> {
   // faculty members.
   const memberIds = active.map((l) => l.facultyMember.id);
   const currentYear = new Date().getUTCFullYear();
-  const pubCount = memberIds.length > 0
-    ? await prisma.researchOutput.count({
-        where: {
-          facultyMemberId: { in: memberIds },
-          year: { gte: currentYear - 3 },
-          ...realDataWhere(),
-        },
-      })
-    : 0;
+  // Grant engagement counts PEOPLE, so a member linked to the programme in
+  // two roles must be passed once.
+  const [pubCount, grantDriver] = await Promise.all([
+    memberIds.length > 0
+      ? prisma.researchOutput.count({
+          where: {
+            facultyMemberId: { in: memberIds },
+            year: { gte: currentYear - 3 },
+            ...realDataWhere(),
+          },
+        })
+      : Promise.resolve(0),
+    grantEngagementDriver([...new Set(memberIds)]),
+  ]);
 
   const seniorCount = active.filter(
     (l) => l.facultyMember.rank === 'PROF' || l.facultyMember.rank === 'ASSOC_PROF',
@@ -1435,6 +1449,7 @@ async function scoreCapabilityProgram(programId: string): Promise<HealthScore> {
         bandThresholds: SFR_BANDS[sfrBand],
       },
     },
+    grantDriver,
   ];
   return summariseDrivers('capability', drivers);
 }
@@ -1597,6 +1612,8 @@ async function scoreCapabilityScope(scopeId: string, scope: ScopeLevel): Promise
         bandThresholds: SFR_BANDS[scopeBand],
       },
     },
+    // memberIds is already distinct — it comes from the distinctActive map.
+    await grantEngagementDriver(memberIds),
   ];
   return summariseDrivers('capability', drivers);
 }

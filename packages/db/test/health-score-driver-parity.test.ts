@@ -75,6 +75,21 @@ vi.mock('../src/index', () => {
   };
 });
 
+// The grant driver reads its own tables through a cached gate; here it only
+// has to be BUILT at both scopes. Outside `mocks` so the beforeEach reset
+// loop does not strip its implementation.
+const grantDriverMock = vi.hoisted(() =>
+  vi.fn(async (ids: readonly string[]) => ({
+    label: 'external_grant_engagement',
+    value: ids.length ? 50 : null,
+    raw: { fundedStaff: Math.round(ids.length * 0.3), staff: ids.length },
+  })),
+);
+vi.mock('../src/grant-engagement', () => ({
+  GRANT_ENGAGEMENT_LABEL: 'external_grant_engagement',
+  grantEngagementDriver: grantDriverMock,
+}));
+
 vi.mock('../src/scope', async () => {
   const actual = await vi.importActual<typeof import('../src/scope')>('../src/scope');
   return { ...actual, queryMetricByScope: mocks.queryMetricByScope };
@@ -479,6 +494,34 @@ describe('driver parity between program and scope scorers', () => {
           ).not.toEqual(DRIVER_NOT_COMPUTED);
         }
       }
+    }
+  });
+});
+
+describe('external_grant_engagement parity', () => {
+  it('is built — not padded — by both capability scorers when staff exist', async () => {
+    mocks.facultyFindMany.mockResolvedValue([
+      { id: 'fac-1', nameEn: 'Faculty of Science', nameTh: 'คณะวิทยาศาสตร์' },
+    ]);
+    mocks.programFindMany.mockResolvedValue([
+      { id: 'prog-1', nameEn: 'A', nameTh: 'ก', facultyId: 'fac-1' },
+    ]);
+    mocks.programFindUnique.mockImplementation(({ where }: { where: { id: string } }) =>
+      Promise.resolve({ id: where.id, level: 'BACHELOR', nameTh: 'ก', kmitlCareerIds: [] }),
+    );
+    mocks.programFacultyFindMany.mockResolvedValue([
+      {
+        programId: 'prog-1',
+        facultyMember: { id: 's1', rank: 'LECTURER', isActive: true, retirementDate: null },
+      },
+    ]);
+
+    const faculty = (await computeHealthScores('university', null))[0]!;
+    const program = (await computeHealthScores('faculty', faculty.scopeId))[0]!;
+    for (const row of [faculty, program]) {
+      const d = row.dimensions.capability.drivers.find((x) => x.label === 'external_grant_engagement');
+      expect(d?.raw).not.toEqual(DRIVER_NOT_COMPUTED);
+      expect(d?.value).toBe(50);
     }
   });
 });

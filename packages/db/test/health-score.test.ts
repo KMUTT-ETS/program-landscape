@@ -97,6 +97,27 @@ vi.mock('../src/index', () => {
   };
 });
 
+// The grant-engagement driver reads its own tables and a cached gate; the
+// scorers only need to hand it the right staff ids. Kept outside `mocks` so
+// the beforeEach mockReset loop does not strip the default implementation
+// without it being re-applied below.
+const grantDriverMock = vi.hoisted(() => vi.fn());
+vi.mock('../src/grant-engagement', () => ({
+  GRANT_ENGAGEMENT_LABEL: 'external_grant_engagement',
+  grantEngagementDriver: grantDriverMock,
+}));
+function defaultGrantDriver(ids: readonly string[]): Promise<{
+  label: string;
+  value: number | null;
+  raw: Record<string, unknown>;
+}> {
+  return Promise.resolve({
+    label: 'external_grant_engagement',
+    value: ids.length ? 50 : null,
+    raw: { fundedStaff: Math.round(ids.length * 0.3), staff: ids.length },
+  });
+}
+
 vi.mock('../src/scope', async () => {
   const actual = await vi.importActual<typeof import('../src/scope')>('../src/scope');
   return {
@@ -105,7 +126,7 @@ vi.mock('../src/scope', async () => {
   };
 });
 
-import { computeHealthScores, HEALTH_SCORE_VERSION } from '../src/health-score';
+import { computeHealthScores, DIMENSION_DRIVERS, HEALTH_SCORE_VERSION } from '../src/health-score';
 import {
   deriveAcademicYear,
   defaultNextStartDate,
@@ -115,6 +136,8 @@ import {
 beforeEach(() => {
   invalidateAcademicYearCache();
   for (const fn of Object.values(mocks)) fn.mockReset();
+  grantDriverMock.mockReset();
+  grantDriverMock.mockImplementation(defaultGrantDriver);
   // Defaults — every data source empty → all drivers null. Per-test
   // overrides drive specific scenarios.
   mocks.kmitlDemandFindMany.mockResolvedValue([]);
@@ -337,5 +360,102 @@ describe('financial dimension — tuition_trend_slope ignores the in-flight acad
     // The ratio guard drops the truncated priorYear row, leaving only
     // [2M, 3M] → a rising +1,000,000/yr slope → clamp(100).
     expect(slopeDriver?.value).toBe(100);
+  });
+});
+
+// ── external_grant_engagement (v5.3) ────────────────────────────────────
+
+function staffLink(id: string, isActive = true, rank = 'LECTURER'): {
+  programId: string;
+  facultyMember: { id: string; rank: string; isActive: boolean; retirementDate: Date | null };
+} {
+  return { programId: 'p1', facultyMember: { id, rank, isActive, retirementDate: null } };
+}
+
+describe('capability — external_grant_engagement', () => {
+  it('is the fifth canonical capability driver and the version is v5.3', () => {
+    expect(HEALTH_SCORE_VERSION).toBe('health-score.v5.3');
+    expect(DIMENSION_DRIVERS.capability).toEqual([
+      'senior_rank_share',
+      'publications_per_faculty',
+      'retirement_horizon_5y',
+      'student_faculty_ratio',
+      'external_grant_engagement',
+    ]);
+  });
+
+  it('program scorer passes the distinct ACTIVE staff ids and carries the driver value', async () => {
+    mocks.programFindUnique.mockResolvedValue({
+      id: 'p1', nameEn: 'P', nameTh: 'ป', departmentId: null, level: 'BACHELOR',
+      kmitlCareerIds: [], faculty: { code: null },
+    });
+    mocks.queryMetricByScope.mockResolvedValue([]);
+    mocks.programFacultyFindMany.mockResolvedValue([
+      staffLink('s1', true, 'PROF'),
+      staffLink('s2'),
+      staffLink('s3'),
+      // the same person linked twice (two roles) counts once
+      staffLink('s2'),
+      staffLink('s4', false),
+    ]);
+
+    const rows = await computeHealthScores('program', 'p1');
+    const cap = rows[0]?.dimensions.capability;
+    const grant = cap?.drivers.find((d) => d.label === 'external_grant_engagement');
+    expect(grant?.value).toBe(50);
+    expect(grantDriverMock).toHaveBeenCalledTimes(1);
+    const ids = grantDriverMock.mock.calls[0]?.[0] as string[];
+    expect([...ids].sort()).toEqual(['s1', 's2', 's3']);
+  });
+
+  it('scope scorer passes staff shared by two programmes once', async () => {
+    mocks.facultyFindMany.mockResolvedValue([{ id: 'fac-1', nameEn: 'F', nameTh: 'ค' }]);
+    mocks.queryMetricByScope.mockResolvedValue([]);
+    mocks.programFindMany.mockResolvedValue([{ id: 'p1' }, { id: 'p2' }]);
+    mocks.programFacultyFindMany.mockResolvedValue([
+      { ...staffLink('s1'), programId: 'p1' },
+      { ...staffLink('s2'), programId: 'p1' },
+      { ...staffLink('s1'), programId: 'p2' },
+      { ...staffLink('s3', false), programId: 'p2' },
+    ]);
+
+    const rows = await computeHealthScores('university', null);
+    const cap = rows[0]?.dimensions.capability;
+    expect(cap?.drivers.find((d) => d.label === 'external_grant_engagement')?.value).toBe(50);
+    expect(grantDriverMock).toHaveBeenCalledTimes(1);
+    const ids = grantDriverMock.mock.calls[0]?.[0] as string[];
+    expect([...ids].sort()).toEqual(['s1', 's2']);
+  });
+
+  it('gate closed: capability is the mean of the other four and completeness drops', async () => {
+    mocks.programFindUnique.mockResolvedValue({
+      id: 'p1', nameEn: 'P', nameTh: 'ป', departmentId: null, level: 'BACHELOR',
+      kmitlCareerIds: [], faculty: { code: null },
+    });
+    mocks.queryMetricByScope.mockResolvedValue([]);
+    mocks.enrollmentMetricFindFirst.mockResolvedValue({ enrolled: 60 });
+    mocks.researchOutputCount.mockResolvedValue(6);
+    mocks.programFacultyFindMany.mockResolvedValue([
+      staffLink('s1', true, 'PROF'),
+      staffLink('s2'),
+      staffLink('s3'),
+    ]);
+    grantDriverMock.mockImplementation((ids: readonly string[]) =>
+      Promise.resolve({
+        label: 'external_grant_engagement',
+        value: null,
+        raw: { reason: 'insufficient-history', staff: ids.length },
+      }),
+    );
+
+    const rows = await computeHealthScores('program', 'p1');
+    const cap = rows[0]!.dimensions.capability;
+    const others = cap.drivers.filter((d) => d.label !== 'external_grant_engagement');
+    expect(others).toHaveLength(4);
+    const values = others.map((d) => d.value);
+    expect(values.every((v) => v !== null)).toBe(true);
+    const mean = (values as number[]).reduce((s, v) => s + v, 0) / values.length;
+    expect(cap.score).toBeCloseTo(mean, 5);
+    expect(cap.dataCompletenessPct).toBeCloseTo(80, 5);
   });
 });
