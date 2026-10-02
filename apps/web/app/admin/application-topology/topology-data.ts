@@ -127,6 +127,23 @@ const externalNodes: TopologyNode[] = [
     },
   },
   {
+    id: 'ext.mysql-research-services',
+    lane: 'external',
+    kind: 'mysql',
+    label: 'KKU Research & Academic Services (MySQL)',
+    subtitle: 'External grants · co-investigators',
+    details: {
+      description:
+        "KKU Research Administration's record of externally funded research and academic-service projects (ทุนภายนอก), with each project's lead and co-investigators.",
+      target: '10.101.106.65 (MySQL 5.7)',
+      notes: [
+        'T_external_fund_View_landscape = one row per project (~4.3k)',
+        'coproject_landscape = one row per co-investigator (~5.5k), joined on proposal_id_md5',
+        "Read-only login. The password contains '#', so it must be single-quoted in the env file",
+      ],
+    },
+  },
+  {
     id: 'ext.mysql-unicon',
     lane: 'external',
     kind: 'mysql',
@@ -488,6 +505,24 @@ const connectorNodes: TopologyNode[] = [
         'Reads MHESI UNICON DS2004 — per (staff × program × teach_type). teach_type: 1=regular, 2=curriculum, 3=responsible lecturer. Feeds /staff/faculty-by-program.',
       cadence: '0 3 * * * (daily 03:00)',
       sourceSlug: 'unicon-ds2004',
+    },
+  },
+  {
+    id: 'con.kku-research-services',
+    lane: 'connector',
+    kind: 'connector',
+    label: 'kku-research-services',
+    subtitle: 'Daily 04:00 · external grants',
+    details: {
+      description:
+        'Reads both research-services views, matches leads to staff by citizen-id hash then KKU email and co-investigators by HR employee id, and replaces both grant tables in one transaction. Feeds /staff/grants, the owner-only /profile grants panel, the external Staff Profile API `grants` section, and the external_grant_engagement capability driver of health-score.v5.3.',
+      cadence: '0 4 * * * (daily 04:00)',
+      sourceSlug: 'kku-research-services',
+      notes: [
+        'PDPA gate at source: the lead citizen id is hashed inside MySQL (SHA2); staff email is read for matching and never stored',
+        'Row-level validation (bad rows skipped; SCHEMA_DRIFT when > 1 % invalid) and a 50 % shrink guard keep a bad pull from wiping the snapshot',
+        'Measured 2026-10-02: 88.5 % of leads and 70.0 % of six-digit co-investigator ids matched to staff records',
+      ],
     },
   },
   {
@@ -1182,6 +1217,33 @@ const tableNodes: TopologyNode[] = [
       description:
         'One row per (paper × KKU co-author). Sources: kku-publications:scopus, kku-publications:pubmed. Older openalex rows retained during the green-history window. Scopus rows carry journal-quality columns — quartile (1–4), citeScorePercentile (journal MAX), top10Percent (Tier 1) and sjr — populated by the kku-research CiteScore enrichment.',
       prismaModel: 'ResearchOutput',
+    },
+  },
+  {
+    id: 'tab.research-service-project',
+    lane: 'table',
+    kind: 'table',
+    label: 'ResearchServiceProject',
+    subtitle: 'external grant · budget · funder',
+    details: {
+      description:
+        'One row per externally funded research or academic-service project: titles, type, fiscal year (BE), dates, whole-project budget, funder, workflow status, lead unit. Daily snapshot replace; id is rsp-<proposal_id> so links survive the replace.',
+      prismaModel: 'ResearchServiceProject',
+      relatedTables: ['ResearchServiceProjectMember'],
+      notes: ["pmu_okr = 'ซ้ำPMU' is an external parameter, not a duplicate marker — ignored"],
+    },
+  },
+  {
+    id: 'tab.research-service-project-member',
+    lane: 'table',
+    kind: 'table',
+    label: 'ResearchServiceProjectMember',
+    subtitle: 'lead / co-investigator · staff match',
+    details: {
+      description:
+        "One row per project team member (LEAD or CO_INVESTIGATOR), matched to FacultyMember where possible. The lead's citizen-id hash is PII-class and is read only by the DSAR export.",
+      prismaModel: 'ResearchServiceProjectMember',
+      relatedTables: ['ResearchServiceProject', 'FacultyMember'],
     },
   },
   {
@@ -1895,6 +1957,18 @@ const dashboardNodes: TopologyNode[] = [
   // ──────────────────────────────────────────────────────────────────────
 
   {
+    id: 'dash.staff-grants',
+    lane: 'dashboard',
+    kind: 'dashboard',
+    label: 'Research and academic service grants',
+    subtitle: '/staff/grants · external funding',
+    href: '/staff/grants',
+    details: {
+      description:
+        'Externally funded projects by fiscal year (research vs academic service), by faculty (a project counts for every faculty on its team), top funders, and a project table with a team side panel. Budgets are whole-project figures, never split. Faculty-scoped for faculty and programme users.',
+    },
+  },
+  {
     id: 'dash.cockpit',
     lane: 'dashboard',
     kind: 'dashboard',
@@ -2107,6 +2181,14 @@ const S: Scope = ['staff'];
 const ES: Scope = ['education', 'staff'];
 
 const edges: TopologyEdge[] = [
+  // ── KKU Research & Academic Services (external grants) ─────────────
+  { from: 'ext.mysql-research-services', to: 'con.kku-research-services', scope: S },
+  { from: 'con.kku-research-services', to: 'tab.research-service-project', scope: S },
+  { from: 'con.kku-research-services', to: 'tab.research-service-project-member', scope: S },
+  { from: 'tab.research-service-project', to: 'dash.staff-grants', scope: S },
+  { from: 'tab.research-service-project-member', to: 'dash.staff-grants', scope: S },
+  { from: 'tab.research-service-project-member', to: 'dash.cockpit' }, // capability via health-score.v5.3
+  { from: 'tab.research-service-project-member', to: 'dash.program-deep-dive' }, // capability via health-score.v5.3
   // ── External → Connector ───────────────────────────────────────────
   { from: 'ext.oracle-powerbi', to: 'con.kku-tcas-funnel', scope: E },
   { from: 'ext.oracle-powerbi', to: 'con.kku-admission-campaigns', scope: E },
