@@ -26,6 +26,21 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-10-02',
+    version: 'v2.0.0 · Research and academic service grants',
+    title:
+      'Externally funded research and academic-service projects now arrive daily from KKU Research Administration — on a new Staff dashboard, on your own profile, and (when granted) through the external API',
+    audience: ['Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'A new Staff dashboard, “Research and academic service grants”, shows how many externally funded projects KKU staff hold and how much they are worth, research against academic service by fiscal year, which faculties take part, the top funders, and every project with its full team. A project counts for every faculty with a team member on it, so faculty figures add up to more than the KKU total; a budget is always the whole project’s and is never divided between people.',
+      'Faculty and programme users see the projects their faculty takes part in. A project appears when any team member is in your faculty, and its team list may include people from other faculties.',
+      'Your own profile has a new “Grants & academic service” panel: the total of your projects’ budgets, how many you led and joined as a co-investigator, how many are running now, a chart of project budgets by fiscal year, and the full list. It is never shown on the public profile page.',
+      'Systems that read staff profiles through the external API can receive a person’s grants — counts and the project list, without any co-investigator names — only when an administrator grants that section to the specific system. It is marked in Admin → API clients as funding records that need a recorded basis before they are granted.',
+      'People are matched to staff records by a one-way hash of the citizen ID computed inside the source system, or by KKU email for project leads, and by HR employee ID for co-investigators. Neither the citizen ID nor the email is stored. About 88% of project leads and 70% of co-investigators are matched today; everyone still counts in project totals.',
+      'Administrators: the staff dashboard’s refresh action is now recorded in the audit log.',
+    ],
+  },
+  {
     date: '2026-10-01',
     version: 'v1.9.11 · A clearer My profile, and teaching evaluations on it',
     title:
