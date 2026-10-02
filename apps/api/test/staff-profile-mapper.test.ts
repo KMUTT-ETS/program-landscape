@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { StaffProfileResponseDataSchema, type TeachingEvaluationSummary } from '@kku/shared';
+import {
+  StaffProfileResponseDataSchema,
+  type StaffGrantsSummary,
+  type TeachingEvaluationSummary,
+} from '@kku/shared';
 import { toStaffProfileResponse } from '../src/external/staff-profile.mapper';
 import { staffProfileFixture } from './fixtures/staff-profile';
 
-const ALL = ['affiliation', 'education', 'teaching', 'research', 'publications', 'teachingEvaluation'];
+const ALL = ['affiliation', 'education', 'teaching', 'research', 'publications', 'teachingEvaluation', 'grants'];
 
 const evaluation = (): TeachingEvaluationSummary => ({
   overall: 4.348,
@@ -34,16 +38,21 @@ describe('toStaffProfileResponse', () => {
   it('produces a body that satisfies the v1 wire schema', () => {
     const { data } = toStaffProfileResponse(staffProfileFixture(), grant(ALL), {
       teachingEvaluation: evaluation(),
+      grants: { led: 0, coInvestigator: 0, active: 0,
+        byType: { RESEARCH: 0, ACADEMIC_SERVICE: 0, CONSULTING: 0, OTHER: 0 }, projects: [], freshnessDate: null },
     });
     expect(StaffProfileResponseDataSchema.safeParse(data).success).toBe(true);
     expect(data.teachingEvaluation).not.toBeUndefined();
+    expect(data.grants).toBeDefined();
   });
 
   it('always returns person; returns only granted sections; lists the rest as withheld', () => {
     const r = toStaffProfileResponse(staffProfileFixture(), grant(['education']));
     expect(Object.keys(r.data).sort()).toEqual(['education', 'person']);
     expect(r.included).toEqual(['person', 'education']);
-    expect(r.withheld).toEqual(['affiliation', 'teaching', 'research', 'publications', 'teachingEvaluation']);
+    expect(r.withheld).toEqual([
+      'affiliation', 'teaching', 'research', 'publications', 'teachingEvaluation', 'grants',
+    ]);
   });
 
   it('takes the title abbreviation from the builder, not a table of its own', () => {
@@ -122,5 +131,45 @@ describe('toStaffProfileResponse', () => {
     expect(() => toStaffProfileResponse(staffProfileFixture(), grant(['teachingEvaluation']))).toThrow(
       /not loaded/,
     );
+  });
+
+  describe('grants', () => {
+    const grants = (): StaffGrantsSummary => ({
+      led: 1, coInvestigator: 0, active: 0,
+      byType: { RESEARCH: 1, ACADEMIC_SERVICE: 0, CONSULTING: 0, OTHER: 0 },
+      projects: [{ sourceProposalId: 9, titleTh: 'ก', titleEn: null, type: 'RESEARCH', role: 'LEAD', fiscalYearBe: 2568,
+        startDate: null, endDate: null, funderName: null, budgetThb: 10, workflowStatus: 's', teamSize: 2 }],
+      freshnessDate: '2026-10-02T04:00:00.000Z',
+    });
+
+    it('maps granted grants without freshness, and the result satisfies the wire schema', () => {
+      const r = toStaffProfileResponse(staffProfileFixture(), grant(['grants']), { grants: grants() });
+      expect(StaffProfileResponseDataSchema.safeParse(r.data).success).toBe(true);
+      expect(r.data.grants!.projects[0]!.sourceProposalId).toBe(9);
+      expect(r.data.grants).not.toHaveProperty('freshnessDate');
+      expect(r.included).toContain('grants');
+    });
+
+    it('builds from a whitelist: an extra property on a project never reaches the wire', () => {
+      const g = grants();
+      (g.projects[0] as unknown as Record<string, unknown>).citizenIdHash = 'deadbeef';
+      (g as unknown as Record<string, unknown>).leakedTop = 'x';
+      const r = toStaffProfileResponse(staffProfileFixture(), grant(['grants']), { grants: g });
+      expect(r.data.grants!.projects[0]).not.toHaveProperty('citizenIdHash');
+      expect(r.data.grants).not.toHaveProperty('leakedTop');
+      expect(Object.keys(r.data.grants!.projects[0]!).sort()).toEqual([
+        'budgetThb', 'endDate', 'fiscalYearBe', 'funderName', 'role', 'sourceProposalId',
+        'startDate', 'teamSize', 'titleEn', 'titleTh', 'type', 'workflowStatus',
+      ]);
+      expect(StaffProfileResponseDataSchema.safeParse(r.data).success).toBe(true);
+    });
+
+    it('refuses a granted grants section that was never loaded', () => {
+      expect(() => toStaffProfileResponse(staffProfileFixture(), grant(['grants']))).toThrow(/grants is granted/);
+    });
+
+    it('withholds grants by default', () => {
+      expect(toStaffProfileResponse(staffProfileFixture(), grant(['education'])).withheld).toContain('grants');
+    });
   });
 });

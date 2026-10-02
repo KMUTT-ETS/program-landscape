@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   resolveStaffForLookup: vi.fn(),
   buildStaffProfile: vi.fn(),
   getStaffTeachingEvaluation: vi.fn(),
+  getStaffGrants: vi.fn(),
   recordApiRequest: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@kku/db', () => mocks);
@@ -38,6 +39,7 @@ beforeEach(() => {
   mocks.resolveStaffForLookup.mockReset();
   mocks.buildStaffProfile.mockReset();
   mocks.getStaffTeachingEvaluation.mockReset();
+  mocks.getStaffGrants.mockReset();
   mocks.recordApiRequest.mockClear();
 });
 
@@ -50,7 +52,7 @@ describe('StaffProfileService.lookup', () => {
     expect(out.meta.integration).toMatchObject({
       apiVersion: 'staff-profile.v1',
       publicationsCache: 'hit',
-      sectionsWithheld: ['affiliation', 'teaching', 'research', 'teachingEvaluation'],
+      sectionsWithheld: ['affiliation', 'teaching', 'research', 'teachingEvaluation', 'grants'],
     });
     expect(mocks.buildStaffProfile).toHaveBeenCalledWith('fm1', { courseLimit: null, includeTalent: false });
     expect(mocks.recordApiRequest).toHaveBeenCalledWith(
@@ -285,7 +287,7 @@ describe('StaffProfileService teaching evaluation', () => {
     const out = await svc.lookup(req(granted), { citizenId: RAW_ID });
     expect(out.data.teachingEvaluation).toBeNull();
     expect(sourceIds(out.meta)).toContain('kku-evaluations');
-    expect(out.meta.integration).toMatchObject({ sectionsWithheld: ['affiliation', 'teaching', 'research', 'publications'] });
+    expect(out.meta.integration).toMatchObject({ sectionsWithheld: ['affiliation', 'teaching', 'research', 'publications', 'grants'] });
   });
 
   it('fails the request, logged as 500, when a granted evaluation cannot be loaded', async () => {
@@ -304,6 +306,53 @@ describe('StaffProfileService teaching evaluation', () => {
     mocks.getStaffTeachingEvaluation.mockRejectedValue(new Error('evaluations cube down'));
     const e = await thrown(svc.lookup(req(granted), { citizenId: RAW_ID }));
     expect(e.code).toBe('NOT_FOUND');
+  });
+});
+
+describe('StaffProfileService grants', () => {
+  const granted = { ...baseClient, allowedSections: ['education', 'grants'] };
+  const sourceIds = (meta: { sources?: Array<{ id: string }> }) => (meta.sources ?? []).map((s) => s.id);
+  const summary = () => ({
+    led: 1, coInvestigator: 0, active: 0,
+    byType: { RESEARCH: 1, ACADEMIC_SERVICE: 0, CONSULTING: 0, OTHER: 0 },
+    projects: [{ sourceProposalId: 9, titleTh: 'ก', titleEn: null, type: 'RESEARCH' as const, role: 'LEAD' as const,
+      fiscalYearBe: 2568, startDate: null, endDate: null, funderName: null, budgetThb: 10, workflowStatus: 's', teamSize: 2 }],
+    freshnessDate: '2026-10-02T04:00:00.000Z',
+  });
+
+  it('never loads grants for a client without the grant, and says nothing about them', async () => {
+    mocks.resolveStaffForLookup.mockResolvedValue('fm1');
+    mocks.buildStaffProfile.mockResolvedValue(staffProfileFixture());
+    const out = await svc.lookup(req(), { citizenId: RAW_ID });
+    expect(mocks.getStaffGrants).not.toHaveBeenCalled();
+    expect(out.data).not.toHaveProperty('grants');
+    expect(sourceIds(out.meta)).not.toContain('kku-research-services');
+    expect(out.meta.caveats!.join(' ')).not.toMatch(/budgetThb|grants\./);
+  });
+
+  it('returns grants with their source and caveats for a granted client', async () => {
+    mocks.resolveStaffForLookup.mockResolvedValue('fm1');
+    mocks.buildStaffProfile.mockResolvedValue(staffProfileFixture());
+    mocks.getStaffGrants.mockResolvedValue(summary());
+    const out = await svc.lookup(req(granted), { citizenId: RAW_ID });
+    expect(mocks.getStaffGrants).toHaveBeenCalledTimes(1);
+    expect(mocks.getStaffGrants).toHaveBeenCalledWith('fm1');
+    expect(out.data.grants!.projects).toHaveLength(1);
+    expect(out.data.grants).not.toHaveProperty('freshnessDate');
+    expect(sourceIds(out.meta)).toContain('kku-research-services');
+    expect(out.meta.caveats!.join(' ')).toMatch(/not this person's share/);
+    expect(out.meta.caveats!.join(' ')).toMatch(/grants\.active counts projects/);
+    expect(out.meta.integration).toMatchObject({ sectionsIncluded: ['person', 'education', 'grants'] });
+  });
+
+  it('fails the request, logged as 500, when granted grants cannot be loaded', async () => {
+    mocks.resolveStaffForLookup.mockResolvedValue('fm1');
+    mocks.buildStaffProfile.mockResolvedValue(staffProfileFixture());
+    mocks.getStaffGrants.mockRejectedValue(new Error('grants table down'));
+    await expect(svc.lookup(req(granted), { citizenId: RAW_ID })).rejects.toThrow('grants table down');
+    expect(mocks.recordApiRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 500, facultyMemberId: 'fm1', sectionsReturned: [] }),
+    );
   });
 });
 

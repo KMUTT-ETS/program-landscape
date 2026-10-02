@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
   buildStaffProfile,
+  getStaffGrants,
   getStaffTeachingEvaluation,
   recordApiRequest,
   resolveStaffForLookup,
@@ -11,6 +12,7 @@ import {
   StaffProfileLookupSchema,
   StaffProfileResponseDataSchema,
   type ApiMeta,
+  type StaffGrantsSummary,
   type StaffProfileResponseData,
   type TeachingEvaluationSummary,
 } from '@kku/shared';
@@ -32,6 +34,13 @@ const EVALUATION_CAVEATS = [
   'teachingEvaluation.totalAnswers counts answers, one per question answered, not students.',
 ];
 
+/** Said only when the grants section is actually returned. */
+const GRANTS_CAVEATS = [
+  'grants.projects[].budgetThb is the whole project budget, not this person\'s share.',
+  'grants covers externally funded projects recorded in the KKU Research and Academic Services system, synced daily.',
+  'grants.active counts projects whose start and end dates include today (Bangkok); projects missing either date are not counted.',
+];
+
 const BASE_SOURCES = [
   { id: 'kku-hr', name: 'KKU HR (staff record)' },
   { id: 'unicon-ds2003', name: 'UNICON DS2003 (education history)' },
@@ -40,6 +49,7 @@ const BASE_SOURCES = [
   { id: 'google-scholar', name: 'Google Scholar (on-demand import)' },
 ];
 const EVALUATION_SOURCE = { id: 'kku-evaluations', name: 'KKU student course evaluations' };
+const GRANTS_SOURCE = { id: 'kku-research-services', name: 'KKU Research & Academic Services (external grants)' };
 
 /**
  * A cold build fans out to the publications mirror, Scopus, OpenAlex and the
@@ -62,6 +72,16 @@ export class StaffProfileService {
   /** Same coalescing for the teaching-evaluation load (one query family, so
    *  it runs beside the bounded build rather than taking a build slot). */
   private readonly evaluationsInFlight = new Map<string, Promise<TeachingEvaluationSummary | null>>();
+
+  private readonly grantsInFlight = new Map<string, Promise<StaffGrantsSummary>>();
+
+  private grantsOnce(facultyMemberId: string): Promise<StaffGrantsSummary> {
+    const existing = this.grantsInFlight.get(facultyMemberId);
+    if (existing) return existing;
+    const p = getStaffGrants(facultyMemberId).finally(() => this.grantsInFlight.delete(facultyMemberId));
+    this.grantsInFlight.set(facultyMemberId, p);
+    return p;
+  }
 
   private evaluationOnce(facultyMemberId: string): Promise<TeachingEvaluationSummary | null> {
     const existing = this.evaluationsInFlight.get(facultyMemberId);
@@ -129,6 +149,9 @@ export class StaffProfileService {
       // Observe a rejection now so a 404 below never leaves it unhandled; the
       // await further down still throws it.
       evaluation?.catch(() => undefined);
+      const wantsGrants = client.allowedSections.includes('grants');
+      const grantsP = facultyMemberId && wantsGrants ? this.grantsOnce(facultyMemberId) : undefined;
+      grantsP?.catch(() => undefined);
       const profile = facultyMemberId ? await this.buildOnce(facultyMemberId) : null;
       if (!profile) {
         facultyMemberId = null;
@@ -136,10 +159,24 @@ export class StaffProfileService {
       }
       // A granted section that cannot be loaded fails the request (500 via the
       // catch below) rather than being silently dropped from the answer.
-      const extras = evaluation ? { teachingEvaluation: await evaluation } : {};
+      const extras = {
+        ...(evaluation ? { teachingEvaluation: await evaluation } : {}),
+        ...(grantsP ? { grants: await grantsP } : {}),
+      };
 
       const mapped = toStaffProfileResponse(profile, client, extras);
       const evaluationReturned = mapped.included.includes('teachingEvaluation');
+      const grantsReturned = mapped.included.includes('grants');
+      const sources = [
+        ...BASE_SOURCES,
+        ...(evaluationReturned ? [EVALUATION_SOURCE] : []),
+        ...(grantsReturned ? [GRANTS_SOURCE] : []),
+      ];
+      const caveats = [
+        ...CAVEATS,
+        ...(evaluationReturned ? EVALUATION_CAVEATS : []),
+        ...(grantsReturned ? GRANTS_CAVEATS : []),
+      ];
       // Runtime check of the wire shape. A drift is logged and the data still
       // returned: failing a caller over our own schema lag would be worse.
       // Issue paths only — never the values, which are personal data.
@@ -155,8 +192,8 @@ export class StaffProfileService {
         meta: {
           freshnessDate: profile.publicationsFetchedAt,
           methodologyVersion: STAFF_PROFILE_API_VERSION,
-          sources: evaluationReturned ? [...BASE_SOURCES, EVALUATION_SOURCE] : BASE_SOURCES,
-          caveats: evaluationReturned ? [...CAVEATS, ...EVALUATION_CAVEATS] : CAVEATS,
+          sources,
+          caveats,
           integration: {
             apiVersion: STAFF_PROFILE_API_VERSION,
             generatedAt: new Date().toISOString(),

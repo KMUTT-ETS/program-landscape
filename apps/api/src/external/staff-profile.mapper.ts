@@ -5,6 +5,7 @@ import {
   EVALUATION_THEME_LABELS,
   formatApa,
   STAFF_PROFILE_SECTIONS,
+  type StaffGrantsSummary,
   type StaffProfileResponseData,
   type StaffProfileSection,
   type TeachingEvaluationSummary,
@@ -25,6 +26,8 @@ export interface MappedStaffProfile {
  *  that need it. `teachingEvaluation: null` = granted, nothing on record. */
 export interface StaffProfileExtras {
   teachingEvaluation?: TeachingEvaluationSummary | null;
+  /** Always an object when granted — empty lists when nothing is on record. */
+  grants?: StaffGrantsSummary;
 }
 
 function toWireEvaluation(
@@ -184,6 +187,40 @@ export function toStaffProfileResponse(
       throw new Error('teachingEvaluation is granted but was not loaded');
     }
     data.teachingEvaluation = toWireEvaluation(extras.teachingEvaluation);
+  }
+
+  if (granted.has('grants')) {
+    if (extras.grants === undefined) {
+      throw new Error('grants is granted but was not loaded');
+    }
+    const g = extras.grants;
+    // Explicit whitelist, never a spread: a field added to the summary later must
+    // be a deliberate wire change. freshnessDate is bookkeeping and stays off.
+    data.grants = {
+      led: g.led,
+      coInvestigator: g.coInvestigator,
+      active: g.active,
+      byType: {
+        RESEARCH: g.byType.RESEARCH,
+        ACADEMIC_SERVICE: g.byType.ACADEMIC_SERVICE,
+        CONSULTING: g.byType.CONSULTING,
+        OTHER: g.byType.OTHER,
+      },
+      projects: g.projects.map((x) => ({
+        sourceProposalId: x.sourceProposalId,
+        titleTh: x.titleTh,
+        titleEn: x.titleEn,
+        type: x.type,
+        role: x.role,
+        fiscalYearBe: x.fiscalYearBe,
+        startDate: x.startDate,
+        endDate: x.endDate,
+        funderName: x.funderName,
+        budgetThb: x.budgetThb,
+        workflowStatus: x.workflowStatus,
+        teamSize: x.teamSize,
+      })),
+    };
   }
 
   const included = STAFF_PROFILE_SECTIONS.filter((s) => granted.has(s));

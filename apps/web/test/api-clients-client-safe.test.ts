@@ -36,4 +36,9 @@ describe('api-clients console stays client-safe', () => {
     expect(src).toContain('Performance data about the person — grant only to systems with a recorded basis for it.');
     expect(src).toContain("toggleSection('teachingEvaluation')");
   });
+
+  it('offers grants as its own opt-in', () => {
+    expect(src).toContain("toggleSection('grants')");
+    expect(src).toContain('Funding records about the person — grant only to systems with a recorded basis for it.');
+  });
 });

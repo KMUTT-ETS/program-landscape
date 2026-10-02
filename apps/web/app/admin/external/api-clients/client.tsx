@@ -28,6 +28,7 @@ import {
 /** Shown beside the one section that carries performance data about the person. */
 const TEACHING_EVALUATION_GRANT_NOTE =
   'Performance data about the person — grant only to systems with a recorded basis for it.';
+const GRANTS_GRANT_NOTE = 'Funding records about the person — grant only to systems with a recorded basis for it.';
 import {
   createApiClientAction,
   getApiClientDetailAction,
@@ -904,7 +905,7 @@ function ClientFields({
       <fieldset>
         <legend className="text-xs text-text-tertiary">Sections returned (person details are always included)</legend>
         <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
-          {STAFF_PROFILE_SECTIONS.filter((s) => s !== 'teachingEvaluation').map((s) => (
+          {STAFF_PROFILE_SECTIONS.filter((s) => s !== 'teachingEvaluation' && s !== 'grants').map((s) => (
             <Check
               key={s}
               label={STAFF_PROFILE_SECTION_LABELS[s]}
@@ -922,6 +923,15 @@ function ClientFields({
             onChange={() => toggleSection('teachingEvaluation')}
           />
           <span className="text-xs text-warning">{TEACHING_EVALUATION_GRANT_NOTE}</span>
+        </div>
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-4">
+          <Check
+            label={STAFF_PROFILE_SECTION_LABELS.grants}
+            wireKey="grants"
+            checked={draft.sections.includes('grants')}
+            onChange={() => toggleSection('grants')}
+          />
+          <span className="text-xs text-warning">{GRANTS_GRANT_NOTE}</span>
         </div>
       </fieldset>
 
