@@ -6,7 +6,7 @@ Program Landscape as JSON. Version string: `staff-profile.v1`.
 ## 1. What it returns
 
 `POST /api/v1/external/staff-profile` returns the data behind a staff member's
-`/profile` page. `person` is always present; the other six sections are
+`/profile` page. `person` is always present; the other seven sections are
 returned only if your client was granted them.
 
 - **`person`** — always. Staff record id, active flag, academic title, name (Thai and English), `displayName` (title plus name, ready to print), email, and identifiers (ORCID, Scopus author id, OpenAlex author id, Google Scholar profile id). `email` is non-null only for a client allowed to look up by email.
@@ -16,6 +16,7 @@ returned only if your client was granted them.
 - **`research`** — papers, citations, h-index, years active, peak year, top venues.
 - **`publications`** — the full paper list, newest first, each with an APA 7 string.
 - **`teachingEvaluation`** — **opt-in.** Student course-evaluation ratings: overall, latest vs previous academic year, a score per question category, and a rating per course. This is performance data about the person, so no client receives it unless an admin grants it explicitly, and the grant needs a recorded basis (§9). Clients created before this section existed do not hold it.
+- **`grants`** — **opt-in.** The person's external research and academic-service projects from the KKU Research Administration system: counts led and co-investigated, how many are active, counts by type, and one entry per project. No client receives it unless an admin grants it explicitly, and the grant needs a recorded basis (§9).
 
 ## 2. Getting a key
 
@@ -159,6 +160,13 @@ Standard envelope `{ data, meta, error }`. A section is present only if granted.
 | `teachingEvaluation.latestRating` / `previousRating` | Answer-weighted mean over all terms of the latest / previous academic year with answers; `previous*` is `null` when only one year has data. |
 | `teachingEvaluation.categories[]` | One per question category (`tag`), each the answer-weighted mean of its questions, all-time and for the latest year (`latest` is `null` if the category had no answers that year). Labels are given in English and Thai; an unknown tag is returned with the tag as its label. `untaggedQuestions` counts questions in no category; they count towards `overall` but not towards any category. |
 | `teachingEvaluation.courses[]` | Every evaluated course, sorted by the term it was last evaluated (newest first), then course code. `rating` is the course's all-time answer-weighted mean. A course rating reflects the course as taught by this person, but students rate the whole course experience, and a course with few answers can swing on a handful of respondents — read it with `answers` beside it, and do not rank people by it. |
+| `grants` | **Opt-in** (see §1), never granted by default. Always an object when granted: with nothing on record it is `{ led: 0, coInvestigator: 0, active: 0, byType: {…zeros}, projects: [] }`, never `null`. A client without the grant gets no key and sees `grants` in `sectionsWithheld`. |
+| `grants.led` / `coInvestigator` / `active` | Projects the person leads, projects they are a co-investigator on, and how many of the total are active today (Bangkok date between start and end). |
+| `grants.byType` | Counts for `RESEARCH`, `ACADEMIC_SERVICE`, `CONSULTING`, `OTHER`. |
+| `grants.projects[]` | `sourceProposalId`, `titleTh`, `titleEn` (nullable), `type`, `role` (`LEAD` or `CO_INVESTIGATOR`), `fiscalYearBe`, `startDate` / `endDate` (`YYYY-MM-DD`, nullable), `funderName`, `budgetThb`, `workflowStatus`, `teamSize`. |
+| `grants.projects[].budgetThb` | The **whole project's** budget, not this person's share. The source states no per-person split, so do not sum it across people or treat it as the person's funding. |
+| `grants.projects[].teamSize` | Team members on the project, lead included. Names, ids and hashes of co-investigators are never returned. |
+| `grants` coverage | External funding only. About 12 % of leads and 30 % of co-investigators are not linked to a staff record, so a person's list can be incomplete. |
 | `meta.freshnessDate` | When the publications list was last built. |
 | `meta.integration.publicationsCache` | `hit` (fresh, under 24 h), `stale` (served immediately, refresh started) or `miss` (built during this call). |
 | `meta.integration.sectionsIncluded` / `sectionsWithheld` | The sections returned, and the grantable sections your client does not hold. A withheld section is absent from `data`, not empty. `person` is never withheld. |
@@ -211,3 +219,4 @@ alongside v1 until callers have migrated.
 - Call-log rows are deleted after **365 days**.
 - The API discloses personal data about named staff. The **legal basis for your system receiving it is your own**, and must be recorded with the platform team before a key is issued. Grant and use only the sections you need, and do not pass the data on beyond that purpose.
 - **`teachingEvaluation` is performance data** about the person (student ratings overall, by category and by course). It is disclosed only to a client explicitly granted that section, and the grant needs its own recorded basis — a basis for receiving staff directory data does not cover it.
+- **`grants` is the person's funded-project record.** It is disclosed only to a client explicitly granted that section, with its own recorded basis. It carries the person's own projects and a team size, never other people's names or identifiers.

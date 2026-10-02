@@ -68,6 +68,10 @@ projects (34 %), mostly small service projects. Medicine holds the most money (à
 | D5 | **Visibility follows user scope.** The dashboard (including person-level rows) uses the existing staff-dashboard scope clamp: university users see all, faculty users see their own faculty, programme users see their programme's staff rolled up to their faculty. `/profile` panel: owner only. The public `/p/[slug]` view never shows grants. API: a per-client opt-in section. |
 | D6 | The raw citizen ID never leaves MySQL. Email is used for matching and is not stored. |
 
+**D5 refinement (2026-10-02, during implementation).** A project is visible on the dashboard when any team member is in the user's scope, and its detail view then shows the whole team by name, including members outside the scope, so a project is never shown with a truncated team.
+
+**Per-person match rates, measured on dev after the first three runs.** Leads: 491 of 555 distinct people matched (88.5 %). Co-investigators: 737 of 1,053 distinct 6-digit ids matched (70.0 %), with 700 rows carrying a non-6-digit id. These supersede the sampling figures in section 2.
+
 ## 4. Data model
 
 The migration is additive and hand-written per the repo workflow. It adds two tables and two enums.

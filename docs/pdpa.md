@@ -245,6 +245,25 @@ performance data at the point of granting. The grant needs its own recorded
 basis for the receiving system: a basis for receiving directory or publication
 data does not cover ratings of the person's teaching.
 
+**Research and academic-service grants.** The `kku-research-services` source
+(`docs/data-sources/kku-research-services.md`) keeps, per project, its
+metadata (titles, type, years, funder, whole-project budget, workflow state);
+per team member, the display name and unit as the source gives them; the lead's
+citizen-id hash; and the match to a staff record where one was found. The
+lead's email is used for matching and never stored. The hash columns are
+PII-class and never leave the server: no endpoint, export or log returns them.
+Visibility follows the Staff dashboard scope, the `/profile` panel is owner
+only, and the public `/p/[slug]` page never shows grants. The external API
+section `grants` is opt-in and never granted by default; it carries the
+person's own projects and a `teamSize`, with no co-investigator names, ids or
+hashes. **Before granting `grants` to a client, record the legal basis** for
+that system receiving a named person's funded-project record, separately from
+any basis for directory data. The DSAR export (`dumpByCitizenHash` and
+`dumpByUserId`) includes the person's `research_service_project_members` rows,
+found by lead hash or by matched staff record. **Retention:** each daily sync
+replaces both tables in one transaction and no history is kept, so a project or
+member removed upstream disappears at the next run.
+
 **How a person is found.** By Thai citizen id or by email, in the body of a
 POST, never in a URL, so the identifier does not reach proxy or access logs.
 The request logger also redacts `req.body.citizenId` and `req.body.email`.
