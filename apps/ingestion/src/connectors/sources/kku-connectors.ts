@@ -468,6 +468,22 @@ export class UniconDs2004Connector extends ApiConnector {
   }
 }
 
+// No sample rows: the no-mock-data policy. In mocked mode this source is simply empty.
+export class KkuResearchServicesConnector extends ApiConnector {
+  readonly slug = 'kku-research-services';
+  readonly mocked = true;
+
+  async fetch(): Promise<RawRecord[]> {
+    return [];
+  }
+  async transform(): Promise<NormalizedRecord[]> {
+    return [];
+  }
+  async load(_c: ConnectorContext, n: NormalizedRecord[]): Promise<LoadResult> {
+    return { recordsFetched: n.length, recordsLoaded: 0, recordsFailed: 0, metadata: { note: 'mocked — no rows' } };
+  }
+}
+
 export class UniconDs1001Connector extends ApiConnector {
   readonly slug = 'unicon-ds1001';
   readonly mocked = true;

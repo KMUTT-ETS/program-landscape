@@ -544,6 +544,17 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     notes: 'Academic staff appointments per MHESI curriculum. CURR_ID joins Program.mhesiCode. Auto-resolves the latest ds2004_<YYSEM> table.',
     mocked: false,
   },
+  {
+    slug: 'kku-research-services',
+    name: 'KKU Research & Academic Services — external grants',
+    kind: 'API',
+    inputFormat: 'JSON',
+    cadenceCron: '0 4 * * *', // daily at 04:00, after the UNICON syncs
+    ownerContact: 'KKU Research Administration (กองบริหารงานวิจัย)',
+    notes:
+      'Externally funded research and academic-service projects with lead + co-investigators (MySQL views T_external_fund_View_landscape + coproject_landscape). Daily snapshot replace. Lead citizen id hashed in SQL.',
+    mocked: false,
+  },
 ] as const;
 
 export function getCatalogEntry(slug: string): SourceCatalogEntry | undefined {

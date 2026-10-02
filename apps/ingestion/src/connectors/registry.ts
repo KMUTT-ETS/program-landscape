@@ -14,6 +14,7 @@ import {
   KkuHrConnector,
   KkuRegistryConnector,
   KkuResearchConnector,
+  KkuResearchServicesConnector,
   KkuTcasFunnelConnector,
   KkuAdmissionCampaignsConnector,
   KmitlSkillMappingConnector,
@@ -35,6 +36,7 @@ import { KkuRegistryRealConnector } from './sources/kku-registry';
 import { KkuTcasFunnelRealConnector } from './sources/kku-tcas-funnel';
 import { KkuAdmissionCampaignsRealConnector } from './sources/kku-admission-campaigns';
 import { KkuResearchRealConnector } from './sources/kku-research';
+import { KkuResearchServicesRealConnector } from './sources/kku-research-services';
 import { Job108Connector } from './sources/job-108';
 import { KmitlSkillMappingRealConnector } from './sources/kmitl-skill-mapping';
 import { KkuHrProcessedRealConnector } from './sources/kku-hr-processed';
@@ -276,6 +278,12 @@ const ENTRIES: readonly ConnectorEntry[] = [
     slug: 'kku-hr-processed',
     mock: () => new KkuHrProcessedConnector(),
     real: () => new KkuHrProcessedRealConnector(),
+  },
+  // KKU Research & Academic Services (MySQL) — external grants + academic service
+  {
+    slug: 'kku-research-services',
+    mock: () => new KkuResearchServicesConnector(),
+    real: () => new KkuResearchServicesRealConnector(),
   },
 ];
 
