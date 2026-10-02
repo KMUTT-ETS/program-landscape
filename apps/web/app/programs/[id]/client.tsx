@@ -4974,7 +4974,10 @@ function HealthScoreBreakdown({
                     ' JobThai (domestic) and LinkedIn (global) demand are weighted 75:25 within their share; when one has no data the other takes it all.'}
                 </p>
                 <ul className="flex flex-col gap-1.5">
-                  {row.cell.drivers.map((d, i) => (
+                  {row.cell.drivers.map((d, i) => {
+                    const grantNote =
+                      d.label === 'external_grant_engagement' && d.value === null ? grantDriverNullNote(d.raw) : null;
+                    return (
                     <li key={i} className="rounded bg-surface-2/50 p-2">
                       <div className="flex items-baseline justify-between gap-2">
                         <span className="flex items-center gap-1.5 font-medium text-text-primary">
@@ -4985,14 +4988,13 @@ function HealthScoreBreakdown({
                           {d.value === null ? 'no data' : Math.round(d.value)}
                         </span>
                       </div>
-                      {d.value === null && grantDriverNullNote(d.raw) && (
-                        <p className="mt-0.5 text-xs text-text-tertiary">{grantDriverNullNote(d.raw)}</p>
-                      )}
+                      {grantNote && <p className="mt-0.5 text-[11px] text-text-tertiary">{grantNote}</p>}
                       {d.raw !== undefined && d.raw !== null && (
                         <RawPayload raw={d.raw} />
                       )}
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               </div>
             )}

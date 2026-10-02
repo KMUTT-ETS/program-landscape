@@ -2,7 +2,10 @@
 // (health-score.v5.3). The driver is gated on 30 days of green grant-sync history;
 // a null is a data gap, never a low score, and the reader should be told which.
 
-const day = (iso: string) => new Date(new Date(iso).getTime() + 7 * 3_600_000).toISOString().slice(0, 10);
+const day = (iso: string): string => {
+  const t = new Date(iso).getTime();
+  return Number.isNaN(t) ? 'unknown' : new Date(t + 7 * 3_600_000).toISOString().slice(0, 10);
+};
 
 export function grantDriverNullNote(raw: unknown): string | null {
   if (!raw || typeof raw !== 'object' || !('reason' in raw)) return null;

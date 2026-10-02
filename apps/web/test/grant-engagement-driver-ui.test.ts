@@ -30,6 +30,9 @@ describe('external_grant_engagement in the UI', () => {
     expect(grantDriverNullNote({ reason: 'source-stale', lastSuccessAt: '2026-11-10T21:00:00.000Z' })).toBe(
       'Grant data is out of date (last synced 2026-11-11).',
     );
+    expect(grantDriverNullNote({ reason: 'source-stale', lastSuccessAt: 'not-a-date' })).toBe(
+      'Grant data is out of date (last synced unknown).',
+    );
     expect(grantDriverNullNote({ fundedStaff: 1 })).toBeNull();
     expect(grantDriverNullNote(null)).toBeNull();
   });
