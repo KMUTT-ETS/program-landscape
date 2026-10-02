@@ -10,6 +10,9 @@
 
 import { z } from 'zod';
 
+// The SQL hash strips only '-' and ' ' (MySQL 5.7 has no REGEXP_REPLACE). An id
+// carrying any other punctuation (dots, slashes, NBSP) hashes differently from
+// hashCitizenId(), so that lead is not matched by hash and falls back to email.
 export const PROJECTS_SQL = `
 SELECT proposal_id, proposal_id_md5, proposal_name_th, proposal_name_en, proposal_type,
        budget_year, pro_bud_year, pro_start_date, pro_expire_date, proposal_budget_all,
@@ -59,6 +62,55 @@ export const CoRowSchema = z.object({
   dept: nullableText,
 });
 export type CoRow = z.infer<typeof CoRowSchema>;
+
+export interface InvalidRowSample {
+  /** The row's own identifier (proposal_id / co_id) — a project key, never a person. */
+  id: string | number | null;
+  /** Path of the first schema issue on that row. */
+  path: string;
+}
+
+export interface PartitionedRows<T> {
+  valid: T[];
+  invalidCount: number;
+  invalidSamples: InvalidRowSample[];
+}
+
+const MAX_INVALID_SAMPLES = 20;
+
+/**
+ * Validate rows one by one, so a single malformed row is skipped and counted
+ * instead of failing the whole view. Only the row's identifier is sampled.
+ */
+export function partitionRows<T>(
+  rows: readonly unknown[],
+  schema: z.ZodType<T, z.ZodTypeDef, unknown>,
+  idKey: string,
+): PartitionedRows<T> {
+  const valid: T[] = [];
+  const invalidSamples: InvalidRowSample[] = [];
+  let invalidCount = 0;
+  for (const row of rows) {
+    const parsed = schema.safeParse(row);
+    if (parsed.success) {
+      valid.push(parsed.data);
+      continue;
+    }
+    invalidCount += 1;
+    if (invalidSamples.length < MAX_INVALID_SAMPLES) {
+      const raw = row !== null && typeof row === 'object' ? (row as Record<string, unknown>)[idKey] : undefined;
+      const id = typeof raw === 'string' || typeof raw === 'number' ? raw : null;
+      invalidSamples.push({ id, path: parsed.error.issues[0]?.path.join('.') ?? '' });
+    }
+  }
+  return { valid, invalidCount, invalidSamples };
+}
+
+/** Null while invalid rows stay at or under 1 % of the view; otherwise the refusal text. */
+export function driftMessage(view: string, invalid: number, total: number): string | null {
+  if (invalid === 0 || invalid <= total * 0.01) return null;
+  return `${invalid} of ${total} ${view} rows failed validation — over 1 %, the view shape has likely changed`;
+}
 
 export type ProjectType = 'RESEARCH' | 'ACADEMIC_SERVICE' | 'CONSULTING' | 'OTHER';
 
@@ -142,10 +194,19 @@ export interface MemberInsert {
 
 export interface SnapshotStats {
   projects: number;
-  leadsMatched: number;
+  /** Projects whose lead resolved to a faculty member (a per-project count). */
+  projectsWithMatchedLead: number;
+  /** Distinct lead identities (citizen hash, else email); leads with neither are not counted. */
+  leadPeople: number;
+  /** Distinct faculty members resolved as a lead. */
+  leadPeopleMatched: number;
   coRows: number;
+  /** Co-investigator rows (on projects in the view) carrying a 6-digit id. */
   coSixDigit: number;
   coMatched: number;
+  /** Distinct 6-digit co-investigator ids, and how many of them resolved. */
+  coPeopleSixDigit: number;
+  coPeopleMatched: number;
   coOtherIds: number;
   coOrphans: number;
   unmatchedUnitSamples: string[];
@@ -178,7 +239,9 @@ export function planSnapshot(
   const projects: ProjectInsert[] = [];
   const members: MemberInsert[] = [];
   const idByKey = new Map<string, string>();
-  let leadsMatched = 0;
+  let projectsWithMatchedLead = 0;
+  const leadKeys = new Set<string>();
+  const leadMatchedIds = new Set<string>();
 
   for (const r of projectRows) {
     const id = `rsp-${r.proposal_id}`;
@@ -187,7 +250,12 @@ export function planSnapshot(
     const lead =
       (r.head_citizen_hash ? idx.byCitizenHash.get(r.head_citizen_hash) : undefined) ??
       (r.lead_email ? idx.byEmail.get(r.lead_email) : undefined);
-    if (lead) leadsMatched += 1;
+    const leadKey = r.head_citizen_hash ?? r.lead_email;
+    if (leadKey) leadKeys.add(leadKey);
+    if (lead) {
+      projectsWithMatchedLead += 1;
+      leadMatchedIds.add(lead.id);
+    }
     const leadFaculty = resolveFaculty(lead, unitName);
     const titleEn = text(r.proposal_name_en);
     projects.push({
@@ -231,6 +299,8 @@ export function planSnapshot(
   let coMatched = 0;
   let coOtherIds = 0;
   let coOrphans = 0;
+  const coKeys = new Set<string>();
+  const coMatchedKeys = new Set<string>();
   for (const c of coRows) {
     const projectId = idByKey.get(c.proposal_id.trim());
     if (!projectId) {
@@ -241,8 +311,12 @@ export function planSnapshot(
     let staff: StaffRef | undefined;
     if (key && SIX_DIGITS.test(key)) {
       coSixDigit += 1;
+      coKeys.add(key);
       staff = idx.byEmployeeId.get(key);
-      if (staff) coMatched += 1;
+      if (staff) {
+        coMatched += 1;
+        coMatchedKeys.add(key);
+      }
     } else {
       coOtherIds += 1;
     }
@@ -266,10 +340,14 @@ export function planSnapshot(
     members,
     stats: {
       projects: projects.length,
-      leadsMatched,
+      projectsWithMatchedLead,
+      leadPeople: leadKeys.size,
+      leadPeopleMatched: leadMatchedIds.size,
       coRows: coRows.length,
       coSixDigit,
       coMatched,
+      coPeopleSixDigit: coKeys.size,
+      coPeopleMatched: coMatchedKeys.size,
       coOtherIds,
       coOrphans,
       unmatchedUnitSamples: [...unmatchedUnits].slice(0, 20),

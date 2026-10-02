@@ -3,8 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { hashCitizenId } from '@kku/shared';
 import {
   CO_INVESTIGATORS_SQL,
+  CoRowSchema,
   PROJECTS_SQL,
+  driftMessage,
   mapProjectType,
+  partitionRows,
   parseBangkokDateTime,
   planSnapshot,
   shrinkGuardMessage,
@@ -99,7 +102,7 @@ describe('planSnapshot', () => {
     expect(lead.facultyName).toBe('คณะแพทยศาสตร์');
     expect(lead.citizenIdHash).toBe('b'.repeat(64));
     expect(plan.projects[0]!.leadFacultyName).toBe('คณะแพทยศาสตร์');
-    expect(plan.stats.leadsMatched).toBe(1);
+    expect(plan.stats.projectsWithMatchedLead).toBe(1);
   });
 
   it('falls back to email when the hash does not match', () => {
@@ -136,6 +139,75 @@ describe('planSnapshot', () => {
   it('samples unmatched unit names, never people', () => {
     const plan = planSnapshot([project({ proposal_dept: 'หน่วยใหม่' })], [], emptyIndex());
     expect(plan.stats.unmatchedUnitSamples).toEqual(['หน่วยใหม่']);
+  });
+});
+
+describe('per-person match stats', () => {
+  it('counts distinct lead people and distinct matched lead people, not projects', () => {
+    const idx = emptyIndex();
+    idx.byCitizenHash.set('b'.repeat(64), { id: 'fm-1', facultyId: null });
+    const rows = [
+      project(),
+      project({ proposal_id: 102, proposal_id_md5: 'c'.repeat(32) }),
+      project({ proposal_id: 103, proposal_id_md5: 'd'.repeat(32), head_citizen_hash: null, lead_email: 'x@kku.ac.th' }),
+      project({ proposal_id: 104, proposal_id_md5: 'e'.repeat(32), head_citizen_hash: null, lead_email: null }),
+    ];
+    const s = planSnapshot(rows, [], idx).stats;
+    expect(s.projectsWithMatchedLead).toBe(2);
+    expect(s.leadPeople).toBe(2); // the hash, and x@kku.ac.th; the keyless lead is not a person we can count
+    expect(s.leadPeopleMatched).toBe(1);
+  });
+
+  it('counts distinct 6-digit co-investigator ids and distinct matched ones', () => {
+    const idx = emptyIndex();
+    idx.byEmployeeId.set('123456', { id: 'fm-co', facultyId: null });
+    const s = planSnapshot(
+      [project()],
+      [co(), co({ co_id: 2 }), co({ co_id: 3, kku_id: '654321' }), co({ co_id: 4, kku_id: '0' })],
+      idx,
+    ).stats;
+    expect(s.coSixDigit).toBe(3);
+    expect(s.coPeopleSixDigit).toBe(2);
+    expect(s.coPeopleMatched).toBe(1);
+  });
+});
+
+describe('partitionRows', () => {
+  it('keeps valid rows and samples the ids and first issue path of invalid ones', () => {
+    const rows: unknown[] = [
+      { co_id: 1, proposal_id: 'a', fullname: null, kku_id: null, dept: null },
+      { co_id: 2, proposal_id: 7, fullname: null, kku_id: null, dept: null },
+      { co_id: 'x', proposal_id: 'a', fullname: null, kku_id: null, dept: null },
+    ];
+    const r = partitionRows(rows, CoRowSchema, 'co_id');
+    expect(r.valid).toHaveLength(1);
+    expect(r.invalidCount).toBe(2);
+    expect(r.invalidSamples).toEqual([
+      { id: 2, path: 'proposal_id' },
+      { id: 'x', path: 'co_id' },
+    ]);
+  });
+
+  it('caps samples at 20 and never samples a non-identifier value', () => {
+    const rows = Array.from({ length: 30 }, (_, i) => ({ co_id: i, proposal_id: null, fullname: 'secret' }));
+    const r = partitionRows(rows, CoRowSchema, 'co_id');
+    expect(r.invalidCount).toBe(30);
+    expect(r.invalidSamples).toHaveLength(20);
+    expect(JSON.stringify(r.invalidSamples)).not.toContain('secret');
+  });
+
+  it('records a null id when the row has no usable identifier', () => {
+    const r = partitionRows([{ co_id: { nested: 1 } }, 'not an object'], CoRowSchema, 'co_id');
+    expect(r.invalidSamples.map((s) => s.id)).toEqual([null, null]);
+  });
+});
+
+describe('driftMessage', () => {
+  it('tolerates up to 1 % invalid rows and refuses above it', () => {
+    expect(driftMessage('projects', 0, 1000)).toBeNull();
+    expect(driftMessage('projects', 10, 1000)).toBeNull();
+    expect(driftMessage('projects', 11, 1000)).toMatch(/11 of 1000 projects/);
+    expect(driftMessage('projects', 0, 0)).toBeNull();
   });
 });
 
