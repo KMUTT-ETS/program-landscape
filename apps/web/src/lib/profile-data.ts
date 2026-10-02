@@ -183,7 +183,8 @@ export async function getMyTeachingEvaluation(userId: string): Promise<TeachingE
 }
 
 /** The signed-in user's own grants for the /profile panel. Server-only; never
- *  called for /p/[slug]. 'unlinked' when the account resolves to no staff record. */
+ *  called for /p/[slug]. 'unlinked' when the account resolves to no staff record.
+ *  (Unreachable while the panel is gated on hasFacultyMemberRecord; kept for an honest return type.) */
 export async function getMyGrants(userId: string): Promise<StaffGrantsSummary | 'unlinked'> {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { employeeId: true, name: true } });
   if (!user) return 'unlinked';

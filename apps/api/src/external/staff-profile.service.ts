@@ -73,6 +73,7 @@ export class StaffProfileService {
    *  it runs beside the bounded build rather than taking a build slot). */
   private readonly evaluationsInFlight = new Map<string, Promise<TeachingEvaluationSummary | null>>();
 
+  /** Coalesces concurrent grants loads for the same person, like evaluationsInFlight. */
   private readonly grantsInFlight = new Map<string, Promise<StaffGrantsSummary>>();
 
   private grantsOnce(facultyMemberId: string): Promise<StaffGrantsSummary> {

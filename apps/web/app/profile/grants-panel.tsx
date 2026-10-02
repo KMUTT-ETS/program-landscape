@@ -30,6 +30,7 @@ const L = {
     caveats: [
       'Budget is the whole project budget, not your share.',
       'Externally funded projects only (ทุนภายนอก). Synced daily from KKU Research Administration.',
+      'Active now counts projects whose start and end dates include today; projects missing either date are not counted.',
     ],
   },
   th: {
@@ -46,7 +47,10 @@ const L = {
     unavailable: 'ข้อมูลทุนไม่พร้อมใช้งานชั่วคราว',
     freshnessLabel: 'ข้อมูลทุน',
     source: 'ระบบงานวิจัยและบริการวิชาการ มข. (ทุนภายนอก)',
-    caveats: ['งบประมาณเป็นงบรวมของโครงการ ไม่ใช่ส่วนของคุณ', 'เฉพาะโครงการทุนภายนอก ซิงก์ทุกวันจากกองบริหารงานวิจัย'],
+    caveats: [
+      'งบประมาณเป็นงบรวมของโครงการ ไม่ใช่ส่วนของคุณ', 'เฉพาะโครงการทุนภายนอก ซิงก์ทุกวันจากกองบริหารงานวิจัย',
+      'กำลังดำเนินการ นับเฉพาะโครงการที่วันนี้อยู่ระหว่างวันเริ่มและวันสิ้นสุด โครงการที่ไม่มีวันใดวันหนึ่งจะไม่ถูกนับ',
+    ],
   },
 } as const;
 

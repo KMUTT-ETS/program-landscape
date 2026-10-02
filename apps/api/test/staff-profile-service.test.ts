@@ -343,6 +343,9 @@ describe('StaffProfileService grants', () => {
     expect(out.meta.caveats!.join(' ')).toMatch(/not this person's share/);
     expect(out.meta.caveats!.join(' ')).toMatch(/grants\.active counts projects/);
     expect(out.meta.integration).toMatchObject({ sectionsIncluded: ['person', 'education', 'grants'] });
+    expect(mocks.recordApiRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 200, sectionsReturned: expect.arrayContaining(['grants']) }),
+    );
   });
 
   it('fails the request, logged as 500, when granted grants cannot be loaded', async () => {

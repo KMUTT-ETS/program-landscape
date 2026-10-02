@@ -68,4 +68,23 @@ describe('summariseStaffGrants', () => {
     expect(s.projects.map((p) => p.sourceProposalId)).toEqual([3, 2, 1]);
     expect(s.freshnessDate).toBe('2026-10-02T04:00:00.000Z');
   });
+
+  it('breaks a full tie by source proposal id so the order is deterministic', () => {
+    const s = summariseStaffGrants(
+      [e({ sourceProposalId: 9, titleTh: 'ก' }), e({ sourceProposalId: 4, titleTh: 'ก' })],
+      TODAY,
+      null,
+    );
+    expect(s.projects.map((p) => p.sourceProposalId)).toEqual([4, 9]);
+  });
+
+  it('keeps LEAD when LEAD is seen first and CO_INVESTIGATOR follows', () => {
+    const s = summariseStaffGrants(
+      [e({ sourceProposalId: 7, role: 'LEAD' }), e({ sourceProposalId: 7, role: 'CO_INVESTIGATOR' })],
+      TODAY,
+      null,
+    );
+    expect(s.projects).toHaveLength(1);
+    expect(s.projects[0]!.role).toBe('LEAD');
+  });
 });

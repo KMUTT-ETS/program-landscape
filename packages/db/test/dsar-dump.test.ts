@@ -112,6 +112,8 @@ describe('dumpByUserId', () => {
     expect(resolve).not.toHaveBeenCalled();
     expect(model('apiRequestLog').findMany).not.toHaveBeenCalled();
     expect(out.staffRecord).toEqual({ facultyMemberIds: [], matchedBy: null });
+    expect(model('researchServiceProjectMember').findMany).not.toHaveBeenCalled();
+    expect(out.researchServiceProjectMembers).toEqual([]);
   });
 
   it('includes grant memberships reached through the user\'s staff records', async () => {

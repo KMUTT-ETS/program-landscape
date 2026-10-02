@@ -55,7 +55,8 @@ export function summariseStaffGrants(
     (a, b) =>
       b.fiscalYearBe - a.fiscalYearBe ||
       (a.role === b.role ? 0 : a.role === 'LEAD' ? -1 : 1) ||
-      a.titleTh.localeCompare(b.titleTh, 'th'),
+      a.titleTh.localeCompare(b.titleTh, 'th') ||
+      a.sourceProposalId - b.sourceProposalId,
   );
   const day = bangkokDay(today);
   const byType: Record<GrantProjectType, number> = { RESEARCH: 0, ACADEMIC_SERVICE: 0, CONSULTING: 0, OTHER: 0 };

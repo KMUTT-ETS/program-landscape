@@ -147,7 +147,7 @@ describe('toStaffProfileResponse', () => {
       expect(StaffProfileResponseDataSchema.safeParse(r.data).success).toBe(true);
       expect(r.data.grants!.projects[0]!.sourceProposalId).toBe(9);
       expect(r.data.grants).not.toHaveProperty('freshnessDate');
-      expect(r.included).toContain('grants');
+      expect(r.included).toEqual(['person', 'grants']);
     });
 
     it('builds from a whitelist: an extra property on a project never reaches the wire', () => {

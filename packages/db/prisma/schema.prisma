@@ -1568,11 +1568,12 @@ model FacultyMember {
   scholarFetchRuns      ScholarFetchRun[]
   publicationsCache     StaffPublicationsCache?
 
+  researchServiceProjectMembers ResearchServiceProjectMember[]
+
   @@index([facultyId])
   @@index([departmentId])
   @@index([isActive])
   @@map("faculty_members")
-  researchServiceProjectMembers ResearchServiceProjectMember[]
 }
 
 model ProgramFaculty {

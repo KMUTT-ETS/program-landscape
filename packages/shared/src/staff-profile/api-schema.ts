@@ -5,6 +5,7 @@
 // from a client component, so this file may import only `zod` and pure
 // modules — never the package barrel.
 import { z } from 'zod';
+import { GRANT_PROJECT_TYPES } from './grants';
 import { isValidThaiCitizenId, normaliseThaiCitizenId } from '../identity/thai-citizen-id';
 
 export const STAFF_PROFILE_API_VERSION = 'staff-profile.v1';
@@ -220,7 +221,7 @@ export const StaffProfileResponseDataSchema = z.object({
             sourceProposalId: z.number(),
             titleTh: z.string(),
             titleEn: z.string().nullable(),
-            type: z.enum(['RESEARCH', 'ACADEMIC_SERVICE', 'CONSULTING', 'OTHER']),
+            type: z.enum(GRANT_PROJECT_TYPES),
             role: z.enum(['LEAD', 'CO_INVESTIGATOR']),
             fiscalYearBe: z.number(),
             startDate: z.string().nullable(),
