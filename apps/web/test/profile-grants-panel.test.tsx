@@ -12,6 +12,12 @@ const summary = (over: Partial<StaffGrantsSummary> = {}): StaffGrantsSummary => 
   coInvestigator: 1,
   active: 1,
   byType: { RESEARCH: 1, ACADEMIC_SERVICE: 1, CONSULTING: 0, OTHER: 0 },
+  totalBudgetThb: 12_345_678,
+  byYear: [
+    { fiscalYearBe: 2567, ledThb: 2_000_000, coThb: 0, projects: 1 },
+    { fiscalYearBe: 2568, ledThb: 0, coThb: 0, projects: 0 },
+    { fiscalYearBe: 2569, ledThb: 1_500_000, coThb: 8_845_678, projects: 2 },
+  ],
   projects: [
     {
       sourceProposalId: 1,
@@ -82,5 +88,28 @@ describe('GrantsPanel stays owner-only and client-safe', () => {
     const src = read('app', 'profile', 'grants-panel.tsx');
     for (const m of src.match(/^import[^;]*from '@kku\/shared[^']*';/gm) ?? [])
       expect(m).toMatch(/^import type\b/);
+  });
+
+  it('shows the total of project budgets as the first KPI, marked as project totals', () => {
+    const html = render(summary());
+    expect(html).toContain('Total grants');
+    expect(html).toContain('฿12.3M');
+    expect(html).toContain('sum of project totals');
+  });
+
+  it('charts project totals by fiscal year with every year on the axis, split by role', () => {
+    const html = render(summary());
+    expect(html).toContain('aria-label="Grant budget by fiscal year"');
+    for (const y of ['2567', '2568', '2569']) expect(html).toContain(`>${y}<`);
+    expect(html).toContain('Led');
+    expect(html).toContain('Co-investigator');
+    // The year with no grants is still a slot on the axis but draws no bar.
+    expect(html).toContain('FY 2568: no grants');
+  });
+
+  it('labels the chart and total in Thai', () => {
+    const html = render(summary(), 'th');
+    expect(html).toContain('งบประมาณรวม');
+    expect(html).toContain('งบทุนตามปีงบประมาณ');
   });
 });

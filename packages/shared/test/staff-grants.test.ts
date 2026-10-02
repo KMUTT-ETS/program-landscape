@@ -97,3 +97,43 @@ describe('summariseStaffGrants', () => {
     expect(s.projects[0]!.role).toBe('LEAD');
   });
 });
+
+describe('summariseStaffGrants — budget totals', () => {
+  it('sums each project budget once, skipping projects with no stated budget', () => {
+    const s = summariseStaffGrants(
+      [
+        e({ sourceProposalId: 1, budgetThb: 1_000 }),
+        e({ sourceProposalId: 1, role: 'CO_INVESTIGATOR', budgetThb: 1_000 }),
+        e({ sourceProposalId: 2, role: 'CO_INVESTIGATOR', budgetThb: 500 }),
+        e({ sourceProposalId: 3, budgetThb: null }),
+      ],
+      TODAY,
+      null,
+    );
+    expect(s.totalBudgetThb).toBe(1_500);
+  });
+
+  it('builds a continuous fiscal-year series, oldest first, split by role', () => {
+    const s = summariseStaffGrants(
+      [
+        e({ sourceProposalId: 1, fiscalYearBe: 2565, budgetThb: 100 }),
+        e({ sourceProposalId: 2, fiscalYearBe: 2567, role: 'CO_INVESTIGATOR', budgetThb: 40 }),
+        e({ sourceProposalId: 3, fiscalYearBe: 2567, budgetThb: 10 }),
+        e({ sourceProposalId: 4, fiscalYearBe: 2567, budgetThb: null }),
+      ],
+      TODAY,
+      null,
+    );
+    expect(s.byYear).toEqual([
+      { fiscalYearBe: 2565, ledThb: 100, coThb: 0, projects: 1 },
+      { fiscalYearBe: 2566, ledThb: 0, coThb: 0, projects: 0 },
+      { fiscalYearBe: 2567, ledThb: 10, coThb: 40, projects: 3 },
+    ]);
+  });
+
+  it('returns an empty series and a zero total when there are no projects', () => {
+    const s = summariseStaffGrants([], TODAY, null);
+    expect(s.byYear).toEqual([]);
+    expect(s.totalBudgetThb).toBe(0);
+  });
+});

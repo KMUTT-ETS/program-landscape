@@ -30,9 +30,22 @@ export interface StaffGrantsSummary {
   coInvestigator: number;
   active: number;
   byType: Record<GrantProjectType, number>;
+  /** Sum of whole-project budgets, each project once; projects with no stated budget add 0. */
+  totalBudgetThb: number;
+  /** One row per fiscal year from the first to the last, oldest first; empty years are zero rows. */
+  byYear: GrantYearTotal[];
   projects: StaffGrantEntry[];
   /** Completion time of the sync the rows came from. */
   freshnessDate: string | null;
+}
+
+export interface GrantYearTotal {
+  fiscalYearBe: number;
+  /** Project totals of projects this person led. */
+  ledThb: number;
+  /** Project totals of projects this person was a co-investigator on. */
+  coThb: number;
+  projects: number;
 }
 
 function bangkokDay(d: Date): string {
@@ -67,10 +80,36 @@ export function summariseStaffGrants(
   };
   let led = 0;
   let active = 0;
+  let totalBudgetThb = 0;
+  const years = new Map<number, GrantYearTotal>();
   for (const p of projects) {
     byType[p.type] += 1;
     if (p.role === 'LEAD') led += 1;
     if (p.startDate && p.endDate && p.startDate <= day && day <= p.endDate) active += 1;
+    const budget = p.budgetThb ?? 0;
+    totalBudgetThb += budget;
+    const y = years.get(p.fiscalYearBe) ?? { fiscalYearBe: p.fiscalYearBe, ledThb: 0, coThb: 0, projects: 0 };
+    if (p.role === 'LEAD') y.ledThb += budget;
+    else y.coThb += budget;
+    y.projects += 1;
+    years.set(p.fiscalYearBe, y);
   }
-  return { led, coInvestigator: projects.length - led, active, byType, projects, freshnessDate };
+  const byYear: GrantYearTotal[] = [];
+  if (years.size > 0) {
+    const first = Math.min(...years.keys());
+    const last = Math.max(...years.keys());
+    for (let fy = first; fy <= last; fy += 1) {
+      byYear.push(years.get(fy) ?? { fiscalYearBe: fy, ledThb: 0, coThb: 0, projects: 0 });
+    }
+  }
+  return {
+    led,
+    coInvestigator: projects.length - led,
+    active,
+    byType,
+    totalBudgetThb,
+    byYear,
+    projects,
+    freshnessDate,
+  };
 }
