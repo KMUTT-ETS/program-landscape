@@ -178,6 +178,11 @@ has:
 - a monitoring entry in `/admin/data-sources/<slug>/stats` that the
   analyst-on-duty reviews weekly
 
+**Enforced in code for `kku-research-services`** (health-score.v5.3,
+`packages/db/src/grant-engagement.ts` `greenHistoryGate`): the
+`external_grant_engagement` driver stays null until the source has ≥ 30 days of
+history, ≥ 25 of the last 30 days green, and a success within 72 h.
+
 **Audit.** `docs/data-sources/README.md` lists every connector's mode
 and last successful run.
 

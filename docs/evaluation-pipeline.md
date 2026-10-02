@@ -106,9 +106,11 @@ Key invariants:
 |---|---|---|
 | **Attractiveness** | tcas_competition_ratio · tcas_fill_rate · tcas_registration_yield · tcas_competition_vs_peers · enrollment_trend_slope · kku_intake_policy | `tcas_admission_funnels` + `tcas_admission_stats` (peer) + `enrollment_metrics` + `Program.level` |
 | **Financial** | net_contribution_per_student · revenue_coverage_program_direct · tuition_trend_slope | `financial_metrics` + `enrollment_metrics` (latest non-partial CE year) |
-| **Capability** | senior_rank_share · publications_per_faculty · retirement_horizon_5y | `program_faculties × faculty_members.{rank, retirementDate}` + `research_outputs` (year ≥ now−3) |
+| **Capability** | senior_rank_share · publications_per_faculty · retirement_horizon_5y · student_faculty_ratio · external_grant_engagement | `program_faculties × faculty_members.{rank, retirementDate}` + `research_outputs` (year ≥ now−3) + `research_service_project_members` (last 3 complete Thai FY; gated on 30 days of green `kku-research-services` history, null until then) |
 | **Outcomes** | tcas_min_score_percentile · employment_rate · average_salary | `tcas_admission_stats` (peer subject set) + `graduate_outcomes` (PENDING — kku-alumni still mocked) |
 | **Relevance** | labour_market_alignment · demand_match_filled · demographic_resilience · strategic_sector_alignment | `program_skills × kmitl_career_skill_demands` (4-quadrant fallback) + `program_demand_matches` + `programDemographicOutlook` (computed from `demographic_projections`) + career→sector taxonomy |
+
+Version in force: `health-score.v5.3`. The lifecycle verdict and risk score see `external_grant_engagement` only through the Capability dimension (`capability_strength`, driver 9), so a change to it moves them indirectly.
 
 **Aggregation rule (critical):** faculty/department/university scopes are *not* simple averages of program scores. Since `health-score.v5.0` they carry the same driver sets as programs: per-program-calibrated drivers roll up as the mean of program values, scope-invariant drivers as ratio-of-sums (weighted by program size). Faculty overall ≠ mean of programs, deliberately; measured gap after v5.0 ~3.9 pts. Documented in §2.3 and §8.3 of the in-app paper (`apps/web/app/docs/methodology/content-en.tsx`).
 

@@ -1,8 +1,29 @@
 # Health score methodology
 
-**Version:** `health-score.v5.2`
-**Reviewed:** 2026-09-13
+**Version:** `health-score.v5.3`
+**Reviewed:** 2026-10-02
 **Owner:** KKU Data Office
+
+**v5.3 (2026-10-02): external grant engagement joins the Capability
+dimension.** A fifth driver, `external_grant_engagement`, is the share of a
+programme's active teaching staff on at least one externally funded research or
+academic-service project in the last three complete Thai fiscal years, scored
+60 % -> 100. It measures breadth, not volume: projects and budgets are not
+counted (a prolific investigator or a stream of small service contracts must not
+carry a programme, and the source never splits a project budget across its
+members). Capability drivers are equal-weighted inside the dimension, so each
+of the five now carries **20 %** instead of 25 %; dimension weights and the
+overall mean are unchanged. The driver is **gated on 30 days of green sync
+history** (see "External grant engagement" below) and is null until the gate
+opens, so on a server without that history Capability is the mean of its other
+four drivers and nothing moves. Spec
+`docs/superpowers/specs/2026-10-02-grant-engagement-driver-design.md`.
+
+**Measured basis (development, 2026-10-02, window FY 2567-2569).** 285
+programmes have active teaching staff and 260 of them have at least one funded
+member. The share of a programme's staff on at least one project has p25 22 %,
+median 36 %, p75 56 %, so under the 60 % target a median programme scores about
+60 and the top quarter about 93-100.
 
 **v5.2 (2026-09-13): the JobThai signal corrected, and labour-market demand
 weighted domestic 75 : global 25.** v5.1 was superseded the same day, before
@@ -403,7 +424,7 @@ the Outcomes table below.
 > |---|---|---|---|
 > | **Attractiveness** | Q1: Do students choose this program? | tcas_competition_vs_peers · tcas_fill_rate · enrollment_trend_slope | `admission_campaign_stats` (REAL, KKU funnel via kku-admission-campaigns) · `tcas_admission_stats` (REAL, peer rows) · `enrollment_metrics` (REAL via kku-registry) |
 > | **Financial** | Q2: Does it pay for itself? | net_contribution_per_student · revenue_coverage_program_direct · tuition_trend_slope | `financial_metrics` (REAL via link-financials) · `enrollment_metrics` (REAL) |
-> | **Capability** | Q6: Is the teaching team strong + sustainable? | senior_rank_share · publications_per_faculty · retirement_horizon_5y | `program_faculties` × `faculty_members` (REAL via kku-hr) · `research_outputs` (REAL via kku-research) |
+> | **Capability** | Q6: Is the teaching team strong + sustainable? | senior_rank_share · publications_per_faculty · retirement_horizon_5y · student_faculty_ratio · external_grant_engagement | `program_faculties` × `faculty_members` (REAL via kku-hr) · `research_outputs` (REAL via kku-research) · `research_service_project_members` (REAL via kku-research-services, gated) |
 > | **Outcomes** | Q1+Q6: Do graduates thrive? | tcas_min_score_percentile · employment_rate · average_salary | `tcas_admission_stats` (REAL) · `graduate_outcomes` (PENDING kku-alumni) · `employer_feedback` (PENDING) |
 > | **Relevance** | Q1+Q3+Q7: 10y forward-looking strategic fit? | labour_market_alignment · demand_match_filled · demographic_resilience · strategic_sector_alignment | LinkedIn labour-market data (MHESI subscription, KMITL-hosted API; tables `kmitl_career_skill_demands` + `kmitl_careers` are technical handles) · `program_demand_matches` (REAL) · `demographic_projections` (REAL) |
 >
@@ -459,6 +480,32 @@ the Outcomes table below.
 | `senior_rank_share` | `(prof + assoc_prof) / total_active`. 50% → 100. Floor at 0 | `program_faculties` × `faculty_members.rank` |
 | `publications_per_faculty` | `total_research_outputs / total_active_faculty`. 5/year → 100 | `program_faculties` × `research_outputs` (year >= currentYear-3), `realDataWhere()`-filtered — see §"Mixed-source research data" |
 | `retirement_horizon_5y` | `100 - (retiring_5y / total × 100)`. Inverted: more retiring soon = lower score | `program_faculties` × `faculty_members.retirementDate` |
+| `external_grant_engagement` | `clamp(fundedStaff / activeStaff / 0.60 × 100)`. 60% → 100. Window: last 3 complete Thai FY (1 Oct start, `[currentFy − 3, currentFy − 1]` in BE, Bangkok time). Null when the gate is closed (not synced / stale > 72 h / < 30 days or < 25 of the last 30 days green) | `research_service_project_members` (`kku-research-services`), `realDataWhere()`-filtered |
+
+#### External grant engagement (`external_grant_engagement`, v5.3)
+
+A staff member is *funded* when a `research_service_project_members` row (role
+LEAD or CO_INVESTIGATOR) carries their `facultyMemberId` on a project whose
+`fiscalYearBe` is in the window, research or academic service, any project type
+and status. Staff are the programme's active `ProgramFaculty` rows, the same set
+the other capability drivers use. At faculty and university scope the same
+formula runs over the **distinct** active staff of the scope's programmes, so a
+person teaching in two programmes counts once. `pmu_okr = 'ซ้ำPMU'` is an
+external parameter and is ignored.
+
+**Green-history gate (readiness gate 11, enforced in code).** The driver is
+computed only when, for `kku-research-services` runs with `status = SUCCEEDED`:
+(1) the first success completed at least 30 days ago; (2) at least 25 of the
+last 30 Bangkok calendar days have a success; (3) the latest success is within
+72 hours. When several conditions fail the reported reason is the first of
+`source-not-synced`, `source-stale`, `awaiting-green-history`. The gate is a
+pure function of the run timestamps and `now` (`greenHistoryGate` in
+`packages/db/src/grant-engagement.ts`) and is cached per process for five
+minutes.
+
+**Disclosed undercount.** About 30 % of co-investigator identifiers match no HR
+record, so those people can read as unfunded and the share is a **lower bound**.
+The driver caveat carries the same statement.
 
 ### Outcomes
 
@@ -795,6 +842,12 @@ with 0 or 50. Rationale:
   have none.
 - Excluding + flagging completeness lets the reader see the real signal
   and make their own judgement about how much to trust it.
+
+**External grant engagement (v5.3) follows the same rule, with one distinction:**
+a staff team with no grant is a real 0 (the source view covers all external
+grants, so absence means no grant), whereas a closed gate (source not synced,
+stale, or under 30 days of green history) is null and the driver is left out of
+the Capability mean.
 
 ## Scope aggregation
 
