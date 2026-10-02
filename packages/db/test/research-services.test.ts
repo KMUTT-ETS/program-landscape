@@ -84,3 +84,20 @@ describe('aggregateGrants budget attribution', () => {
     expect(r.trend[0]!.budgetThb).toBe(1000);
   });
 });
+
+describe('aggregateGrants hardening', () => {
+  it('never yields an empty-named faculty row for a blank lead unit', () => {
+    const r = aggregateGrants([p({ leadFacultyName: '' })], { facultyName: [], page: 1, pageSize: 50, sort: 'year' });
+    expect(r.byFaculty.map((f) => f.facultyName)).toEqual(['A']);
+  });
+
+  it('breaks funder ties by budget desc then name', () => {
+    const rs = [
+      p({ id: 'a', funderName: 'ข', budgetThb: 10n }),
+      p({ id: 'b', funderName: 'ก', budgetThb: 10n }),
+      p({ id: 'c', funderName: 'ค', budgetThb: 99n }),
+    ];
+    const r = aggregateGrants(rs, { facultyName: [], page: 1, pageSize: 50, sort: 'year' });
+    expect(r.topFunders.map((x) => x.funderName)).toEqual(['ค', 'ก', 'ข']);
+  });
+});

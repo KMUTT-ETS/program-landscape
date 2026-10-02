@@ -103,7 +103,7 @@ export function aggregateGrants(rows: readonly GrantProjectRow[], f: GrantsFilte
     trend.set(r.fiscalYearBe, t);
 
     const participating = new Set(r.members.map((m) => m.facultyName).filter((n): n is string => !!n));
-    participating.add(r.leadFacultyName);
+    if (r.leadFacultyName) participating.add(r.leadFacultyName);
     for (const name of participating) {
       if (facultyFilter && !facultyFilter.has(name)) continue;
       const row = fac.get(name) ?? { led: 0, coOnly: 0 };
@@ -133,7 +133,12 @@ export function aggregateGrants(rows: readonly GrantProjectRow[], f: GrantsFilte
       .sort((a, b) => b.total - a.total || a.facultyName.localeCompare(b.facultyName, 'th')),
     topFunders: [...funders.entries()]
       .map(([funderName, v]) => ({ funderName, ...v }))
-      .sort((a, b) => b.projects - a.projects)
+      .sort(
+        (a, b) =>
+          b.projects - a.projects ||
+          b.budgetThb - a.budgetThb ||
+          (a.funderName ?? '').localeCompare(b.funderName ?? '', 'th'),
+      )
       .slice(0, 15),
     table: {
       total: rows.length,
@@ -162,6 +167,11 @@ const PROJECT_SELECT = {
   members: { select: { role: true, facultyMemberId: true, displayName: true, facultyName: true } },
 } as const;
 
+/** A project is in a faculty scope when ANY team member is. Shared by the rows and the filter options so they cannot drift. */
+function scopeWhere(facultyName: string[]): { members?: { some: { facultyName: { in: string[] } } } } {
+  return facultyName.length > 0 ? { members: { some: { facultyName: { in: facultyName } } } } : {};
+}
+
 /** Rows visible to the filter: a project is in a faculty scope when ANY team member is. */
 async function loadRows(f: GrantsFilter): Promise<GrantProjectRow[]> {
   return prisma.researchServiceProject.findMany({
@@ -170,7 +180,7 @@ async function loadRows(f: GrantsFilter): Promise<GrantProjectRow[]> {
       ...(f.yearFrom || f.yearTo ? { fiscalYearBe: { gte: f.yearFrom, lte: f.yearTo } } : {}),
       ...(f.type && f.type.length > 0 ? { type: { in: f.type } } : {}),
       ...(f.funder && f.funder.length > 0 ? { funderName: { in: f.funder } } : {}),
-      ...(f.facultyName.length > 0 ? { members: { some: { facultyName: { in: f.facultyName } } } } : {}),
+      ...scopeWhere(f.facultyName),
     },
     select: PROJECT_SELECT,
   });
@@ -191,10 +201,10 @@ export async function getGrantsDashboard(
 ): Promise<GrantsDashboard & { options: { yearMin: number | null; yearMax: number | null; funders: string[] } }> {
   const [rows, years, funderRows] = await Promise.all([
     loadRows(f),
-    prisma.researchServiceProject.aggregate({ where: realDataWhere(), _min: { fiscalYearBe: true }, _max: { fiscalYearBe: true } }),
+    prisma.researchServiceProject.aggregate({ where: { ...realDataWhere(), ...scopeWhere(f.facultyName) }, _min: { fiscalYearBe: true }, _max: { fiscalYearBe: true } }),
     prisma.researchServiceProject.groupBy({
       by: ['funderName'],
-      where: { ...realDataWhere(), funderName: { not: null } },
+      where: { ...realDataWhere(), ...scopeWhere(f.facultyName), funderName: { not: null } },
       _count: { _all: true },
       orderBy: { _count: { funderName: 'desc' } },
       take: 50,
