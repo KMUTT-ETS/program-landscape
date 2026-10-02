@@ -12,3 +12,4 @@ export {
 } from './profile';
 export { resolveStaffForLookup, type StaffLookup } from './lookup';
 export { getStaffTeachingEvaluation } from './teaching-evaluation';
+export { getStaffGrants } from '../research-services';
