@@ -153,6 +153,43 @@ const ENTRIES: readonly Acknowledgement[] = [
       ),
     },
   },
+  {
+    slug: 'kku-research-services',
+    kind: 'data-provider',
+    name: 'KKU Research Administration',
+    logo: 'kku-research-services',
+    since: '2026-10-02',
+    contributes: {
+      en: 'Externally funded research and academic-service projects, with their leads and co-investigators — the platform’s view of the grants KKU staff win.',
+      th: 'ข้อมูลโครงการวิจัยและบริการวิชาการที่ได้รับทุนภายนอก พร้อมหัวหน้าและผู้ร่วมโครงการ — มุมมองของระบบต่อทุนที่บุคลากร มข. ได้รับ',
+    },
+    body: {
+      en: (
+        <>
+          <p>
+            Khon Kaen University’s Research Administration maintains the Research and Academic Services system, whose
+            record of externally funded projects lets Program Landscape show what research and service work each faculty
+            and each staff member carries.
+          </p>
+          <p>
+            The data is synchronised daily. A project counts for every faculty with a team member on it, and its budget is
+            always shown as the whole project’s budget, never divided between people.
+          </p>
+        </>
+      ),
+      th: (
+        <>
+          <p>
+            มหาวิทยาลัยขอนแก่นขอขอบคุณกองบริหารงานวิจัย ผู้ดูแลระบบงานวิจัยและบริการวิชาการ ซึ่งบันทึกโครงการที่ได้รับทุนภายนอก
+            ทำให้ Program Landscape แสดงภาระงานวิจัยและบริการวิชาการของแต่ละคณะและบุคลากรแต่ละคนได้
+          </p>
+          <p>
+            ข้อมูลซิงก์ทุกวัน โครงการหนึ่งนับให้ทุกคณะที่มีสมาชิกร่วมโครงการ และงบประมาณแสดงเป็นงบรวมของโครงการเสมอ ไม่แบ่งตามบุคคล
+          </p>
+        </>
+      ),
+    },
+  },
 ];
 
 /** Sorted most-recent `since` first. */

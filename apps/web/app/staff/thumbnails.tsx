@@ -116,6 +116,32 @@ export function ResearchThumb() {
   );
 }
 
+export function GrantsThumb() {
+  return (
+    <Frame>
+      {/* Stacked bars: research (accent) under academic service (cool) per year */}
+      <g transform="translate(24,96)">
+        {(
+          [
+            [14, 10],
+            [18, 22],
+            [20, 30],
+            [24, 26],
+            [30, 34],
+            [36, 40],
+            [28, 44],
+          ] as const
+        ).map(([r, s], i) => (
+          <g key={i}>
+            <rect x={i * 22} y={-(r + s)} width={16} height={s} fill={PALETTE.cool} opacity={0.85} />
+            <rect x={i * 22} y={-r} width={16} height={r} fill={PALETTE.accent} opacity={0.9} />
+          </g>
+        ))}
+      </g>
+    </Frame>
+  );
+}
+
 export function CompensationThumb() {
   return (
     <Frame>

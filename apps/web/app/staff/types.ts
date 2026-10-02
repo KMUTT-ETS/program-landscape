@@ -290,3 +290,54 @@ export interface CompensationResponse {
   }>;
   sources: { masterRowCount: number; compensationCells: number; notice: string };
 }
+
+// ── Research and academic service grants (/staff-dashboard/grants) ──
+// Shape-only copies of the @kku/db research-services types, kept here like
+// every other response in this file so client components never touch the
+// @kku/db barrel at runtime.
+
+export type GrantType = 'RESEARCH' | 'ACADEMIC_SERVICE' | 'CONSULTING' | 'OTHER';
+
+export interface GrantsTableRow {
+  id: string;
+  titleTh: string;
+  titleEn: string | null;
+  type: GrantType;
+  fiscalYearBe: number;
+  leadName: string | null;
+  leadFacultyName: string;
+  funderName: string | null;
+  budgetThb: number | null;
+  teamSize: number;
+  workflowStatus: string;
+}
+
+export interface GrantsDashboard {
+  kpis: { projects: number; budgetThb: number; staffInvolved: number; membersTotal: number; membersMatched: number };
+  /** CONSULTING is folded into OTHER here. */
+  trend: Array<{ fiscalYearBe: number; RESEARCH: number; ACADEMIC_SERVICE: number; OTHER: number; budgetThb: number }>;
+  byFaculty: Array<{ facultyName: string; led: number; coOnly: number; total: number }>;
+  topFunders: Array<{ funderName: string | null; projects: number; budgetThb: number }>;
+  table: { total: number; page: number; pageSize: number; rows: GrantsTableRow[] };
+}
+
+export type GrantsResponse = GrantsDashboard & {
+  options: { yearMin: number | null; yearMax: number | null; funders: string[] };
+};
+
+export interface GrantProjectDetail {
+  id: string;
+  titleTh: string;
+  titleEn: string | null;
+  type: GrantType;
+  typeRaw: string;
+  fiscalYearBe: number;
+  startDate: string | null;
+  endDate: string | null;
+  budgetThb: number | null;
+  funderName: string | null;
+  keywords: string | null;
+  workflowStatus: string;
+  leadFacultyName: string;
+  team: Array<{ role: 'LEAD' | 'CO_INVESTIGATOR'; displayName: string | null; facultyName: string | null; matched: boolean }>;
+}

@@ -9,7 +9,7 @@ import {
 import { auth } from '@/lib/auth';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { Card, PageHeader } from '@kku/ui';
-import { Users, BookOpen, Microscope, Wallet, ClipboardList, MessageSquare, Award } from 'lucide-react';
+import { Users, BookOpen, Microscope, Wallet, ClipboardList, MessageSquare, Award, HandCoins } from 'lucide-react';
 // StaffRefreshBar relocated to /admin/dashboard-data-fetch in v1.2.8.
 // The component still lives in ./refresh-bar — the admin page imports
 // it from there.
@@ -17,6 +17,7 @@ import {
   WorkforceThumb,
   FacultyByProgramThumb,
   ResearchThumb,
+  GrantsThumb,
   CompensationThumb,
   TeachingWorkloadThumb,
   TeachingEvaluationsThumb,
@@ -59,6 +60,16 @@ const TILES: Array<{
     blurb:
       'Every paper KKU staff have published, including retired faculty. Leads with journal-quality tiers — Tier 1 and Q1, the signal behind QS and THE rankings — then shows how output has grown year by year and which faculties and individuals contribute most.',
     Thumb: ResearchThumb,
+  },
+  {
+    href: '/staff/grants',
+    icon: HandCoins,
+    title: 'Research and academic service grants',
+    blurb:
+      'Externally funded research and academic-service projects won by KKU staff — how many, how much, from which funders, and which faculties take part. A project counts for every faculty on its team; its budget is never split between people.',
+    Thumb: GrantsThumb,
+    // The API admits PROGRAM_USER, rolled up to their program's faculty.
+    programAware: true,
   },
   {
     href: '/staff/compensation',

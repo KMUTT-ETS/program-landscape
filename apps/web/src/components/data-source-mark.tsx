@@ -29,11 +29,13 @@
 
 import Link from 'next/link';
 
-export type DataSourceMarkSlug = 'jobthai' | 'job-108';
+export type DataSourceMarkSlug = 'jobthai' | 'job-108' | 'kku-research-services';
 
 export const DATA_SOURCE_MARKS: Record<DataSourceMarkSlug, { src?: string; name: string }> = {
   jobthai: { src: '/brand/jobthai.png', name: 'JobThai' },
   'job-108': { name: 'Job-108' },
+  // Internal KKU source with no brand asset — renders as the text chip.
+  'kku-research-services': { name: 'KKU Research Services' },
 };
 
 /** True when a `DataSource.slug` has a brand mark — lets tables keyed by slug opt in. */
