@@ -27,6 +27,19 @@ interface ChangelogEntry {
 const ENTRIES: ChangelogEntry[] = [
   {
     date: '2026-10-02',
+    version: 'v2.0.1 · External grants in the Program Health Score',
+    title:
+      'The Capability dimension of the Program Health Score gains a fifth measure: how much of each programme’s teaching team holds external research or academic-service funding',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'New Capability measure, “External grant engagement”: the share of a programme’s active teaching staff who led or joined at least one externally funded research or academic-service project in the last three complete fiscal years. 60% or more scores 100. It counts people, not projects or baht, so one very active investigator or many small service contracts cannot carry a whole programme.',
+      'It switches on by itself only after the grants data has synced reliably every day for 30 days (at least 25 of the last 30 days, the latest within 72 hours). Until then it is shown as “waiting for grant-sync history”, no Health Score changes, and Capability data completeness reads 80% because one of its five measures is not yet available.',
+      'Once on, each of the five Capability measures counts 20% (previously four at 25%). The figure is a lower bound: about 30% of co-investigators cannot yet be matched to an HR record, so some funded staff count as unfunded — the Program Deep-Dive says so beside the value.',
+      'Methodology: Program Health Score v5.3 (was v5.2). The methodology paper, its revision history and the application data-flow map are updated.',
+    ],
+  },
+  {
+    date: '2026-10-02',
     version: 'v2.0.0 · Research and academic service grants',
     title:
       'Externally funded research and academic-service projects now arrive daily from KKU Research Administration — on a new Staff dashboard, on your own profile, and (when granted) through the external API',
