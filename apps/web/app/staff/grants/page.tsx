@@ -20,6 +20,13 @@ const int = (v: string | string[] | undefined) => {
   return raw && /^\d+$/.test(raw) ? Number(raw) : undefined;
 };
 const SORTS = ['year', 'budget', 'title'] as const;
+const TYPES = new Set(['RESEARCH', 'ACADEMIC_SERVICE', 'CONSULTING', 'OTHER']);
+// The API rejects a year outside this Buddhist-era window with a 400, which
+// would blank the page over a mistyped URL — drop such a value instead.
+const beYear = (v: string | string[] | undefined) => {
+  const n = int(v);
+  return n !== undefined && n >= 2500 && n <= 2700 ? n : undefined;
+};
 
 // apiFetchEnvelope throws a plain Error carrying only the envelope's error
 // code; DiagnosticEmptyState wants the categorised ApiFetchError that
@@ -53,10 +60,10 @@ export default async function GrantsPage({ searchParams }: { searchParams: Promi
   const sortRaw = one(sp.sort);
   const filters: GrantsFilters = {
     facultyName: arr(sp.facultyName),
-    type: arr(sp.type),
+    type: arr(sp.type).filter((t) => TYPES.has(t)),
     funder: arr(sp.funder),
-    yearFrom: int(sp.yearFrom),
-    yearTo: int(sp.yearTo),
+    yearFrom: beYear(sp.yearFrom),
+    yearTo: beYear(sp.yearTo),
     page: int(sp.page) ?? 1,
     sort: SORTS.find((s) => s === sortRaw) ?? 'year',
     project: one(sp.project) ?? null,
@@ -80,7 +87,19 @@ export default async function GrantsPage({ searchParams }: { searchParams: Promi
   } catch (e) {
     error = toFetchError(e);
   }
-  const options = await apiFetch<FilterOptions>('/staff-dashboard/filter-options').catch(() => null);
+  // The grants data is the essential part; without filter options the
+  // dashboard still renders, just with an empty faculty picker.
+  const options = await apiFetch<FilterOptions>('/staff-dashboard/filter-options').catch(
+    (): FilterOptions => ({
+      faculties: [],
+      staffTypes: [],
+      tracks: [],
+      academicStandings: [],
+      positionLevels: [],
+      budgets: [],
+      nationalities: [],
+    }),
+  );
 
   return (
     <AuthedAppShell user={user}>
@@ -89,7 +108,7 @@ export default async function GrantsPage({ searchParams }: { searchParams: Promi
         title="Research and academic service grants"
         subtitle="Externally funded research and academic-service projects recorded by KKU Research Administration, synced daily. A project counts for every faculty on its team; budgets are whole-project figures, never split between people."
       />
-      {data && meta && options ? (
+      {data && meta ? (
         <GrantsClient data={data} meta={meta} options={options} initialFilters={filters} />
       ) : (
         <DiagnosticEmptyState surface="research and academic service grants" error={error} />

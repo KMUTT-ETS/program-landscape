@@ -24,9 +24,15 @@ const TYPE_LABEL: Record<GrantType, string> = {
 const thb = (n: number | null) =>
   n === null
     ? '—'
-    : n >= 1e6
-      ? `฿${(n / 1e6).toLocaleString('en-US', { maximumFractionDigits: 1 })}M`
-      : `฿${n.toLocaleString('en-US')}`;
+    : n >= 1e9
+      ? `฿${(n / 1e9).toLocaleString('en-US', { maximumFractionDigits: 1 })}B`
+      : n >= 1e6
+        ? `฿${(n / 1e6).toLocaleString('en-US', { maximumFractionDigits: 1 })}M`
+        : `฿${n.toLocaleString('en-US')}`;
+
+// Changing any of these narrows the project set, so an open project may no
+// longer be in it — the side panel closes. Page and sort keep it open.
+const FILTER_KEYS = ['facultyName', 'type', 'funder', 'yearFrom', 'yearTo'] as const;
 
 export interface GrantsFilters {
   facultyName: string[];
@@ -52,7 +58,8 @@ export function GrantsClient({
 }) {
   const router = useRouter();
   const push = (next: Partial<GrantsFilters>) => {
-    const f = { ...initialFilters, page: 1, ...next };
+    const changesFilter = FILTER_KEYS.some((k) => k in next);
+    const f = { ...initialFilters, page: 1, ...(changesFilter ? { project: null } : {}), ...next };
     const qs = new URLSearchParams();
     f.facultyName.forEach((v) => qs.append('facultyName', v));
     f.type.forEach((v) => qs.append('type', v));
@@ -94,8 +101,8 @@ export function GrantsClient({
           />
         </div>
         <p className="text-xs text-text-tertiary">
-          A project appears when any team member is in the faculties you can see; its team list may include people from
-          other faculties.
+          A project appears when any team member is in the faculties you can see or have selected; its team list may
+          include people from other faculties.
         </p>
       </section>
 
@@ -103,6 +110,7 @@ export function GrantsClient({
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold text-text-primary">By fiscal year</h2>
           <ProvenanceButton title="Grants — by fiscal year" meta={meta} size="xs" />
+          <DataSourceMark source="kku-research-services" />
         </div>
         <TrendChart trend={data.trend} />
       </Card>
@@ -111,6 +119,7 @@ export function GrantsClient({
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold text-text-primary">By faculty</h2>
           <ProvenanceButton title="Grants — by faculty" meta={meta} size="xs" />
+          <DataSourceMark source="kku-research-services" />
         </div>
         <p className="mt-1 text-xs text-text-tertiary">
           A project counts for every faculty with a team member on it, so these rows add up to more than the KKU total.
@@ -145,6 +154,7 @@ export function GrantsClient({
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold text-text-primary">Top funders</h2>
           <ProvenanceButton title="Grants — top funders" meta={meta} size="xs" />
+          <DataSourceMark source="kku-research-services" />
         </div>
         {data.topFunders.length === 0 ? (
           <p className="mt-3 text-sm text-text-tertiary">No funders match these filters.</p>
@@ -171,6 +181,7 @@ export function GrantsClient({
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold text-text-primary">Projects</h2>
           <ProvenanceButton title="Grants — projects" meta={meta} size="xs" />
+          <DataSourceMark source="kku-research-services" />
         </div>
         <ProjectTable data={data} f={initialFilters} push={push} />
       </Card>
@@ -236,11 +247,28 @@ function TrendChart({ trend }: { trend: GrantsResponse['trend'] }) {
           );
         })}
       </svg>
+      {/* Per-year budget, readable without hovering: one cell per bar, in the
+          bar's own column, thinned exactly like the year labels. */}
+      <div
+        className="grid text-[10px] tabular-nums text-text-tertiary"
+        style={{
+          gridTemplateColumns: `repeat(${trend.length}, minmax(0, 1fr))`,
+          paddingLeft: `${(pad.l / W) * 100}%`,
+          paddingRight: `${(pad.r / W) * 100}%`,
+        }}
+        aria-label="Budget per fiscal year"
+      >
+        {trend.map((t, i) => (
+          <span key={t.fiscalYearBe} className="whitespace-nowrap text-center" title={`FY ${t.fiscalYearBe}: ${thb(t.budgetThb)}`}>
+            {i % labelEvery === 0 ? thb(t.budgetThb) : ''}
+          </span>
+        ))}
+      </div>
       <figcaption className="mt-2 flex flex-wrap gap-x-8 gap-y-2 text-xs text-text-secondary">
         <Legend color="--color-chart-1" label="Research" />
         <Legend color="--color-chart-3" label="Academic service" />
         <Legend color="--color-chart-6" label="Other (incl. consulting)" />
-        <span className="text-text-tertiary">Projects per fiscal year (BE). Hover a bar for its budget.</span>
+        <span className="text-text-tertiary">Projects per fiscal year (BE); the row under the bars is each year’s total budget.</span>
       </figcaption>
     </figure>
   );
@@ -300,6 +328,7 @@ function ProjectTable({
                 <th className="py-2 font-medium">Funder</th>
                 <th className="py-2 text-right font-medium">Budget</th>
                 <th className="py-2 text-right font-medium">Team</th>
+                <th className="py-2 pl-4 font-medium">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -314,7 +343,7 @@ function ProjectTable({
                       open(r.id);
                     }
                   }}
-                  className="cursor-pointer border-t border-subtle align-top transition-colors hover:bg-surface-2"
+                  className="cursor-pointer border-t border-subtle align-top transition-colors hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
                 >
                   <td className="py-2 pr-4">
                     <div>{r.titleTh}</div>
@@ -333,6 +362,7 @@ function ProjectTable({
                     {thb(r.budgetThb)}
                   </td>
                   <td className="py-2 text-right tabular-nums">{r.teamSize}</td>
+                  <td className="py-2 pl-4 text-xs text-text-tertiary">{r.workflowStatus}</td>
                 </tr>
               ))}
             </tbody>
