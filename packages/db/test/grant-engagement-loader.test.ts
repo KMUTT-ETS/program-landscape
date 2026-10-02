@@ -108,7 +108,8 @@ describe('grantEngagementDriver', () => {
     mocks.memberFindMany.mockResolvedValueOnce([{ facultyMemberId: 'a' }]);
     const d = await grantEngagementDriver(['a', 'b', 'c', 'd', 'e'], NOW);
     expect(d.value).toBeCloseTo((1 / 5 / 0.6) * 100, 5);
-    expect(d.raw).toMatchObject({ fundedStaff: 1, staff: 5, windowFyBe: [2567, 2569], target: 0.6 });
+    expect(d.raw).toMatchObject({ fundedStaff: 1, staff: 5, windowFyBe: [2567, 2569], target: 0.6, lowerBound: true });
+    expect((d.raw as { caveat?: unknown }).caveat).toMatch(/^Lower bound: about 30%/);
 
     mocks.memberFindMany.mockResolvedValueOnce([]);
     const z = await grantEngagementDriver(['a'], NOW);

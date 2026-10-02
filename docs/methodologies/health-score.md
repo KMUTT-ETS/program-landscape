@@ -16,7 +16,9 @@ of the five now carries **20 %** instead of 25 %; dimension weights and the
 overall mean are unchanged. The driver is **gated on 30 days of green sync
 history** (see "External grant engagement" below) and is null until the gate
 opens, so on a server without that history Capability is the mean of its other
-four drivers and nothing moves. Spec
+four drivers: scores do not move, but data completeness drops by one
+capability driver (capability completeness is capped at 80 %) until the gate
+opens. Spec
 `docs/superpowers/specs/2026-10-02-grant-engagement-driver-design.md`.
 
 **Measured basis (development, 2026-10-02, window FY 2567-2569).** 285
@@ -505,7 +507,7 @@ minutes.
 
 **Disclosed undercount.** About 30 % of co-investigator identifiers match no HR
 record, so those people can read as unfunded and the share is a **lower bound**.
-The driver caveat carries the same statement.
+The driver's `raw` carries the same statement (`lowerBound: true` and a `caveat` string), shown beside the value in the deep-dive.
 
 ### Outcomes
 

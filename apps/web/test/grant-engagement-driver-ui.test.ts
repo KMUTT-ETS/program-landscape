@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { DRIVER_SOURCE_MARK } from '../src/components/data-source-mark';
-import { grantDriverNullNote } from '../src/lib/grant-driver-note';
+import { grantDriverCaveat, grantDriverNullNote } from '../src/lib/grant-driver-note';
 
 const read = (p: string) => readFileSync(path.join(__dirname, '..', p), 'utf8');
 
@@ -33,7 +33,17 @@ describe('external_grant_engagement in the UI', () => {
     expect(grantDriverNullNote({ reason: 'source-stale', lastSuccessAt: 'not-a-date' })).toBe(
       'Grant data is out of date (last synced unknown).',
     );
+    expect(grantDriverNullNote({ reason: 'awaiting-green-history', daysOfHistory: 45, successfulDaysLast30: 21 })).toBe(
+      'Waiting for steadier grant syncs (only 21 of the last 30 days synced; 25 needed).',
+    );
     expect(grantDriverNullNote({ fundedStaff: 1 })).toBeNull();
     expect(grantDriverNullNote(null)).toBeNull();
+  });
+
+  it('surfaces the undercount caveat only when raw carries one', () => {
+    expect(grantDriverCaveat({ caveat: 'Lower bound: x' })).toBe('Lower bound: x');
+    expect(grantDriverCaveat({ fundedStaff: 1 })).toBeNull();
+    expect(grantDriverCaveat({ caveat: 5 })).toBeNull();
+    expect(grantDriverCaveat(null)).toBeNull();
   });
 });

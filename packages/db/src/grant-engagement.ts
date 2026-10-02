@@ -160,6 +160,8 @@ export async function grantEngagementDriver(
       share: memberIds.length ? fundedStaff / memberIds.length : null,
       windowFyBe: [window.fromFyBe, window.toFyBe],
       target: GRANT_ENGAGEMENT_TARGET,
+      lowerBound: true,
+      caveat: 'Lower bound: about 30% of co-investigator ids match no HR record, so some funded staff count as unfunded.',
       gate: { daysOfHistory: gate.daysOfHistory, successfulDaysLast30: gate.successfulDaysLast30 },
     },
   };

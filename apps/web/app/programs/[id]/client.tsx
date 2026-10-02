@@ -46,7 +46,7 @@ import {
 // thing by a floor of 60 — see the helper for why it is not 0.
 import { dqRadarDomain } from '@/lib/dq-radar-domain';
 import { DataSourceMark, DriverSourceMark, acknowledgementHref } from '@/components/data-source-mark';
-import { grantDriverNullNote } from '@/lib/grant-driver-note';
+import { grantDriverCaveat, grantDriverNullNote } from '@/lib/grant-driver-note';
 import ReactMarkdown from 'react-markdown';
 import type {
   DeepDiveAiPeers,
@@ -4989,6 +4989,9 @@ function HealthScoreBreakdown({
                         </span>
                       </div>
                       {grantNote && <p className="mt-0.5 text-[11px] text-text-tertiary">{grantNote}</p>}
+                      {d.label === 'external_grant_engagement' && d.value !== null && grantDriverCaveat(d.raw) && (
+                        <p className="mt-0.5 text-[11px] text-text-tertiary">{grantDriverCaveat(d.raw)}</p>
+                      )}
                       {d.raw !== undefined && d.raw !== null && (
                         <RawPayload raw={d.raw} />
                       )}

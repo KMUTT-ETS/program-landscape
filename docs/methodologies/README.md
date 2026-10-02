@@ -13,7 +13,7 @@ lookup map in `@kku/shared/methodologies.ts`.
 
 | Slug | Module(s) | Current version | Doc |
 |---|---|---|---|
-| `health-score` | Cockpit, Deep-Dive | `health-score.v5.2` | [health-score.md](./health-score.md) |
+| `health-score` | Cockpit, Deep-Dive | `health-score.v5.3` | [health-score.md](./health-score.md) |
 | `forecasting` | (deferred — no consumer since v1.9.7) | `forecasting.v1` | [forecasting.md](./forecasting.md) |
 | `gap-map` | Gap Analyzer | `gap-map.v2` | [gap-map.md](./gap-map.md) |
 | `gap-brief` | Gap Analyzer (Council brief) | `gap-brief.v1` | `packages/shared/src/ai/prompts/gap-brief.ts` |

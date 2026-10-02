@@ -9,10 +9,16 @@ const day = (iso: string): string => {
 
 export function grantDriverNullNote(raw: unknown): string | null {
   if (!raw || typeof raw !== 'object' || !('reason' in raw)) return null;
-  const r = raw as { reason: unknown; daysOfHistory?: unknown; lastSuccessAt?: unknown };
+  const r = raw as { reason: unknown; daysOfHistory?: unknown; successfulDaysLast30?: unknown; lastSuccessAt?: unknown };
   switch (r.reason) {
     case 'awaiting-green-history':
-      return `Waiting for 30 days of grant-sync history (${typeof r.daysOfHistory === 'number' ? r.daysOfHistory : 0} so far).`;
+    {
+      const days = typeof r.daysOfHistory === 'number' ? r.daysOfHistory : 0;
+      if (days >= 30 && typeof r.successfulDaysLast30 === 'number') {
+        return `Waiting for steadier grant syncs (only ${r.successfulDaysLast30} of the last 30 days synced; 25 needed).`;
+      }
+      return `Waiting for 30 days of grant-sync history (${days} so far).`;
+    }
     case 'source-not-synced':
       return 'Grant data has not been synced on this server yet.';
     case 'source-stale':
@@ -20,4 +26,11 @@ export function grantDriverNullNote(raw: unknown): string | null {
     default:
       return null;
   }
+}
+
+/** The disclosed-undercount caveat a populated driver carries in raw.caveat. */
+export function grantDriverCaveat(raw: unknown): string | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const c = (raw as { caveat?: unknown }).caveat;
+  return typeof c === 'string' && c.length > 0 ? c : null;
 }
