@@ -35,7 +35,7 @@ MySQL **5.7.42**, two views, read-only login, env prefix `KKU_RESEARCH_SERVICES_
 - `proposal_status2` is a workflow state (8 values). `keywords` is free text.
 - Lead identity: `head_citizen` is the **raw Thai citizen ID** (13 digits, one 9-char outlier); `proposal_email` is always `@kku.ac.th`.
 - Also present: `head_title`, `head_position_academic`, `proposal_head` (display name).
-- `acro` (Yes 300 / No 3,991) and `pmu_okr` (`ซ้ำPMU` 176) have unknown meaning. They are stored raw and not shown.
+- `acro` (Yes 300 / No 3,991) and `pmu_okr` (`ซ้ำPMU` 176) are stored raw and not shown. **`ซ้ำPMU` was confirmed on 2026-10-02 to be an external parameter, not a duplicate marker — it is ignored and those projects count normally.** `acro` is still unexplained.
 - `resource_type` (numeric code, 1,481 distinct), `resource_type_other`, `Van_id`,
   `insert_date`, `accept_date`.
 
@@ -274,5 +274,5 @@ Test-first for each task.
 
 ## 13. Open questions for KKU Research Administration
 
-- What do `acro` and `pmu_okr = 'ซ้ำPMU'` mean? If `ซ้ำPMU` marks a duplicate of another record, totals should exclude those projects. This needs an answer before Spec 2.
+- What does `acro` mean? (Answered 2026-10-02 for `pmu_okr = 'ซ้ำPMU'`: an external parameter, not a duplicate — ignored, no exclusion needed.)
 - Do the 448 co-investigator rows outside the view belong to internal grants?

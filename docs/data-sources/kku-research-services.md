@@ -79,7 +79,7 @@ No fuzzy matching anywhere.
 
 - **Skew.** วิทยาลัยการปกครองท้องถิ่น (College of Local Government) holds about a third of all projects, mostly small service projects. Medicine holds the most money. State the skew wherever counts appear.
 - **448 co-investigator rows reference a project that is not in the external-fund view.** They are dropped and counted as `coOrphansNotInView`.
-- **`acro` and `pmu_okr` have unknown meaning.** `pmu_okr = 'ซ้ำPMU'` appears on 176 projects. If it marks duplicates, totals must exclude them before any health-score driver uses this data.
+- **`pmu_okr = 'ซ้ำPMU'` (176 projects) is NOT a duplicate marker.** Confirmed by the platform owner on 2026-10-02: it is an external parameter with no bearing on whether the project is distinct, and it is ignored. Those projects count normally in every total. `acro` (Yes 300 / No 3,991) is still unexplained; it is stored raw and not used.
 - **External funding only.** Internal grants are not in the views.
 - **Faculty counts sum to more than the KKU total.** A faculty is credited with a project for every faculty that has a team member on it.
 - **Budget is never split** among people or faculties. A person's figure is always labelled project total.
@@ -87,7 +87,7 @@ No fuzzy matching anywhere.
 
 ## Open questions for KKU Research Administration
 
-1. What do `acro` and `pmu_okr = 'ซ้ำPMU'` mean? If `ซ้ำPMU` marks a duplicate record, totals must exclude those projects before the health-score driver (Spec 2).
+1. What does `acro` mean? (`pmu_okr = 'ซ้ำPMU'` is answered: an external parameter, not a duplicate marker — ignored.)
 2. Do the 448 co-investigator rows outside the external-fund view belong to internal grants?
 
 ## Session log
