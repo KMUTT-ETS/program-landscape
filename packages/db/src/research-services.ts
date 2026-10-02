@@ -104,6 +104,10 @@ export function aggregateGrants(
     const b = num(r.budgetThb) ?? 0;
     budget += b;
     for (const m of r.members) {
+      // Project count and budget stay whole-project (spec D4), but people are
+      // counted only in the faculties shown: another faculty's co-investigator
+      // is not this filter's staff.
+      if (facultyFilter && !(m.facultyName && facultyFilter.has(m.facultyName))) continue;
       membersTotal += 1;
       if (m.facultyMemberId) {
         membersMatched += 1;

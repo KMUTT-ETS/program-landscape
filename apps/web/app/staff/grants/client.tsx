@@ -101,7 +101,7 @@ export function GrantsClient({
           <Kpi
             label="Staff involved"
             value={kpis.staffInvolved.toLocaleString('en-US')}
-            hint="matched to HR records"
+            hint="matched to HR records, in the faculties shown"
           />
           <Kpi
             label="Match coverage"
@@ -459,28 +459,31 @@ const isoDay = (d: string | null) => (d ? d.slice(0, 10) : null);
 function ProjectPanel({ id, onClose }: { id: string; onClose: () => void }) {
   const [state, setState] = React.useState<{
     detail: GrantProjectDetail | null;
+    freshnessDate: string | null;
     error: string | null;
   }>({
     detail: null,
+    freshnessDate: null,
     error: null,
   });
   React.useEffect(() => {
     let live = true;
-    setState({ detail: null, error: null });
+    setState({ detail: null, freshnessDate: null, error: null });
     fetch(`/api/proxy/staff/grants/${encodeURIComponent(id)}`)
       .then(async (r) => {
         const payload = (await r.json()) as {
           data: GrantProjectDetail | null;
+          meta?: { freshnessDate?: string | null };
           error?: { message?: string };
         };
         if (!r.ok || !payload.data) throw new Error(payload.error?.message ?? `HTTP ${r.status}`);
-        return payload.data;
+        return { detail: payload.data, freshnessDate: payload.meta?.freshnessDate ?? null };
       })
-      .then((detail) => {
-        if (live) setState({ detail, error: null });
+      .then(({ detail, freshnessDate }) => {
+        if (live) setState({ detail, freshnessDate, error: null });
       })
       .catch((e: Error) => {
-        if (live) setState({ detail: null, error: e.message });
+        if (live) setState({ detail: null, freshnessDate: null, error: e.message });
       });
     return () => {
       live = false;
@@ -498,6 +501,7 @@ function ProjectPanel({ id, onClose }: { id: string; onClose: () => void }) {
       ) : (
         <div className="flex flex-col gap-4 text-sm">
           {d.titleEn ? <p className="text-text-secondary">{d.titleEn}</p> : null}
+          <FreshnessBadge freshnessDate={state.freshnessDate} label="grants data" />
           <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2">
             <dt className="text-text-tertiary">Type</dt>
             <dd>{d.typeRaw}</dd>

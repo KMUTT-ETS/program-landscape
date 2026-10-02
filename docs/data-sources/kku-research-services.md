@@ -50,7 +50,8 @@ PDPA notes:
 Daily at 04:00, after the UNICON syncs. The run fetches both views first, then replaces both tables in **one transaction** (`deleteMany` then `createMany` in chunks), so a fetch failure leaves the database untouched. No history is kept.
 
 - **Row validation:** a bad row is skipped and counted. If more than 1 % of either view is invalid the run fails as `SCHEMA_DRIFT`.
-- **Shrink guard:** if the fetched project count is under 50 % of the last SUCCEEDED run's, the run throws `NonRetryableError` (`SNAPSHOT_SHRANK`) and the previous snapshot stays.
+- **Shrink guard:** if the fetched project count is under 50 % of the number of projects currently held in `research_service_projects`, the run throws `NonRetryableError` (`SNAPSHOT_SHRANK`) and the previous snapshot stays.
+- **Duplicate people:** if a person appears twice on one project (lead and co-investigator), dashboard member counts and `teamSize` count them twice; the `/profile` summary dedupes per project.
 - Connection and auth failures are retryable (3 attempts, exponential backoff).
 
 ## Matching to staff records

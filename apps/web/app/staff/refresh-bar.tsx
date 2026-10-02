@@ -7,10 +7,10 @@ import { toast } from 'sonner';
 import type { RefreshStatus } from './types';
 
 // Mirror of EducationRefreshBar — POSTs to /api/admin-staff-dashboard/refresh
-// which enqueues the four staff-relevant connectors (DS2001, DS2003,
-// DS2004, processed-HR). Per-source refresh icon on each row sends a
-// scoped slug so individual feeds can be re-pulled without firing the
-// other three.
+// which enqueues the five staff-relevant connectors (DS2001, DS2003,
+// DS2004, processed-HR, research services). Per-source refresh icon on each
+// row sends a scoped slug so individual feeds can be re-pulled without
+// firing the others.
 
 interface Props {
   initialStatus: RefreshStatus | null;
@@ -21,6 +21,7 @@ const SOURCES = [
   'unicon-ds2003',
   'unicon-ds2004',
   'kku-hr-processed',
+  'kku-research-services',
 ] as const;
 type Slug = (typeof SOURCES)[number];
 
@@ -31,6 +32,7 @@ function sourceLabel(slug: string): string {
       'unicon-ds2003': 'Education history',
       'unicon-ds2004': 'Teaching assignments',
       'kku-hr-processed': 'Salary & lifecycle dates',
+      'kku-research-services': 'Grants & academic service',
     } as Record<string, string>)[slug] ?? slug
   );
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { apiFetch, type ApiFetchError } from '@/lib/api-client';
+import { apiFetchEnvelope } from '@/lib/api-client';
 import { auth } from '@/lib/auth';
 import type { SessionUser } from '@kku/shared';
 
@@ -22,13 +22,17 @@ export async function GET(
   }
   const { id } = await ctx.params;
   try {
-    const result = await apiFetch<unknown>(`/staff-dashboard/grants/${encodeURIComponent(id)}`);
-    return NextResponse.json({ data: result });
+    const env = await apiFetchEnvelope<unknown>(
+      `/staff-dashboard/grants/${encodeURIComponent(id)}`,
+    );
+    return NextResponse.json({ data: env.data, meta: env.meta, error: null });
   } catch (err) {
-    const status = (err as ApiFetchError).status;
+    // apiFetchEnvelope carries the envelope's error code, not an HTTP status.
+    const code = (err as { code?: string }).code;
+    const status = code === 'NOT_FOUND' ? 404 : code === 'FORBIDDEN' ? 403 : 502;
     return NextResponse.json(
       { data: null, error: { code: 'UPSTREAM_ERROR', message: (err as Error).message } },
-      { status: status === 404 || status === 403 ? status : 502 },
+      { status },
     );
   }
 }

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { SessionUser } from '@kku/shared';
 import { prisma } from '@kku/db';
 import {
+  AuditLog,
   AuthSession,
   Authorized,
   ZodValidationPipe,
@@ -157,6 +158,7 @@ export class StaffController {
 
   @Post('refresh')
   @Authorized('institution:read:university')
+  @AuditLog({ action: 'ingestion.run_now', entityType: 'DataSource' })
   async refresh(
     @AuthSession() user: SessionUser,
     @Body(new ZodValidationPipe(RefreshBodySchema)) body: { slugs?: StaffSlug[] },

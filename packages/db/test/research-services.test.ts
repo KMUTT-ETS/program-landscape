@@ -51,6 +51,13 @@ describe('aggregateGrants', () => {
     });
   });
 
+  it('counts only members of the filtered faculties as staff involved', () => {
+    const r = aggregateGrants(rows, { facultyName: ['A'], page: 1, pageSize: 50, sort: 'year' });
+    // Project count and budget stay whole-project; the B co-investigator (m2) and the
+    // B-only member are not this filter's staff.
+    expect(r.kpis).toMatchObject({ projects: 2, staffInvolved: 1, membersTotal: 1, membersMatched: 1 });
+  });
+
   it('credits every participating faculty, so faculty totals exceed the KKU total', () => {
     const r = aggregateGrants(rows, { facultyName: [], page: 1, pageSize: 50, sort: 'year' });
     const a = r.byFaculty.find((f) => f.facultyName === 'A')!;
