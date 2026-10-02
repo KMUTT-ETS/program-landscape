@@ -1572,6 +1572,7 @@ model FacultyMember {
   @@index([departmentId])
   @@index([isActive])
   @@map("faculty_members")
+  researchServiceProjectMembers ResearchServiceProjectMember[]
 }
 
 model ProgramFaculty {
@@ -3448,6 +3449,8 @@ model IngestionRun {
   graduateOutcomes           GraduateOutcome[]
   researchOutputs            ResearchOutput[]
   facultyCompensations       FacultyCompensation[]
+  researchServiceProjects       ResearchServiceProject[]
+  researchServiceProjectMembers ResearchServiceProjectMember[]
   facultyBudgets             FacultyBudget[]
   kmitlCareers               KmitlCareer[]
   kmitlCareerSkillDemands    KmitlCareerSkillDemand[]
@@ -6061,4 +6064,86 @@ model ApiRequestLog {
   @@index([clientId, createdAt])
   @@index([createdAt])
   @@map("api_request_logs")
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// KKU Research & Academic Services — externally funded research and
+// academic-service projects (connector `kku-research-services`, daily
+// snapshot replace). Spec: docs/superpowers/specs/2026-10-02-research-service-grants-design.md
+// ─────────────────────────────────────────────────────────────────────
+
+enum ResearchServiceProjectType {
+  RESEARCH
+  ACADEMIC_SERVICE
+  CONSULTING
+  OTHER
+}
+
+enum ResearchServiceMemberRole {
+  LEAD
+  CO_INVESTIGATOR
+}
+
+model ResearchServiceProject {
+  /// Deterministic `rsp-<proposal_id>` so links survive the daily replace.
+  id                  String                     @id
+  sourceProposalId    Int                        @unique @map("source_proposal_id")
+  sourceProposalKey   String                     @unique @map("source_proposal_key")
+  titleTh             String                     @map("title_th")
+  titleEn             String?                    @map("title_en")
+  type                ResearchServiceProjectType
+  typeRaw             String                     @map("type_raw")
+  fiscalYearBe        Int                        @map("fiscal_year_be")
+  projectBudgetYearBe Int?                       @map("project_budget_year_be")
+  startDate           DateTime?                  @map("start_date")
+  endDate             DateTime?                  @map("end_date")
+  /// Whole-project budget (THB). Never split among people or faculties.
+  budgetThb           BigInt?                    @map("budget_thb")
+  funderName          String?                    @map("funder_name")
+  keywords            String?
+  workflowStatus      String                     @map("workflow_status")
+  leadUnitName        String                     @map("lead_unit_name")
+  /// Resolved faculty Thai name (matched lead's faculty, else lead_unit_name).
+  leadFacultyName     String                     @map("lead_faculty_name")
+  facultyId           String?                    @map("faculty_id")
+  acroRaw             String?                    @map("acro_raw")
+  pmuOkrRaw           String?                    @map("pmu_okr_raw")
+  submittedAt         DateTime?                  @map("submitted_at")
+  acceptedAt          DateTime?                  @map("accepted_at")
+  ingestionRunId      String                     @map("ingestion_run_id")
+  ingestionRun        IngestionRun               @relation(fields: [ingestionRunId], references: [id])
+  members             ResearchServiceProjectMember[]
+
+  @@index([fiscalYearBe])
+  @@index([facultyId])
+  @@index([type])
+  @@index([ingestionRunId])
+  @@map("research_service_projects")
+}
+
+model ResearchServiceProjectMember {
+  id              String                    @id @default(cuid())
+  projectId       String                    @map("project_id")
+  project         ResearchServiceProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  role            ResearchServiceMemberRole
+  facultyMemberId String?                   @map("faculty_member_id")
+  facultyMember   FacultyMember?            @relation(fields: [facultyMemberId], references: [id], onDelete: SetNull)
+  displayName     String?                   @map("display_name")
+  /// Co-investigator kku_id verbatim; null for the lead.
+  sourcePersonKey String?                   @map("source_person_key")
+  /// Lead only. SHA-256 of the citizen ID — PII-class: never sent to a browser or API client.
+  citizenIdHash   String?                   @map("citizen_id_hash")
+  unitName        String?                   @map("unit_name")
+  facultyId       String?                   @map("faculty_id")
+  /// Resolved faculty Thai name (matched member's faculty, else unit_name).
+  facultyName     String?                   @map("faculty_name")
+  ingestionRunId  String                    @map("ingestion_run_id")
+  ingestionRun    IngestionRun              @relation(fields: [ingestionRunId], references: [id])
+
+  @@index([facultyMemberId])
+  @@index([projectId])
+  @@index([facultyName])
+  @@index([citizenIdHash])
+  @@index([ingestionRunId])
+  @@map("research_service_project_members")
 }
