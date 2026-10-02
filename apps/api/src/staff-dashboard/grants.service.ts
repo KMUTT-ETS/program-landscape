@@ -16,6 +16,17 @@ const CAVEATS = [
   'Staff are matched to HR records by citizen-id hash or email (leads) and HR employee id (co-investigators); unmatched people still count in project totals.',
 ];
 
+/**
+ * Faculty restriction for one project's detail. `clamped` is what
+ * clampFacultyNameFilter returned for an empty filter: null = no grants at all
+ * (match nothing), empty = all-scope (no restriction), otherwise the granted
+ * faculty names.
+ */
+export function detailScopeNames(clamped: { facultyName: string[] } | null): string[] | null {
+  if (clamped === null) return ['__none__'];
+  return clamped.facultyName.length > 0 ? clamped.facultyName : null;
+}
+
 @Injectable()
 export class GrantsService {
   constructor(@Optional() private readonly cache?: CacheService) {}

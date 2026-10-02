@@ -13,7 +13,7 @@ import {
   resolveOfferingScope,
 } from '../common';
 import { StaffService } from './staff.service';
-import { GrantsService } from './grants.service';
+import { GrantsService, detailScopeNames } from './grants.service';
 import {
   TeachingWorkloadService,
   type TeachingWorkloadFilter,
@@ -104,7 +104,12 @@ const GrantsFilterSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(10).max(200).default(50),
   sort: z.enum(['year', 'budget', 'title']).default('year'),
-});
+}).transform((q) =>
+  // A reversed range is swapped, as /staff/research does, rather than returning nothing.
+  q.yearFrom !== undefined && q.yearTo !== undefined && q.yearFrom > q.yearTo
+    ? { ...q, yearFrom: q.yearTo, yearTo: q.yearFrom }
+    : q,
+);
 
 const ResearchFilterSchema = z.object({
   facultyName: StringArray,
@@ -120,7 +125,8 @@ const ResearchFilterSchema = z.object({
 // Staff dashboard reads from the staff-master + compensation cubes.
 // Visibility: admin-grade + UNIVERSITY_USER see everything; FACULTY_USER
 // gets the same UI but every list/aggregate is clamped to user.facultyId
-// at the server. PROGRAM_USER is excluded (no per-program variant).
+// at the server. PROGRAM_USER is admitted too: the clamp rolls their
+// programme up to its faculty (these dashboards have no per-program variant).
 // Refresh endpoints stay university-only — a FACULTY_USER shouldn't
 // trigger a global cube rebuild.
 
@@ -260,9 +266,7 @@ export class StaffController {
   async grantDetail(@AuthSession() user: SessionUser, @Param('id') id: string) {
     await assertCanSeeFacultyDashboards(user);
     const clamped = await clampFacultyNameFilter({ facultyName: [] as string[] }, user);
-    // all-scope → clamp returns the filter unchanged (empty) → no restriction.
-    const names = clamped === null ? ['__none__'] : clamped.facultyName.length > 0 ? clamped.facultyName : null;
-    return this.grants.detail(id, names);
+    return this.grants.detail(id, detailScopeNames(clamped));
   }
 
   @Get('compensation')

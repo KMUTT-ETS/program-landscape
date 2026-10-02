@@ -10,7 +10,8 @@ vi.mock('@kku/db', () => ({
   getGrantProjectDetail: vi.fn(async () => null),
 }));
 
-import { GrantsService } from '../src/staff-dashboard/grants.service';
+import * as db from '@kku/db';
+import { GrantsService, detailScopeNames } from '../src/staff-dashboard/grants.service';
 
 describe('GrantsService', () => {
   it('returns data with provenance meta: freshness, source, caveats incl. the non-additive faculty note', async () => {
@@ -26,5 +27,34 @@ describe('GrantsService', () => {
   it('turns a missing or out-of-scope project into NOT_FOUND', async () => {
     const svc = new GrantsService();
     await expect(svc.detail('rsp-1', null)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('cache key ignores the order of list filters, and a hit skips the compute', async () => {
+    const store = new Map<string, unknown>();
+    const cache = {
+      get: vi.fn(async (k: string) => store.get(k)),
+      set: vi.fn(async (k: string, v: unknown) => { store.set(k, v); }),
+    };
+    vi.mocked(db.getGrantsDashboard).mockClear();
+    const svc = new GrantsService(cache as never);
+    const base = { page: 1, pageSize: 50, sort: 'year' as const };
+    await svc.dashboard({ ...base, facultyName: ['A', 'B'], funder: ['x', 'y'], type: ['RESEARCH', 'OTHER'] });
+    await svc.dashboard({ ...base, facultyName: ['B', 'A'], funder: ['y', 'x'], type: ['OTHER', 'RESEARCH'] });
+    expect(db.getGrantsDashboard).toHaveBeenCalledTimes(1);
+    expect(store.size).toBe(1);
+    await svc.dashboard({ ...base, facultyName: ['A'], funder: ['x', 'y'], type: ['RESEARCH', 'OTHER'] });
+    expect(db.getGrantsDashboard).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('detailScopeNames', () => {
+  it('no grants → match-nothing sentinel', () => {
+    expect(detailScopeNames(null)).toEqual(['__none__']);
+  });
+  it('all-scope (empty list) → no restriction', () => {
+    expect(detailScopeNames({ facultyName: [] })).toBeNull();
+  });
+  it('clamped → that list', () => {
+    expect(detailScopeNames({ facultyName: ['A', 'B'] })).toEqual(['A', 'B']);
   });
 });
