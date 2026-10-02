@@ -7,13 +7,14 @@
 import {
   buildStaffProfile,
   emptyResearchSummary,
+  getStaffGrants,
   getStaffPublicationsSnapshot,
   getStaffTeachingEvaluation,
   prisma,
   resolveFacultyMemberForUser,
   type StaffPublicationsSnapshot,
 } from '@kku/db';
-import { EXPERTISE_NARRATIVE_VERSION } from '@kku/shared';
+import { EXPERTISE_NARRATIVE_VERSION, type StaffGrantsSummary } from '@kku/shared';
 import type { ProfileBasicInfo, ProfileData } from './profile-types';
 import type { TeachingEvaluationSummary } from './teaching-evaluation-summary';
 
@@ -181,3 +182,12 @@ export async function getMyTeachingEvaluation(userId: string): Promise<TeachingE
   return getStaffTeachingEvaluation(memberId);
 }
 
+/** The signed-in user's own grants for the /profile panel. Server-only; never
+ *  called for /p/[slug]. 'unlinked' when the account resolves to no staff record. */
+export async function getMyGrants(userId: string): Promise<StaffGrantsSummary | 'unlinked'> {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { employeeId: true, name: true } });
+  if (!user) return 'unlinked';
+  const memberId = await resolveFacultyMemberForUser(user);
+  if (!memberId) return 'unlinked';
+  return getStaffGrants(memberId);
+}

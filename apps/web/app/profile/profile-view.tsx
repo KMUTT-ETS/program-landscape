@@ -15,6 +15,7 @@ import { kkuAuthorsAsAuthorNames } from '@/lib/profile-types';
 import { buildAuthorListJsx } from './apa-author-list';
 import { AvatarUploader } from './avatar-uploader';
 import { PublicationMetaRow } from './publication-meta-row';
+import { GrantsPanel, type GrantsPanelState } from './grants-panel';
 import { TeachingEvaluationPanel } from './teaching-evaluation-panel';
 import type { TeachingEvaluationSummary } from '@/lib/teaching-evaluation-summary';
 
@@ -164,6 +165,7 @@ export function ProfileView({
   publicMode = false,
   scholarSlot = null,
   teachingEvaluation = null,
+  grants = 'unavailable',
 }: {
   profile: ProfileData | null;
   userEmail: string;
@@ -180,6 +182,8 @@ export function ProfileView({
   // passes nothing, and the panel sits inside the !publicMode block anyway.
   // 'unavailable' = the read failed (shown as such, not as "none yet").
   teachingEvaluation?: TeachingEvaluationSummary | null | 'unavailable';
+  // Owner-only grants summary; same rules as teachingEvaluation above.
+  grants?: GrantsPanelState;
 }) {
   const [lang, setLang] = React.useState<Lang>('en');
   const t = T[lang];
@@ -286,6 +290,7 @@ export function ProfileView({
             <>
               <TeachingSection teaching={profile.teaching} lang={lang} t={t} />
               <TeachingEvaluationPanel summary={teachingEvaluation ?? null} lang={lang} />
+              <GrantsPanel state={grants} lang={lang} />
             </>
           )}
           <PublicationsSection

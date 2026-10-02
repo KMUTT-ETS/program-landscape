@@ -5,7 +5,7 @@ import type { SessionUser, PublicProfileState } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { prisma, SCHOLAR_RESEARCH_OUTPUT_SOURCE } from '@kku/db';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
-import { getMyTeachingEvaluation, getProfileData } from '@/lib/profile-data';
+import { getMyGrants, getMyTeachingEvaluation, getProfileData } from '@/lib/profile-data';
 import { ShareCard } from '@/components/profile/share-card';
 import { getScholarStatusAction } from '@/lib/actions/scholar';
 import { ProfileView } from './profile-view';
@@ -36,7 +36,7 @@ export default async function ProfilePage() {
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
 
-  const [profile, share, scholar, teachingEvaluation] = await Promise.all([
+  const [profile, share, scholar, teachingEvaluation, grants] = await Promise.all([
     getProfileData(user.userId),
     prisma.user.findUnique({
       where: { id: user.userId },
@@ -62,6 +62,14 @@ export default async function ProfilePage() {
       const code =
         typeof err === 'object' && err !== null && 'code' in err ? String((err as { code: unknown }).code) : null;
       console.error(`[profile] teaching evaluation read failed: ${name}${code ? ` (${code})` : ''}`);
+      return 'unavailable' as const;
+    }),
+    // Owner-only, same posture as the evaluation read above.
+    getMyGrants(user.userId).catch((err: unknown) => {
+      const name = err instanceof Error ? err.name : typeof err;
+      const code =
+        typeof err === 'object' && err !== null && 'code' in err ? String((err as { code: unknown }).code) : null;
+      console.error(`[profile] grants read failed: ${name}${code ? ` (${code})` : ''}`);
       return 'unavailable' as const;
     }),
   ]);
@@ -143,6 +151,7 @@ export default async function ProfilePage() {
         profile={profile}
         userEmail={user.email}
         teachingEvaluation={teachingEvaluation}
+        grants={grants}
         scholarSlot={
           scholar.ok ? (
             <ScholarPanel initialStatus={scholar.status} sources={scholarSources} />
