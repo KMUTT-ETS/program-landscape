@@ -10,6 +10,9 @@
 // 0, and says why. Plain Prisma only — health scores are read inside Next.js
 // server components, where nested Prisma.sql fragments break.
 
+import { prisma } from './index';
+import { realDataWhere } from './data-quality';
+
 export const GRANT_ENGAGEMENT_LABEL = 'external_grant_engagement';
 export const GRANT_ENGAGEMENT_TARGET = 0.6;
 export const GRANTS_SOURCE = 'kku-research-services';
@@ -71,4 +74,79 @@ export function greenHistoryGate(successTimes: readonly Date[], now: Date): Gran
     return { open: false, reason: 'awaiting-green-history', daysOfHistory, successfulDaysLast30 };
   }
   return { open: true, daysOfHistory, successfulDaysLast30, lastSuccessAt };
+}
+
+const GATE_TTL_MS = 5 * 60_000;
+let gateCache: { at: number; gate: GrantGate } | null = null;
+
+/** Test hook: drop the cached gate. */
+export function __resetGrantGateCache(): void {
+  gateCache = null;
+}
+
+/** The green-history gate for the grants source, cached per process for 5 minutes
+ *  so scoring every programme costs one query. */
+export async function loadGrantGate(now: Date = new Date()): Promise<GrantGate> {
+  if (gateCache && now.getTime() - gateCache.at < GATE_TTL_MS) return gateCache.gate;
+  const runs = await prisma.ingestionRun.findMany({
+    where: { status: 'SUCCEEDED', completedAt: { not: null }, dataSource: { slug: GRANTS_SOURCE } },
+    select: { completedAt: true },
+  });
+  const gate = greenHistoryGate(
+    runs.map((r) => r.completedAt).filter((d): d is Date => d !== null),
+    now,
+  );
+  gateCache = { at: now.getTime(), gate };
+  return gate;
+}
+
+/** Staff (of `memberIds`) on at least one project — lead or co-investigator — in the window. */
+export async function fundedStaffIds(
+  memberIds: readonly string[],
+  window: { fromFyBe: number; toFyBe: number },
+): Promise<Set<string>> {
+  if (memberIds.length === 0) return new Set();
+  const rows = await prisma.researchServiceProjectMember.findMany({
+    where: {
+      facultyMemberId: { in: [...memberIds] },
+      project: { fiscalYearBe: { gte: window.fromFyBe, lte: window.toFyBe } },
+      ...realDataWhere(),
+    },
+    select: { facultyMemberId: true },
+    distinct: ['facultyMemberId'],
+  });
+  return new Set(rows.map((r) => r.facultyMemberId).filter((id): id is string => id !== null));
+}
+
+export interface GrantEngagementDriver {
+  label: typeof GRANT_ENGAGEMENT_LABEL;
+  value: number | null;
+  raw: Record<string, unknown>;
+}
+
+/** The finished capability driver for a set of DISTINCT active staff ids. */
+export async function grantEngagementDriver(
+  memberIds: readonly string[],
+  now: Date = new Date(),
+): Promise<GrantEngagementDriver> {
+  const gate = await loadGrantGate(now);
+  if (!gate.open) {
+    const { open: _open, ...why } = gate;
+    return { label: GRANT_ENGAGEMENT_LABEL, value: null, raw: { ...why, staff: memberIds.length } };
+  }
+  const window = grantWindow(now);
+  const funded = await fundedStaffIds(memberIds, window);
+  const fundedStaff = funded.size;
+  return {
+    label: GRANT_ENGAGEMENT_LABEL,
+    value: engagementScore(fundedStaff, memberIds.length),
+    raw: {
+      fundedStaff,
+      staff: memberIds.length,
+      share: memberIds.length ? fundedStaff / memberIds.length : null,
+      windowFyBe: [window.fromFyBe, window.toFyBe],
+      target: GRANT_ENGAGEMENT_TARGET,
+      gate: { daysOfHistory: gate.daysOfHistory, successfulDaysLast30: gate.successfulDaysLast30 },
+    },
+  };
 }
