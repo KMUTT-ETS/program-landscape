@@ -8,6 +8,9 @@
 // completeness. Plain Prisma only — health scores are read inside Next.js server
 // components, where nested Prisma.sql fragments break.
 
+import { prisma } from './index';
+import { realDataWhere } from './data-quality';
+
 export const GRANT_AWARD_LABEL = 'external_grant_award';
 export const GRANT_AWARD_FLOOR_THB = 100_000;
 export const GRANT_AWARD_CAP_THB = 3_000_000;
@@ -61,4 +64,70 @@ export function withAward<T extends { score: number | null }>(
   }
   const next = award.points === null ? score.score : Math.min(100, score.score + award.points);
   return { ...score, score: next, award: { ...award, baseScore: score.score } };
+}
+
+const SOURCE_TTL_MS = 5 * 60_000;
+let sourceCache: { at: number; promise: Promise<boolean> } | null = null;
+
+/** Test hook: drop the cached source check. */
+export function __resetGrantSourceCache(): void {
+  sourceCache = null;
+}
+
+/** True once the grants source has at least one successful run on this server.
+ *  Cached per process for 5 minutes; concurrent cold callers share one query and
+ *  a failure is never cached. */
+export function loadGrantSourceSynced(): Promise<boolean> {
+  const t = Date.now();
+  if (sourceCache && t - sourceCache.at < SOURCE_TTL_MS) return sourceCache.promise;
+  const entry = {
+    at: t,
+    promise: prisma.ingestionRun
+      .count({ where: { status: 'SUCCEEDED', dataSource: { slug: GRANTS_SOURCE } } })
+      .then((n) => n > 0),
+  };
+  sourceCache = entry;
+  entry.promise.catch(() => {
+    if (sourceCache === entry) sourceCache = null;
+  });
+  return entry.promise;
+}
+
+/** The award for a set of DISTINCT active teaching staff ids. Each in-window
+ *  project with any of them on it counts once, whole budget. */
+export async function grantAward(memberIds: readonly string[], now?: Date): Promise<GrantAwardInput> {
+  if (!(await loadGrantSourceSynced())) {
+    return { label: GRANT_AWARD_LABEL, points: null, raw: { reason: 'source-not-synced' } };
+  }
+  if (memberIds.length === 0) {
+    return { label: GRANT_AWARD_LABEL, points: null, raw: { reason: 'no-active-staff' } };
+  }
+  const window = grantWindow(now ?? new Date());
+  const projects = await prisma.researchServiceProject.findMany({
+    where: {
+      fiscalYearBe: { gte: window.fromFyBe, lte: window.toFyBe },
+      members: { some: { facultyMemberId: { in: [...memberIds] }, ...realDataWhere() } },
+      ...realDataWhere(),
+    },
+    select: { id: true, budgetThb: true },
+  });
+  const years = window.toFyBe - window.fromFyBe + 1;
+  const total = projects.reduce((s, p) => s + (p.budgetThb === null ? 0 : Number(p.budgetThb)), 0);
+  const bahtPerYear = total / years;
+  const bahtPerStaffPerYear = bahtPerYear / memberIds.length;
+  return {
+    label: GRANT_AWARD_LABEL,
+    points: awardPoints(bahtPerStaffPerYear),
+    raw: {
+      bahtPerStaffPerYear,
+      bahtPerYear,
+      staff: memberIds.length,
+      projects: projects.length,
+      windowFyBe: [window.fromFyBe, window.toFyBe],
+      floorThb: GRANT_AWARD_FLOOR_THB,
+      capThb: GRANT_AWARD_CAP_THB,
+      maxPoints: GRANT_AWARD_MAX_POINTS,
+      caveat: GRANT_AWARD_CAVEAT,
+    },
+  };
 }
