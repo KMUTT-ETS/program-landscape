@@ -39,6 +39,21 @@ const HealthDimRowSchema = z.object({
   // compound field, not a display-vs-numeric ambiguity.
   topDriverLabel: z.string().nullable(),
   topDriverValue: z.number().finite().nullable(),
+  // health-score.v5.4: the external-grant award on Financial (null on every
+  // other dimension and on payloads from earlier versions). `line` and
+  // `caveat` are pre-worded by the builder with the SAME helper the
+  // Deep-Dive uses (@kku/shared/src/health/grant-award-note), so the PDF and
+  // the web state the award in identical words; the caveat is non-null for
+  // every computed award (spec §4.4).
+  award: z
+    .object({
+      points: z.number().finite().nullable(),
+      baseScore: z.number().finite().nullable(),
+      line: z.string(),
+      caveat: z.string().nullable(),
+    })
+    .nullable()
+    .default(null),
 });
 
 const HealthDriverRowSchema = z.object({

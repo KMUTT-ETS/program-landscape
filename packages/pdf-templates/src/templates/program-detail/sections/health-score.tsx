@@ -110,6 +110,17 @@ export function renderHealthScoreSection(data: ProgramDetailData): React.ReactEl
           )}
         </>
       )}
+
+      {/* v5.4 external-grant award (Financial only). An award, never a
+          penalty; the lower-bound caveat travels with every computed one. */}
+      {data.healthDimensions.map((d) =>
+        d.award ? (
+          <p key={`award-${d.dimension}`} className="muted">
+            {d.award.line}
+            {d.award.caveat ? ` ${d.award.caveat}` : ''}
+          </p>
+        ) : null,
+      )}
     </section>
   );
 }

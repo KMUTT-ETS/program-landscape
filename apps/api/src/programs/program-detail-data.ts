@@ -34,6 +34,7 @@ import {
   programTrends,
 } from '@kku/db';
 import type { ProgramDetailData } from '@kku/pdf-templates';
+import { healthAwardForPdf } from './program-detail-health-award';
 
 const LEVEL_LABEL: Record<string, string> = {
   BACHELOR: 'Bachelor',
@@ -381,6 +382,8 @@ export async function buildProgramDetailData(
             : Math.round(healthBenchmarks.university[key] as number),
         topDriverLabel: top ? fmtDriverLabel(top.label) : null,
         topDriverValue: top && top.value !== null ? Math.round(top.value) : null,
+        // v5.4: only Financial carries the external-grant award.
+        award: key === 'financial' ? healthAwardForPdf(cell.award) : null,
       });
       for (const d of cell.drivers) {
         healthDrivers.push({

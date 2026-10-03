@@ -164,3 +164,31 @@ describe('renderHealthScoreSection', () => {
     expect(html).toContain('No faculty mean');
   });
 });
+
+describe('renderHealthScoreSection — external-grant award', () => {
+  const dims = (award: unknown) => [
+    { dimension: 'Attractiveness', score: 70, dataCompleteness: 80, topDriverLabel: null, topDriverValue: null },
+    { dimension: 'Financial', score: 67, dataCompleteness: 75, topDriverLabel: null, topDriverValue: null, award },
+  ];
+
+  it('renders the award line and the lower-bound caveat for Financial', () => {
+    const data = parse({
+      healthDimensions: dims({
+        points: 6.2,
+        baseScore: 61.4,
+        line: 'External-grant award: +6.2 (฿1.04 M per teaching staff per year, FY 2567–2569) · base 61.4 → 67.6',
+        caveat: 'Lower bound: x',
+      }),
+    });
+    const html = renderToStaticMarkup(renderHealthScoreSection(data) as React.ReactElement);
+    expect(html).toContain('External-grant award: +6.2');
+    expect(html).toContain('Lower bound: x');
+  });
+
+  it('defaults the award to null so older payloads still parse and render nothing extra', () => {
+    const data = parse({ healthDimensions: dims(undefined) });
+    expect(data.healthDimensions[1].award).toBeNull();
+    const html = renderToStaticMarkup(renderHealthScoreSection(data) as React.ReactElement);
+    expect(html).not.toContain('External-grant award');
+  });
+});
