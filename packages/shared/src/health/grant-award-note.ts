@@ -26,7 +26,9 @@ function windowText(raw: Record<string, unknown>): string {
 
 function baht(v: number): string {
   const k = Math.round(v / 1000);
-  return k >= 1000 ? `฿${(v / 1_000_000).toFixed(2).replace(/\.?0+$/, '')} M` : `฿${k}k`;
+  if (k >= 1000) return `฿${(v / 1_000_000).toFixed(2).replace(/\.?0+$/, '')} M`;
+  // A positive figure that rounds to zero thousands must not read as ฿0k.
+  return v > 0 && k === 0 ? 'under ฿1k' : `฿${k}k`;
 }
 
 const round1 = (x: number): number => Math.round(x * 10) / 10;
@@ -49,6 +51,11 @@ export function grantAwardLine(award: HealthAwardLike | null | undefined): strin
     const projects = num(raw.projects) ?? 0;
     // awardPoints() is also 0 for grants at or below the floor, so "no grant"
     // is only true when the team holds no project in the window.
+    // Projects whose budgets are all unrecorded sum to ฿0 — say so rather than
+    // print "฿0k … below the floor".
+    if (projects > 0 && (perStaff === null || perStaff <= 0)) {
+      return `External-grant award: +0 (${projects} ${projects === 1 ? 'project' : 'projects'} in ${windowText(raw)}, no stated budget)`;
+    }
     if (projects > 0 && perStaff !== null) {
       return `External-grant award: +0 (${baht(perStaff)} per teaching staff per year, below the ฿100k floor, ${windowText(raw)})`;
     }
