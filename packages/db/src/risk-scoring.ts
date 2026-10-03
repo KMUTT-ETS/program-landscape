@@ -1515,11 +1515,14 @@ export function evaluateKris(inputs: ProgramRiskInputs, freshnessDate: Date): Kr
   // program-overlap/risk.ts.
   if (inputs.overlap) {
     const c = inputs.overlap.curriculumOverlapMax;
+    const raw = c == null ? 'OK' : c >= CURRICULUM_OVERLAP_CRITICAL ? 'CRITICAL' : c >= CURRICULUM_OVERLAP_WARN ? 'WARN' : 'OK';
     out.push({
       programId: inputs.programId,
       indicatorSlug: 'curriculum_overlap_max',
       value: c,
-      severity: c == null ? 'OK' : c >= CURRICULUM_OVERLAP_CRITICAL ? 'CRITICAL' : c >= CURRICULUM_OVERLAP_WARN ? 'WARN' : 'OK',
+      // A limited-evidence max pair (PLO-only / no course comparison) is a
+      // lead, not a finding: capped at WARN, value unchanged.
+      severity: raw === 'CRITICAL' && inputs.overlap.curriculumLimitedEvidence ? 'WARN' : raw,
       freshnessDate,
     });
     const m = inputs.overlap.marketConfusionMax;

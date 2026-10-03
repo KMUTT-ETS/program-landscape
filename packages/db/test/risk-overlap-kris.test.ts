@@ -18,7 +18,7 @@ const withOverlap = (o: object) => ({ ...(base as object), overlap: o }) as neve
 const thresholds = Object.fromEntries(RISK_INDICATOR_CATALOG.map((c) => [c.slug, c]));
 const signal = (o: object = {}) => ({
   curriculumOverlapMax: null, curriculumSiblingId: null, curriculumPairId: null, curriculumRunId: null,
-  curriculumContainmentMax: null, curriculumActions: [],
+  curriculumContainmentMax: null, curriculumActions: [], curriculumLimitedEvidence: false,
   mergeCandidate: false, marketConfusionMax: null, marketSiblingId: null, marketPairId: null, marketRunId: null,
   runId: 'r', ...o,
 });
@@ -68,6 +68,22 @@ describe('overlap KRIs', () => {
     expect(at(50)).toBe('WARN');
     expect(at(69.9)).toBe('WARN');
     expect(at(70)).toBe('CRITICAL');
+  });
+  it('limited evidence caps curriculum overlap at WARN (value unchanged) and fires no merge rule', () => {
+    const row = (limited: boolean) => evaluateKris(
+      withOverlap(signal({ curriculumOverlapMax: 100, curriculumSiblingId: 'q', curriculumLimitedEvidence: limited, mergeCandidate: false })),
+      new Date('2026-10-03'),
+    ).find((b) => b.indicatorSlug === 'curriculum_overlap_max')!;
+    expect([row(true).severity, row(true).value]).toEqual(['WARN', 100]);
+    expect(row(false).severity).toBe('CRITICAL');
+    const limited = signal({ curriculumOverlapMax: 100, curriculumLimitedEvidence: true, mergeCandidate: false });
+    const kinds = deriveRuleMeasures(
+      [{ ...row(true), flags: overlapBreachFlags('curriculum_overlap_max', limited) }],
+      thresholds,
+    ).map((m) => m.measure.kind);
+    expect(kinds).not.toContain('PROGRAM_MERGE');
+    expect(evaluateKris(withOverlap(signal({ curriculumOverlapMax: 40, curriculumLimitedEvidence: true })), new Date('2026-10-03'))
+      .find((b) => b.indicatorSlug === 'curriculum_overlap_max')!.severity).toBe('OK');
   });
   it('market confusion bands use the provisional constants', () => {
     const at = (v: number) => evaluateKris(withOverlap(signal({ marketConfusionMax: v })), new Date('2026-10-03'))

@@ -299,7 +299,7 @@ L2 skills first."
 | `late_round_dependency` | round 3+ share of admits | > 0.5 | > 0.7 |
 | `skill_automation_index` | HIGH-tagged share of skills | > 0.3 | > 0.6 |
 | `bachelor_intake_floor` | regReported (latest year) | < 36 | < 30 |
-| `curriculum_overlap_max` | highest overlap index vs a same-level sibling (v1.14) | ≥ 50 | ≥ 70 |
+| `curriculum_overlap_max` | highest overlap index vs a same-level sibling (v1.14) | ≥ 50 | ≥ 70 (WARN at most on limited evidence) |
 | `market_confusion_max` | highest market similarity vs a same-level sibling (v1.14) | ≥ 60 † | ≥ 75 † |
 
 The two overlap KRIs (v1.14) read the current `program-overlap.v1` pairs:
@@ -316,7 +316,12 @@ market similarity reaches the warn value is always stored, so the market KRI
 sees confusable pairs with low curriculum overlap. The merge-candidate flag
 (and the containment and actions handed to the AI) come from the
 **max-overlap pair only** — deliberately: the merge rule reviews the closest
-sibling, not any sibling carrying the action. Ties between a full and a scoped
+sibling, not any sibling carrying the action. When that max-overlap pair rests on
+**limited evidence** (`evidence.coverage.limitedEvidence`: PLO-only or no
+course comparison — the same pairs whose band is capped at MODERATE), the
+curriculum KRI is capped at WARN with its value unchanged and the pair is
+never a merge candidate: strong actions need course evidence. Evidence that
+cannot be read counts as limited. Ties between a full and a scoped
 run completed at the same instant apply the scoped run. The AI prompt
 (`risk-assessment.v4`) receives the named sibling(s) and is told every
 overlap measure is for review and never to propose closure. † Provisional, set at

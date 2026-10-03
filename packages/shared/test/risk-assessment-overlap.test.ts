@@ -37,7 +37,7 @@ describe('risk-assessment.v4 overlap context', () => {
   it('renders the named siblings when present', () => {
     const text = user(input({
       overlapContext: {
-        curriculum: { siblingCode: 'KKU-SEQ-0002', siblingNameTh: 'หลักสูตร ข', siblingNameEn: 'Programme B', overlapIndex: 74.6, containmentMax: 83.2, actions: ['CONSIDER_MERGE_OR_TRACK'] },
+        curriculum: { siblingCode: 'KKU-SEQ-0002', siblingNameTh: 'หลักสูตร ข', siblingNameEn: 'Programme B', overlapIndex: 74.6, containmentMax: 83.2, actions: ['CONSIDER_MERGE_OR_TRACK'], limitedEvidence: false },
         market: { siblingCode: 'KKU-SEQ-0003', siblingNameTh: 'หลักสูตร ค', siblingNameEn: null, marketSimilarity: 81.4 },
       },
     }));
@@ -45,6 +45,18 @@ describe('risk-assessment.v4 overlap context', () => {
     expect(text).toContain('containment สูงสุด 83%');
     expect(text).toContain('CONSIDER_MERGE_OR_TRACK');
     expect(text).toContain('market_confusion_max: 81/100 กับ KKU-SEQ-0003 หลักสูตร ค');
+    expect(text).not.toContain('limited evidence');
+  });
+  it('marks a limited-evidence sibling as a lead to verify', () => {
+    const text = user(input({
+      overlapContext: {
+        curriculum: { siblingCode: 'KKU-SEQ-0002', siblingNameTh: 'หลักสูตร ข', siblingNameEn: null, overlapIndex: 100, containmentMax: null, actions: [], limitedEvidence: true },
+        market: null,
+      },
+    }));
+    expect(text).toContain('limited evidence (PLO-only or no course comparison) — a lead to verify, not a finding');
+    const system = buildRiskAssessmentMessages(input())[0]!.content as string;
+    expect(system).toContain('limited evidence = PLO-only or no course comparison; treat as a lead to verify, not a finding');
   });
   it('omits the block without overlap context', () => {
     expect(user(input())).not.toContain('program-overlap.v1');

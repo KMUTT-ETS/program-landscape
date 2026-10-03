@@ -9,6 +9,11 @@
 //  - mergeCandidate (and the containment / actions reported to the AI) come
 //    from the max-overlap pair only: the merge rule reviews the closest
 //    sibling, not any sibling that happens to carry the action.
+//  - Limited evidence (evidence.coverage.limitedEvidence: PLO-only or no
+//    course comparison) on the max-overlap pair caps the curriculum KRI at
+//    WARN and clears mergeCandidate — strong actions need course evidence.
+//    Evidence that cannot be read counts as limited: the conservative choice
+//    for a Council-facing CRITICAL.
 import type { OverlapAction, ProgramLevel } from '@prisma/client';
 import { byCodeUnits } from './load';
 import {
@@ -31,7 +36,11 @@ export interface OverlapRiskSignal {
   curriculumContainmentMax: number | null;
   /** The max-overlap pair's actions. */
   curriculumActions: OverlapAction[];
-  /** The max-overlap pair's actions include CONSIDER_MERGE_OR_TRACK. */
+  /** The max-overlap pair rests on limited evidence (or its evidence could
+   *  not be read): the KRI is capped at WARN. */
+  curriculumLimitedEvidence: boolean;
+  /** The max-overlap pair's actions include CONSIDER_MERGE_OR_TRACK and its
+   *  evidence is not limited. */
   mergeCandidate: boolean;
   /** Highest market similarity against a same-level sibling (language
    *  variants excluded), over stored pairs only. */
@@ -52,6 +61,17 @@ export interface OverlapRiskPair extends OverlapPairRef {
   containmentBInA: number | null;
   languageVariant: boolean;
   actions: readonly OverlapAction[];
+  /** The stored evidenceJson; only coverage.limitedEvidence is read. */
+  evidenceJson: unknown;
+}
+
+/** Pure: does a stored pair's evidence mark it limited? Anything other than
+ *  an explicit `coverage.limitedEvidence === false` counts as limited. */
+export function pairHasLimitedEvidence(evidenceJson: unknown): boolean {
+  if (typeof evidenceJson !== 'object' || evidenceJson === null) return true;
+  const coverage = (evidenceJson as { coverage?: unknown }).coverage;
+  if (typeof coverage !== 'object' || coverage === null) return true;
+  return (coverage as { limitedEvidence?: unknown }).limitedEvidence !== false;
 }
 
 function containmentMax(p: OverlapRiskPair): number | null {
@@ -93,6 +113,7 @@ export function overlapRiskSignalFromPairs(
       market = { value: p.marketSimilarity, siblingId, pair: p };
     }
   }
+  const curriculumLimited = curriculum ? pairHasLimitedEvidence(curriculum.pair.evidenceJson) : false;
   return {
     curriculumOverlapMax: curriculum?.value ?? null,
     curriculumSiblingId: curriculum?.siblingId ?? null,
@@ -100,7 +121,8 @@ export function overlapRiskSignalFromPairs(
     curriculumRunId: curriculum?.pair.runId ?? null,
     curriculumContainmentMax: curriculum ? containmentMax(curriculum.pair) : null,
     curriculumActions: curriculum ? [...curriculum.pair.actions] : [],
-    mergeCandidate: curriculum?.pair.actions.includes('CONSIDER_MERGE_OR_TRACK') ?? false,
+    curriculumLimitedEvidence: curriculumLimited,
+    mergeCandidate: !curriculumLimited && (curriculum?.pair.actions.includes('CONSIDER_MERGE_OR_TRACK') ?? false),
     marketConfusionMax: market?.value ?? null,
     marketSiblingId: market?.siblingId ?? null,
     marketPairId: market?.pair.id ?? null,
