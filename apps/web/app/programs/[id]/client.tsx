@@ -471,7 +471,7 @@ export function DeepDiveClient(props: Props) {
           <MacroGroup
             id="overlap"
             title="Overlap"
-            subtitle="Same-level KKU programmes that share courses, equivalent courses or learning outcomes with this one — for review, not decisions."
+            subtitle="Same-level KKU programmes that share courses or equivalent course content with this one — for review, not decisions."
             stat={overlapStat?.count}
             statLabel={overlapStat?.label}
           >
