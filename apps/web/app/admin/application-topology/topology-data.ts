@@ -1994,11 +1994,11 @@ const dashboardNodes: TopologyNode[] = [
     lane: 'dashboard',
     kind: 'dashboard',
     label: 'Program overlap',
-    subtitle: '/education/program-overlap · clustered heatmap',
+    subtitle: '/education/program-overlap · overlap network + ranked pairs',
     href: '/education/program-overlap',
     details: {
       description:
-        'Same-level programmes compared on a course-based overlap index — major courses shared by code and equivalent course content (embedding match) — with PLO alignment shown as supporting context and market similarity beside the index. Clustered programme × programme heatmap with outlined overlap groups, KPI strip, and a side panel per pair: layer bars, containment, shared and equivalent courses, matched / unmatched PLOs, shared staff, rule-chosen actions (all for review) and the AI suggestion with confidence and a disagree button. Faculty-grain: guarded like /education/recruitment and clamped to the caller faculty.',
+        'Same-level programmes compared on a course-based overlap index — major courses shared by code and equivalent course content (embedding match) — with PLO alignment shown as supporting context and market similarity beside the index. Overlap network (only programmes with a pair at or above the threshold; a node filters the list, a line opens the pair) above a ranked pair list (index, structure | content bars, containment, language-variant and for-review action badges), KPI strip, and a side panel per pair: layer bars, containment, shared and equivalent courses, matched / unmatched PLOs, shared staff, rule-chosen actions (all for review) and the AI suggestion with confidence and a disagree button. Faculty-grain: guarded like /education/recruitment and clamped to the caller faculty.',
     },
   },
 

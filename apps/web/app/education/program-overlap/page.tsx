@@ -16,6 +16,7 @@ import {
   DEFAULT_THRESHOLD,
   OVERLAP_LAYERS,
   OVERLAP_LEVELS,
+  THRESHOLD_OPTIONS,
   type OverlapFilters,
   type OverlapMatrixResponse,
 } from './types';
@@ -47,8 +48,8 @@ function toFetchError(err: unknown): ApiFetchError {
   return e;
 }
 
-// /education/program-overlap — program-overlap.v1 clustered heatmap
-// (spec §10.1). Faculty-grain and not program-aware: the API guards it like
+// /education/program-overlap — program-overlap.v1 overlap network + ranked
+// pair list (spec §10.1). Faculty-grain and not program-aware: the API guards it like
 // /education/recruitment (assertCanSeeFacultyDashboards + faculty clamp); a
 // PROGRAM_USER lands on their programme's faculty.
 export default async function ProgramOverlapPage({ searchParams }: { searchParams: Promise<SP> }) {
@@ -66,14 +67,14 @@ export default async function ProgramOverlapPage({ searchParams }: { searchParam
     level: OVERLAP_LEVELS.find((l) => l.value === levelRaw)?.value ?? 'BACHELOR',
     layer: OVERLAP_LAYERS.find((l) => l.value === layerRaw)?.value ?? 'index',
     facultyId: one(sp.facultyId) || null,
-    threshold:
-      Number.isFinite(thresholdRaw) && thresholdRaw >= 0 && thresholdRaw <= 100
-        ? thresholdRaw
-        : DEFAULT_THRESHOLD,
+    threshold: THRESHOLD_OPTIONS.find((t) => t === thresholdRaw) ?? DEFAULT_THRESHOLD,
+    node: one(sp.node) || null,
     pair: one(sp.pair) || null,
   };
 
-  const qs = new URLSearchParams({ level: filters.level, layer: filters.layer });
+  // The measure (layer) is applied client-side: every cell carries all of
+  // them, and the network does not use the server's clustered order.
+  const qs = new URLSearchParams({ level: filters.level });
   if (filters.facultyId) qs.set('facultyId', filters.facultyId);
 
   let data: OverlapMatrixResponse | null = null;
@@ -103,7 +104,7 @@ export default async function ProgramOverlapPage({ searchParams }: { searchParam
       <EducationBackLink />
       <PageHeader
         title="Program overlap"
-        subtitle="Same-level programmes compared on three curriculum layers — major courses shared by code, equivalent course content, and PLO alignment. Programmes are clustered so overlapping groups sit as dark blocks on the diagonal. Every suggested action is for review, not a decision."
+        subtitle="Same-level programmes compared on their major courses — courses shared by code and equivalent course content. The network shows only programmes that overlap; the list ranks the pairs. PLO alignment and market similarity are context in each pair's evidence. Every suggested action is for review, not a decision."
       />
       {data && meta ? (
         <ProgramOverlapClient

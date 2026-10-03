@@ -19,7 +19,7 @@ differentiation and, where the evidence is strong, merging.
 
 It feeds three surfaces:
 
-1. an Education dashboard page with a clustered overlap heatmap;
+1. an Education dashboard page with an overlap network and a ranked pair list (originally a clustered heatmap; see §10.1);
 2. Risk Management, through two indicators for self-competition and customer confusion;
 3. a Program Deep-Dive section listing overlapping programmes with recommendations.
 
@@ -214,17 +214,20 @@ Strength order, weakest to strongest: coordinate shared courses < consolidate eq
 
 ### 10.1 Education dashboard: `/education/program-overlap`
 - **A new hub tile, "Program overlap".**
-- **Controls:** level (default Bachelor), layer (index / structure / content / outcome / market), faculty filter, minimum threshold. All are kept in the URL. The page is scope-aware: faculty scope shows that faculty's programmes plus their outside siblings.
-- **`OverlapMatrix`:** a new inline-SVG viz primitive in `@kku/ui/viz` (pattern: `CoverageMatrix`).
-  - It is a programme-by-programme matrix.
-  - Rows and columns are ordered by hierarchical clustering (average linkage on 1 − value), so overlapping groups appear as dark blocks on the diagonal.
-  - Cells use the sequential chart tokens, in both light and dark mode, with a faculty colour strip on both axes.
-  - Groups (connected components at index ≥ 50) are outlined.
-  - Hover shows the names, the three layers and the actions.
-  - A click opens a side panel with the evidence, the AI recommendation and links to both Deep-Dives. Zoom to a group is supported.
-  - No new charting library.
+- **Controls:** level (default Bachelor), measure (overlap index — the default — / structure / content), faculty filter, minimum threshold (30 / 50 / 70, default 30). Level, faculty, measure, threshold, the selected programme (`node`) and the open pair (`pair`) are all kept in the URL. The page is scope-aware: faculty scope shows that faculty's programmes plus their outside siblings. PLO alignment and market similarity are not overlap measures under D9, so they are no longer offered as a measure; they stay in the pair side panel as context.
+- **Change of visual (user decision, 2026-10-03).** The first build drew a clustered programme × programme heatmap (`OverlapMatrix`). On dev it was about 99 % empty — about 100 bachelor programmes, only about 40 pairs at index ≥ 30 and about 9 at ≥ 50 — so the user chose an overlap network on top and a ranked pair list underneath. `OverlapMatrix` was removed.
+- **`OverlapNetwork`:** an inline-SVG viz primitive in `@kku/ui/viz`, with a pure, deterministic layout module (`overlap-network-layout.ts`). No new charting library.
+  - Nodes are only the programmes with at least one scored pair at or above the threshold; edges are those pairs. Not-scored pairs (no course comparison, D9) are never drawn.
+  - Layout: seeded Fruchterman–Reingold per connected component (fixed iterations, heavier pairs pull closer), each node's label box pushed clear of the others so labels never collide, and components packed into rows, strongest peak first. The same data always yields the same picture.
+  - Edges use one sequential hue (chart series 1); stroke width and opacity step together by band (30–49 / 50–69 / ≥ 70). Thai / international versions of one programme are dashed, with a legend entry.
+  - Nodes are neutral, labelled with the short Thai programme name and the faculty code underneath ("· Intl" for an international programme). They are not coloured by faculty: there are about 20 faculties and categorical colour stops being readable past about 8.
+  - Hover or keyboard focus shows a tooltip — for an edge both names, the measure, structure and content, same or across faculties, and the suggested action ("for review"); for a node its names and number of overlaps. Every node and edge is focusable and activates with Enter; hit targets are wider than the marks.
+  - Clicking a node filters the pair list to that programme (a "Filtered to … · clear" chip shows it) and emphasises its edges, dimming the rest. Clicking an edge opens the pair side panel.
+  - Light and dark mode through the chart tokens; an explicit empty state when no pair reaches the threshold.
+- **Ranked pair list** (`apps/web/src/components/overlap/pair-list.tsx`) — the chart's table view. One row per scored pair at or above the threshold, sorted by the chosen measure, strongest first. Each row shows both programmes (Thai name, then English name and faculty code), the measure as an integer, two labelled thin bars for structure and content, the larger containment direction ("A ⊂ B · 84 %", or "—"), a Thai / international badge and the primary action badge ending "— for review". A row opens the same pair side panel.
+- **Pair side panel:** the evidence, the AI recommendation and links to both Deep-Dives (unchanged from the first build).
 - **KPI strip:** high-overlap pairs, programmes in a group, merge candidates, and equivalent credits that could be consolidated.
-- **Groups list:** members, peak index, headline actions.
+- **Groups list:** dropped with the matrix — the network's connected components show the same groups, and the KPI strip still counts programmes in groups at index ≥ 50.
 - **Standard elements:** `<ProvenanceButton>`, `<FreshnessBadge>` and the methodology version.
 - **Wiring:** follow the existing education-tile wiring (thumbnail, nav, permissions, scope guards, analyst dashboard tools, data-fetch admin, topology).
 
@@ -285,7 +288,7 @@ Strength order, weakest to strongest: coordinate shared courses < consolidate eq
 - **UI tests:**
   - the Deep-Dive section is hidden below 30 and when no run exists;
   - a recommendation never renders without confidence and sources;
-  - the matrix renders with tokens only.
+  - the overlap network renders with tokens only; its layout is deterministic, places every qualifying node, keeps components and labels apart.
 - **Live on dev:** the calibration in §9, then one dashboard and one Deep-Dive checked in a browser.
 
 ## 12. Calibration results
@@ -377,7 +380,7 @@ Measured on dev, 2026-10-03, by course-code prefix:
 2. **Engine and runner:** `programs:overlap`, `phaseOV`, the run tables. Then **calibrate**.
 3. **AI recommendations.**
 4. **KRIs and measures.**
-5. **UIs:** dashboard heatmap, Risk panel, Deep-Dive section.
+5. **UIs:** dashboard overlap network and pair list, Risk panel, Deep-Dive section.
 6. **Docs.**
 
 On prod after deploy: `programs:overlap-prep --apply` (including the v4 backfill), then `programs:overlap --apply`, then phase 8. Prod recomputes from its own data; nothing is copied from dev.

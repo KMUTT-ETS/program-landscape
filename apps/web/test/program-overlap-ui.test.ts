@@ -2,13 +2,16 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
-  LANGUAGE_VARIANT_LABEL,
   OVERLAP_ACTION_LABEL,
   OVERLAP_ACTION_ORDER,
+  OVERLAP_LAYERS,
   actionBadgeLabel,
+  largestContainment,
   layerValue,
-  matrixTitle,
+  nodeSublabel,
+  overlapPairRows,
   overlapQueryString,
+  shortProgrammeLabel,
   type OverlapCell,
 } from '../app/education/program-overlap/types';
 
@@ -17,12 +20,8 @@ const DIR = 'app/education/program-overlap';
 const page = read(`${DIR}/page.tsx`);
 const client = read(`${DIR}/client.tsx`);
 const sharedPair = read('src/components/overlap/pair-evidence.tsx');
+const pairList = read('src/components/overlap/pair-list.tsx');
 const surface = `${page}\n${client}`;
-
-const names = new Map([
-  ['a', 'A'],
-  ['b', 'B'],
-]);
 const cell = (over: Partial<OverlapCell> = {}): OverlapCell => ({
   a: 'a',
   b: 'b',
@@ -32,6 +31,8 @@ const cell = (over: Partial<OverlapCell> = {}): OverlapCell => ({
   content: 75,
   outcome: 81,
   marketSimilarity: null,
+  containmentAInB: 84,
+  containmentBInA: 61,
   band: 'HIGH',
   primaryAction: 'CONSIDER_MERGE_OR_TRACK',
   languageVariant: false,
@@ -47,9 +48,21 @@ describe('program overlap dashboard wiring', () => {
     expect(read('app/education/thumbnails.tsx')).toMatch(/export function ProgramOverlapThumb\(/);
   });
 
-  it('renders the clustered matrix from @kku/ui', () => {
-    expect(client).toMatch(/import \{[^}]*\bOverlapMatrix\b[^}]*\} from '@kku\/ui'/);
-    expect(client).toContain('<OverlapMatrix');
+  it('renders the overlap network from @kku/ui and the ranked pair list', () => {
+    expect(client).toMatch(/import \{[^}]*\bOverlapNetwork\b[^}]*\} from '@kku\/ui'/);
+    expect(client).toContain('<OverlapNetwork');
+    expect(client).toContain('<OverlapPairList');
+    expect(client).not.toContain('OverlapMatrix ');
+  });
+
+  it('filters the list to a selected programme with a visible clear chip', () => {
+    expect(client).toContain('Filtered to');
+    expect(client).toContain('onClick={() => selectNode(null)}');
+  });
+
+  it('labels every suggested action "for review" in the list', () => {
+    expect(pairList).toContain('actionBadgeLabel(r.cell.primaryAction)');
+    expect(pairList).toContain('LANGUAGE_VARIANT_LABEL');
   });
 
   it('carries provenance and freshness (Council-readiness rules 1 and 3)', () => {
@@ -96,48 +109,63 @@ describe('program overlap dashboard wiring', () => {
   });
 });
 
-describe('matrixTitle', () => {
-  it('formats the index, its layers and the primary action', () => {
-    expect(matrixTitle(cell(), names)).toBe(
-      'A ↔ B · index 72 (structure 60 · content 75) · PLO alignment 81 (context) · Consider merge or track',
-    );
+describe('pair list ranking', () => {
+  const cells: OverlapCell[] = [
+    cell({ pairId: 'p1', a: 'a', b: 'b', overlapIndex: 72, structure: 60, content: 84 }),
+    cell({ pairId: 'p2', a: 'a', b: 'c', overlapIndex: 91, structure: 95, content: 87 }),
+    cell({ pairId: 'p3', a: 'c', b: 'd', overlapIndex: 35, structure: 20, content: 50 }),
+    cell({ pairId: 'p4', a: 'd', b: 'e', overlapIndex: 22, structure: 22, content: null }),
+    // Not scored (D9): no course comparison, so never listed.
+    cell({ pairId: 'p5', a: 'b', b: 'e', overlapIndex: null, structure: null, content: null, outcome: 100, courseLayers: 0 }),
+  ];
+
+  it('keeps scored pairs at or above the threshold, strongest first', () => {
+    expect(overlapPairRows(cells, { layer: 'index', threshold: 30 }).map((r) => r.cell.pairId)).toEqual(['p2', 'p1', 'p3']);
   });
 
-  it('skips null layers instead of showing them as 0', () => {
-    expect(matrixTitle(cell({ content: null, primaryAction: null }), names)).toBe(
-      'A ↔ B · index 72 (structure 60) · PLO alignment 81 (context)',
-    );
+  it('ranks by the chosen measure', () => {
+    expect(overlapPairRows(cells, { layer: 'content', threshold: 50 }).map((r) => r.cell.pairId)).toEqual(['p2', 'p1', 'p3']);
+    expect(overlapPairRows(cells, { layer: 'structure', threshold: 50 }).map((r) => r.value)).toEqual([95, 60]);
   });
 
-  it('rounds, adds market similarity and labels language variants', () => {
+  it('filters to the pairs touching one programme', () => {
+    expect(overlapPairRows(cells, { layer: 'index', threshold: 30, nodeId: 'c' }).map((r) => r.cell.pairId)).toEqual(['p2', 'p3']);
+  });
+
+  it('never lists a not-scored pair, even at threshold 0', () => {
+    expect(overlapPairRows(cells, { layer: 'index', threshold: 0 }).map((r) => r.cell.pairId)).not.toContain('p5');
+  });
+
+  it('offers only the course measures (D9)', () => {
+    expect(OVERLAP_LAYERS.map((l) => l.value)).toEqual(['index', 'structure', 'content']);
+  });
+});
+
+describe('containment and node labels', () => {
+  it('picks the larger containment direction', () => {
+    expect(largestContainment({ containmentAInB: 84, containmentBInA: 61 })).toEqual({ inner: 'A', value: 84 });
+    expect(largestContainment({ containmentAInB: 10, containmentBInA: 61 })).toEqual({ inner: 'B', value: 61 });
+    expect(largestContainment({ containmentAInB: null, containmentBInA: 40 })).toEqual({ inner: 'B', value: 40 });
+    expect(largestContainment({ containmentAInB: null, containmentBInA: null })).toBeNull();
+  });
+
+  it('shortens a degree name to its bracketed major', () => {
+    expect(shortProgrammeLabel({ code: 'X', nameTh: 'วิทยาศาสตรบัณฑิต (ฟิสิกส์)', nameEn: null })).toBe('ฟิสิกส์');
+    expect(shortProgrammeLabel({ code: 'X', nameTh: 'เภสัชศาสตรบัณฑิต', nameEn: null })).toBe('เภสัชศาสตรบัณฑิต');
+    expect(shortProgrammeLabel({ code: 'X', nameTh: '', nameEn: 'Law' })).toBe('Law');
     expect(
-      matrixTitle(
-        cell({ overlapIndex: 88.6, structure: 88.6, content: null, outcome: 70.2, marketSimilarity: 91.2, primaryAction: 'SHARE_STAFF_RESOURCES', languageVariant: true }),
-        { a: 'ไทย', b: 'Intl' },
-      ),
-    ).toBe(`ไทย ↔ Intl · index 89 (structure 89) · PLO alignment 70 (context) · market similarity 91 · Share staff & resources · ${LANGUAGE_VARIANT_LABEL}`);
-  });
-
-  it('says "not scored" when there is no course comparison (stored for market similarity only)', () => {
+      shortProgrammeLabel({ code: 'X', nameTh: 'หลักสูตรวิศวกรรมศาสตรบัณฑิต สาขาวิชาวิศวกรรมเคมี', nameEn: null }),
+    ).toBe('วิศวกรรมเคมี');
+    expect(shortProgrammeLabel({ code: 'X', nameTh: 'ศิลปศาสตรบัณฑิต การระหว่างประเทศ', nameEn: null })).toBe('การระหว่างประเทศ');
     expect(
-      matrixTitle(
-        cell({ overlapIndex: null, structure: null, content: null, outcome: null, marketSimilarity: 77, primaryAction: null, courseLayers: 0 }),
-        names,
-      ),
-    ).toBe('A ↔ B · not scored (no course comparison) · market similarity 77');
+      shortProgrammeLabel({ code: 'X', nameTh: 'วิทยาศาสตรมหาบัณฑิต สาขาวิชา (เภสัชวิทยา)', nameEn: null }),
+    ).toBe('เภสัชวิทยา');
+    expect(shortProgrammeLabel({ code: 'X', nameTh: 'เศรษฐศาสตรบัณฑิต (นานาชาติ)', nameEn: null })).toBe('เศรษฐศาสตรบัณฑิต');
   });
 
-  it('a PLO-only pair is not scored; its PLO alignment is context (D9)', () => {
-    expect(
-      matrixTitle(
-        cell({ overlapIndex: null, structure: null, content: null, outcome: 100, marketSimilarity: 12, primaryAction: null, band: 'NONE', courseLayers: 0 }),
-        names,
-      ),
-    ).toBe('A ↔ B · not scored (no course comparison) · PLO alignment 100 (context) · market similarity 12');
-  });
-
-  it('falls back to the id for an unknown programme', () => {
-    expect(matrixTitle(cell({ b: 'zz', primaryAction: null }), names)).toMatch(/^A ↔ zz · /);
+  it('adds "Intl" to the faculty code for an international programme', () => {
+    expect(nodeSublabel({ facultyCode: 'PHA', nameEn: 'Doctor of Pharmacy Program (International Program)' })).toBe('PHA · Intl');
+    expect(nodeSublabel({ facultyCode: 'PHA', nameEn: 'Doctor of Pharmacy Program' })).toBe('PHA');
   });
 });
 
@@ -175,10 +203,12 @@ describe('layer values and URL state', () => {
   });
 
   it('omits defaults from the query string', () => {
-    expect(overlapQueryString({ level: 'BACHELOR', layer: 'index', facultyId: null, threshold: 30, pair: null })).toBe('');
     expect(
-      overlapQueryString({ level: 'MASTER', layer: 'content', facultyId: 'f1', threshold: 50, pair: 'p9' }),
-    ).toBe('level=MASTER&layer=content&facultyId=f1&threshold=50&pair=p9');
+      overlapQueryString({ level: 'BACHELOR', layer: 'index', facultyId: null, threshold: 30, node: null, pair: null }),
+    ).toBe('');
+    expect(
+      overlapQueryString({ level: 'MASTER', layer: 'content', facultyId: 'f1', threshold: 50, node: 'n1', pair: 'p9' }),
+    ).toBe('level=MASTER&layer=content&facultyId=f1&threshold=50&node=n1&pair=p9');
   });
 });
 

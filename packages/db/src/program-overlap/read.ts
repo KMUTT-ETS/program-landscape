@@ -72,6 +72,9 @@ export interface OverlapMatrixCell {
   content: number | null;
   outcome: number | null;
   marketSimilarity: number | null;
+  /** Share (0–100) of A's major credits found in B, and the reverse. */
+  containmentAInB: number | null;
+  containmentBInA: number | null;
   band: OverlapBand;
   primaryAction: OverlapAction | null;
   languageVariant: boolean;
@@ -437,6 +440,8 @@ export async function overlapMatrix(opts: {
       content: p.content,
       outcome: p.outcome,
       marketSimilarity: p.marketSimilarity,
+      containmentAInB: p.containmentAInB,
+      containmentBInA: p.containmentBInA,
       band: p.band,
       primaryAction: p.primaryAction,
       languageVariant: p.languageVariant,

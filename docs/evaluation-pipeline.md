@@ -519,7 +519,7 @@ Lifecycle Verdict.
 | `/programs/[id]` | 10 fan-out endpoints in `programs.controller.ts` | `programOverview` · `programDemandFunnel` · `programStudentCohorts` · `programDemographicOutlook` · `programFinancials` · `programSkills` · `programOutcomes` · `programFaculty` (role-gated) · `programPeers` · `programTrends` · `programDecisions` · `programStrategicNarrative` · `programLifecycleVerdict` · `programAiReadiness` |
 | `/risks/portfolio` + `/risks/programs/[id]` | `RiskAssessment` table reads | Built by `pnpm risks:assess --all` batch |
 | `/gap-analysis` | `computeGapMap` (one call builds the whole page) | `gap-map.ts` + `gap-map-rules.ts` + `gap-map-signals.ts` — `gap-map.v2`; Council brief `gap-brief.v1`. `computeProgramDemandGaps` survives in `gap-analysis.ts` as AI-Analyst evidence only |
-| `/education/program-overlap` | `overlapMatrix` / `overlapPairDetail` in `packages/db/src/program-overlap/read.ts` | Reads stored pairs only (`program-overlap.v1`); clustered heatmap, groups, pair side panel with the AI wording |
+| `/education/program-overlap` | `overlapMatrix` / `overlapPairDetail` in `packages/db/src/program-overlap/read.ts` | Reads stored pairs only (`program-overlap.v1`); overlap network + ranked pair list, pair side panel with the AI wording |
 | `/programs/[id]` *Overlap* section | `programOverlapSection` (`GET /programs/:id/overlap`) | Hidden when no sibling reaches index 30 or no run exists |
 | `/risks` Self-competition panel | `selfCompetitionRows` (`GET /risks/self-competition`) | Pairs behind the two overlap KRIs |
 | `/scenarios` | scenario-engine.v1 (pure function, in `@kku/shared`) | Deterministic; same input + seed → same output |

@@ -1,9 +1,11 @@
 'use client';
 
-// /education/program-overlap — clustered heatmap of same-level programme
-// overlap (program-overlap.v1, spec §10.1). Every number arrives computed from
-// /education/program-overlap; this file only renders. Data is the loudest
-// layer, chrome stays quiet, absent figures are grey text — never red.
+// /education/program-overlap — overlap network + ranked pair list for
+// same-level programmes (program-overlap.v1, spec §10.1). Every number
+// arrives computed from /education/program-overlap; this file only renders.
+// The network draws only programmes with at least one pair at or above the
+// threshold (a programme × programme matrix was ~99 % empty); the list under
+// it holds the same pairs as rows and doubles as the chart's table view.
 //
 // Type-only imports from @kku/db / @kku/shared: a runtime import of either
 // barrel would drag node-only modules into the client bundle.
@@ -16,11 +18,11 @@ import {
   Badge,
   Card,
   FreshnessBadge,
-  OverlapMatrix,
+  OverlapNetwork,
   ProvenanceButton,
   RightPanel,
-  type OverlapMatrixCell as VizCell,
-  type OverlapMatrixProgramme,
+  type OverlapNetworkEdge,
+  type OverlapNetworkNode,
 } from '@kku/ui';
 import { FilterField, FilterRail, FilterSelect } from '@/components/filter-rail';
 import { startRouteProgress } from '@/components/route-progress';
@@ -33,18 +35,24 @@ import {
   PloMatchView,
   SharedCoursesTable,
 } from '@/components/overlap/pair-evidence';
+import { OverlapPairList, type OverlapPairRow } from '@/components/overlap/pair-list';
 import {
   LANGUAGE_VARIANT_LABEL,
+  OVERLAP_ACTION_LABEL,
   OVERLAP_LAYERS,
   OVERLAP_LEVELS,
   THRESHOLD_OPTIONS,
   actionBadgeLabel,
-  layerValue,
-  matrixTitle,
-  overlapQueryString,
   hasNoCourseData,
+  hasNoCourseDataCell,
+  largestContainment,
+  layerValue,
+  nodeSublabel,
+  overlapPairRows,
+  overlapQueryString,
   pct,
   programmeLabel,
+  shortProgrammeLabel,
   sortActionsStrongestFirst,
   type OverlapFilters,
   type OverlapMatrixResponse,
@@ -58,7 +66,6 @@ export interface FacultyOption {
 }
 
 const PATH = '/education/program-overlap';
-const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
 
 export function ProgramOverlapClient({
   data,
@@ -76,72 +83,90 @@ export function ProgramOverlapClient({
   emptyState: React.ReactNode;
 }) {
   const router = useRouter();
-  // Threshold and the open pair are client-only state: they never change
+  // Layer, threshold, the selected programme and the open pair never change
   // what the server returns, so they update the URL in place instead of
   // re-rendering the page.
+  const [layer, setLayer] = React.useState(filters.layer);
   const [threshold, setThreshold] = React.useState(filters.threshold);
+  const [nodeId, setNodeId] = React.useState<string | null>(filters.node);
   const [pairId, setPairId] = React.useState<string | null>(filters.pair);
 
+  const current = (): OverlapFilters => ({ ...filters, layer, threshold, node: nodeId, pair: pairId });
   const replaceUrl = (next: Partial<OverlapFilters>) => {
-    const qs = overlapQueryString({ ...filters, threshold, pair: pairId, ...next });
+    const qs = overlapQueryString({ ...current(), ...next });
     window.history.replaceState(null, '', qs ? `${PATH}?${qs}` : PATH);
   };
-  // Level, layer and faculty change the server answer: navigate.
+  // Level and faculty change the server answer: navigate.
   const push = (next: Partial<OverlapFilters>) => {
-    const qs = overlapQueryString({ ...filters, threshold, pair: null, ...next });
+    const qs = overlapQueryString({ ...current(), node: null, pair: null, ...next });
     startRouteProgress();
     router.push(qs ? `${PATH}?${qs}` : PATH, { scroll: false });
   };
 
   const refs = React.useMemo(() => new Map(data.programmes.map((p) => [p.id, p])), [data.programmes]);
-  const names = React.useMemo(
-    () => new Map(data.programmes.map((p) => [p.id, programmeLabel(p)])),
+
+  const networkNodes: OverlapNetworkNode[] = React.useMemo(
+    () =>
+      data.programmes.map((p) => ({
+        id: p.id,
+        label: shortProgrammeLabel(p),
+        sublabel: nodeSublabel(p),
+        facultyCode: p.facultyCode,
+        description: [programmeLabel(p), p.nameEn].filter(Boolean).join(' · '),
+      })),
     [data.programmes],
   );
-  const facultyIndex = React.useMemo(() => {
-    const codes = [...new Set(data.programmes.map((p) => p.facultyCode ?? p.facultyId))].sort();
-    return new Map(codes.map((c, i) => [c, i]));
-  }, [data.programmes]);
-
-  const vizProgrammes: OverlapMatrixProgramme[] = React.useMemo(
+  const networkEdges: OverlapNetworkEdge[] = React.useMemo(
     () =>
-      data.order.flatMap((id) => {
-        const p = refs.get(id);
-        if (!p) return [];
+      data.cells.flatMap((c) => {
+        const weight = layerValue(c, layer);
+        // D9: a pair with no course comparison has no overlap to draw.
+        if (weight === null || hasNoCourseDataCell(c)) return [];
+        const fa = refs.get(c.a)?.facultyId;
+        const fb = refs.get(c.b)?.facultyId;
         return [
           {
-            id,
-            label: programmeLabel(p),
-            sublabel: [p.nameEn, p.code, p.facultyNameEn].filter(Boolean).join(' · '),
-            groupColorIndex: facultyIndex.get(p.facultyCode ?? p.facultyId) ?? 0,
+            a: c.a,
+            b: c.b,
+            weight,
+            pairId: c.pairId,
+            band: c.band,
+            languageVariant: c.languageVariant,
+            details: [
+              ...(layer === 'index' ? [] : [{ label: 'Overlap index', value: pct(c.overlapIndex) }]),
+              { label: 'Structure', value: pct(c.structure) },
+              { label: 'Content', value: pct(c.content) },
+              { label: 'Faculties', value: fa && fb && fa !== fb ? 'Across faculties' : 'Same faculty' },
+            ],
+            note: c.primaryAction ? `${OVERLAP_ACTION_LABEL[c.primaryAction]} — for review` : undefined,
           },
         ];
       }),
-    [data.order, refs, facultyIndex],
+    [data.cells, layer, refs],
   );
-  const vizCells: VizCell[] = React.useMemo(
-    () =>
-      data.cells.map((c) => ({
-        a: c.a,
-        b: c.b,
-        value: layerValue(c, data.layer),
-        title: matrixTitle(c, names),
-      })),
-    [data.cells, data.layer, names],
-  );
-  const cellByPair = React.useMemo(
-    () => new Map(data.cells.map((c) => [pairKey(c.a, c.b), c])),
-    [data.cells],
-  );
-  const selectedCell = pairId ? data.cells.find((c) => c.pairId === pairId) ?? null : null;
 
-  const layerMeta = OVERLAP_LAYERS.find((l) => l.value === data.layer) ?? {
-    value: data.layer,
-    label: data.layer,
-    hint: '',
-  };
+  const rows: OverlapPairRow[] = React.useMemo(
+    () =>
+      overlapPairRows(data.cells, { layer, threshold, nodeId }).map((r) => ({
+        ...r,
+        containment: largestContainment(r.cell),
+      })),
+    [data.cells, layer, threshold, nodeId],
+  );
+
+  const layerMeta = OVERLAP_LAYERS.find((l) => l.value === layer) ?? OVERLAP_LAYERS[0]!;
   const levelLabel = OVERLAP_LEVELS.find((l) => l.value === data.level)?.label ?? data.level;
+  const selectedNode = nodeId ? refs.get(nodeId) ?? null : null;
   const k = data.kpis;
+
+  const openPair = (id: string) => {
+    setPairId(id);
+    replaceUrl({ pair: id });
+  };
+  const selectNode = (id: string | null) => {
+    setNodeId(id);
+    replaceUrl({ node: id });
+  };
 
   return (
     <div className="flex flex-col gap-[16px]">
@@ -158,10 +183,14 @@ export function ProgramOverlapClient({
             ))}
           </FilterSelect>
         </FilterField>
-        <FilterField label="Layer">
+        <FilterField label="Measure">
           <FilterSelect
-            value={filters.layer}
-            onChange={(e) => push({ layer: e.target.value as OverlapFilters['layer'] })}
+            value={layer}
+            onChange={(e) => {
+              const v = e.target.value as OverlapFilters['layer'];
+              setLayer(v);
+              replaceUrl({ layer: v });
+            }}
           >
             {OVERLAP_LAYERS.map((l) => (
               <option key={l.value} value={l.value}>
@@ -185,7 +214,7 @@ export function ProgramOverlapClient({
             </FilterSelect>
           </FilterField>
         ) : null}
-        <FilterField label="Show cells from">
+        <FilterField label="Show pairs from">
           <FilterSelect
             value={String(threshold)}
             onChange={(e) => {
@@ -196,7 +225,7 @@ export function ProgramOverlapClient({
           >
             {THRESHOLD_OPTIONS.map((t) => (
               <option key={t} value={t}>
-                {t === 0 ? 'Every stored pair' : `${t} and above`}
+                {`${t} and above`}
               </option>
             ))}
           </FilterSelect>
@@ -235,7 +264,7 @@ export function ProgramOverlapClient({
           <Card>
             <div className="flex flex-wrap items-center gap-[8px]">
               <h2 className="text-sm font-semibold text-text-primary">
-                {levelLabel} programmes — {layerMeta.label.toLowerCase()}
+                {levelLabel} programmes — {layerMeta.label.toLowerCase()} network
               </h2>
               <ProvenanceButton title={`Program overlap — ${layerMeta.label}`} meta={meta} size="xs" />
               <span className="ml-auto">
@@ -243,72 +272,69 @@ export function ProgramOverlapClient({
               </span>
             </div>
             <p className="mt-[4px] text-xs text-text-tertiary">
-              {layerMeta.hint}. Programmes are ordered by clustering on this layer; outlined blocks are
-              groups linked at index ≥ 50. The strips show faculty. Click a cell for the evidence.
+              {layerMeta.hint}. Each line is a pair at {threshold} or more; programmes with no such pair are
+              left out. Click a programme to filter the list below, or a line to open the evidence.
             </p>
-            {vizProgrammes.length === 0 ? (
-              <p className="mt-[16px] text-sm text-text-tertiary">
-                No stored pairs for {levelLabel.toLowerCase()} programmes
-                {filters.facultyId ? ' in this faculty' : ''}.
-              </p>
-            ) : (
-              <div className="mt-[16px]">
-                <OverlapMatrix
-                  programmes={vizProgrammes}
-                  cells={vizCells}
-                  groups={data.groups}
-                  threshold={threshold}
-                  selected={selectedCell ? { a: selectedCell.a, b: selectedCell.b } : null}
-                  onSelect={(a, b) => {
-                    const c = cellByPair.get(pairKey(a, b));
-                    if (!c) return;
-                    setPairId(c.pairId);
-                    replaceUrl({ pair: c.pairId });
-                  }}
-                  ariaLabel={`${levelLabel} programme overlap matrix, ${layerMeta.label}`}
-                />
-              </div>
-            )}
+            <div className="mt-[16px]">
+              <OverlapNetwork
+                nodes={networkNodes}
+                edges={networkEdges}
+                threshold={threshold}
+                weightLabel={layerMeta.label}
+                selectedNodeId={nodeId}
+                selectedPairId={pairId}
+                onSelectNode={selectNode}
+                onSelectEdge={openPair}
+                ariaLabel={`${levelLabel} programme overlap network, ${layerMeta.label}`}
+              />
+            </div>
           </Card>
 
           <Card>
-            <div className="flex items-center gap-[8px]">
-              <h2 className="text-sm font-semibold text-text-primary">Overlap groups</h2>
-              <ProvenanceButton title="Program overlap — groups" meta={meta} size="xs" />
+            <div className="flex flex-wrap items-center gap-[8px]">
+              <h2 className="text-sm font-semibold text-text-primary">Pairs, strongest first</h2>
+              <ProvenanceButton title="Program overlap — pairs" meta={meta} size="xs" />
+              <span className="text-xs tabular-nums text-text-tertiary">
+                {rows.length} pair{rows.length === 1 ? '' : 's'}
+              </span>
+              {selectedNode ? (
+                <span className="ml-auto inline-flex items-center gap-[6px] rounded-full border border-subtle bg-surface-2 px-[10px] py-[2px] text-xs">
+                  <span className="text-text-tertiary">Filtered to</span>
+                  <span className="font-medium text-text-primary" lang="th">
+                    {programmeLabel(selectedNode)}
+                  </span>
+                  <span className="text-text-tertiary">·</span>
+                  <button
+                    type="button"
+                    onClick={() => selectNode(null)}
+                    className="text-text-secondary underline-offset-2 hover:underline"
+                  >
+                    clear
+                  </button>
+                </span>
+              ) : null}
             </div>
-            {data.groups.length === 0 ? (
-              <p className="mt-[8px] text-sm text-text-tertiary">
-                No programmes are linked at index ≥ 50 here.
-              </p>
-            ) : (
-              <ul className="mt-[8px] flex flex-col">
-                {[...data.groups]
-                  .sort((a, b) => b.peakIndex - a.peakIndex)
-                  .map((g) => (
-                    <li
-                      key={g.members.join('|')}
-                      className="flex items-baseline gap-[16px] border-t border-subtle py-[10px] first:border-t-0"
-                    >
-                      <span className="w-[72px] shrink-0 text-xs tabular-nums text-text-tertiary">
-                        peak {Math.round(g.peakIndex)}
-                      </span>
-                      <span className="flex flex-wrap gap-x-[12px] gap-y-[4px] text-sm">
-                        {g.members.map((id) => {
-                          const p = refs.get(id);
-                          return (
-                            <Link key={id} href={`/programs/${id}`} className="hover:underline" lang="th">
-                              {p ? programmeLabel(p) : id}
-                              {p?.facultyCode ? (
-                                <span className="ml-[4px] text-xs text-text-tertiary">{p.facultyCode}</span>
-                              ) : null}
-                            </Link>
-                          );
-                        })}
-                      </span>
-                    </li>
-                  ))}
-              </ul>
-            )}
+            <p className="mt-[4px] text-xs text-text-tertiary">
+              Scored pairs at {threshold} or more on {layerMeta.label.toLowerCase()}. Pairs with no course
+              comparison are not scored and are left out. Containment shows the larger direction: “A ⊂ B · 84 %”
+              means 84 % of A’s major credits are found in B.
+            </p>
+            <div className="mt-[8px]">
+              <OverlapPairList
+                rows={rows}
+                programmes={refs}
+                valueLabel={layerMeta.label === 'Overlap index' ? 'Index' : layerMeta.label}
+                selectedPairId={pairId}
+                onOpen={openPair}
+                emptyText={
+                  selectedNode
+                    ? `No pair with ${programmeLabel(selectedNode)} reaches ${threshold} or more.`
+                    : `No pair reaches ${threshold} or more for ${levelLabel.toLowerCase()} programmes${
+                        filters.facultyId ? ' in this faculty' : ''
+                      }.`
+                }
+              />
+            </div>
           </Card>
         </>
       )}

@@ -51,9 +51,10 @@ comparison**.
 
 Three surfaces read it:
 
-- **Education → Program overlap** (`/education/program-overlap`): a clustered
-  programme × programme heatmap with overlap groups, a KPI strip and a pair
-  side panel;
+- **Education → Program overlap** (`/education/program-overlap`): an overlap
+  network (only programmes with a pair at or above the threshold, one line
+  per pair), a ranked pair list underneath, a KPI strip and a pair side
+  panel;
 - **Risk Management**: two KRIs (`curriculum_overlap_max`,
   `market_confusion_max`) and a *Self-competition* panel on `/risks`;
 - **Program Deep-Dive**: an *Overlap* section listing a programme's siblings,

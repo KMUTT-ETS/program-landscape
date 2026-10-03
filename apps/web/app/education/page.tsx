@@ -139,7 +139,7 @@ const TILES: Array<{
     icon: Network,
     title: 'Program overlap',
     blurb:
-      'Same-level programmes compared by shared courses, equivalent course content and PLO alignment. Clustered heatmap of overlapping groups, with graded, for-review suggestions to share courses and staff, differentiate, or consider merging.',
+      'Same-level programmes compared by shared courses and equivalent course content. A network of the programmes that overlap and a ranked list of pairs, with graded, for-review suggestions to share courses and staff, differentiate, or consider merging.',
     Thumb: ProgramOverlapThumb,
   },
 ];

@@ -122,6 +122,15 @@ describe('overlapMatrix', () => {
     });
   });
 
+  it('carries both containment directions on every cell (the pair list shows the larger)', async () => {
+    mocks.runFindFirst.mockResolvedValue({ completedAt: run('f', 1).completedAt });
+    mocks.runFindMany.mockResolvedValue([run('f', 1)]);
+    mocks.pairFindMany.mockResolvedValue([{ ...pair('f', 'a', 'b'), containmentAInB: 84, containmentBInA: 61 }]);
+    mocks.programFindMany.mockResolvedValue([prog('a'), prog('b')]);
+    const m = await overlapMatrix({ level: 'BACHELOR' });
+    expect(m.cells[0]).toMatchObject({ containmentAInB: 84, containmentBInA: 61 });
+  });
+
   it('returns an empty matrix when no run exists', async () => {
     mocks.runFindFirst.mockResolvedValue(null);
     mocks.runFindMany.mockResolvedValue([]);

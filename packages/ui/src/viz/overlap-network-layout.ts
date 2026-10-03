@@ -55,7 +55,7 @@ export interface NetworkLayoutOptions {
   maxLabelGlyphs?: number;
   /** Space between packed components. Default 40. */
   componentGap?: number;
-  /** Minimum clear space between two node boxes. Default 8. */
+  /** Minimum clear space between two node boxes. Default 10. */
   labelPadding?: number;
 }
 
@@ -115,9 +115,9 @@ const DEFAULTS = {
   nodeRadius: 6,
   labelFontSize: 12,
   sublabelFontSize: 10,
-  maxLabelGlyphs: 24,
+  maxLabelGlyphs: 22,
   componentGap: 40,
-  labelPadding: 8,
+  labelPadding: 10,
 } as const;
 
 /** Thai combining marks take no horizontal space of their own. */
@@ -148,9 +148,9 @@ export function truncateGlyphs(s: string, max: number): string {
   return `${out.trimEnd()}…`;
 }
 
-/** A conservative text width estimate: 0.62em per visible glyph. */
+/** A conservative text width estimate: 0.66em per visible glyph. */
 export function estimateTextWidth(s: string, fontSize: number): number {
-  return Math.ceil(glyphCount(s) * fontSize * 0.62);
+  return Math.ceil(glyphCount(s) * fontSize * 0.66);
 }
 
 function hashString(s: string): number {

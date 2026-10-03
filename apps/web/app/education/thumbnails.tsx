@@ -672,68 +672,46 @@ export function SatisfactionThumb() {
   );
 }
 
-// Program overlap — a clustered programme × programme matrix: two dark
-// blocks on the diagonal (overlapping groups, outlined), faint scatter
-// elsewhere, faculty strips along the top and left.
+// Program overlap — an overlap network: a cluster of overlapping programmes,
+// a strongly linked pair (one dashed Thai / international link) and a small
+// triangle, edge width stepped by band, with a ranked-list hint underneath.
 export function ProgramOverlapThumb() {
-  const n = 12;
-  const size = 7;
-  const x0 = 70;
-  const y0 = 16;
-  const strip = [COLORS.primary, COLORS.primary, COLORS.primary, COLORS.blue, COLORS.blue, COLORS.green, COLORS.green, COLORS.green, COLORS.green, COLORS.amber, COLORS.warm, COLORS.warm];
-  const blocks: Array<[number, number]> = [
-    [1, 4],
-    [6, 9],
+  const nodes: Record<string, [number, number]> = {
+    a: [40, 30], b: [78, 22], c: [66, 54], d: [104, 50], e: [30, 62],
+    p: [140, 28], q: [182, 28],
+    x: [150, 62], y: [192, 62], z: [172, 84],
+  };
+  const edges: Array<[string, string, number, boolean?]> = [
+    ['a', 'b', 3.2], ['a', 'c', 1.4], ['b', 'c', 2.2], ['c', 'd', 1.4], ['a', 'e', 1.4],
+    ['p', 'q', 3.2, true],
+    ['x', 'y', 2.2], ['y', 'z', 1.4], ['x', 'z', 1.4],
   ];
-  const inBlock = (r: number, c: number) => blocks.some(([s, e]) => r >= s && r <= e && c >= s && c <= e);
-  const scatter = new Set(['0|5', '2|10', '3|7', '10|11', '5|11', '4|8']);
-  const cells: Array<{ r: number; c: number; o: number }> = [];
-  for (let r = 0; r < n; r++) {
-    for (let c = 0; c < n; c++) {
-      if (r === c) continue;
-      if (inBlock(r, c)) cells.push({ r, c, o: (r + c) % 3 === 0 ? 0.95 : 0.7 });
-      else if (scatter.has(`${Math.min(r, c)}|${Math.max(r, c)}`)) cells.push({ r, c, o: 0.3 });
-    }
-  }
   return (
     <Frame>
-      {strip.map((col, i) => (
-        <g key={`s${i}`}>
-          <rect x={x0 - 6} y={y0 + i * size} width={4} height={size} fill={col} />
-          <rect x={x0 + i * size} y={y0 - 6} width={size} height={4} fill={col} />
-        </g>
-      ))}
-      <rect x={x0} y={y0} width={n * size} height={n * size} fill="white" opacity={0.6} stroke={COLORS.muted} strokeWidth={0.6} />
-      {Array.from({ length: n }, (_, i) => (
-        <rect key={`d${i}`} x={x0 + i * size} y={y0 + i * size} width={size} height={size} fill={COLORS.muted} opacity={0.25} />
-      ))}
-      {cells.map(({ r, c, o }) => (
-        <rect key={`${r}-${c}`} x={x0 + c * size + 0.4} y={y0 + r * size + 0.4} width={size - 0.8} height={size - 0.8} fill={COLORS.primary} opacity={o} />
-      ))}
-      {blocks.map(([s, e]) => (
-        <rect
-          key={`b${s}`}
-          x={x0 + s * size}
-          y={y0 + s * size}
-          width={(e - s + 1) * size}
-          height={(e - s + 1) * size}
-          fill="none"
-          stroke={COLORS.ink}
-          strokeWidth={1.2}
-          rx={1}
+      {edges.map(([u, v, w, dashed]) => (
+        <line
+          key={`${u}${v}`}
+          x1={nodes[u]![0]}
+          y1={nodes[u]![1]}
+          x2={nodes[v]![0]}
+          y2={nodes[v]![1]}
+          stroke={COLORS.primary}
+          strokeWidth={w}
+          strokeOpacity={w > 3 ? 0.95 : w > 2 ? 0.7 : 0.45}
+          strokeDasharray={dashed ? '4 3' : undefined}
+          strokeLinecap="round"
         />
       ))}
-      {/* Legend: three band swatches */}
-      <g transform="translate(168, 40)">
-        {[0.3, 0.7, 0.95].map((o, i) => (
-          <g key={o} transform={`translate(0, ${i * 14})`}>
-            <rect width={10} height={10} fill={COLORS.primary} opacity={o} />
-            <text x={15} y={8} fontSize="7" fill={COLORS.ink} opacity={0.65}>
-              {['Low', 'Moderate', 'High'][i]}
-            </text>
-          </g>
-        ))}
-      </g>
+      {Object.entries(nodes).map(([id, [x, y]]) => (
+        <circle key={id} cx={x} cy={y} r={4} fill={COLORS.ink} stroke={COLORS.bg} strokeWidth={1.5} />
+      ))}
+      {/* Ranked pair list hint */}
+      {[0, 1, 2].map((i) => (
+        <g key={`r${i}`} transform={`translate(24, ${98 + i * 7})`}>
+          <rect width={70 - i * 12} height={3} rx={1.5} fill={COLORS.muted} opacity={0.6} />
+          <rect x={150} width={40 - i * 10} height={3} rx={1.5} fill={COLORS.primary} opacity={0.8 - i * 0.2} />
+        </g>
+      ))}
     </Frame>
   );
 }
