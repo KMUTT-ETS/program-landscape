@@ -51,6 +51,7 @@ const SURFACE_LABELS: Record<string, string> = {
   '/education/tuition': 'Tuition dashboard',
   '/education/performance': 'Academic performance',
   '/education/class-offerings': 'Class offerings',
+  '/education/program-overlap': 'Program overlap',
   '/staff': 'Staff hub',
   '/staff/workforce': 'Workforce dashboard',
   '/staff/faculty-by-program': 'Faculty by program',

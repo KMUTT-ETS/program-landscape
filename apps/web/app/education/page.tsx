@@ -20,6 +20,7 @@ import {
   CalendarRange,
   MessageSquare,
   Radar,
+  Network,
 } from 'lucide-react';
 // EducationRefreshBar relocated to /admin/dashboard-data-fetch in v1.2.8.
 // The component still lives in ./refresh-bar — the admin page imports
@@ -30,6 +31,7 @@ import {
   InternationalThumb,
   LocationThumb,
   PerformanceThumb,
+  ProgramOverlapThumb,
   RecruitmentThumb,
   SatisfactionThumb,
   StudentDqThumb,
@@ -131,6 +133,14 @@ const TILES: Array<{
     blurb:
       'Course satisfaction from 1.4M student-evaluation responses across 5 years. Heatmap of Faculty → Program Level → Program → Course ratings, semester trend, and per-course question-by-question detail on hover.',
     Thumb: SatisfactionThumb,
+  },
+  {
+    href: '/education/program-overlap',
+    icon: Network,
+    title: 'Program overlap',
+    blurb:
+      'Same-level programmes compared by shared courses, equivalent course content and PLO alignment. Clustered heatmap of overlapping groups, with graded, for-review suggestions to share courses and staff, differentiate, or consider merging.',
+    Thumb: ProgramOverlapThumb,
   },
 ];
 
