@@ -579,6 +579,10 @@ model Program {
   admissionStatMappings AdmissionStatProgramMapping[]
   admissionCampaigns    AdmissionCampaignStat[]
   revisions             ProgramRevision[]
+  learningOutcomes      ProgramLearningOutcome[]
+  marketProfile         ProgramMarketProfile?
+  overlapPairsA         ProgramOverlapPair[]     @relation("OverlapPairA")
+  overlapPairsB         ProgramOverlapPair[]     @relation("OverlapPairB")
 
   @@index([facultyId])
   @@index([departmentId])
@@ -4705,6 +4709,16 @@ model ProgramCourse {
   ///              course. Always the case for the extractor's regex
   ///              name-fallback path, which never reads หมวด headings.
   category          CourseCategory? @map("category")
+  /// program-overlap.v1: course description + CLOs copied from the latest
+  /// approved PROGRAM_DIGEST (matched on normalised code). NULL when the digest
+  /// did not list the course (it caps at 80 per programme).
+  descriptionTh      String?   @map("description_th") @db.Text
+  learningOutcomesTh String[]  @default([]) @map("learning_outcomes_th")
+  /// Embedding of name + description + CLOs (major courses only), 1536-d,
+  /// L2-normalised. Written via raw SQL only.
+  embedding          Unsupported("vector(1536)")?
+  /// sha256 of the text that produced `embedding`; re-embed only on change.
+  embeddingTextHash  String?   @map("embedding_text_hash")
   /// Method version of the PROGRAM_DIGEST extractor that produced
   /// this row — lets a methodology bump re-flow new courses without
   /// wiping older curricula whose digests haven't been re-run yet.
@@ -4725,6 +4739,139 @@ model ProgramCourse {
   @@index([ingestionRunId])
   @@index([programRevisionId])
   @@map("program_courses")
+}
+
+// ─── Programme overlap (program-overlap.v1) ─────────────────────────────
+
+enum OverlapAction {
+  COORDINATE_SHARED_COURSES
+  CONSOLIDATE_EQUIVALENT_COURSES
+  SHARE_STAFF_RESOURCES
+  DIFFERENTIATE
+  CONSIDER_MERGE_OR_TRACK
+}
+
+enum OverlapBand {
+  HIGH
+  MODERATE
+  LOW
+  NONE
+}
+
+enum OverlapRunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+/// program-overlap.v1 — one PLO of a programme, from the latest
+/// PROGRAM_SKILLS_DETAILED extraction.
+model ProgramLearningOutcome {
+  id                 String           @id @default(cuid())
+  programId          String           @map("program_id")
+  program            Program          @relation(fields: [programId], references: [id], onDelete: Cascade)
+  ordinal            Int
+  textTh             String           @map("text_th") @db.Text
+  textNormalised     String           @map("text_normalised") @db.Text
+  programRevisionId  String?          @map("program_revision_id")
+  sourceExtractionId String           @map("source_extraction_id")
+  embedding          Unsupported("vector(1536)")?
+  embeddingTextHash  String?          @map("embedding_text_hash")
+  createdAt          DateTime         @default(now()) @map("created_at")
+
+  @@unique([programId, ordinal])
+  @@index([programId])
+  @@map("program_learning_outcomes")
+}
+
+/// program-overlap.v1 — the programme's market-facing text (degree names,
+/// recruitment summary, careers) and its embedding.
+model ProgramMarketProfile {
+  programId  String   @id @map("program_id")
+  program    Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  text       String   @db.Text
+  textHash   String   @map("text_hash")
+  embedding  Unsupported("vector(1536)")?
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("program_market_profiles")
+}
+
+/// One overlap computation. A full run has empty scopeProgramIds; a phaseOV run
+/// lists the programmes it recomputed. Readers take the latest SUCCEEDED full
+/// run per level and overlay newer scoped runs for the pairs they cover.
+model ProgramOverlapRun {
+  id                 String               @id @default(cuid())
+  methodologyVersion String               @map("methodology_version")
+  level              ProgramLevel?
+  scopeProgramIds    String[]             @default([]) @map("scope_program_ids")
+  status             OverlapRunStatus     @default(RUNNING)
+  startedAt          DateTime             @default(now()) @map("started_at")
+  completedAt        DateTime?            @map("completed_at")
+  pairsScored        Int                  @default(0) @map("pairs_scored")
+  pairsStored        Int                  @default(0) @map("pairs_stored")
+  thresholdsJson     Json                 @map("thresholds_json")
+  coverageJson       Json?                @map("coverage_json")
+  errorText          String?              @map("error_text") @db.Text
+  pairs              ProgramOverlapPair[]
+
+  @@index([status, level, completedAt])
+  @@map("program_overlap_runs")
+}
+
+model ProgramOverlapPair {
+  id                 String                         @id @default(cuid())
+  runId              String                         @map("run_id")
+  run                ProgramOverlapRun              @relation(fields: [runId], references: [id], onDelete: Cascade)
+  level              ProgramLevel
+  programAId         String                         @map("program_a_id")
+  programA           Program                        @relation("OverlapPairA", fields: [programAId], references: [id], onDelete: Cascade)
+  programBId         String                         @map("program_b_id")
+  programB           Program                        @relation("OverlapPairB", fields: [programBId], references: [id], onDelete: Cascade)
+  structure          Float?
+  content            Float?
+  outcome            Float?
+  overlapIndex       Float?                         @map("overlap_index")
+  containmentAInB    Float?                         @map("containment_a_in_b")
+  containmentBInA    Float?                         @map("containment_b_in_a")
+  band               OverlapBand
+  sharedCredits      Float                          @default(0) @map("shared_credits")
+  equivCredits       Float                          @default(0) @map("equiv_credits")
+  sharedStaff        Int                            @default(0) @map("shared_staff")
+  marketSimilarity   Float?                         @map("market_similarity")
+  languageVariant    Boolean                        @default(false) @map("language_variant")
+  actions            OverlapAction[]                @default([])
+  primaryAction      OverlapAction?                 @map("primary_action")
+  evidenceJson       Json                           @map("evidence_json")
+  evidenceHash       String                         @map("evidence_hash")
+  methodologyVersion String                         @map("methodology_version")
+  createdAt          DateTime                       @default(now()) @map("created_at")
+  recommendation     ProgramOverlapRecommendation?
+
+  @@unique([runId, programAId, programBId])
+  @@index([programAId])
+  @@index([programBId])
+  @@index([level, overlapIndex])
+  @@map("program_overlap_pairs")
+}
+
+model ProgramOverlapRecommendation {
+  id                  String             @id @default(cuid())
+  pairId              String             @unique @map("pair_id")
+  pair                ProgramOverlapPair @relation(fields: [pairId], references: [id], onDelete: Cascade)
+  rationale           String             @db.Text
+  distinctiveA        String             @map("distinctive_a") @db.Text
+  distinctiveB        String             @map("distinctive_b") @db.Text
+  nextSteps           String[]           @map("next_steps")
+  confidence          Float
+  disagreesWithAction Boolean            @default(false) @map("disagrees_with_action")
+  disagreementReason  String?            @map("disagreement_reason") @db.Text
+  promptVersion       String             @map("prompt_version")
+  aiInferenceId       String?            @map("ai_inference_id")
+  evidenceHash        String             @map("evidence_hash")
+  createdAt           DateTime           @default(now()) @map("created_at")
+
+  @@map("program_overlap_recommendations")
 }
 
 // ─── Staff cross-system identity tables ─────────────────────────────────
