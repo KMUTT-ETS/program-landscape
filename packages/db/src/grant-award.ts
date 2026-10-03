@@ -99,14 +99,15 @@ export async function grantAward(memberIds: readonly string[], now?: Date): Prom
   if (!(await loadGrantSourceSynced())) {
     return { label: GRANT_AWARD_LABEL, points: null, raw: { reason: 'source-not-synced' } };
   }
-  if (memberIds.length === 0) {
+  const ids = [...new Set(memberIds)];
+  if (ids.length === 0) {
     return { label: GRANT_AWARD_LABEL, points: null, raw: { reason: 'no-active-staff' } };
   }
   const window = grantWindow(now ?? new Date());
   const projects = await prisma.researchServiceProject.findMany({
     where: {
       fiscalYearBe: { gte: window.fromFyBe, lte: window.toFyBe },
-      members: { some: { facultyMemberId: { in: [...memberIds] }, ...realDataWhere() } },
+      members: { some: { facultyMemberId: { in: ids }, ...realDataWhere() } },
       ...realDataWhere(),
     },
     select: { id: true, budgetThb: true },
@@ -114,14 +115,14 @@ export async function grantAward(memberIds: readonly string[], now?: Date): Prom
   const years = window.toFyBe - window.fromFyBe + 1;
   const total = projects.reduce((s, p) => s + (p.budgetThb === null ? 0 : Number(p.budgetThb)), 0);
   const bahtPerYear = total / years;
-  const bahtPerStaffPerYear = bahtPerYear / memberIds.length;
+  const bahtPerStaffPerYear = bahtPerYear / ids.length;
   return {
     label: GRANT_AWARD_LABEL,
     points: awardPoints(bahtPerStaffPerYear),
     raw: {
       bahtPerStaffPerYear,
       bahtPerYear,
-      staff: memberIds.length,
+      staff: ids.length,
       projects: projects.length,
       windowFyBe: [window.fromFyBe, window.toFyBe],
       floorThb: GRANT_AWARD_FLOOR_THB,

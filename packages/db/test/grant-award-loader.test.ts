@@ -85,6 +85,8 @@ describe('grantAward', () => {
     const args = mocks.projectFindMany.mock.calls[0]?.[0];
     expect(args.where.fiscalYearBe).toEqual({ gte: 2567, lte: 2569 });
     expect(args.where.members.some.facultyMemberId).toEqual({ in: ['s1', 's2'] });
+    expect(args.where).toMatchObject({ ingestionRun: { dataSource: { mocked: false } } });
+    expect(args.where.members.some).toMatchObject({ ingestionRun: { dataSource: { mocked: false } } });
 
     // ฿6 M over 3 years over 2 staff = ฿1 M per staff per year.
     expect(a.raw).toMatchObject({
@@ -98,6 +100,15 @@ describe('grantAward', () => {
       maxPoints: 10,
     });
     expect(a.points).toBeCloseTo(6.77, 2);
+  });
+
+  it('de-duplicates staff ids before querying and counting', async () => {
+    mocks.runCount.mockResolvedValue(1);
+    mocks.projectFindMany.mockResolvedValue([]);
+    const a = await grantAward(['s1', 's1', 's2'], NOW);
+    const args = mocks.projectFindMany.mock.calls[0]?.[0];
+    expect(args.where.members.some.facultyMemberId).toEqual({ in: ['s1', 's2'] });
+    expect(a.raw).toMatchObject({ staff: 2 });
   });
 
   it('gives +0 when the staff have no project in the window', async () => {
