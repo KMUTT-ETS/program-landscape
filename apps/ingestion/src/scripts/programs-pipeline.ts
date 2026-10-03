@@ -150,7 +150,7 @@ import { selectProgramPeers } from '../program-peers/select';
 import { generateProgramPeerReview } from '../program-peers/review';
 import { generateProgramStrategicNarrative } from '../program-narrative/run';
 import { runProgramAiReadiness } from '../program-ai-readiness/run';
-import { runOverlapRecommendations, runProgramOverlap } from '../program-overlap/run';
+import { runOverlapPhase } from '../program-overlap/phase';
 
 // Phase list + display metadata live in @kku/shared — see the header comment
 // in packages/shared/src/pipeline/program-phases.ts for why (five hand-kept
@@ -298,32 +298,6 @@ async function runApprovePending(programId: string): Promise<{ ms: number; ok: b
   const exitCode: number = await new Promise((resolve) => child.on('exit', (c) => resolve(c ?? 1)));
   const ms = Date.now() - t0;
   return { ms, ok: exitCode === 0, notes: exitCode === 0 ? 'approved + materialised' : `exit=${exitCode}` };
-}
-
-/**
- * Phase OV body. `programIds` scopes the run (the pairs touching those
- * programmes); omitted, it is a full-portfolio run. Never throws.
- */
-async function runOverlapPhase(
-  ai: AiService,
-  programIds: string[] | undefined,
-): Promise<{ ok: boolean; costUsd: number; notes: string }> {
-  try {
-    const res = await runProgramOverlap({ programIds, apply: true });
-    const rec = await runOverlapRecommendations({
-      ai,
-      runIds: res.map((x) => x.runId).filter((x): x is string => x !== null),
-    });
-    const notes =
-      res.length === 0
-        ? 'skipped: no canonical programme to compare'
-        : `${res.length} run(s) · ${res.reduce((n, x) => n + x.scored, 0)} pairs scored, ` +
-          `${res.reduce((n, x) => n + x.stored, 0)} stored · recommendations ${rec.written} written / ` +
-          `${rec.skipped} skipped / ${rec.failed} failed`;
-    return { ok: true, costUsd: rec.costUsd, notes };
-  } catch (e) {
-    return { ok: false, costUsd: 0, notes: `failed: ${e instanceof Error ? e.message : String(e)}` };
-  }
 }
 
 async function processProgram(
@@ -763,8 +737,9 @@ async function processProgram(
   // Re-scores every same-level pair that involves THIS programme and writes
   // a scoped ProgramOverlapRun; readers merge it over the latest full run.
   // Deterministic, in-process; the AI only words flagged pairs. Runs before
-  // phase 8 because the self-competition KRIs read the latest run. Without
-  // `pnpm programs:overlap-prep` only the structure layer can score.
+  // phase 8 because the self-competition KRIs read the latest run. Prep
+  // (descriptions + embeddings) runs first inside the phase, because phase 2b
+  // replaces program_courses rows and drops their descriptions and vectors.
   // With more than one programme selected, main() runs phase OV ONCE after
   // the loop (a full run, or one scoped run over the whole selection) instead
   // of writing one scoped run per programme.
