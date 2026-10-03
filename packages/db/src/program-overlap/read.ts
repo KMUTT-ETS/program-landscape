@@ -30,6 +30,7 @@ import {
   type OverlapRunRow,
   type OverlapRunSelection,
 } from './merge';
+import { parsePairEvidence } from './evidence';
 import { overlapRiskSignalFromPairs } from './risk';
 import { OVERLAP_THRESHOLDS, PROGRAM_OVERLAP_VERSION, type PairEvidence } from './score';
 
@@ -224,46 +225,9 @@ export interface SelfCompetitionRow {
 
 // ─── Evidence parsing ───────────────────────────────────────────────────
 
-const PairEvidenceSchema = z.object({
-  sharedCourses: z.array(z.object({ code: z.string(), credits: z.number(), nameTh: z.string().nullable() })),
-  equivalentCourses: z.array(
-    z.object({
-      codeA: z.string(),
-      codeB: z.string(),
-      nameA: z.string().nullable(),
-      nameB: z.string().nullable(),
-      credits: z.number(),
-      similarity: z.number(),
-      basis: z.enum(['description', 'name']),
-    }),
-  ),
-  matchedPlos: z.array(
-    z.object({ ordinalA: z.number(), ordinalB: z.number(), textA: z.string(), textB: z.string(), similarity: z.number() }),
-  ),
-  unmatchedPlosA: z.array(z.string()),
-  unmatchedPlosB: z.array(z.string()),
-  coverage: z.object({
-    majorCoursesA: z.number(),
-    majorCoursesB: z.number(),
-    embeddedA: z.number(),
-    embeddedB: z.number(),
-    describedA: z.number(),
-    describedB: z.number(),
-    descriptionMatches: z.number(),
-    plosA: z.number(),
-    plosB: z.number(),
-    defaultedCredits: z.number(),
-    // Added by D9 (2026-10-03): evidence stored by an earlier run lacks it and
-    // parses as null — re-run program-overlap.
-    courseLayers: z.number(),
-  }),
-}) satisfies z.ZodType<PairEvidence>;
-
-/** Defensive parse of a stored evidenceJson; null when it does not match. */
-export function parsePairEvidence(json: unknown): PairEvidence | null {
-  const r = PairEvidenceSchema.safeParse(json);
-  return r.success ? r.data : null;
-}
+// The schema lives in ./evidence (pure, no Prisma) so the ingestion runner
+// can share it; re-exported here for the read-model callers.
+export { parsePairEvidence } from './evidence';
 
 function recommendationView(
   rec: ProgramOverlapRecommendation | null | undefined,

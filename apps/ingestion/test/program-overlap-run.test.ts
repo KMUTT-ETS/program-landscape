@@ -18,8 +18,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@kku/db', async () => {
   const score = await import('../../../packages/db/src/program-overlap/score');
+  const evidence = await import('../../../packages/db/src/program-overlap/evidence');
   return {
     ...score,
+    parsePairEvidence: evidence.parsePairEvidence,
     byCodeUnits: (x: string, y: string) => (x < y ? -1 : x > y ? 1 : 0),
     loadOverlapProgrammes: mocks.load,
     realDataWhere: () => ({ ingestionRun: { dataSource: { mocked: false } } }),
@@ -294,7 +296,7 @@ describe('runOverlapRecommendations', () => {
     unmatchedPlosA: [], unmatchedPlosB: ['z'],
     coverage: {
       majorCoursesA: 5, majorCoursesB: 5, embeddedA: 5, embeddedB: 5, describedA: 5, describedB: 5,
-      descriptionMatches: 0, plosA: 3, plosB: 4, defaultedCredits: 0,
+      descriptionMatches: 0, plosA: 3, plosB: 4, defaultedCredits: 0, courseLayers: 2,
     },
   };
   const pp = (code: string) => ({ code, nameTh: code, nameEn: null, faculty: { nameEn: 'Science' } });
@@ -370,6 +372,21 @@ describe('runOverlapRecommendations', () => {
     });
     // name-only equivalence and a missing market text cap the self-reported 0.95
     expect(call.create.confidence).toBeLessThan(0.95);
+    errSpy.mockRestore();
+  });
+
+  it('skips a pair whose stored evidence does not parse, counts it failed, and never calls the AI for it', async () => {
+    mocks.pairFindMany.mockResolvedValue([pair('p1'), pair('bad', {
+      // Pre-D9 evidence: no courseLayers. A cast would accept it silently.
+      evidenceJson: { ...evidence, coverage: { ...evidence.coverage, courseLayers: undefined } },
+    })]);
+    const extract = vi.fn(async () => okResponse);
+    const ai = { extractStructured: extract } as unknown as AiService;
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const res = await runOverlapRecommendations({ ai, runIds: ['r1'] });
+    expect(extract).toHaveBeenCalledTimes(1);
+    expect(res).toEqual({ written: 1, skipped: 0, failed: 1, costUsd: 0.02 });
+    expect(errSpy.mock.calls[0]!.join(' ')).toContain('bad');
     errSpy.mockRestore();
   });
 

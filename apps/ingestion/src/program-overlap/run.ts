@@ -15,6 +15,7 @@ import {
   dot,
   loadOverlapProgrammes,
   majorCourses,
+  parsePairEvidence,
   scorePair,
   serviceCourseCodes,
   shouldStorePair,
@@ -27,7 +28,6 @@ import {
   realDataWhere,
   ACTION_STRENGTH,
   type OverlapAction,
-  type PairEvidence,
   type Prisma,
   type ProgramLevel,
 } from '@kku/db';
@@ -337,13 +337,16 @@ export function actionsStrongestFirst(actions: readonly OverlapAction[]): Overla
 }
 
 /** Pure: build the prompt input from a stored pair. Scores are rounded to
- *  integers, similarities to 2 dp, and every evidence list is capped. */
+ *  integers, similarities to 2 dp, and every evidence list is capped. Null
+ *  when the stored evidenceJson does not parse (e.g. written before D9):
+ *  the pair is skipped rather than worded from a guessed shape. */
 export function recommendationInput(
   p: RecPair,
   enrolled: ReadonlyMap<string, number>,
   market: ReadonlyMap<string, string>,
-): ProgramOverlapRecommendationInput {
-  const ev = p.evidenceJson as unknown as PairEvidence;
+): ProgramOverlapRecommendationInput | null {
+  const ev = parsePairEvidence(p.evidenceJson);
+  if (ev === null) return null;
   const actions = actionsStrongestFirst(p.actions);
   return {
     programA: {
@@ -498,6 +501,11 @@ export async function runOverlapRecommendations(opts: { ai: AiService; runIds: s
   for (const p of todo) {
     try {
       const input = recommendationInput(p, enrolled, market);
+      if (input === null) {
+        result.failed++;
+        console.error(`[program-overlap] pair ${p.id}: stored evidence does not parse — re-run program-overlap; skipped`);
+        continue;
+      }
       const res = await opts.ai.extractStructured(
         {
           ctx: { module: 'program-overlap', kind: 'recommendation', traceId: `program-overlap-${p.id}` },
