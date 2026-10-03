@@ -32,3 +32,4 @@ export * from './trend-signal-analysis';
 export * from './trend-document-ingest';
 export * from './aunqa-criterion-narrative';
 export * from './job108-announcement';
+export * from './program-overlap-recommendation';

@@ -24,10 +24,19 @@ import {
   type OverlapLoadCoverage,
   type OverlapProgramme,
   type PairScore,
+  realDataWhere,
+  type PairEvidence,
   type Prisma,
   type ProgramLevel,
 } from '@kku/db';
-import type { AiService } from '@kku/shared';
+import {
+  PROGRAM_OVERLAP_RECOMMENDATION_VERSION,
+  ProgramOverlapRecommendationSchema,
+  buildProgramOverlapRecommendationMessages,
+  overlapRecommendationConfidenceCeiling,
+  type AiService,
+  type ProgramOverlapRecommendationInput,
+} from '@kku/shared';
 
 /** Per-pair figures for the calibration distributions (spec §9). One entry per
  *  scored pair where the figure exists; containment pools both directions. */
@@ -282,8 +291,157 @@ export interface OverlapRecommendationResult {
   costUsd: number;
 }
 
-/** AI wording for flagged pairs (spec §6.2). Task 12 replaces this stub. */
-export async function runOverlapRecommendations(_: { ai: AiService; runIds: string[] }): Promise<OverlapRecommendationResult> {
-  // Task 12 replaces this
-  return { written: 0, skipped: 0, failed: 0, costUsd: 0 };
+type RecPair = Prisma.ProgramOverlapPairGetPayload<{
+  include: {
+    programA: { select: { code: true; nameTh: true; nameEn: true; faculty: { select: { nameEn: true } } } };
+    programB: { select: { code: true; nameTh: true; nameEn: true; faculty: { select: { nameEn: true } } } };
+    recommendation: { select: { evidenceHash: true; promptVersion: true } };
+  };
+}>;
+
+/** Pure: does this stored pair qualify for an AI recommendation (spec §6.2)? */
+export function needsRecommendation(p: Pick<RecPair, 'actions' | 'overlapIndex'>): boolean {
+  return p.actions.length > 0 && p.overlapIndex !== null && p.overlapIndex >= OVERLAP_THRESHOLDS.actionIndex;
+}
+
+/** Pure: build the prompt input from a stored pair. */
+export function recommendationInput(
+  p: RecPair,
+  intake: ReadonlyMap<string, number>,
+  market: ReadonlyMap<string, string>,
+): ProgramOverlapRecommendationInput {
+  const ev = p.evidenceJson as unknown as PairEvidence;
+  return {
+    programA: {
+      code: p.programA.code, nameTh: p.programA.nameTh, nameEn: p.programA.nameEn,
+      faculty: p.programA.faculty.nameEn, latestIntake: intake.get(p.programAId) ?? null,
+    },
+    programB: {
+      code: p.programB.code, nameTh: p.programB.nameTh, nameEn: p.programB.nameEn,
+      faculty: p.programB.faculty.nameEn, latestIntake: intake.get(p.programBId) ?? null,
+    },
+    level: p.level,
+    scores: {
+      structure: p.structure, content: p.content, outcome: p.outcome,
+      overlapIndex: p.overlapIndex ?? 0,
+      containmentAInB: p.containmentAInB, containmentBInA: p.containmentBInA,
+      marketSimilarity: p.marketSimilarity,
+    },
+    sharedCredits: p.sharedCredits,
+    equivCredits: p.equivCredits,
+    sharedStaff: p.sharedStaff,
+    languageVariant: p.languageVariant,
+    actions: [...p.actions],
+    evidence: {
+      sharedCourses: ev.sharedCourses,
+      equivalentCourses: ev.equivalentCourses.map((e) => ({
+        codeA: e.codeA, codeB: e.codeB, nameA: e.nameA, nameB: e.nameB,
+        credits: e.credits, similarity: e.similarity, basis: e.basis,
+      })),
+      matchedPlos: ev.matchedPlos.map((m) => ({ textA: m.textA, textB: m.textB, similarity: m.similarity })),
+      unmatchedPlosA: ev.unmatchedPlosA,
+      unmatchedPlosB: ev.unmatchedPlosB,
+      coverage: {
+        majorCoursesA: ev.coverage.majorCoursesA, majorCoursesB: ev.coverage.majorCoursesB,
+        describedA: ev.coverage.describedA, describedB: ev.coverage.describedB,
+        descriptionMatches: ev.coverage.descriptionMatches,
+        plosA: ev.coverage.plosA, plosB: ev.coverage.plosB,
+      },
+    },
+    marketTextA: market.get(p.programAId) ?? null,
+    marketTextB: market.get(p.programBId) ?? null,
+  };
+}
+
+/** Newest real EnrollmentMetric.enrolled per programme. */
+async function latestIntakes(programIds: readonly string[]): Promise<Map<string, number>> {
+  const rows = await prisma.enrollmentMetric.findMany({
+    where: { programId: { in: [...programIds] }, ...realDataWhere() },
+    select: { programId: true, academicYear: true, enrolled: true },
+    orderBy: { academicYear: 'desc' },
+  });
+  const out = new Map<string, number>();
+  for (const r of rows) if (!out.has(r.programId)) out.set(r.programId, r.enrolled);
+  return out;
+}
+
+/**
+ * AI wording for flagged pairs (spec §6.2). Sends only pairs with at least one
+ * action and overlapIndex >= actionIndex; skips a pair whose recommendation
+ * already carries the same evidenceHash and prompt version. A failure on one
+ * pair is logged and counted; the loop continues. Never changes the action.
+ */
+export async function runOverlapRecommendations(opts: { ai: AiService; runIds: string[] }): Promise<OverlapRecommendationResult> {
+  const result: OverlapRecommendationResult = { written: 0, skipped: 0, failed: 0, costUsd: 0 };
+  if (opts.runIds.length === 0) return result;
+  const programmeSelect = { code: true, nameTh: true, nameEn: true, faculty: { select: { nameEn: true } } } as const;
+  const pairs: RecPair[] = await prisma.programOverlapPair.findMany({
+    where: { runId: { in: opts.runIds } },
+    include: {
+      programA: { select: programmeSelect },
+      programB: { select: programmeSelect },
+      recommendation: { select: { evidenceHash: true, promptVersion: true } },
+    },
+    orderBy: [{ overlapIndex: 'desc' }, { id: 'asc' }],
+  });
+  const flagged = pairs.filter(needsRecommendation);
+  const todo = flagged.filter((p) => {
+    const r = p.recommendation;
+    const fresh = r !== null && r.evidenceHash === p.evidenceHash && r.promptVersion === PROGRAM_OVERLAP_RECOMMENDATION_VERSION;
+    if (fresh) result.skipped++;
+    return !fresh;
+  });
+  if (todo.length === 0) return result;
+
+  const ids = [...new Set(todo.flatMap((p) => [p.programAId, p.programBId]))];
+  const intake = await latestIntakes(ids);
+  const profiles = await prisma.programMarketProfile.findMany({
+    where: { programId: { in: ids } },
+    select: { programId: true, text: true },
+  });
+  const market = new Map(profiles.map((m) => [m.programId, m.text]));
+
+  for (const p of todo) {
+    try {
+      const input = recommendationInput(p, intake, market);
+      const res = await opts.ai.extractStructured(
+        {
+          ctx: { module: 'program-overlap', kind: 'recommendation', traceId: `program-overlap-${p.id}` },
+          messages: buildProgramOverlapRecommendationMessages(input),
+          methodVersion: PROGRAM_OVERLAP_RECOMMENDATION_VERSION,
+          maxOutputTokens: 2000,
+        },
+        ProgramOverlapRecommendationSchema,
+      );
+      result.costUsd += res.cost.usd;
+      const out = res.parsed;
+      // The self-report is never trusted above the input-derived ceiling.
+      const confidence = Math.min(out.confidence, overlapRecommendationConfidenceCeiling(input));
+      const data = {
+        rationale: out.rationale,
+        distinctiveA: out.distinctiveA,
+        distinctiveB: out.distinctiveB,
+        nextSteps: out.nextSteps,
+        confidence,
+        disagreesWithAction: out.disagreesWithAction,
+        disagreementReason: out.disagreesWithAction ? out.disagreementReason : null,
+        promptVersion: PROGRAM_OVERLAP_RECOMMENDATION_VERSION,
+        aiInferenceId: res.aiInferenceId,
+        evidenceHash: p.evidenceHash,
+      };
+      await prisma.programOverlapRecommendation.upsert({
+        where: { pairId: p.id },
+        create: { pairId: p.id, ...data },
+        update: data,
+      });
+      result.written++;
+    } catch (e) {
+      result.failed++;
+      console.error(
+        `[program-overlap] recommendation failed for pair ${p.id} (${p.programA.code} × ${p.programB.code}):`,
+        e instanceof Error ? e.message : e,
+      );
+    }
+  }
+  return result;
 }

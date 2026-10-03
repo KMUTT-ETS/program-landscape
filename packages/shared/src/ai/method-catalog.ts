@@ -165,6 +165,18 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     defaultModel: 'gemini-3.5-flash',
   },
   {
+    methodPrefix: 'program-overlap-recommendation',
+    currentVersion: 'program-overlap-recommendation.v1',
+    label: 'Programme overlap recommendation',
+    description:
+      'Drafts the reasoning, distinctive features and next steps behind the rule-chosen actions for an overlapping pair of same-level programmes (program-overlap.v1). Phase OV of the programme pipeline and pnpm programs:overlap; never changes the action, may record a disagreement.',
+    module: 'pipeline',
+    tier: 'narrative',
+    // Display/health metadata only — the runner passes no model, so the call
+    // falls through to the provider default, which is this same id.
+    defaultModel: 'gemini-3.5-flash',
+  },
+  {
     methodPrefix: 'program-strategic-narrative',
     currentVersion: 'program-strategic-narrative.v1',
     label: 'Program strategic narrative',
