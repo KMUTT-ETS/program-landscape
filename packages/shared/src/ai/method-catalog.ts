@@ -170,6 +170,9 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
     label: 'Programme overlap recommendation',
     description:
       'Drafts the reasoning, distinctive features and next steps behind the rule-chosen actions for an overlapping pair of same-level programmes (program-overlap.v1). Phase OV of the programme pipeline and pnpm programs:overlap; never changes the action, may record a disagreement.',
+    // The call's ctx.module is 'program-overlap', but AiMethodEntry.module is a
+    // closed union of admin groupings with no such member; it runs as phase OV
+    // of the programme pipeline, so 'pipeline' is the honest grouping.
     module: 'pipeline',
     tier: 'narrative',
     // Display/health metadata only — the runner passes no model, so the call

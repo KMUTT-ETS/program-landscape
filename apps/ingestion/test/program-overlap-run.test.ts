@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   enrollFindMany: vi.fn(),
   marketFindMany: vi.fn(),
   recUpsert: vi.fn(),
+  recFindMany: vi.fn(),
 }));
 
 vi.mock('@kku/db', async () => {
@@ -28,7 +29,7 @@ vi.mock('@kku/db', async () => {
       programOverlapPair: { createMany: mocks.pairCreateMany, findMany: mocks.pairFindMany },
       enrollmentMetric: { findMany: mocks.enrollFindMany },
       programMarketProfile: { findMany: mocks.marketFindMany },
-      programOverlapRecommendation: { upsert: mocks.recUpsert },
+      programOverlapRecommendation: { upsert: mocks.recUpsert, findMany: mocks.recFindMany },
       $transaction: mocks.transaction,
     },
   };
@@ -278,7 +279,7 @@ describe('parseOverlapArgs', () => {
 describe('runOverlapRecommendations', () => {
   const evidence = {
     sharedCourses: [{ code: 'S1', credits: 3, nameTh: 'วิชา' }],
-    equivalentCourses: [{ codeA: 'A1', codeB: 'B1', nameA: 'a', nameB: 'b', credits: 3, similarity: 0.92, basis: 'name' }],
+    equivalentCourses: [{ codeA: 'A1', codeB: 'B1', nameA: 'a', nameB: 'b', credits: 3, similarity: 0.923456, basis: 'name' }],
     matchedPlos: [{ ordinalA: 1, ordinalB: 1, textA: 'x', textB: 'y', similarity: 0.85 }],
     unmatchedPlosA: [], unmatchedPlosB: ['z'],
     coverage: {
@@ -290,17 +291,21 @@ describe('runOverlapRecommendations', () => {
   const pair = (id: string, over: Record<string, unknown> = {}) => ({
     id, runId: 'r1', level: 'BACHELOR', programAId: `${id}-a`, programBId: `${id}-b`,
     programA: pp(`${id}-A`), programB: pp(`${id}-B`),
-    structure: 50, content: 60, outcome: 55, overlapIndex: 60, containmentAInB: 40, containmentBInA: 40,
+    structure: 50.4, content: 60.6, outcome: 55, overlapIndex: 60.2, containmentAInB: 40, containmentBInA: 40,
     band: 'MODERATE', sharedCredits: 3, equivCredits: 3, sharedStaff: 1, marketSimilarity: 80,
-    languageVariant: false, actions: ['DIFFERENTIATE'], primaryAction: 'DIFFERENTIATE',
+    languageVariant: false,
+    // Stored weakest-first, as score.ts pushes them.
+    actions: ['COORDINATE_SHARED_COURSES', 'DIFFERENTIATE'], primaryAction: 'DIFFERENTIATE',
     evidenceJson: evidence, evidenceHash: `h-${id}`, methodologyVersion: 'program-overlap.v1',
-    createdAt: new Date(), recommendation: null, ...over,
+    createdAt: new Date(), ...over,
   });
   const parsed = {
     rationale: 'r'.repeat(100), distinctiveA: 'distinct A text', distinctiveB: 'distinct B text',
     nextSteps: ['step one here', 'step two here'], confidence: 0.95,
     disagreesWithAction: false, disagreementReason: 'ignored',
   };
+  const okResponse = { parsed, confidence: 1, rawText: '', tokens: {}, model: 'm', latencyMs: 1, cost: { usd: 0.02 }, aiInferenceId: 'inf-1' };
+  type Req = { ctx: { module: string; kind: string }; methodVersion: string; maxOutputTokens: number; messages: Array<{ content: string }> };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -310,38 +315,42 @@ describe('runOverlapRecommendations', () => {
     ]);
     mocks.marketFindMany.mockResolvedValue([{ programId: 'p1-a', text: 'market A' }]);
     mocks.recUpsert.mockResolvedValue({});
+    mocks.recFindMany.mockResolvedValue([]);
   });
 
-  it('sends only flagged, stale pairs, upserts with the inference id, and survives a failure', async () => {
-    mocks.pairFindMany.mockResolvedValue([
-      pair('p1'),
-      pair('noact', { actions: [] }),
-      pair('low', { overlapIndex: 40 }),
-      pair('fresh', { recommendation: { evidenceHash: 'h-fresh', promptVersion: PROGRAM_OVERLAP_RECOMMENDATION_VERSION } }),
-      pair('oldver', { recommendation: { evidenceHash: 'h-oldver', promptVersion: 'program-overlap-recommendation.v0' } }),
-      pair('boom'),
-    ]);
-    const extract = vi.fn(async (req: { messages: Array<{ content: string }> }) => {
+  it('filters flagged pairs in the query, upserts with the inference id, and survives a failure', async () => {
+    mocks.pairFindMany.mockResolvedValue([pair('p1'), pair('boom')]);
+    const extract = vi.fn(async (req: Req) => {
       if (req.messages[1]!.content.includes('boom-A')) throw new Error('model down');
-      return { parsed, confidence: 1, rawText: '', tokens: {}, model: 'm', latencyMs: 1, cost: { usd: 0.02 }, aiInferenceId: 'inf-1' };
+      return okResponse;
     });
     const ai = { extractStructured: extract } as unknown as AiService;
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
     const res = await runOverlapRecommendations({ ai, runIds: ['r1'] });
 
-    expect(extract).toHaveBeenCalledTimes(3); // p1, oldver, boom
-    expect(res).toEqual({ written: 2, skipped: 1, failed: 1, costUsd: 0.04 });
+    expect(mocks.pairFindMany.mock.calls[0]![0].where).toEqual({
+      runId: { in: ['r1'] }, actions: { isEmpty: false }, overlapIndex: { gte: 50 },
+    });
+    expect(extract).toHaveBeenCalledTimes(2);
+    expect(res).toEqual({ written: 1, skipped: 0, failed: 1, costUsd: 0.02 });
     expect(errSpy).toHaveBeenCalledOnce();
-    const firstReq = extract.mock.calls[0]![0] as unknown as { ctx: { module: string; kind: string }; methodVersion: string; messages: Array<{ content: string }> };
-    expect(firstReq.ctx).toMatchObject({ module: 'program-overlap', kind: 'recommendation' });
-    expect(firstReq.methodVersion).toBe(PROGRAM_OVERLAP_RECOMMENDATION_VERSION);
-    const user = JSON.parse(firstReq.messages[1]!.content);
-    expect(user.programA.latestIntake).toBe(80);
-    expect(user.programB.latestIntake).toBeNull();
+    const req = extract.mock.calls[0]![0];
+    expect(req.ctx).toMatchObject({ module: 'program-overlap', kind: 'recommendation' });
+    expect(req.methodVersion).toBe(PROGRAM_OVERLAP_RECOMMENDATION_VERSION);
+    expect(req.maxOutputTokens).toBe(4000);
+    const user = JSON.parse(req.messages[1]!.content);
+    expect(user.actions).toEqual(['DIFFERENTIATE', 'COORDINATE_SHARED_COURSES']);
+    expect(user.primaryAction).toBe('DIFFERENTIATE');
+    expect(user.scores).toMatchObject({ structure: 50, content: 61, overlapIndex: 60 });
+    expect(user.programA.latestEnrolled).toBe(80);
+    expect(user.programB.latestEnrolled).toBeNull();
     expect(user.marketTextA).toBe('market A');
     expect(user.marketTextB).toBeNull();
-    expect(user.evidence.equivalentCourses[0].basis).toBe('name');
+    expect(user.evidence.equivalentCourses).toEqual({
+      items: [{ codeA: 'A1', codeB: 'B1', nameA: 'a', nameB: 'b', credits: 3, similarity: 0.92, basis: 'name' }],
+      omitted: 0,
+    });
 
     const call = mocks.recUpsert.mock.calls[0]![0];
     expect(call.where).toEqual({ pairId: 'p1' });
@@ -349,9 +358,76 @@ describe('runOverlapRecommendations', () => {
       pairId: 'p1', aiInferenceId: 'inf-1', evidenceHash: 'h-p1', promptVersion: PROGRAM_OVERLAP_RECOMMENDATION_VERSION,
       disagreementReason: null,
     });
-    // name-only equivalence and missing market text cap the self-reported 0.95
+    // name-only equivalence and a missing market text cap the self-reported 0.95
     expect(call.create.confidence).toBeLessThan(0.95);
     errSpy.mockRestore();
+  });
+
+  it('copies a matching recommendation from an older run instead of calling the AI', async () => {
+    mocks.pairFindMany.mockResolvedValue([pair('p1', { id: 'new-pair' }), pair('p2')]);
+    mocks.recFindMany.mockResolvedValue([
+      {
+        id: 'rec-old', pairId: 'old-pair', rationale: 'old rationale', distinctiveA: 'dA', distinctiveB: 'dB',
+        nextSteps: ['s1', 's2'], confidence: 0.6, disagreesWithAction: false, disagreementReason: null,
+        promptVersion: PROGRAM_OVERLAP_RECOMMENDATION_VERSION, aiInferenceId: 'inf-old', evidenceHash: 'h-p1',
+        createdAt: new Date(), pair: { programAId: 'p1-a', programBId: 'p1-b', level: 'BACHELOR' },
+      },
+      // Same hash, but a different programme pair: must not be copied.
+      {
+        id: 'rec-x', pairId: 'x', rationale: 'x', distinctiveA: 'x', distinctiveB: 'x', nextSteps: [], confidence: 0.5,
+        disagreesWithAction: false, disagreementReason: null, promptVersion: PROGRAM_OVERLAP_RECOMMENDATION_VERSION,
+        aiInferenceId: 'inf-x', evidenceHash: 'h-p2', createdAt: new Date(),
+        pair: { programAId: 'other-a', programBId: 'p2-b', level: 'BACHELOR' },
+      },
+    ]);
+    const extract = vi.fn(async () => okResponse);
+    const ai = { extractStructured: extract } as unknown as AiService;
+
+    const res = await runOverlapRecommendations({ ai, runIds: ['r2'] });
+
+    expect(mocks.recFindMany.mock.calls[0]![0].where).toEqual({
+      evidenceHash: { in: ['h-p1', 'h-p2'] }, promptVersion: PROGRAM_OVERLAP_RECOMMENDATION_VERSION,
+    });
+    expect(extract).toHaveBeenCalledTimes(1); // only p2
+    expect(res).toEqual({ written: 1, skipped: 1, failed: 0, costUsd: 0.02 });
+    const copy = mocks.recUpsert.mock.calls.find((c) => c[0].where.pairId === 'new-pair')![0];
+    expect(copy.create).toMatchObject({
+      pairId: 'new-pair', rationale: 'old rationale', aiInferenceId: 'inf-old', evidenceHash: 'h-p1', confidence: 0.6,
+    });
+  });
+
+  it('skips without writing when the pair already carries a matching recommendation', async () => {
+    mocks.pairFindMany.mockResolvedValue([pair('p1')]);
+    mocks.recFindMany.mockResolvedValue([
+      {
+        id: 'rec', pairId: 'p1', rationale: 'r', distinctiveA: 'a', distinctiveB: 'b', nextSteps: ['s', 't'],
+        confidence: 0.6, disagreesWithAction: false, disagreementReason: null,
+        promptVersion: PROGRAM_OVERLAP_RECOMMENDATION_VERSION, aiInferenceId: 'inf', evidenceHash: 'h-p1',
+        createdAt: new Date(), pair: { programAId: 'p1-a', programBId: 'p1-b', level: 'BACHELOR' },
+      },
+    ]);
+    const extract = vi.fn();
+    const res = await runOverlapRecommendations({ ai: { extractStructured: extract } as unknown as AiService, runIds: ['r1'] });
+    expect(extract).not.toHaveBeenCalled();
+    expect(mocks.recUpsert).not.toHaveBeenCalled();
+    expect(res).toEqual({ written: 0, skipped: 1, failed: 0, costUsd: 0 });
+  });
+
+  it('caps each evidence list at 25, strongest first, with an omitted count', async () => {
+    const many = {
+      ...evidence,
+      sharedCourses: Array.from({ length: 30 }, (_, k) => ({ code: `S${k}`, credits: k, nameTh: null })),
+      unmatchedPlosB: Array.from({ length: 27 }, (_, k) => `plo ${k}`),
+    };
+    mocks.pairFindMany.mockResolvedValue([pair('p1', { evidenceJson: many })]);
+    const extract = vi.fn(async (_req: Req) => okResponse);
+    await runOverlapRecommendations({ ai: { extractStructured: extract } as unknown as AiService, runIds: ['r1'] });
+    const user = JSON.parse(extract.mock.calls[0]![0].messages[1]!.content);
+    expect(user.evidence.sharedCourses.items).toHaveLength(25);
+    expect(user.evidence.sharedCourses.items[0].credits).toBe(29);
+    expect(user.evidence.sharedCourses.omitted).toBe(5);
+    expect(user.evidence.unmatchedPlosB.items[0]).toBe('plo 0');
+    expect(user.evidence.unmatchedPlosB.omitted).toBe(2);
   });
 
   it('does nothing without run ids', async () => {

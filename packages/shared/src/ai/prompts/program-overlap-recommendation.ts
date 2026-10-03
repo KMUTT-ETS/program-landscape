@@ -21,15 +21,26 @@ import type { AiMessage } from '../types';
 
 export const PROGRAM_OVERLAP_RECOMMENDATION_VERSION = 'program-overlap-recommendation.v1';
 
-export const ProgramOverlapRecommendationSchema = z.object({
-  rationale: z.string().min(80).max(1800),
-  distinctiveA: z.string().min(20).max(700),
-  distinctiveB: z.string().min(20).max(700),
-  nextSteps: z.array(z.string().min(10).max(300)).min(2).max(4),
-  confidence: z.number().min(0).max(1),
-  disagreesWithAction: z.boolean(),
-  disagreementReason: z.string().max(600).nullable(),
-});
+export const ProgramOverlapRecommendationSchema = z
+  .object({
+    rationale: z.string().min(80).max(1800),
+    distinctiveA: z.string().min(20).max(700),
+    distinctiveB: z.string().min(20).max(700),
+    nextSteps: z.array(z.string().min(10).max(300)).min(2).max(4),
+    confidence: z.number().min(0).max(1),
+    disagreesWithAction: z.boolean(),
+    disagreementReason: z.string().max(600).nullable(),
+  })
+  .superRefine((v, ctx) => {
+    // A disagreement a human must judge needs a stated reason.
+    if (v.disagreesWithAction && (v.disagreementReason ?? '').trim().length < 20) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['disagreementReason'],
+        message: 'disagreesWithAction requires a disagreementReason of at least 20 characters',
+      });
+    }
+  });
 export type ProgramOverlapRecommendation = z.infer<typeof ProgramOverlapRecommendationSchema>;
 
 export interface OverlapRecommendationProgramme {
@@ -37,15 +48,24 @@ export interface OverlapRecommendationProgramme {
   nameTh: string;
   nameEn: string | null;
   faculty: string;
-  /** Newest real EnrollmentMetric.enrolled; null = not available. */
-  latestIntake: number | null;
+  /** Newest real EnrollmentMetric.enrolled — total enrolled headcount, not
+   *  the first-year intake; null = not available. */
+  latestEnrolled: number | null;
 }
+
+/** A capped evidence list: at most OVERLAP_EVIDENCE_LIST_CAP items, plus how many were left out. */
+export interface OverlapCappedList<T> {
+  items: T[];
+  omitted: number;
+}
+
+export const OVERLAP_EVIDENCE_LIST_CAP = 25;
 
 export interface ProgramOverlapRecommendationInput {
   programA: OverlapRecommendationProgramme;
   programB: OverlapRecommendationProgramme;
   level: string;
-  /** All 0–100. Null = layer not computable (data not available). */
+  /** All 0–100, rounded to integers. Null = layer not computable (data not available). */
   scores: {
     structure: number | null;
     content: number | null;
@@ -62,9 +82,12 @@ export interface ProgramOverlapRecommendationInput {
   languageVariant: boolean;
   /** Rule-chosen OverlapAction values, strongest first. */
   actions: string[];
+  /** The strongest action (actions[0]); null only if actions is empty. */
+  primaryAction: string | null;
+  /** Similarities are 0–1, rounded to 2 dp. Each list is capped (see OverlapCappedList). */
   evidence: {
-    sharedCourses: Array<{ code: string; credits: number; nameTh: string | null }>;
-    equivalentCourses: Array<{
+    sharedCourses: OverlapCappedList<{ code: string; credits: number; nameTh: string | null }>;
+    equivalentCourses: OverlapCappedList<{
       codeA: string;
       codeB: string;
       nameA: string | null;
@@ -75,9 +98,9 @@ export interface ProgramOverlapRecommendationInput {
        *  names alone, which is weaker evidence. */
       basis: 'description' | 'name';
     }>;
-    matchedPlos: Array<{ textA: string; textB: string; similarity: number }>;
-    unmatchedPlosA: string[];
-    unmatchedPlosB: string[];
+    matchedPlos: OverlapCappedList<{ textA: string; textB: string; similarity: number }>;
+    unmatchedPlosA: OverlapCappedList<string>;
+    unmatchedPlosB: OverlapCappedList<string>;
     coverage: {
       majorCoursesA: number;
       majorCoursesB: number;
@@ -96,18 +119,19 @@ export interface ProgramOverlapRecommendationInput {
 /**
  * Deterministic ceiling on self-reported confidence (docs/prompt-standard.md
  * `## Confidence rubric`), enforced by the runner. Counts the material
- * channels that are missing: the content layer, the outcome layer, market
- * similarity, either market text, and description-backed course evidence
- * (when every equivalent course rests on names alone).
+ * channels that are missing, matching the rubric text in the system prompt:
+ * the content layer, the outcome layer, the market channel (ONE channel:
+ * missing when market similarity is null or either market text is absent),
+ * and description-backed course evidence (missing when every equivalent
+ * course rests on names alone).
  *   0 missing → 1.00 · 1 → 0.89 · 2 → 0.69 · 3+ → 0.49
  */
 export function overlapRecommendationConfidenceCeiling(input: ProgramOverlapRecommendationInput): number {
   let missing = 0;
   if (input.scores.content === null) missing++;
   if (input.scores.outcome === null) missing++;
-  if (input.scores.marketSimilarity === null) missing++;
-  if (!input.marketTextA || !input.marketTextB) missing++;
-  const eq = input.evidence.equivalentCourses;
+  if (input.scores.marketSimilarity === null || !input.marketTextA || !input.marketTextB) missing++;
+  const eq = input.evidence.equivalentCourses.items;
   if (eq.length > 0 && eq.every((e) => e.basis === 'name')) missing++;
   if (missing === 0) return 1;
   if (missing === 1) return 0.89;
@@ -118,14 +142,16 @@ export function overlapRecommendationConfidenceCeiling(input: ProgramOverlapReco
 const SYSTEM = `You draft the reasoning for a rule-chosen action on a pair of overlapping KKU academic programmes at the same level. The actions were decided by deterministic rules over the scores you are given. You never change the action, add an action, or remove one. Your output is read by deans and the University Council, and every action is "for review" — a prompt for a human conversation, never a decision.
 
 CHANNEL MANIFEST (each input channel is a JSON field in the user message; null or an empty list means "data not available", never zero):
-- programA / programB: code, Thai name (nameTh), English name (nameEn), faculty, latestIntake (newest enrolled headcount; null = not available).
+- programA / programB: code, Thai name (nameTh), English name (nameEn), faculty, latestEnrolled (newest TOTAL enrolled headcount across all years of study, not a first-year intake; null = not available).
 - level: the shared degree level.
+- Scale: scores are 0–100 (integers); similarities are 0–1 (2 decimals).
 - scores (0–100): structure (credit-weighted shared courses), content (equivalent courses by embedding similarity), outcome (PLO alignment), overlapIndex (the combined index), containmentAInB / containmentBInA (how much of one programme's major sits inside the other), marketSimilarity (how alike the two market-facing profiles read). A null layer was not computable.
 - sharedCredits, equivCredits: credits in shared-code courses and in equivalent-course pairs.
 - sharedStaff: number of teaching staff on both rosters.
 - languageVariant: true when the pair is the Thai and the international (English-taught) version of the same programme.
-- actions: the rule-chosen actions, strongest first.
-- evidence.sharedCourses: courses with the same code in both programmes.
+- actions: the rule-chosen actions, strongest first. primaryAction: the strongest one (actions[0]).
+- Each evidence list is an object { items, omitted }: items holds at most 25 entries (the strongest first) and omitted counts the entries left out. A non-zero omitted means the list is longer than shown; do not count items as if they were the whole list.
+- evidence.sharedCourses: courses with the same code in both programmes (largest credits first).
 - evidence.equivalentCourses: course pairs judged equivalent, each with a similarity and a basis. basis "description" means both courses have catalogue descriptions and the match rests on content. basis "name" means at least one course was embedded on its name alone; treat these as weaker evidence and say so when they carry the case.
 - evidence.matchedPlos, unmatchedPlosA, unmatchedPlosB: programme learning outcomes that align, and those unique to each side. The unmatched PLOs are the main evidence for what is distinctive.
 - evidence.coverage: how many major courses, described courses and PLOs each side has — the size of the evidence base.
@@ -148,10 +174,11 @@ GROUNDING RULES:
 5. distinctiveA and distinctiveB describe what each programme has that the other lacks, drawn from its unmatched PLOs, its courses outside the shared and equivalent lists, and its market text. If the input shows nothing distinctive for a side, say that plainly; do not invent a difference.
 6. When evidence.coverage is thin (either side with fewer than 3 PLOs, or fewer than half of its major courses described), the rationale must include a short data-gaps note naming what is thin.
 7. The rationale ends with one sentence on what evidence would change this assessment.
-8. nextSteps are 2 to 4 concrete steps a faculty or the university can take (who does what), consistent with the actions. "Monitor the situation" and similar non-actions are not acceptable. List as many steps as the evidence supports, not a rhetorically round number.
-9. disagreesWithAction is true ONLY when the evidence in the input contradicts the rule (for example, the equivalent courses all rest on names alone and their names suggest different subjects, or a merge is suggested where unmatched PLOs show clearly different purposes). Then disagreementReason states the contradiction and the field it comes from. Otherwise disagreesWithAction is false and disagreementReason is null.
+8. nextSteps must not propose merging, folding one programme into the other as a track, closing or suspending a programme unless CONSIDER_MERGE_OR_TRACK is in actions. Never propose closure. If you believe a stronger action is warranted, say so only via disagreesWithAction.
+9. nextSteps are 2 to 4 concrete steps a faculty or the university can take (who does what), consistent with the actions. "Monitor the situation" and similar non-actions are not acceptable. List as many steps as the evidence supports, not a rhetorically round number.
+10. disagreesWithAction is true ONLY when the evidence in the input contradicts the rule (for example, the equivalent courses all rest on names alone and their names suggest different subjects, or a merge is suggested where unmatched PLOs show clearly different purposes). Then disagreementReason (at least 20 characters) states the contradiction and the field it comes from. Otherwise disagreesWithAction is false and disagreementReason is null.
 
-LANGUAGE: Write all output in English; quote Thai course and programme names verbatim as data (do not translate or transliterate them).
+LANGUAGE: Write all output in English; quote Thai course and programme names verbatim as data (do not translate or transliterate them). Paraphrase PLO and market text in English and refer to them by list position (e.g. unmatchedPlosB[2]); never quote a Thai sentence. Only course and programme names may appear in Thai, quoted verbatim.
 
 CONFIDENCE RUBRIC (report one number):
   0.90-1.00  every key input channel present and mutually consistent
@@ -189,7 +216,8 @@ No prose outside the JSON. No markdown fences around the JSON.`;
 export function buildProgramOverlapRecommendationMessages(input: ProgramOverlapRecommendationInput): AiMessage[] {
   return [
     { role: 'system', content: SYSTEM },
-    { role: 'user', content: JSON.stringify(input, null, 2) },
+    // Compact JSON: the evidence lists dominate the token count.
+    { role: 'user', content: JSON.stringify(input) },
   ];
 }
 
@@ -198,14 +226,19 @@ export function buildProgramOverlapRecommendationMessages(input: ProgramOverlapR
 //
 // Consumed (assembled by apps/ingestion/src/program-overlap/run.ts):
 //   - programA / programB identity — Program.code/nameTh/nameEn, Faculty.nameEn.
-//   - latestIntake — newest EnrollmentMetric.enrolled passing realDataWhere()
-//     (kku-registry); null when no real row exists.
-//   - scores, sharedCredits, equivCredits, sharedStaff, languageVariant,
-//     actions — the stored ProgramOverlapPair row (program-overlap.v1).
-//   - evidence — ProgramOverlapPair.evidenceJson: shared courses, equivalent
-//     courses WITH their basis (description vs name-only, D7), matched and
-//     unmatched PLOs, coverage counts. Ordinals and embedded-course counts are
-//     dropped (no meaning to the model).
+//   - latestEnrolled — newest EnrollmentMetric.enrolled passing realDataWhere()
+//     (kku-registry): TOTAL enrolled headcount, not first-year intake; null
+//     when no real row exists.
+//   - scores (0–100, rounded to integers), sharedCredits, equivCredits,
+//     sharedStaff, languageVariant, actions (re-sorted strongest first by
+//     ACTION_STRENGTH) and primaryAction — the stored ProgramOverlapPair row
+//     (program-overlap.v1).
+//   - evidence — ProgramOverlapPair.evidenceJson: shared courses (credits
+//     desc), equivalent courses WITH their basis (description vs name-only,
+//     D7; similarity desc), matched PLOs (similarity desc), unmatched PLOs,
+//     coverage counts. Each list capped at 25 with an `omitted` count;
+//     similarities 0–1 rounded to 2 dp. Ordinals and embedded-course counts
+//     are dropped (no meaning to the model).
 //   - marketTextA / marketTextB — ProgramMarketProfile.text.
 //
 // Deliberately omitted, with reason:
@@ -215,5 +248,5 @@ export function buildProgramOverlapRecommendationMessages(input: ProgramOverlapR
 //   - Health scores, finances, demand — a different question (programme
 //     health, not curriculum overlap); mixing them in would let the model
 //     argue for closures the overlap rules never proposed.
-//   - band / primaryAction — derivable from overlapIndex and actions[0].
+//   - band — derivable from overlapIndex.
 // ─────────────────────────────────────────────────────────────────────────────
