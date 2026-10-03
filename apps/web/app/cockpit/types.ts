@@ -25,6 +25,8 @@ export interface HealthScoreCell {
   score: number | null;
   dataCompletenessPct: number;
   drivers: Array<{ label: string; value: number | null; raw: unknown }>;
+  // health-score.v5.4: Financial only — the external-grant award.
+  award?: { label: string; points: number | null; baseScore: number | null; raw: unknown } | null;
 }
 
 export interface HealthScoreRow {

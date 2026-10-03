@@ -548,6 +548,7 @@ function toCell(s: CockpitHeatmap['rows'][number]['dimensions']['attractiveness'
     score: s.score,
     dataCompletenessPct: s.dataCompletenessPct,
     drivers: s.drivers.map((d) => ({ label: d.label, value: d.value })),
+    awardPoints: s.award?.points ?? null,
   };
 }
 

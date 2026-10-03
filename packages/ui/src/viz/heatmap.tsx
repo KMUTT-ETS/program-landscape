@@ -26,6 +26,9 @@ export interface HeatmapCell {
   // 0-100
   dataCompletenessPct: number;
   drivers?: Array<{ label: string; value: number | null }>;
+  // health-score.v5.4 external-grant award (Financial only) — points added
+  // after the drivers are averaged. Shown in the tooltip when > 0.
+  awardPoints?: number | null;
 }
 
 export interface HeatmapRow {
@@ -158,6 +161,11 @@ function Cell({ cell }: { cell: HeatmapCell }) {
               </span>
             </div>
           ))}
+        </div>
+      )}
+      {cell.awardPoints != null && cell.awardPoints > 0 && (
+        <div className="border-t border-subtle pt-1 text-[11px] text-text-secondary">
+          +{(Math.round(cell.awardPoints * 10) / 10).toFixed(1)} external-grant award
         </div>
       )}
       {cell.dataCompletenessPct < 100 && (
