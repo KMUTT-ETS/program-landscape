@@ -12,7 +12,8 @@
     "trends:purge-mock": "tsx src/scripts/purge-mock-signals.ts",
     "job108:backfill": "tsx src/scripts/job108-backfill.ts",
     "job108:calibrate": "tsx src/scripts/job108-calibrate.ts",
-    "programs:overlap-prep": "tsx src/scripts/programs-overlap-prep.ts"
+    "programs:overlap-prep": "tsx src/scripts/programs-overlap-prep.ts",
+    "programs:overlap": "tsx src/scripts/programs-overlap.ts"
   },
   "dependencies": {
     "@kku/db": "workspace:*",

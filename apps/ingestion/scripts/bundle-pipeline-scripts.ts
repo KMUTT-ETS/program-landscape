@@ -88,6 +88,9 @@ const TARGETS = [
   // program-overlap.v1 data prep (PLO table, course descriptions, market
   // profiles, embeddings). Operator-run on prod before the first overlap run.
   'programs-overlap-prep.ts',
+  // program-overlap.v1 scoring + calibration. Operator-run on prod for the
+  // full-portfolio run; the pipeline's phaseOV runs in-process.
+  'programs-overlap.ts',
 ];
 
 // Native modules + workspace artifacts that must stay external.
