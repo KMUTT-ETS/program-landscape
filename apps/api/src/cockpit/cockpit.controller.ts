@@ -8,7 +8,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { HEALTH_SCORE_VERSION, LANDSCAPE_METHODOLOGY_BUNDLE } from '@kku/db';
+import { GRANT_AWARD_CAVEAT, HEALTH_SCORE_VERSION, LANDSCAPE_METHODOLOGY_BUNDLE } from '@kku/db';
 import { ForbiddenException } from '@nestjs/common';
 import { prisma } from '@kku/db';
 import { ScopeLevelSchema, type ScopeLevel, type SessionUser } from '@kku/shared';
@@ -124,6 +124,7 @@ const HEALTH_SOURCE = {
 };
 const HEALTH_CAVEATS = [
   'Financial includes an external-grant award of up to +10 points (grant baht per teaching staff per year, last 3 complete fiscal years); it never lowers a score.',
+  GRANT_AWARD_CAVEAT,
 ];
 
 @Controller('/cockpit')
@@ -321,7 +322,9 @@ export class CockpitController {
               source: 'KKU Data Office',
               freshnessDate: formatThaiDate(new Date()),
               methodologyVersion: HEALTH_SCORE_VERSION,
-    caveats: HEALTH_CAVEATS,
+              // The Council Pack provenance schema has no `caveats`; zod
+              // strips unknown keys, so the caveats ride in `note`.
+              note: HEALTH_CAVEATS.join(' '),
             },
             {
               id: 'mv-metrics',
