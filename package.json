@@ -67,6 +67,7 @@
     "programs:ai-readiness": "tsx apps/ingestion/src/scripts/generate-program-ai-readiness.ts",
     "programs:pedagogy": "tsx apps/ingestion/src/scripts/generate-program-pedagogy.ts",
     "programs:lifecycle-snapshot": "tsx apps/ingestion/src/scripts/backfill-lifecycle-snapshots.ts",
+    "programs:overlap-prep": "tsx apps/ingestion/src/scripts/programs-overlap-prep.ts",
     "scenarios:seed-templates": "tsx apps/ingestion/src/scripts/seed-scenario-templates.ts",
     "outcomes:ingest": "tsx apps/ingestion/src/scripts/ingest-employment-surveys.ts",
     "outcomes:ingest-xlsx": "tsx apps/ingestion/src/scripts/ingest-employment-surveys-xlsx.ts",
