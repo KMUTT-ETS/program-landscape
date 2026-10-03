@@ -13,3 +13,5 @@ export * from './thailand-map';
 export * from './tornado';
 export * from './coverage-matrix';
 export * from './overlap-matrix';
+export * from './overlap-network-layout';
+export * from './overlap-network';
