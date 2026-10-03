@@ -1630,7 +1630,7 @@ const tableNodes: TopologyNode[] = [
     subtitle: 'narrative · readiness · peers · …',
     details: {
       description:
-        "Cluster of per-program AI-output tables, written by the programs-pipeline's 11 phases. Each row links to the AiInference that produced it, and carries the ProgramRevision it was generated from. Surfaced across the Deep-Dive's sections.",
+        "Cluster of per-program AI-output tables, written by the programs-pipeline's 12 phases. Each row links to the AiInference that produced it, and carries the ProgramRevision it was generated from. Surfaced across the Deep-Dive's sections.",
       relatedTables: [
         'ProgramStrategicNarrative (Phase 7)',
         'ProgramAiReadinessAssessment (Phase 6)',

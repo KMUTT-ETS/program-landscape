@@ -298,7 +298,7 @@ function BucketList({ bucket, onChange }: { bucket: Bucket; onChange: () => void
     }
   };
 
-  // Single-program full-pipeline run — all 11 phases on one program
+  // Single-program full-pipeline run — all 12 phases on one program
   // (incl. phase 5 AI benchmarking + phase 7 narrative). Useful when
   // retrying a single program after fixing its PDF or peer set without
   // re-paying the bulk run for the other 296.

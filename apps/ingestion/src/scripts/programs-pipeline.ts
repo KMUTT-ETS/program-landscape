@@ -149,6 +149,7 @@ import { selectProgramPeers } from '../program-peers/select';
 import { generateProgramPeerReview } from '../program-peers/review';
 import { generateProgramStrategicNarrative } from '../program-narrative/run';
 import { runProgramAiReadiness } from '../program-ai-readiness/run';
+import { runOverlapRecommendations, runProgramOverlap } from '../program-overlap/run';
 
 // Phase list + display metadata live in @kku/shared — see the header comment
 // in packages/shared/src/pipeline/program-phases.ts for why (five hand-kept
@@ -727,6 +728,40 @@ async function processProgram(
         r.status === 'SUCCEEDED'
           ? `${r.contentLength} chars · conf ${r.confidence.toFixed(2)}`
           : `${r.status}${'reason' in r ? ': ' + r.reason : ''}`,
+    });
+  }
+
+  // ── Phase OV — Programme overlap (program-overlap.v1) ────────────
+  // Re-scores every same-level pair that involves THIS programme and writes
+  // a scoped ProgramOverlapRun; readers merge it over the latest full run.
+  // Deterministic, in-process; the AI only words flagged pairs. Runs before
+  // phase 8 because the self-competition KRIs read the latest run. Without
+  // `pnpm programs:overlap-prep` only the structure layer can score.
+  if (shouldRun('phaseOV')) {
+    const t = Date.now();
+    const r = await runProgramOverlap({ programIds: [program.id], apply: true })
+      .then(async (res) => {
+        const rec = await runOverlapRecommendations({
+          ai,
+          runIds: res.map((x) => x.runId).filter((x): x is string => x !== null),
+        });
+        return {
+          status: 'SUCCEEDED' as const,
+          costUsd: rec.costUsd,
+          note:
+            res.length === 0
+              ? 'skipped: not a canonical programme'
+              : `${res.reduce((n, x) => n + x.scored, 0)} pairs scored, ${res.reduce((n, x) => n + x.stored, 0)} stored` +
+                ` · recommendations ${rec.written} written / ${rec.skipped} skipped / ${rec.failed} failed`,
+        };
+      })
+      .catch((e) => ({ status: 'FAILED' as const, costUsd: 0, note: String(e?.message ?? e) }));
+    phases.push({
+      name: 'phaseOV programme overlap',
+      durationMs: Date.now() - t,
+      costUsd: r.costUsd,
+      ok: r.status !== 'FAILED',
+      notes: r.status === 'SUCCEEDED' ? r.note : `failed: ${r.note}`,
     });
   }
 

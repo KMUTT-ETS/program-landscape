@@ -16,7 +16,7 @@ import {
 
 // Buttons on /admin/data-setup → "Full program documents" card.
 // Two run modes:
-//   • Full run    — all 11 phases on every canonical program (or just the
+//   • Full run    — all 12 phases on every canonical program (or just the
 //                   not-yet-narrated subset via Resume).
 //   • Partial run — pick which phases to run; expands a checkbox panel.
 //

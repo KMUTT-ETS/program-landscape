@@ -41,6 +41,14 @@ describe('PROGRAM_PIPELINE_PHASES / PROGRAM_PHASE_META', () => {
     expect(PROGRAM_PHASE_META.phaseCR.dependencyHint).toBeTruthy();
   });
 
+  it('places phaseOV after the narrative and before risk, with its prep hint', () => {
+    const i = PROGRAM_PIPELINE_PHASES.indexOf('phaseOV');
+    expect(PROGRAM_PIPELINE_PHASES[i - 1]).toBe('phase7');
+    expect(PROGRAM_PIPELINE_PHASES[i + 1]).toBe('phase8');
+    expect(PROGRAM_PHASE_META.phaseOV.shortLabel).toBe('Programme overlap');
+    expect(PROGRAM_PHASE_META.phaseOV.dependencyHint).toMatch(/overlap-prep/);
+  });
+
   it('narrows only real phase ids', () => {
     expect(isProgramPipelinePhase('phaseRE')).toBe(true);
     expect(isProgramPipelinePhase('phase1')).toBe(true);

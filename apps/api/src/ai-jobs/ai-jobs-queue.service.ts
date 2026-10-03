@@ -83,6 +83,7 @@ export const AI_JOB_KINDS: Record<AiJobKind, true> = {
  *   phaseRE research expertise (themes from staff publications)
  *   phaseCR curriculum revision (course-level advice; reads phaseRE)
  *   phase7  strategic narrative
+ *   phaseOV programme overlap (same-level pairs touching this programme)
  *   phase8  risk analysis
  *
  * Phases 7 + 8 added 2026-05-12 (pipeline expansion commit 44b6bee).
@@ -94,6 +95,7 @@ export const AI_JOB_KINDS: Record<AiJobKind, true> = {
  * long before but was never added here, so any explicit `--only=` list the
  * admin UI sent silently dropped it — identical drift to phase2b's. phaseCR
  * reads the row phaseRE writes, so the two must be selectable together.
+ * phaseOV added 2026-10-03 (program-overlap.v1).
  */
 // Re-exported (not re-declared) from @kku/shared. This used to be a hand-kept
 // duplicate of the ingestion-side union — see the header comment in

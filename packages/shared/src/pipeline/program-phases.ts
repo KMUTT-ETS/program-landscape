@@ -51,6 +51,7 @@ export const PROGRAM_PIPELINE_PHASES = [
   'phaseRE',
   'phaseCR',
   'phase7',
+  'phaseOV',
   'phase8',
 ] as const;
 
@@ -149,6 +150,13 @@ export const PROGRAM_PHASE_META: Record<ProgramPipelinePhase, ProgramPhaseMeta> 
     shortLabel: 'Strategic narrative',
     detail: 'Pro thinking — runs LAST, depends on 1-6',
     approxCostUsd: 0.3,
+  },
+  phaseOV: {
+    label: 'Phase OV · Programme overlap (same-level comparison)',
+    shortLabel: 'Programme overlap',
+    detail: 'deterministic + Flash wording for flagged pairs — needs overlap prep',
+    dependencyHint: 'Needs PLOs, course descriptions and embeddings (pnpm programs:overlap-prep).',
+    approxCostUsd: 0.02,
   },
   phase8: {
     label: 'Phase 8 · Risk analysis',

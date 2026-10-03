@@ -122,14 +122,14 @@ const PIPELINE_PRESETS: PipelinePreset[] = [
   {
     key: 'full',
     label: 'Full pipeline',
-    description: 'All 11 phases · ~5–10 min · ~$0.64 per program in LLM cost',
+    description: 'All 12 phases · ~5–10 min · ~$0.66 per program in LLM cost',
     phases: null,
   },
   {
     key: 'ai-only',
     label: 'AI-only refresh',
     description:
-      'Re-run every LLM phase: PDF extraction · courses-extract · careers + demand · AI benchmarking · AI readiness · research expertise · curriculum revision · narrative · risk. Skips Oracle/MSSQL.',
+      'Re-run every LLM phase: PDF extraction · courses-extract · careers + demand · AI benchmarking · AI readiness · research expertise · curriculum revision · narrative · programme overlap · risk. Skips Oracle/MSSQL.',
     phases: [
       'phase1',
       'phase2',
@@ -140,6 +140,7 @@ const PIPELINE_PRESETS: PipelinePreset[] = [
       'phaseRE',
       'phaseCR',
       'phase7',
+      'phaseOV',
       'phase8',
     ],
   },
