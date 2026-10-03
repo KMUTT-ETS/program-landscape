@@ -33,6 +33,7 @@ It feeds three surfaces:
 | D4 | **A deterministic, three-layer index.** The layers are structure, content and outcome, weighted equally, with containment measured in both directions. The AI drafts wording only for flagged pairs. This was chosen over AI judging every pair (≈ $140 a run and not reproducible) and over keyword similarity (weak on Thai). |
 | D5 | **Same degree level, all faculties.** Only canonical programmes (`IS_CANONICAL_PROGRAM`) are compared. Bachelor is never compared with master. |
 | D6 | **The Deep-Dive Overlap section is hidden** when the programme has no sibling scoring 30 or more, or when no overlap run exists. |
+| D7 | **The content layer is based on course names, with descriptions added where available** (decided 2026-10-03, after the prep dry run measured description coverage at about 21 %). Name-only matches need a stricter threshold. Extracting full descriptions from every PDF was rejected for cost and delay; it could be added later as v2. |
 
 ## 3. Practice this is modelled on
 
@@ -49,8 +50,8 @@ It feeds three surfaces:
 
 ### 4.2 Course descriptions and CLOs
 - Add `descriptionTh String?` and `learningOutcomesTh String[]` to `ProgramCourse`. This is an additive migration.
-- Fill them from the programme's latest APPROVED `PROGRAM_DIGEST` payload (`courses[]`), matching on the normalised course code (`packages/db/src/course-code-normalise.ts`).
-- The digest holds at most 80 courses per programme, so some courses stay without a description. Every content-layer result reports its coverage, for example "41 of 58 major courses described".
+- Fill them from the programme's latest `PROGRAM_DIGEST` payload with review status APPROVED or AUTO_APPROVED (`courses[]`), matching on the normalised course code (`packages/db/src/course-code-normalise.ts`).
+- **Measured 2026-10-03:** the digests list far fewer courses than their 80-course cap, about 8 per programme. Only about 1,300 of 6,221 major courses (≈ 21 %) match a description. Descriptions are therefore a bonus, not the basis of the content layer (see §4.4 and §5.1, decision D7). Every pair reports how many of its matches rested on descriptions.
 
 ### 4.3 PLO table
 - New model `ProgramLearningOutcome` with these fields:
@@ -70,7 +71,7 @@ It feeds three surfaces:
 - **Method:** batched and rate-limited, reusing the batching pattern in `apps/ingestion/src/jobthai/embed.ts`.
 - **Three kinds of text are embedded:**
   1. each PLO, from `textNormalised`;
-  2. each **major** course, as name + description + CLOs. This adds a new column, `ProgramCourse.embedding vector(1536)`.
+  2. **every** major course: its names (TH and EN), plus its description and CLOs where they exist. A course with neither name is skipped. This adds a new column, `ProgramCourse.embedding vector(1536)`.
   3. each programme's **market profile**: degree name (TH and EN), recruitment summary and careers. It is stored on a new `ProgramMarketProfile` row (`programId`, `text`, `embedding`, `textHash`).
 - A text is re-embedded only when its hash changes.
 - Writes go through `$executeRaw`. Reads go through `$queryRaw` with Zod-validated results, which is the repo convention for vectors.
@@ -91,11 +92,14 @@ Every unordered pair (A, B) of canonical programmes **at the same level** is sco
   - `S = 2 × sharedCredits / (majorCredits_A + majorCredits_B) × 100`
   - **Null** when either programme has no major course rows.
 - **Content: equivalent courses with different codes.**
-  - The courses compared are the described major courses that were *not already matched by code*.
+  - The courses compared are the **embedded** major courses (§4.4) that were *not already matched by code*. Most are embedded on names alone (D7).
   - Pairs are formed by **one-to-one greedy matching** over cosine similarity, most similar first, so each course is used at most once.
-  - A pair is equivalent when cosine ≥ `COURSE_EQUIV_THRESHOLD` (provisionally 0.85; fixed at calibration, §9). This is a stand-in for the 75 % content rule.
-  - `C = 2 × (sharedDescribedCredits + equivCredits) / (describedMajorCredits_A + describedMajorCredits_B) × 100`, where `sharedDescribedCredits` covers described courses both programmes share by code. They are trivially equivalent; leaving them out would score two identical programmes 0 on content. `equivCredits` alone (different codes only) drives the "consolidate equivalent courses" action.
-  - **Null** when either programme has fewer than 3 described major courses.
+  - A pair is equivalent when its cosine reaches the threshold for its basis. This stands in for the 75 % content rule.
+    - **Both courses described:** `COURSE_EQUIV_THRESHOLD`, provisionally 0.85.
+    - **Either course name-only:** `COURSE_EQUIV_NAME_THRESHOLD`, provisionally 0.90. Titles carry less information, so they must agree more closely.
+    - Both thresholds are fixed at calibration (§9). Each match records its basis (`description` or `name`).
+  - `C = 2 × (sharedEmbeddedCredits + equivCredits) / (embeddedMajorCredits_A + embeddedMajorCredits_B) × 100`, where `sharedEmbeddedCredits` covers embedded courses both programmes share by code. They are trivially equivalent; leaving them out would score two identical programmes 0 on content. `equivCredits` alone (different codes only) drives the "consolidate equivalent courses" action.
+  - **Null** when either programme has fewer than 3 embedded major courses.
 - **Outcome: PLO alignment.**
   - A PLO is **covered** when its best cosine against the other programme's PLOs is ≥ `PLO_MATCH_THRESHOLD` (provisionally 0.80; fixed at calibration).
   - `O = (covered_A + covered_B) / (n_A + n_B) × 100`
@@ -195,7 +199,7 @@ Strength order, weakest to strongest: coordinate shared courses < consolidate eq
    - Thai and international language variants;
    - same-faculty neighbours;
    - clearly unrelated programmes.
-3. Set `COURSE_EQUIV_THRESHOLD`, `PLO_MATCH_THRESHOLD`, the market floor, ceiling and confusion threshold, and the bands. Record the evidence in this spec (§12, filled in at that point) and in `docs/methodologies/program-overlap.md`.
+3. Set `COURSE_EQUIV_THRESHOLD`, `COURSE_EQUIV_NAME_THRESHOLD` (checking name-only matches separately on the hand-check pairs), `PLO_MATCH_THRESHOLD`, the market floor, ceiling and confusion threshold, and the bands. Record the evidence in this spec (§12, filled in at that point) and in `docs/methodologies/program-overlap.md`.
 4. After release, any change to a threshold bumps `program-overlap.vN`.
 
 ## 10. UIs

@@ -634,7 +634,7 @@ Then the IO functions, each taking `{ apply: boolean }` and returning counts. In
    - In a transaction, delete that programme's `ProgramLearningOutcome` rows and `createMany` the planned rows with `sourceExtractionId` and `programRevisionId` from the extraction.
    - Skip the programme when the existing rows already have the same `sourceExtractionId` and the same count. That keeps the step idempotent and preserves embeddings.
 2. **`loadCourseDescriptions({ apply })`**
-   - Take the latest `PROGRAM_DIGEST` with `reviewStatus: 'APPROVED'` per programme.
+   - Take the latest `PROGRAM_DIGEST` with `reviewStatus` in APPROVED or AUTO_APPROVED per programme.
    - Parse `payloadJson.courses` with Zod: `code`, `descriptionTh?`, `learningOutcomesTh?`.
    - Run `planCourseDescriptionUpdates` against the programme's `ProgramCourse` rows, then `update` each row.
    - When a description changes, also set `embeddingTextHash: null`, so the course is re-embedded.
@@ -724,6 +724,25 @@ Expected: NULL falls from about 5,886 to a small residue.
 ## Phase B — Scoring engine
 
 ### Task 7: Pure scoring core
+
+> **AMENDMENT D7 (2026-10-03, spec decision D7). It overrides the code below wherever they differ.**
+> The content layer works on **every embedded major course**: names, plus description and CLOs where present. Descriptions cover only about 21 % of courses. Apply these changes to the Task 7 code and tests:
+> 1. **Thresholds.** Add `courseEquivName: number` to `OverlapThresholds`, with `courseEquivName: 0.9` in `OVERLAP_THRESHOLDS`. `courseEquiv` (0.85) now applies only when **both** courses are described.
+> 2. **Which courses count.** In `scorePair`'s content block, replace `descA`/`descB` (`c.described && c.vector`) with `embA`/`embB` = major courses with a non-null `vector`. Use `embA`/`embB` for the min-3 rule, for the code-shared credits (rename `sharedDescribedCredits` → `sharedEmbeddedCredits`) and for the denominators.
+> 3. **Matching.** `greedyMatch` gets threshold `Math.min(t.courseEquiv, t.courseEquivName)` and a similarity function that returns `-1` when the pair falls below the threshold for its basis. The basis is `'description'` when both `x.described && y.described`, otherwise `'name'`:
+>    ```ts
+>    const threshold = (x: OverlapCourse, y: OverlapCourse) => (x.described && y.described ? t.courseEquiv : t.courseEquivName);
+>    const matches = greedyMatch(candA, candB, (x, y) => { const s = cosine(x.vector!, y.vector!); return s >= threshold(x, y) ? s : -1; }, Math.min(t.courseEquiv, t.courseEquivName));
+>    ```
+> 4. **Evidence.**
+>    - `equivalentCourses[]` gains `basis: 'description' | 'name'`.
+>    - `coverage` gains `embeddedA`/`embeddedB`, keeping `describedA`/`describedB`.
+>    - Add `descriptionMatches: number`, the count of equivalent pairs whose basis is `description`.
+> 5. **Tests.** The test fixtures' `course()` helper defaults to `described: true`, so the existing tests keep their meaning. Add two tests:
+>    - two name-only courses (`described: false`) with cosine 0.87 do **not** match (below 0.90), but at cosine 0.95 they do, with basis `'name'`;
+>    - two described courses at cosine 0.87 **do** match, with basis `'description'`.
+>
+>    Use `v(deg)` angles that give those cosines: cos 29.5° ≈ 0.870, cos 18.2° ≈ 0.950.
 
 **Files:**
 - Create: `packages/db/src/program-overlap/score.ts`, `packages/db/test/program-overlap-score.test.ts`
