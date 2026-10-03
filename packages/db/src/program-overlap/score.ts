@@ -20,7 +20,7 @@ export interface OverlapThresholds {
   bandModerate: number;
   bandHigh: number;
   serviceCourseShare: number; // share of same-level programmes above which a code is a service course
-  minDescribedCourses: number; // minimum EMBEDDED major courses per side for the content layer (name kept for v1 stability)
+  minEmbeddedCourses: number;  // minimum embedded major courses per side for the content layer
   courseActionCredits: number;
   actionIndex: number;
   mergeIndex: number;
@@ -39,7 +39,7 @@ export const OVERLAP_THRESHOLDS: OverlapThresholds = {
   bandModerate: 50,
   bandHigh: 70,
   serviceCourseShare: 0.25,
-  minDescribedCourses: 3,
+  minEmbeddedCourses: 3,
   courseActionCredits: 6,
   actionIndex: 50,
   mergeIndex: 70,
@@ -122,18 +122,37 @@ export interface PairScore {
   evidenceHash: string;
 }
 
-export function cosine(a: number[], b: number[]): number {
-  let dot = 0, na = 0, nb = 0;
+function assertSameLength(a: readonly number[], b: readonly number[]): void {
+  if (a.length !== b.length) throw new Error(`program-overlap: vector length mismatch (${a.length} vs ${b.length})`);
+}
+
+/** General cosine similarity; any non-zero vectors. */
+export function cosine(a: readonly number[], b: readonly number[]): number {
+  assertSameLength(a, b);
+  let d = 0, na = 0, nb = 0;
   for (let i = 0; i < a.length; i++) {
-    dot += a[i]! * b[i]!;
+    d += a[i]! * b[i]!;
     na += a[i]! * a[i]!;
     nb += b[i]! * b[i]!;
   }
-  return na === 0 || nb === 0 ? 0 : dot / Math.sqrt(na * nb);
+  return na === 0 || nb === 0 ? 0 : d / Math.sqrt(na * nb);
 }
 
-/** One-to-one greedy matching: all candidate pairs above `threshold`, most
- *  similar first; each left and right item is used at most once. */
+/** Dot product — equals the cosine for UNIT vectors only. The course and PLO
+ *  matching hot paths use it because every stored embedding is L2-normalised
+ *  on write (`writeVector` in ./vectors) and the readers return the stored
+ *  values unchanged. Anything not from those tables must go through `cosine`. */
+export function dot(a: readonly number[], b: readonly number[]): number {
+  assertSameLength(a, b);
+  let d = 0;
+  for (let i = 0; i < a.length; i++) d += a[i]! * b[i]!;
+  return d;
+}
+
+/** One-to-one greedy matching: all candidate pairs at or above `threshold`,
+ *  most similar first; each left and right item is used at most once. Equal
+ *  similarities break by left index, then right index, so callers must pass
+ *  inputs in a stable order. */
 export function greedyMatch<L, R>(
   left: readonly L[],
   right: readonly R[],
@@ -167,18 +186,22 @@ export function serviceCourseCodes(programmes: readonly OverlapProgramme[], shar
   return new Set([...counts].filter(([, n]) => n > limit).map(([code]) => code));
 }
 
-/** Major courses, de-duplicated by code (first occurrence wins). */
+/** Major courses, filtered first and then de-duplicated by code: a code also
+ *  listed under an excluded category still counts as major. On a repeat the
+ *  first occurrence is kept, with the largest recorded credits. */
 export function majorCourses(p: OverlapProgramme, serviceCodes: ReadonlySet<string>): OverlapCourse[] {
-  const seen = new Set<string>();
-  const out: OverlapCourse[] = [];
+  const byCode = new Map<string, OverlapCourse>();
   for (const c of p.courses) {
-    if (seen.has(c.code)) continue;
-    seen.add(c.code);
     if (c.category && EXCLUDED_CATEGORIES.has(c.category)) continue;
     if (serviceCodes.has(c.code)) continue;
-    out.push(c);
+    const prev = byCode.get(c.code);
+    if (!prev) {
+      byCode.set(c.code, c);
+    } else if (c.credits !== null && (prev.credits === null || c.credits > prev.credits)) {
+      byCode.set(c.code, { ...prev, credits: c.credits });
+    }
   }
-  return out;
+  return [...byCode.values()];
 }
 
 const credits = (c: OverlapCourse): number => c.credits ?? DEFAULT_COURSE_CREDITS;
@@ -188,6 +211,42 @@ const mean = (xs: Array<number | null>): number | null => {
   return ok.length ? sum(ok) / ok.length : null;
 };
 const clamp = (x: number): number => Math.max(0, Math.min(100, x));
+/** 0–100 share, or null when the denominator is 0 (0-credit S/U courses are real). */
+const pct = (num: number, den: number): number | null => (den > 0 ? clamp((num / den) * 100) : null);
+
+/** Rounds every number (deeply) to 4 dp so float noise never moves the hash. */
+function roundDeep(x: unknown): unknown {
+  if (typeof x === 'number') return Math.round(x * 1e4) / 1e4;
+  if (Array.isArray(x)) return x.map(roundDeep);
+  if (x !== null && typeof x === 'object') {
+    return Object.fromEntries(Object.entries(x).map(([k, val]) => [k, roundDeep(val)]));
+  }
+  return x;
+}
+
+/** Everything the AI recommendation reads. A change here re-runs the AI. */
+export interface EvidenceHashInput {
+  evidence: PairEvidence;
+  structure: number | null;
+  content: number | null;
+  outcome: number | null;
+  containmentAInB: number | null;
+  containmentBInA: number | null;
+  sharedStaff: number;
+  marketSimilarity: number | null;
+  actions: OverlapAction[];
+  languageVariant: boolean;
+}
+
+export function computeEvidenceHash(x: EvidenceHashInput): string {
+  const stable = {
+    evidence: x.evidence, structure: x.structure, content: x.content, outcome: x.outcome,
+    containmentAInB: x.containmentAInB, containmentBInA: x.containmentBInA,
+    sharedStaff: x.sharedStaff, marketSimilarity: x.marketSimilarity,
+    actions: x.actions, languageVariant: x.languageVariant,
+  };
+  return createHash('sha256').update(JSON.stringify(roundDeep(stable))).digest('hex');
+}
 
 export function bandFor(index: number | null, t: OverlapThresholds = OVERLAP_THRESHOLDS): OverlapBand {
   if (index === null || index < t.bandLow) return 'NONE';
@@ -221,7 +280,7 @@ export function scorePair(
   const codesB = new Map(majB.map((c) => [c.code, c]));
   const shared = majA.filter((c) => codesB.has(c.code));
   const sharedCredits = sum(shared.map((c) => Math.min(credits(c), credits(codesB.get(c.code)!))));
-  const structure = majA.length && majB.length ? clamp(((2 * sharedCredits) / (creditsA + creditsB)) * 100) : null;
+  const structure = majA.length && majB.length ? pct(2 * sharedCredits, creditsA + creditsB) : null;
 
   // Content — equivalent courses with different codes, over every EMBEDDED
   // major course (D7): most are embedded on their names alone, about a fifth
@@ -234,7 +293,7 @@ export function scorePair(
   let content: number | null = null;
   let equivCredits = 0;
   let equivalent: PairEvidence['equivalentCourses'] = [];
-  if (embA.length >= t.minDescribedCourses && embB.length >= t.minDescribedCourses) {
+  if (embA.length >= t.minEmbeddedCourses && embB.length >= t.minEmbeddedCourses) {
     const candA = embA.filter((c) => !sharedCodes.has(c.code));
     const candB = embB.filter((c) => !sharedCodes.has(c.code));
     const bothDescribed = (x: OverlapCourse, y: OverlapCourse): boolean => x.described && y.described;
@@ -245,7 +304,7 @@ export function scorePair(
       candA,
       candB,
       (x, y) => {
-        const s = cosine(x.vector!, y.vector!);
+        const s = dot(x.vector!, y.vector!);
         return s >= threshold(x, y) ? s : -1;
       },
       Math.min(t.courseEquiv, t.courseEquivName),
@@ -265,7 +324,7 @@ export function scorePair(
       embA.filter((c) => embCodesB.has(c.code)).map((c) => Math.min(credits(c), credits(embCodesB.get(c.code)!))),
     );
     const eA = sum(embA.map(credits)), eB = sum(embB.map(credits));
-    content = clamp(((2 * (sharedEmbeddedCredits + equivCredits)) / (eA + eB)) * 100);
+    content = pct(2 * (sharedEmbeddedCredits + equivCredits), eA + eB);
   }
 
   // Outcome — PLO coverage, both directions.
@@ -276,7 +335,7 @@ export function scorePair(
   if (a.plos.length && b.plos.length) {
     const bestFor = (p: OverlapPlo, others: OverlapPlo[]) =>
       others.reduce<{ o: OverlapPlo | null; s: number }>((best, o) => {
-        const s = cosine(p.vector, o.vector);
+        const s = dot(p.vector, o.vector);
         return s > best.s ? { o, s } : best;
       }, { o: null, s: -1 });
     const coveredA = a.plos.filter((p) => bestFor(p, b.plos).s >= t.ploMatch);
@@ -294,8 +353,8 @@ export function scorePair(
 
   const overlapIndex = mean([structure, content, outcome]);
   const matchedCredits = sharedCredits + (content === null ? 0 : equivCredits);
-  const containmentAInB = mean([structure === null ? null : clamp((matchedCredits / creditsA) * 100), ploShareA]);
-  const containmentBInA = mean([structure === null ? null : clamp((matchedCredits / creditsB) * 100), ploShareB]);
+  const containmentAInB = mean([majA.length && majB.length ? pct(matchedCredits, creditsA) : null, ploShareA]);
+  const containmentBInA = mean([majA.length && majB.length ? pct(matchedCredits, creditsB) : null, ploShareB]);
 
   const staffB = new Set(b.staffIds);
   const sharedStaff = new Set(a.staffIds.filter((s) => staffB.has(s))).size;
@@ -334,7 +393,10 @@ export function scorePair(
     band: bandFor(overlapIndex, t),
     sharedCredits, equivCredits, sharedStaff, marketSimilarity, languageVariant,
     actions, primaryAction, evidence,
-    evidenceHash: createHash('sha256').update(JSON.stringify(evidence)).digest('hex'),
+    evidenceHash: computeEvidenceHash({
+      evidence, structure, content, outcome, containmentAInB, containmentBInA,
+      sharedStaff, marketSimilarity, actions, languageVariant,
+    }),
   };
 }
 
@@ -351,5 +413,5 @@ export function isLanguageVariant(a: OverlapProgramme, b: OverlapProgramme): boo
 
 /** Store a pair when it scores ≥ storeIndex or shares a major course or staff. */
 export function shouldStorePair(s: PairScore, t: OverlapThresholds = OVERLAP_THRESHOLDS): boolean {
-  return (s.overlapIndex !== null && s.overlapIndex >= t.storeIndex) || s.sharedCredits > 0 || s.sharedStaff > 0;
+  return (s.overlapIndex !== null && s.overlapIndex >= t.storeIndex) || s.evidence.sharedCourses.length > 0 || s.sharedStaff > 0;
 }

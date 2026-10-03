@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   OVERLAP_THRESHOLDS,
   bandFor,
+  computeEvidenceHash,
   cosine,
+  dot,
   greedyMatch,
   majorCourses,
   scorePair,
@@ -240,5 +242,85 @@ describe('bands and actions', () => {
     expect(scorePair(a, b, { serviceCodes: new Set(), thresholds: T }).evidenceHash).toBe(
       scorePair(a, b, { serviceCodes: new Set(), thresholds: T }).evidenceHash,
     );
+  });
+});
+
+describe('review fixes', () => {
+  const ctx = { serviceCodes: new Set<string>(), thresholds: T };
+  const zero = (code: string, opts: Parameters<typeof course>[2] = {}) => course(code, 0, opts);
+
+  it('cosine throws on mismatched vector lengths; dot is the unit-vector fast path', () => {
+    expect(() => cosine([1, 0], [1, 0, 0])).toThrow(/length/);
+    expect(() => dot([1, 0], [1])).toThrow(/length/);
+    expect(dot(v(0), v(60))).toBeCloseTo(cosine(v(0), v(60)), 12);
+  });
+
+  it('greedyMatch breaks ties by left index, then right index', () => {
+    const left = [{ id: 'a' }, { id: 'b' }];
+    const right = [{ id: 'x' }, { id: 'y' }];
+    const m = greedyMatch(left, right, () => 1, 0.5);
+    expect(m.map((p) => `${p.left.id}${p.right.id}`)).toEqual(['ax', 'by']);
+  });
+
+  it('majorCourses filters before de-duplicating and keeps the max credits', () => {
+    const p = prog('p', {
+      courses: [
+        course('C1', 3, { category: 'GENERAL_EDUCATION' }),
+        course('C1', 3, { category: 'MAJOR_REQUIRED' }),
+        course('C2', 2),
+        course('C2', 4),
+        course('C3', 3, { credits: null }),
+        course('C3', 3),
+      ],
+    });
+    const m = majorCourses(p, new Set());
+    expect(m.map((c) => [c.code, c.credits, c.category])).toEqual([
+      ['C1', 3, 'MAJOR_REQUIRED'],
+      ['C2', 4, 'MAJOR_REQUIRED'],
+      ['C3', 3, 'MAJOR_REQUIRED'],
+    ]);
+  });
+
+  it('all-zero-credit programmes give null credit layers, never NaN', () => {
+    const a = prog('a', { courses: [zero('A1'), zero('A2', { vector: v(90) }), zero('A3', { vector: v(180) })] });
+    const b = prog('b', { courses: [zero('A1'), zero('B2', { vector: v(-90) }), zero('B3', { vector: v(135) })] });
+    const s = scorePair(a, b, ctx);
+    expect(s.structure).toBeNull();
+    expect(s.content).toBeNull();
+    expect(s.containmentAInB).toBeNull();
+    expect(s.containmentBInA).toBeNull();
+    expect(s.overlapIndex).toBeNull();
+    expect(shouldStorePair(s)).toBe(true); // a shared 0-credit course still stores the pair
+  });
+
+  it('one zero-credit side: that side has no credit containment, the other does', () => {
+    const plo = [{ ordinal: 1, text: 'x', vector: v(0) }];
+    const a = prog('a', { courses: [zero('C1')], plos: plo });
+    const b = prog('b', { courses: [zero('C1'), course('C2', 3, { vector: v(90) })], plos: plo });
+    const s = scorePair(a, b, ctx);
+    expect(s.structure).toBe(0); // 2 × 0 / (0 + 3)
+    expect(s.containmentAInB).toBe(100); // credit figure null → PLO share only
+    expect(s.containmentBInA).toBe(50); // mean(0 credits of 3, 100 PLO)
+    expect(Number.isNaN(s.overlapIndex)).toBe(false);
+  });
+
+  it('evidence hash changes with shared staff and market similarity', () => {
+    const base = { courses: [course('C1', 3)] };
+    const h = (over: Partial<OverlapProgramme>, overB: Partial<OverlapProgramme> = {}) =>
+      scorePair(prog('a', { ...base, ...over }), prog('b', { ...base, ...overB }), ctx).evidenceHash;
+    expect(h({ staffIds: ['s1'] }, { staffIds: ['s1'] })).not.toBe(h({ staffIds: ['s1'] }, { staffIds: ['s2'] }));
+    // cos 0 → 100; cos 20° = 0.940 → 97.1
+    expect(h({ marketVector: v(0) }, { marketVector: v(0) })).not.toBe(h({ marketVector: v(0) }, { marketVector: v(20) }));
+  });
+
+  it('evidence hash ignores float noise below 4 dp', () => {
+    const s = scorePair(prog('a', { courses: [course('C1', 3)] }), prog('b', { courses: [course('C1', 3)] }), ctx);
+    const payload = (x: number) => ({
+      evidence: s.evidence, structure: x, content: s.content, outcome: s.outcome,
+      containmentAInB: s.containmentAInB, containmentBInA: s.containmentBInA,
+      sharedStaff: s.sharedStaff, marketSimilarity: s.marketSimilarity, actions: s.actions, languageVariant: s.languageVariant,
+    });
+    expect(computeEvidenceHash(payload(50.00001))).toBe(computeEvidenceHash(payload(50.00002)));
+    expect(computeEvidenceHash(payload(50.00001))).not.toBe(computeEvidenceHash(payload(50.1)));
   });
 });
