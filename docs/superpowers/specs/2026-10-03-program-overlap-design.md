@@ -115,7 +115,7 @@ Every unordered pair (A, B) of canonical programmes **at the same level** is sco
 ### 5.3 Signals reported beside the index (not part of it)
 - **Shared active staff:** distinct `FacultyMember`s with `isActive` who are linked through `ProgramFaculty` to both programmes.
 - **Market similarity:** cosine of the two market-profile embeddings, rescaled to 0–100 against the calibrated floor and ceiling (§9).
-- **Language variant:** set when the two programmes have the same `degreeNameTh` (or the same normalised `nameTh` once "หลักสูตรนานาชาติ" / "(นานาชาติ)" is stripped) and differ in `language`. These pairs overlap by design; they are labelled, are never recommended for merging, and are left out of both KRIs.
+- **Language variant:** set when the two programmes have the same normalised `nameTh` once "หลักสูตรนานาชาติ" / "(นานาชาติ)" / "International Program" is stripped, **and** differ in `language`. The degree name alone is *not* enough: generic degree names such as "วิศวกรรมศาสตรบัณฑิต" span unrelated programmes taught in both languages (checked on dev, 2026-10-03). These pairs overlap by design; they are labelled, are never recommended for merging, and are left out of both KRIs.
 
 ### 5.4 Bands and storage
 - **Bands:** high ≥ 70, moderate 50–69, low 30–49. Bands are provisional until calibration.
