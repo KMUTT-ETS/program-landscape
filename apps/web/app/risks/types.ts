@@ -329,3 +329,8 @@ export const MEASURE_KIND_LABEL: Record<RiskMeasureKind, string> = {
   FACULTY_HIRE: 'Hire specialist faculty',
   TUITION_ADJUST: 'Adjust tuition',
 };
+
+// ─── Self-competition (program-overlap spec §10.2) ──────────────────────
+// Type-only re-export of GET /risks/self-competition's row shape — erased at
+// compile time, so no Prisma reaches the client bundle.
+export type { SelfCompetitionKri, SelfCompetitionRow } from '@kku/db';

@@ -1,12 +1,13 @@
 import { redirect } from 'next/navigation';
-import type { SessionUser } from '@kku/shared';
+import type { ApiMeta, SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { apiFetchSafe } from '@/lib/api-client';
+import { apiFetchEnvelope, apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader } from '@kku/ui';
 import { RisksPortfolioClient } from './portfolio-client';
-import type { PortfolioResponse } from './types';
+import { SelfCompetitionPanel } from './self-competition-panel';
+import type { PortfolioResponse, SelfCompetitionRow } from './types';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Risk Management' };
@@ -29,7 +30,15 @@ export default async function RisksPage({
   const qs = new URLSearchParams({ level: 'BACHELOR' });
   if (sp.faculty) qs.set('facultyId', sp.faculty);
 
-  const portfolioRes = await apiFetchSafe<PortfolioResponse>(`/risks/portfolio?${qs}`);
+  // Self-competition (program-overlap spec §10.2): pairs breaching the two
+  // overlap KRIs, same level + faculty filter as the portfolio. Fetched as an
+  // envelope so the panel's provenance drawer shows the endpoint's sources.
+  const [portfolioRes, selfCompetition] = await Promise.all([
+    apiFetchSafe<PortfolioResponse>(`/risks/portfolio?${qs}`),
+    apiFetchEnvelope<SelfCompetitionRow[]>(`/risks/self-competition?${qs}`).catch(() => null),
+  ]);
+  const selfCompetitionRows: SelfCompetitionRow[] | null = selfCompetition?.data ?? null;
+  const selfCompetitionMeta: ApiMeta | null = selfCompetition?.meta ?? null;
   const portfolio = portfolioRes.ok ? portfolioRes.data : null;
   const portfolioError = portfolioRes.ok ? null : portfolioRes.error;
 
@@ -78,6 +87,9 @@ export default async function RisksPage({
       ) : (
         <DiagnosticEmptyState surface="risk portfolio" error={portfolioError} />
       )}
+      <div className="mt-[24px]">
+        <SelfCompetitionPanel rows={selfCompetitionRows} meta={selfCompetitionMeta} />
+      </div>
     </AuthedAppShell>
   );
 }

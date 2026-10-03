@@ -169,3 +169,31 @@ describe('layer values and URL state', () => {
     ).toBe('level=MASTER&layer=content&facultyId=f1&threshold=50&pair=p9');
   });
 });
+
+describe('risk self-competition panel', () => {
+  const riskPage = read('app/risks/page.tsx');
+  const panel = read('app/risks/self-competition-panel.tsx');
+
+  it('is fetched from /risks/self-competition and rendered on /risks', () => {
+    expect(riskPage).toContain('`/risks/self-competition?${qs}`');
+    expect(riskPage).toContain('<SelfCompetitionPanel rows={selfCompetitionRows} meta={selfCompetitionMeta} />');
+  });
+
+  it('carries provenance and the explicit empty state', () => {
+    expect(panel).toContain('<ProvenanceButton');
+    expect(panel).toContain("'No programme is breaching the overlap or market-confusion indicators.'");
+  });
+
+  it('links both programmes and shows intakes and measure kinds', () => {
+    expect(panel).toContain('<ProgrammeLink p={r.programA} />');
+    expect(panel).toContain('<ProgrammeLink p={r.programB} />');
+    expect(panel).toContain('r.intakeA');
+    expect(panel).toContain('r.intakeB');
+    expect(panel).toContain('MEASURE_KIND_LABEL[k]');
+  });
+
+  it('never runtime-imports @kku/db or the @kku/shared barrel in the panel', () => {
+    expect(panel).not.toMatch(/^import \{[^}]*\} from '@kku\/db'/m);
+    expect(panel).not.toMatch(/^import \{[^}]*\} from '@kku\/shared'/m);
+  });
+});
