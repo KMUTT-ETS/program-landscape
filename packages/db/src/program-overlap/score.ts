@@ -15,7 +15,12 @@ export interface OverlapThresholds {
   ploMatch: number;           // cosine for a PLO to count as covered
   marketFloor: number;        // cosine mapped to 0
   marketCeiling: number;      // cosine mapped to 100
-  marketConfusion: number;    // 0–100 market similarity for DIFFERENTIATE / KRI
+  /** 0–100 market similarity: market_confusion_max WARN, and the floor at
+   *  which a pair is stored even with low curriculum overlap. PROVISIONAL. */
+  marketConfusionWarn: number;
+  /** 0–100 market similarity: market_confusion_max CRITICAL and the
+   *  DIFFERENTIATE action. PROVISIONAL. */
+  marketConfusion: number;
   bandLow: number;
   bandModerate: number;
   bandHigh: number;
@@ -34,7 +39,10 @@ export const OVERLAP_THRESHOLDS: OverlapThresholds = {
   ploMatch: 0.8,
   marketFloor: 0.6,
   marketCeiling: 0.95,
-  marketConfusion: 70,
+  // PROVISIONAL — the market-confusion thresholds are set at calibration
+  // (Task 11, spec §9). The single source of truth: risk-scoring.ts reads them.
+  marketConfusionWarn: 60,
+  marketConfusion: 75,
   bandLow: 30,
   bandModerate: 50,
   bandHigh: 70,
@@ -418,7 +426,15 @@ export function isLanguageVariant(a: OverlapProgramme, b: OverlapProgramme): boo
   return marked(a) !== marked(b);
 }
 
-/** Store a pair when it scores ≥ storeIndex or shares a major course or staff. */
+/** Store a pair when it scores ≥ storeIndex, shares a major course or staff,
+ *  or its market similarity reaches the market-confusion WARN — so
+ *  market_confusion_max sees a confusable pair even when its curriculum
+ *  overlap is low or unmeasured. */
 export function shouldStorePair(s: PairScore, t: OverlapThresholds = OVERLAP_THRESHOLDS): boolean {
-  return (s.overlapIndex !== null && s.overlapIndex >= t.storeIndex) || s.evidence.sharedCourses.length > 0 || s.sharedStaff > 0;
+  return (
+    (s.overlapIndex !== null && s.overlapIndex >= t.storeIndex) ||
+    s.evidence.sharedCourses.length > 0 ||
+    s.sharedStaff > 0 ||
+    (s.marketSimilarity !== null && s.marketSimilarity >= t.marketConfusionWarn)
+  );
 }

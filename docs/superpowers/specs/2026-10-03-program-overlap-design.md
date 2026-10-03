@@ -106,7 +106,7 @@ Every unordered pair (A, B) of canonical programmes **at the same level** is sco
   - **Null** when either programme has no PLOs.
 
 ### 5.2 Index and containment
-- **Overlap index** = the mean of the non-null layers, equal-weighted. If every layer is null, the pair has no index and is not stored.
+- **Overlap index** = the mean of the non-null layers, equal-weighted. If every layer is null, the pair has no index (it is stored only through the market rule below).
 - **Containment, A in B** = the mean of A's non-null one-directional figures:
   - `(sharedCredits + equivCredits) / majorCredits_A`, where `equivCredits` counts only when the content layer is non-null;
   - `covered_A / n_A`.
@@ -119,7 +119,7 @@ Every unordered pair (A, B) of canonical programmes **at the same level** is sco
 
 ### 5.4 Bands and storage
 - **Bands:** high ≥ 70, moderate 50–69, low 30–49. Bands are provisional until calibration.
-- **What is stored:** a pair whose index is ≥ 30, **or** that shares at least one major course or one active staff member.
+- **What is stored:** a pair whose index is ≥ 30, **or** that shares at least one major course or one active staff member, **or** whose market similarity is at or above the market-confusion warn value (60) — so a confusable pair is stored even with low curriculum overlap.
 
 ## 6. Actions and AI recommendations
 
@@ -131,8 +131,10 @@ Actions are chosen by rules. A pair may receive several; the strongest becomes `
 | `CONSOLIDATE_EQUIVALENT_COURSES` | `equivCredits ≥ 6` |
 | `COORDINATE_SHARED_COURSES` | `sharedCredits ≥ 6` |
 | `SHARE_STAFF_RESOURCES` | index ≥ 50 |
-| `DIFFERENTIATE` | index ≥ 50 **and** market similarity ≥ `MARKET_CONFUSION_THRESHOLD` |
+| `DIFFERENTIATE` | index ≥ 50 **and** market similarity ≥ the market-confusion critical value (75) |
 | `CONSIDER_MERGE_OR_TRACK` | index ≥ 70 **and** max containment ≥ 80 **and** not a language variant |
+
+Market confusion: warn 60 / critical 75, provisional until calibration; `DIFFERENTIATE` uses the critical value; pairs at or above warn are stored even with low curriculum overlap. Both live in `OVERLAP_THRESHOLDS` (`marketConfusionWarn`, `marketConfusion`).
 
 Strength order, weakest to strongest: coordinate shared courses < consolidate equivalent courses < share staff and resources < differentiate < consider merge or track.
 
@@ -158,7 +160,7 @@ Strength order, weakest to strongest: coordinate shared courses < consolidate eq
 
 - **Two entries are added to `RISK_INDICATOR_CATALOG`** (`packages/db/src/risk-scoring.ts`). Both use `alarmDirection: high`.
   - **`curriculum_overlap_max`:** the programme's highest overlap index against any same-level sibling, excluding language variants. Warning at 50, breach at 70.
-  - **`market_confusion_max`:** the programme's highest market similarity against any same-level sibling, excluding language variants. Warning and breach thresholds are set at calibration.
+  - **`market_confusion_max`:** the programme's highest market similarity against any same-level sibling, excluding language variants. Market confusion: warn 60 / critical 75, provisional until calibration (`OVERLAP_THRESHOLDS.marketConfusionWarn` / `marketConfusion`); `DIFFERENTIATE` uses the critical value; pairs at or above warn are stored even with low curriculum overlap.
 - **Evaluation:** both are evaluated in phase 8 from the latest SUCCEEDED `ProgramOverlapRun`. Without one, they are null ("no overlap analysis yet"), never 0.
 - **Measures** (in `packages/db/src/risk-measure-rules.ts`):
   - a `curriculum_overlap_max` breach adds `CURRICULUM_DIFFERENTIATE`, and adds `PROGRAM_MERGE` too when the breaching pair's actions include `CONSIDER_MERGE_OR_TRACK`;

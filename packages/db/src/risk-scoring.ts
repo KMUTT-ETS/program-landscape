@@ -1539,10 +1539,12 @@ export function evaluateKris(inputs: ProgramRiskInputs, freshnessDate: Date): Kr
 // overlap bands so the KRI and the Education heatmap agree.
 export const CURRICULUM_OVERLAP_WARN = OVERLAP_THRESHOLDS.bandModerate; // 50
 export const CURRICULUM_OVERLAP_CRITICAL = OVERLAP_THRESHOLDS.bandHigh; // 70
-// PROVISIONAL — set at calibration, Task 11 (program-overlap spec §9).
-// Changing these after release bumps RISK_SCORING_VERSION.
-export const MARKET_CONFUSION_WARN = 60;
-export const MARKET_CONFUSION_CRITICAL = 75;
+// Market confusion: provisional until calibration — defined once in
+// OVERLAP_THRESHOLDS (marketConfusionWarn / marketConfusion), which also drive
+// pair storage and the DIFFERENTIATE action. Changing them after release
+// bumps RISK_SCORING_VERSION and PROGRAM_OVERLAP_VERSION.
+export const MARKET_CONFUSION_WARN = OVERLAP_THRESHOLDS.marketConfusionWarn; // 60
+export const MARKET_CONFUSION_CRITICAL = OVERLAP_THRESHOLDS.marketConfusion; // 75
 
 export const RISK_INDICATOR_CATALOG = [
   {

@@ -236,6 +236,15 @@ describe('bands and actions', () => {
       { serviceCodes: new Set(), thresholds: T },
     );
     expect(s.actions).toContain('DIFFERENTIATE');
+    // market ≈ 70: above warn, below the critical value DIFFERENTIATE uses
+    const mid = scorePair(
+      prog('a', { plos: plo, marketVector: v(0) }),
+      prog('b', { plos: plo, marketVector: v(32.3) }),
+      { serviceCodes: new Set(), thresholds: T },
+    );
+    expect(mid.marketSimilarity!).toBeGreaterThan(T.marketConfusionWarn);
+    expect(mid.marketSimilarity!).toBeLessThan(T.marketConfusion);
+    expect(mid.actions).not.toContain('DIFFERENTIATE');
   });
 
   it('shouldStorePair: index ≥ 30, a shared major course, or shared staff', () => {
@@ -254,6 +263,24 @@ describe('bands and actions', () => {
     expect(shouldStorePair(staff)).toBe(true);
     // none
     expect(shouldStorePair(scorePair(prog('a'), prog('b'), ctx))).toBe(false);
+  });
+
+  it('shouldStorePair: market similarity at the market-confusion warn stores a pair with no curriculum overlap', () => {
+    const ctx = { serviceCodes: new Set<string>(), thresholds: T };
+    const close = scorePair(prog('a', { marketVector: v(0) }), prog('b', { marketVector: v(30) }), ctx);
+    expect(close.overlapIndex).toBeNull();
+    expect(close.marketSimilarity!).toBeGreaterThanOrEqual(T.marketConfusionWarn);
+    expect(shouldStorePair(close)).toBe(true);
+    const far = scorePair(prog('a', { marketVector: v(0) }), prog('b', { marketVector: v(50) }), ctx);
+    expect(far.marketSimilarity!).toBeLessThan(T.marketConfusionWarn);
+    expect(shouldStorePair(far)).toBe(false);
+    // exactly at the warn value stores; just below does not
+    expect(shouldStorePair({ ...far, marketSimilarity: T.marketConfusionWarn })).toBe(true);
+    expect(shouldStorePair({ ...far, marketSimilarity: T.marketConfusionWarn - 0.01 })).toBe(false);
+  });
+
+  it('market-confusion thresholds: warn 60, critical 75 (provisional)', () => {
+    expect([T.marketConfusionWarn, T.marketConfusion]).toEqual([60, 75]);
   });
 
   it('evidence hash is stable for equal evidence', () => {

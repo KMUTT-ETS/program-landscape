@@ -307,9 +307,11 @@ the latest SUCCEEDED full run of the programme's level with newer SUCCEEDED
 scoped runs overlaid (`latestOverlapPairs`, `packages/db/src/program-overlap/merge.ts`),
 excluding language-variant pairs. With no covering run they are null — no
 breach row — never 0. A programme covered by a run but with no stored pair
-is below the storage floor and also gets no row. Market similarity exists
-only on stored pairs. † Provisional, set at calibration
-(`MARKET_CONFUSION_WARN` / `MARKET_CONFUSION_CRITICAL`). A CRITICAL
+is below the storage floor and also gets no row. A pair whose market
+similarity reaches the warn value is always stored, so the market KRI sees
+confusable pairs with low curriculum overlap. † Provisional, set at
+calibration; defined once in `OVERLAP_THRESHOLDS`
+(`marketConfusionWarn` / `marketConfusion`, which `DIFFERENTIATE` also uses). A CRITICAL
 `curriculum_overlap_max` fires `CURRICULUM_DIFFERENTIATE`, plus
 `PROGRAM_MERGE` when the max pair's actions include
 `CONSIDER_MERGE_OR_TRACK`; a CRITICAL `market_confusion_max` fires
