@@ -69,6 +69,7 @@ emit_verdict() {
   "tableCount": ${TABLE_COUNT:-null},
   "programCount": ${PROGRAM_COUNT:-null},
   "auditLogMaxAgeHours": ${AUDIT_LOG_MAX_AGE_HOURS:-null},
+  "auditLogCheck": "${AUDIT_CHECK:-not run}",
   "durationSec": $((SECONDS)),
   "detail": "$(echo "$detail" | head -c 500)"
 }
@@ -172,15 +173,61 @@ PROGRAM_COUNT=$(run_q "SELECT COUNT(*) FROM programs WHERE code LIKE 'KKU-SEQ-%'
 [ -n "$PROGRAM_COUNT" ] || fail_verify "Could not read program count"
 [ "$PROGRAM_COUNT" -ge 200 ] || fail_verify "Only $PROGRAM_COUNT KKU-SEQ programs (expected ≥ 200)"
 
-# Assertion 3: audit-log freshness — at least one row in the last 26 h.
-# Catches a backup that landed but is from a stalled DB write path.
+# Assertion 3: the dump holds every audit row the LIVE database already had
+# when the dump was taken. Catches a backup file that landed on time but came
+# from a stalled or partial write path.
+#
+# This used to be "newest audit_logs row < 26 h old" — wall clock, not the
+# live DB. A quiet weekend with no audited activity then read as a broken
+# backup: prod 2026-10-03, a dump restored cleanly (151 tables, 301 programs,
+# backup age 0 h) and was reported FAILED because nobody had made an audited
+# change for 30 h, which blocked a deploy. The file's own freshness is already
+# guarded by the 26 h backup-age check above; this check is about CONTENT.
+#
+# Compare against live rows created at least DUMP_MARGIN_SEC before the dump
+# file's mtime (= when pg_dump finished). pg_dump reads one snapshot taken at
+# its START, so a row written while it ran may legitimately be missing; the
+# margin covers the dump's own runtime (minutes) with room to spare.
 AUDIT_LOG_MAX_AGE_HOURS=$(run_q "
   SELECT EXTRACT(EPOCH FROM (NOW() - MAX(created_at)))::INT / 3600
   FROM audit_logs
 ")
 [ -n "$AUDIT_LOG_MAX_AGE_HOURS" ] || fail_verify "audit_logs table empty in restored dump"
-if [ "$AUDIT_LOG_MAX_AGE_HOURS" -gt 26 ]; then
-  fail_verify "Newest audit_logs row is ${AUDIT_LOG_MAX_AGE_HOURS} h old (>26 h)"
+
+DUMP_MARGIN_SEC="${DUMP_MARGIN_SEC:-3600}"
+BACKUP_EPOCH=$(sudo stat -c %Y "$BACKUP_FILE")
+DUMP_AUDIT_MAX=$(run_q "SELECT COALESCE(EXTRACT(EPOCH FROM MAX(created_at))::BIGINT, 0) FROM audit_logs")
+
+# Live DB, read the same way backup.sh reaches it: exec into the running
+# postgres container of the current release (local socket auth).
+live_q() {
+  local current="$DEPLOY_ROOT/current" pg_user pg_db
+  [ -d "$current" ] || return 1
+  pg_user="$(sudo cat "$DEPLOY_ROOT/secrets/postgres_user" 2>/dev/null | tr -d '[:space:]')" || return 1
+  pg_db="$(sudo grep -E '^POSTGRES_DB=' "$DEPLOY_ROOT/.env.prod" 2>/dev/null | cut -d= -f2 | tr -d '[:space:]')"
+  pg_db="${pg_db:-program_landscape}"
+  [ -n "$pg_user" ] || return 1
+  (cd "$current" && RELEASE_VERSION="$(tr -d '[:space:]' < VERSION)" \
+    sudo -E docker compose exec -T postgres \
+      psql -U "$pg_user" -d "$pg_db" -At -c "$1" 2>/dev/null)
+}
+
+LIVE_AUDIT_MAX="$(live_q "
+  SELECT COALESCE(EXTRACT(EPOCH FROM MAX(created_at))::BIGINT, 0)
+  FROM audit_logs
+  WHERE created_at <= to_timestamp($BACKUP_EPOCH - $DUMP_MARGIN_SEC)
+" || true)"
+
+if ! [[ "$LIVE_AUDIT_MAX" =~ ^[0-9]+$ ]]; then
+  # The restore itself is proven; only the content-vs-live comparison could
+  # not run. Do not fail the verdict on that (it would block deploys on a
+  # live-DB hiccup), but say so in the verdict so it is visible.
+  AUDIT_CHECK="skipped: live database not reachable"
+  log "  audit-log check SKIPPED — live database not reachable"
+elif [ "$DUMP_AUDIT_MAX" -lt "$LIVE_AUDIT_MAX" ]; then
+  fail_verify "Dump is missing audit rows the live database had before it was taken (newest in dump $(date -u -d "@$DUMP_AUDIT_MAX" +%Y-%m-%dT%H:%MZ), live $(date -u -d "@$LIVE_AUDIT_MAX" +%Y-%m-%dT%H:%MZ))"
+else
+  AUDIT_CHECK="ok: dump matches live"
 fi
 
 # Assertion 4: no orphaned data — pick a couple of FK chains the seed
@@ -195,7 +242,7 @@ ORPHAN_COUNT=$(run_q "
 log "All assertions passed:"
 log "  tables: $TABLE_COUNT"
 log "  programs: $PROGRAM_COUNT"
-log "  audit-log lag: ${AUDIT_LOG_MAX_AGE_HOURS} h"
+log "  audit-log lag: ${AUDIT_LOG_MAX_AGE_HOURS} h (informational — ${AUDIT_CHECK})"
 
 emit_verdict "OK" ""
 log "Verdict written to $STATE_FILE"

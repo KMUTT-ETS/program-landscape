@@ -64,6 +64,18 @@ jobs:
           [ "$failed" -eq 0 ] || exit 1
           echo "OK: no row-removal call in the Scholar modules."
 
+  # verify-backup.sh gates every prod deploy (preflight gate 6), so its
+  # verdict logic is regression-tested against fake docker/sudo — no
+  # Postgres needed. Added after a quiet weekend read as a broken backup
+  # and blocked the 2026-10-03 deploy.
+  verify-backup-logic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - name: verify-backup.sh verdict cases
+        run: bash scripts/dr/test-verify-backup.sh
+
   # Secret scan. Sits beside the migration linter as a second cheap pre-flight
   # gate — a credential is far more expensive to deal with once it is in
   # history than once it is in a diff.
