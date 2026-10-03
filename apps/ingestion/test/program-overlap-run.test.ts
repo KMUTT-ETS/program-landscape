@@ -73,6 +73,14 @@ describe('planRunPairs', () => {
     expect(plan.all).toBeNull();
   });
 
+  it('records the programmes it measured on courses: every one with a major course, scope only in a scoped run', () => {
+    const withEmpty = [...progs, prog('p9')]; // p9 has no major course at all
+    expect(planRunPairs(withEmpty, { scopeProgramIds: [] }).scoredProgramIds).toEqual(
+      ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8'],
+    );
+    expect(planRunPairs(withEmpty, { scopeProgramIds: ['p3', 'p9'] }).scoredProgramIds).toEqual(['p3']);
+  });
+
   it('scores only the pairs touching the scoped programmes', () => {
     const plan = planRunPairs(progs, { scopeProgramIds: ['p3'] });
     expect(plan.scored).toBe(7);
@@ -150,6 +158,8 @@ describe('runProgramOverlap', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ runId: 'run1', programAId: 'p1', programBId: 'p2', sharedCredits: 9 });
     expect(committed[1]!.args.data).toMatchObject({ status: 'SUCCEEDED', pairsScored: 28, pairsStored: 1 });
+    const cov = (committed[1]!.args.data as { coverageJson: { scoredProgramIds: string[] } }).coverageJson;
+    expect(cov.scoredProgramIds).toEqual(['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8']);
   });
 
   it('splits more than 500 stored pairs into batches inside the same transaction', async () => {

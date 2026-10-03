@@ -16,13 +16,19 @@ import type { OverlapAction, ProgramLevel } from '@prisma/client';
 import { byCodeUnits } from './load';
 import {
   latestOverlapPairs,
+  coveringOverlapRun,
   overlapSelectionCovers,
+  overlapSelectionMeasures,
   type OverlapPairRef,
   type OverlapRunRef,
   type OverlapRunSelection,
 } from './merge';
 
 export interface OverlapRiskSignal {
+  /** The covering run measured this programme on courses (it has at least one
+   *  major course). False → every curriculum field is null and the
+   *  curriculum KRI emits no row: covered is not measured. */
+  curriculumMeasured: boolean;
   /** Highest overlap index against a same-level sibling (language variants
    *  excluded). Null when the programme has no stored pair with an index —
    *  every pair is then below the storage floor, so there is no breach row. */
@@ -80,8 +86,8 @@ export function overlapRiskSignalFromPairs(
   pairs: readonly OverlapRiskPair[],
 ): OverlapRiskSignal | null {
   if (!overlapSelectionCovers(selection, programId)) return null;
-  const covering = selection.scopedRuns.filter((r) => r.scopeProgramIds.includes(programId));
-  const runId = covering.length > 0 ? covering[covering.length - 1]!.id : selection.fullRun!.id;
+  const runId = coveringOverlapRun(selection, programId)!.id;
+  const curriculumMeasured = overlapSelectionMeasures(selection, programId);
 
   let curriculum: Best | null = null;
   let market: Best | null = null;
@@ -89,7 +95,7 @@ export function overlapRiskSignalFromPairs(
     if (p.languageVariant) continue;
     const siblingId = p.programAId === programId ? p.programBId : p.programBId === programId ? p.programAId : null;
     if (siblingId === null) continue;
-    if (p.overlapIndex !== null && better(curriculum, p.overlapIndex, siblingId)) {
+    if (curriculumMeasured && p.overlapIndex !== null && better(curriculum, p.overlapIndex, siblingId)) {
       curriculum = { value: p.overlapIndex, siblingId, pair: p };
     }
     if (p.marketSimilarity !== null && better(market, p.marketSimilarity, siblingId)) {
@@ -97,6 +103,7 @@ export function overlapRiskSignalFromPairs(
     }
   }
   return {
+    curriculumMeasured,
     curriculumOverlapMax: curriculum?.value ?? null,
     curriculumSiblingId: curriculum?.siblingId ?? null,
     curriculumPairId: curriculum?.pair.id ?? null,

@@ -17,7 +17,7 @@ const base = { programId: 'p', level: 'BACHELOR', status: 'ACTIVE', tcasFunnel: 
 const withOverlap = (o: object) => ({ ...(base as object), overlap: o }) as never;
 const thresholds = Object.fromEntries(RISK_INDICATOR_CATALOG.map((c) => [c.slug, c]));
 const signal = (o: object = {}) => ({
-  curriculumOverlapMax: null, curriculumSiblingId: null, curriculumPairId: null, curriculumRunId: null,
+  curriculumMeasured: true, curriculumOverlapMax: null, curriculumSiblingId: null, curriculumPairId: null, curriculumRunId: null,
   curriculumContainmentMax: null, curriculumActions: [],
   mergeCandidate: false, marketConfusionMax: null, marketSiblingId: null, marketPairId: null, marketRunId: null,
   runId: 'r', ...o,
@@ -66,6 +66,11 @@ describe('overlap KRIs', () => {
     ]);
     // an OK/null row fires no rule
     expect(deriveRuleMeasures(none, thresholds)).toEqual([]);
+  });
+  it('a programme its covering run did not measure on courses gets no curriculum row; market still reads', () => {
+    const rows = evaluateKris(withOverlap(signal({ curriculumMeasured: false, marketConfusionMax: 80 })), new Date('2026-10-03'))
+      .filter((b) => b.indicatorSlug.endsWith('_max'));
+    expect(rows.map((b) => [b.indicatorSlug, b.severity])).toEqual([['market_confusion_max', 'CRITICAL']]);
   });
   it('WARN at 50, CRITICAL at 70', () => {
     const at = (v: number) => evaluateKris(withOverlap({ curriculumOverlapMax: v, marketConfusionMax: null, mergeCandidate: false, curriculumSiblingId: 'q', marketSiblingId: null }), new Date('2026-10-03'))

@@ -16,7 +16,8 @@
 //
 // The selection and merge are pure so the contract is unit-tested; the
 // loader below only fetches.
-import type { OverlapRunStatus, ProgramLevel, ProgramOverlapPair } from '@prisma/client';
+import { z } from 'zod';
+import type { OverlapRunStatus, Prisma, ProgramLevel, ProgramOverlapPair } from '@prisma/client';
 import { prisma } from '../index';
 import { byCodeUnits } from './load';
 
@@ -26,6 +27,10 @@ export interface OverlapRunRef {
   status: OverlapRunStatus;
   scopeProgramIds: readonly string[];
   completedAt: Date | null;
+  /** The programmes the run MEASURED on courses (coverageJson.scoredProgramIds).
+   *  Null or absent for a run written before the field existed: it is then
+   *  read as having measured every programme it covers. */
+  scoredProgramIds?: readonly string[] | null;
 }
 
 /** The pair fields the merge needs. */
@@ -69,6 +74,24 @@ export function overlapSelectionCovers(selection: OverlapRunSelection<OverlapRun
   return selection.fullRun !== null || selection.scopedRuns.some((r) => r.scopeProgramIds.includes(programId));
 }
 
+/** Pure: the run a programme's answer rests on — its latest covering scoped
+ *  run, else the full run; null when nothing covers it. */
+export function coveringOverlapRun<R extends OverlapRunRef>(selection: OverlapRunSelection<R>, programId: string): R | null {
+  const covering = selection.scopedRuns.filter((r) => r.scopeProgramIds.includes(programId));
+  return covering.length > 0 ? covering[covering.length - 1]! : selection.fullRun;
+}
+
+/** Pure: covered AND measured on courses. "Covered" only says a run looked at
+ *  the programme's pairs; a programme with no major course has no course
+ *  layer against anyone, so its absence of pairs means "not measured", not
+ *  "no overlap". The covering run's scoredProgramIds decides; a legacy run
+ *  without the list counts as measuring everything it covers. */
+export function overlapSelectionMeasures(selection: OverlapRunSelection<OverlapRunRef>, programId: string): boolean {
+  const run = coveringOverlapRun(selection, programId);
+  if (run === null) return false;
+  return run.scoredProgramIds == null || run.scoredProgramIds.includes(programId);
+}
+
 const pairKey = (p: OverlapPairRef): string =>
   byCodeUnits(p.programAId, p.programBId) <= 0 ? `${p.programAId}|${p.programBId}` : `${p.programBId}|${p.programAId}`;
 
@@ -99,6 +122,14 @@ export function mergeOverlapRuns<P extends OverlapPairRef>(
     for (const p of byRun.get(run.id) ?? []) current.set(pairKey(p), p);
   }
   return [...current.entries()].sort(([a], [b]) => byCodeUnits(a, b)).map(([, p]) => p);
+}
+
+const RunCoverageScored = z.object({ scoredProgramIds: z.array(z.string()) }).passthrough();
+
+/** coverageJson.scoredProgramIds, or null when the run predates it. */
+export function scoredProgramIdsOf(coverageJson: Prisma.JsonValue | null | undefined): string[] | null {
+  const parsed = RunCoverageScored.safeParse(coverageJson);
+  return parsed.success ? parsed.data.scoredProgramIds : null;
 }
 
 export type OverlapRunRow = OverlapRunRef & {
@@ -133,7 +164,7 @@ export async function latestOverlapPairs(
     orderBy: { completedAt: 'desc' },
     select: { completedAt: true },
   });
-  const runs = await prisma.programOverlapRun.findMany({
+  const rawRuns = await prisma.programOverlapRun.findMany({
     where: {
       level,
       status: 'SUCCEEDED',
@@ -141,9 +172,10 @@ export async function latestOverlapPairs(
     },
     select: {
       id: true, status: true, scopeProgramIds: true, completedAt: true,
-      level: true, methodologyVersion: true, startedAt: true,
+      level: true, methodologyVersion: true, startedAt: true, coverageJson: true,
     },
   });
+  const runs = rawRuns.map(({ coverageJson, ...r }) => ({ ...r, scoredProgramIds: scoredProgramIdsOf(coverageJson) }));
   const selection = selectOverlapRuns(runs);
   const runIds = [
     ...(selection.fullRun ? [selection.fullRun.id] : []),

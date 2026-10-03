@@ -68,6 +68,13 @@ export interface PlannedRun {
   /** Every scored pair — only when `keepAll` was asked (calibration). */
   all: PairScore[] | null;
   histogram: RunHistogram;
+  /** Programmes this run MEASURED on courses (at least one major course, so
+   *  the structure layer is computable against any partner that has one),
+   *  sorted. A scoped run lists only its scoped programmes. Stored in the
+   *  run's coverageJson; a reader treats a programme its covering run did
+   *  not measure as uncovered for the curriculum KRI — "covered" is not
+   *  "measured". */
+  scoredProgramIds: string[];
 }
 
 /** Highest cosine over the cross product. Uses `dot`, so it ASSUMES unit
@@ -97,6 +104,9 @@ export function planRunPairs(
     sorted.map((p) => [p.id, majorCourses(p, serviceCodes).filter((c) => c.vector !== null)]),
   );
   const scope = new Set(opts.scopeProgramIds);
+  const scoredProgramIds = sorted
+    .filter((p) => (scope.size === 0 || scope.has(p.id)) && majorCourses(p, serviceCodes).length > 0)
+    .map((p) => p.id);
   const histogram: RunHistogram = {
     structure: [], content: [], outcome: [], index: [], containment: [], market: [], marketCosine: [], bestCourse: [], bestPlo: [],
   };
@@ -131,7 +141,7 @@ export function planRunPairs(
       all?.push(s);
     }
   }
-  return { scored, stored, all, histogram };
+  return { scored, stored, all, histogram, scoredProgramIds };
 }
 
 export const LEVELS: readonly ProgramLevel[] = ['BACHELOR', 'MASTER', 'DOCTORAL', 'HIGHER_GRAD_DIPLOMA'];
@@ -266,7 +276,11 @@ export async function runProgramOverlap(opts: {
             completedAt: new Date(),
             pairsScored: plan.scored,
             pairsStored: plan.stored.length,
-            coverageJson: { ...coverage, distributions } as unknown as Prisma.InputJsonValue,
+            coverageJson: {
+              ...coverage,
+              distributions,
+              scoredProgramIds: plan.scoredProgramIds,
+            } as unknown as Prisma.InputJsonValue,
           },
         }),
       );

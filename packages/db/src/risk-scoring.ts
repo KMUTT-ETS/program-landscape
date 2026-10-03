@@ -1513,17 +1513,22 @@ export function evaluateKris(inputs: ProgramRiskInputs, freshnessDate: Date): Kr
   // with a null value (every pair is below the storage floor, which sits
   // below WARN). Values are maxima over stored pairs — see
   // program-overlap/risk.ts.
+  // Covered is not measured: a programme its covering run did not measure on
+  // courses (no major course) gets no curriculum row at all — never an OK
+  // that would read as "no overlap".
   if (inputs.overlap) {
     const c = inputs.overlap.curriculumOverlapMax;
     const raw = c == null ? 'OK' : c >= CURRICULUM_OVERLAP_CRITICAL ? 'CRITICAL' : c >= CURRICULUM_OVERLAP_WARN ? 'WARN' : 'OK';
-    out.push({
-      programId: inputs.programId,
-      indicatorSlug: 'curriculum_overlap_max',
-      value: c,
-      // The index is course-based (program-overlap D9), so no evidence cap.
-      severity: raw,
-      freshnessDate,
-    });
+    if (inputs.overlap.curriculumMeasured !== false) {
+      out.push({
+        programId: inputs.programId,
+        indicatorSlug: 'curriculum_overlap_max',
+        value: c,
+        // The index is course-based (program-overlap D9), so no evidence cap.
+        severity: raw,
+        freshnessDate,
+      });
+    }
     const m = inputs.overlap.marketConfusionMax;
     out.push({
       programId: inputs.programId,

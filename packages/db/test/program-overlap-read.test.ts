@@ -194,6 +194,14 @@ describe('programOverlapSection', () => {
     expect(await programOverlapSection('a')).toBeNull();
   });
 
+  it('returns null when the covering run did not measure the programme on courses', async () => {
+    mocks.programFindUnique.mockResolvedValue({ level: 'BACHELOR' });
+    mocks.runFindFirst.mockResolvedValue({ completedAt: run('f', 1).completedAt });
+    mocks.runFindMany.mockResolvedValue([{ ...run('f', 1), coverageJson: { scoredProgramIds: ['b'] } }]);
+    mocks.pairFindMany.mockResolvedValue([]);
+    expect(await programOverlapSection('a')).toBeNull();
+  });
+
   it('returns siblings: [] when no sibling reaches 30 (market-only pairs are not siblings)', async () => {
     mocks.programFindUnique.mockResolvedValue({ level: 'BACHELOR' });
     mocks.runFindFirst.mockResolvedValue({ completedAt: run('f', 1).completedAt });

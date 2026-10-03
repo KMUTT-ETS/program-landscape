@@ -23,7 +23,13 @@ import { academicYearContextSync } from '../academic-year';
 import { programFunnelRoundRows } from '../program-funnel';
 import { byCodeUnits } from './load';
 import { averageLinkageOrder, overlapGroups, type OverlapGroup } from './cluster';
-import { latestOverlapPairs, overlapSelectionCovers, type OverlapRunRow, type OverlapRunSelection } from './merge';
+import {
+  coveringOverlapRun,
+  latestOverlapPairs,
+  overlapSelectionMeasures,
+  type OverlapRunRow,
+  type OverlapRunSelection,
+} from './merge';
 import { overlapRiskSignalFromPairs } from './risk';
 import { OVERLAP_THRESHOLDS, PROGRAM_OVERLAP_VERSION, type PairEvidence } from './score';
 
@@ -327,9 +333,7 @@ function newestCompletedAt(selection: OverlapRunSelection<OverlapRunRow>): strin
 /** completedAt (ISO) of the newest run covering `programId`: its latest
  *  covering scoped run, else the full run. */
 function coveringCompletedAt(selection: OverlapRunSelection<OverlapRunRow>, programId: string): string | null {
-  const covering = selection.scopedRuns.filter((r) => r.scopeProgramIds.includes(programId));
-  const run = covering.length > 0 ? covering[covering.length - 1]! : selection.fullRun;
-  return run?.completedAt?.toISOString() ?? null;
+  return coveringOverlapRun(selection, programId)?.completedAt?.toISOString() ?? null;
 }
 
 function layerValue(p: ProgramOverlapPair, layer: OverlapMatrixLayer): number | null {
@@ -508,15 +512,15 @@ export async function overlapPairDetail(pairId: string): Promise<OverlapPairDeta
 // ─── Deep-Dive section ──────────────────────────────────────────────────
 
 /**
- * The Deep-Dive "Overlap" section. Null when no run covers the programme
- * (the section is hidden, D6); `siblings: []` when none reaches bandLow
+ * The Deep-Dive "Overlap" section. Null when no run covers the programme, or
+ * the covering run did not measure it on courses (the section is hidden, D6); `siblings: []` when none reaches bandLow
  * (also hidden by the page, but the API says why).
  */
 export async function programOverlapSection(programId: string): Promise<ProgramOverlapSection | null> {
   const program = await prisma.program.findUnique({ where: { id: programId }, select: { level: true } });
   if (!program) return null;
   const { selection, pairs } = await latestOverlapPairs(program.level, { programIds: [programId] });
-  if (!overlapSelectionCovers(selection, programId)) return null;
+  if (!overlapSelectionMeasures(selection, programId)) return null;
 
   const siblingPairs = pairs.filter(
     (p) =>

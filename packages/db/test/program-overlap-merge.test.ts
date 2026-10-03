@@ -12,11 +12,20 @@ vi.mock('../src/index', () => ({
   },
 }));
 
-import { latestOverlapPairs, mergeOverlapRuns, overlapSelectionCovers, selectOverlapRuns } from '../src/program-overlap/merge';
+import {
+  latestOverlapPairs,
+  mergeOverlapRuns,
+  overlapSelectionCovers,
+  overlapSelectionMeasures,
+  selectOverlapRuns,
+} from '../src/program-overlap/merge';
 import { loadOverlapRiskSignal, overlapRiskSignalFromPairs } from '../src/program-overlap/risk';
 
-const run = (id: string, minute: number | null, scope: string[] = [], status: OverlapRunStatus = 'SUCCEEDED') => ({
-  id, status, scopeProgramIds: scope,
+const run = (
+  id: string, minute: number | null, scope: string[] = [], status: OverlapRunStatus = 'SUCCEEDED',
+  scoredProgramIds: string[] | null = null,
+) => ({
+  id, status, scopeProgramIds: scope, scoredProgramIds,
   completedAt: minute === null ? null : new Date(Date.UTC(2026, 9, 3, 0, minute)),
 });
 let n = 0;
@@ -147,6 +156,42 @@ describe('overlapRiskSignalFromPairs', () => {
     ])!;
     expect(s.curriculumSiblingId).toBe('m');
     expect(s.mergeCandidate).toBe(false);
+  });
+});
+
+describe('covered is not measured', () => {
+  it('a programme its covering run did not measure on courses is not measured; a legacy run (no list) is', () => {
+    expect(overlapSelectionMeasures(selectOverlapRuns([run('f', 1, [], 'SUCCEEDED', ['b'])]), 'a')).toBe(false);
+    expect(overlapSelectionMeasures(selectOverlapRuns([run('f', 1, [], 'SUCCEEDED', ['a', 'b'])]), 'a')).toBe(true);
+    expect(overlapSelectionMeasures(selectOverlapRuns([run('f', 1)]), 'a')).toBe(true);
+    expect(overlapSelectionMeasures(selectOverlapRuns([]), 'a')).toBe(false);
+  });
+  it('the covering run decides: a newer scoped run that measured the programme wins over the full run', () => {
+    const sel = selectOverlapRuns([run('f', 1, [], 'SUCCEEDED', ['b']), run('s', 2, ['a'], 'SUCCEEDED', ['a'])]);
+    expect(overlapSelectionMeasures(sel, 'a')).toBe(true);
+    const sel2 = selectOverlapRuns([run('f', 1, [], 'SUCCEEDED', ['a', 'b']), run('s', 2, ['a'], 'SUCCEEDED', [])]);
+    expect(overlapSelectionMeasures(sel2, 'a')).toBe(false);
+  });
+  it('an unmeasured programme keeps its market signal but has no curriculum reading', () => {
+    const sel = selectOverlapRuns([run('f', 1, [], 'SUCCEEDED', ['b'])]);
+    const s = overlapRiskSignalFromPairs('a', sel, [
+      pair('f', 'a', 'b', { overlapIndex: 80, marketSimilarity: 70, actions: ['CONSIDER_MERGE_OR_TRACK'] }),
+    ])!;
+    expect(s).toMatchObject({
+      curriculumMeasured: false, curriculumOverlapMax: null, curriculumPairId: null, mergeCandidate: false,
+      marketConfusionMax: 70, marketSiblingId: 'b',
+    });
+  });
+  it('latestOverlapPairs reads scoredProgramIds from the run coverageJson', async () => {
+    mocks.runFindFirst.mockReset().mockResolvedValue({ completedAt: run('f', 1).completedAt });
+    mocks.runFindMany.mockReset().mockResolvedValue([
+      { ...run('f', 1), scoredProgramIds: undefined, coverageJson: { programmes: 3, scoredProgramIds: ['b'] } },
+    ]);
+    mocks.pairFindMany.mockReset().mockResolvedValue([]);
+    const out = await latestOverlapPairs('BACHELOR');
+    expect(mocks.runFindMany.mock.calls[0]![0].select).toMatchObject({ coverageJson: true });
+    expect(out.selection.fullRun!.scoredProgramIds).toEqual(['b']);
+    expect(overlapSelectionMeasures(out.selection, 'a')).toBe(false);
   });
 });
 
