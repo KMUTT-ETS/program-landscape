@@ -19,6 +19,7 @@
     "./src/staff-profile/api-schema": "./src/staff-profile/api-schema.ts",
     "./src/staff-profile/teaching-evaluation": "./src/staff-profile/teaching-evaluation.ts",
     "./src/staff-profile/grants": "./src/staff-profile/grants.ts",
+    "./src/health/grant-award-note": "./src/health/grant-award-note.ts",
     "./src/scholar/scrapingbee": "./src/scholar/scrapingbee.ts",
     "./src/scholar/costs": "./src/scholar/costs.ts",
     "./jobthai": "./src/jobthai/index.ts",

@@ -29,6 +29,25 @@ describe('external-grant award in the UI', () => {
     ).toBe('External-grant award: +0 (no external grant in FY 2567–2569)');
   });
 
+  it('says +0 with the measure when grants exist but sit at or below the floor', () => {
+    expect(
+      grantAwardLine({
+        label: 'external_grant_award',
+        points: 0,
+        baseScore: 55,
+        raw: { bahtPerStaffPerYear: 42_000, projects: 2, windowFyBe: [2567, 2569] },
+      }),
+    ).toBe('External-grant award: +0 (฿42k per teaching staff per year, below the ฿100k floor, FY 2567–2569)');
+    expect(
+      grantAwardLine({
+        label: 'external_grant_award',
+        points: 0,
+        baseScore: 55,
+        raw: { bahtPerStaffPerYear: 0, projects: 0, windowFyBe: [2567, 2569] },
+      }),
+    ).toBe('External-grant award: +0 (no external grant in FY 2567–2569)');
+  });
+
   it('explains each null reason in plain words', () => {
     const line = (reason: string) =>
       grantAwardLine({ label: 'external_grant_award', points: null, baseScore: 50, raw: { reason } });
