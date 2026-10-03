@@ -73,10 +73,19 @@ export async function readMarketVectors(programIds: string[]): Promise<Map<strin
 
 export type VectorTable = 'program_learning_outcomes' | 'program_courses' | 'program_market_profiles';
 
-/** Writes one vector + its text hash. `idColumn` is `id` or `program_id`. */
-// SAFETY: `table`, `idColumn` and `hashColumn` come from closed unions, never user input.
-export async function writeVector(table: VectorTable, idColumn: 'id' | 'program_id', id: string, vector: number[], textHash: string): Promise<void> {
-  const hashColumn = table === 'program_market_profiles' ? 'text_hash' : 'embedding_text_hash';
+/** Per table: the key column and the column holding the hash of the embedded
+ *  text. Derived from the table so the two can never be mismatched. */
+export const VECTOR_TABLE_COLUMNS = {
+  program_learning_outcomes: { idColumn: 'id', hashColumn: 'embedding_text_hash' },
+  program_courses: { idColumn: 'id', hashColumn: 'embedding_text_hash' },
+  program_market_profiles: { idColumn: 'program_id', hashColumn: 'text_hash' },
+} as const satisfies Record<VectorTable, { idColumn: string; hashColumn: string }>;
+
+/** Writes one vector (L2-normalised) + the hash of the text that produced it. */
+// SAFETY: `table` is a closed union and the column names come from the const
+// map above, never from input.
+export async function writeVector(table: VectorTable, id: string, vector: number[], textHash: string): Promise<void> {
+  const { idColumn, hashColumn } = VECTOR_TABLE_COLUMNS[table];
   await prisma.$executeRawUnsafe(
     `UPDATE ${table} SET embedding = $1::vector, ${hashColumn} = $2 WHERE ${idColumn} = $3`,
     toVectorLiteral(l2normalise(vector)),

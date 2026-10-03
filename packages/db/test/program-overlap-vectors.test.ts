@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { l2normalise, parseVectorText, toVectorLiteral } from '../src/program-overlap/vectors';
+import { l2normalise, parseVectorText, toVectorLiteral, VECTOR_TABLE_COLUMNS } from '../src/program-overlap/vectors';
 
 describe('vector helpers', () => {
   it('normalises to unit length', () => {
@@ -16,5 +16,10 @@ describe('vector helpers', () => {
   });
   it('rejects a malformed vector', () => {
     expect(() => parseVectorText('nope')).toThrow();
+  });
+  it('derives key and hash columns from the table', () => {
+    expect(VECTOR_TABLE_COLUMNS.program_learning_outcomes).toEqual({ idColumn: 'id', hashColumn: 'embedding_text_hash' });
+    expect(VECTOR_TABLE_COLUMNS.program_courses).toEqual({ idColumn: 'id', hashColumn: 'embedding_text_hash' });
+    expect(VECTOR_TABLE_COLUMNS.program_market_profiles).toEqual({ idColumn: 'program_id', hashColumn: 'text_hash' });
   });
 });

@@ -54,6 +54,7 @@ async function main(): Promise<void> {
   console.log(`   programmes with PLOs in source : ${r.plos.programmesWithSource}`);
   console.log(`   programmes rewritten           : ${r.plos.programmesRewritten} (${r.plos.rowsWritten} rows, ${verb})`);
   console.log(`   programmes unchanged           : ${r.plos.programmesUnchanged}`);
+  console.log(`   programmes cleared (no source) : ${r.plos.programmesCleared} (${apply ? 'deleted' : 'would delete'})`);
 
   console.log('\n2. Course descriptions + CLOs (APPROVED or AUTO_APPROVED digests)');
   console.log(`   programmes with approved digest: ${r.courseDescriptions.programmesWithDigest}`);

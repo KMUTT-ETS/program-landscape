@@ -128,6 +128,9 @@ export interface PloLoadResult {
   programmesWithSource: number;
   programmesRewritten: number;
   programmesUnchanged: number;
+  /** Programmes whose stored PLOs were deleted because their latest source
+   *  has no usable PLOs (none listed, unparseable, or no extraction at all). */
+  programmesCleared: number;
   rowsWritten: number;
 }
 
@@ -153,17 +156,32 @@ export async function loadPlos({ apply }: ApplyOpt): Promise<PloLoadResult> {
     else existingBy.set(r.programId, { sourceExtractionId: r.sourceExtractionId, programRevisionId: r.programRevisionId, count: 1 });
   }
 
-  const result: PloLoadResult = { programmesWithSource: 0, programmesRewritten: 0, programmesUnchanged: 0, rowsWritten: 0 };
-  for (const [programId, extraction] of latest) {
-    const payload = SkillsDetailedPayload.safeParse(extraction.payloadJson);
-    if (!payload.success) continue;
-    const planned = planPloRows(payload.data.programLearningOutcomes);
-    if (planned.length === 0) continue;
+  const result: PloLoadResult = {
+    programmesWithSource: 0,
+    programmesRewritten: 0,
+    programmesUnchanged: 0,
+    programmesCleared: 0,
+    rowsWritten: 0,
+  };
+  for (const programId of ids) {
+    const extraction = latest.get(programId);
+    const payload = extraction ? SkillsDetailedPayload.safeParse(extraction.payloadJson) : undefined;
+    const planned = payload?.success ? planPloRows(payload.data.programLearningOutcomes) : [];
+    if (!extraction || planned.length === 0) {
+      // No usable source any more: rows left behind would keep scoring a
+      // programme on PLOs its current extraction no longer states.
+      if (existingBy.has(programId)) {
+        result.programmesCleared++;
+        if (apply) await prisma.programLearningOutcome.deleteMany({ where: { programId } });
+      }
+      continue;
+    }
     result.programmesWithSource++;
 
     // The ACTIVE revision, per the revision-stamping contract
     // (packages/db/test/program-revision-stamping.test.ts) — not the
-    // extraction's own revision.
+    // extraction's own revision. One lookup per programme, deliberately: the
+    // guard requires the shared helper rather than an inlined query.
     const programRevisionId = await activeRevisionIdFor(programId);
     const prior = existingBy.get(programId);
     if (
@@ -232,15 +250,23 @@ export async function loadCourseDescriptions({ apply }: ApplyOpt): Promise<Cours
   const latest = new Map<string, Prisma.JsonValue>();
   for (const d of digests) if (!latest.has(d.sourceEntityId)) latest.set(d.sourceEntityId, d.payloadJson);
 
+  const allCourses = await prisma.programCourse.findMany({
+    where: { programId: { in: [...latest.keys()] } },
+    select: { id: true, programId: true, courseCode: true, descriptionTh: true, learningOutcomesTh: true },
+  });
+  const coursesBy = new Map<string, typeof allCourses>();
+  for (const c of allCourses) {
+    const list = coursesBy.get(c.programId);
+    if (list) list.push(c);
+    else coursesBy.set(c.programId, [c]);
+  }
+
   const result: CourseDescriptionResult = { programmesWithDigest: 0, coursesMatched: 0, coursesUpdated: 0 };
   for (const [programId, json] of latest) {
     const payload = DigestPayload.safeParse(json);
     if (!payload.success) continue;
     result.programmesWithDigest++;
-    const courses = await prisma.programCourse.findMany({
-      where: { programId },
-      select: { id: true, courseCode: true, descriptionTh: true, learningOutcomesTh: true },
-    });
+    const courses = coursesBy.get(programId) ?? [];
     const current = new Map(courses.map((c) => [c.id, c]));
     const updates = planCourseDescriptionUpdates(courses, payload.data.courses);
     result.coursesMatched += updates.length;
@@ -309,14 +335,19 @@ export async function loadMarketProfiles({ apply }: ApplyOpt): Promise<MarketPro
     if (prior === undefined) result.created++;
     else result.changed++;
     if (!apply) continue;
-    await prisma.programMarketProfile.upsert({
-      where: { programId: p.id },
-      create: { programId: p.id, text, textHash },
-      update: { text, textHash },
-    });
-    if (prior !== undefined) {
-      await prisma.$executeRaw`UPDATE program_market_profiles SET embedding = NULL WHERE program_id = ${p.id}`;
-    }
+    // One statement, so the new text can never sit beside the old text's
+    // vector: the embedding is cleared in the same write whenever the hash moves.
+    await prisma.$executeRaw`
+      INSERT INTO program_market_profiles (program_id, text, text_hash, updated_at)
+      VALUES (${p.id}, ${text}, ${textHash}, now())
+      ON CONFLICT (program_id) DO UPDATE SET
+        text = EXCLUDED.text,
+        text_hash = EXCLUDED.text_hash,
+        updated_at = now(),
+        embedding = CASE
+          WHEN program_market_profiles.text_hash IS DISTINCT FROM EXCLUDED.text_hash THEN NULL
+          ELSE program_market_profiles.embedding
+        END`;
   }
   return result;
 }
@@ -341,7 +372,6 @@ async function embedBatches(
   ai: AiService,
   kind: string,
   table: VectorTable,
-  idColumn: 'id' | 'program_id',
   items: PendingText[],
 ): Promise<{ written: number; costUsd: number }> {
   let written = 0;
@@ -354,11 +384,18 @@ async function embedBatches(
       dimensions: EMBED_DIMENSIONS,
     });
     costUsd += res.cost.usd;
+    // Fail loud rather than skip: a missing or wrong-size vector would leave a
+    // hole the scorer cannot tell from "no data". Batches already written stay.
+    if (res.vectors.length !== batch.length) {
+      throw new Error(`program-overlap embed (${kind}): provider returned ${res.vectors.length} vectors for ${batch.length} texts`);
+    }
     for (let j = 0; j < batch.length; j++) {
-      const vec = res.vectors[j];
-      const item = batch[j];
-      if (!vec || !item) continue;
-      await writeVector(table, idColumn, item.id, vec, sha256(item.text));
+      const vec = res.vectors[j]!;
+      const item = batch[j]!;
+      if (vec.length !== EMBED_DIMENSIONS) {
+        throw new Error(`program-overlap embed (${kind}): vector of ${vec.length} dimensions, expected ${EMBED_DIMENSIONS}`);
+      }
+      await writeVector(table, item.id, vec, sha256(item.text));
       written++;
     }
   }
@@ -421,9 +458,9 @@ export async function embedPending(ai: AiService, { apply }: ApplyOpt): Promise<
   // Dry run: count only. No model call, no cost.
   if (!apply) return result;
 
-  const p = await embedBatches(ai, 'plo', 'program_learning_outcomes', 'id', pending.plos);
-  const c = await embedBatches(ai, 'course', 'program_courses', 'id', pending.courses);
-  const m = await embedBatches(ai, 'market-profile', 'program_market_profiles', 'program_id', pending.profiles);
+  const p = await embedBatches(ai, 'plo', 'program_learning_outcomes', pending.plos);
+  const c = await embedBatches(ai, 'course', 'program_courses', pending.courses);
+  const m = await embedBatches(ai, 'market-profile', 'program_market_profiles', pending.profiles);
   result.plos.written = p.written;
   result.courses.written = c.written;
   result.profiles.written = m.written;
