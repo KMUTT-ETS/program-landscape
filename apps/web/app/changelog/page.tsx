@@ -27,6 +27,20 @@ interface ChangelogEntry {
 const ENTRIES: ChangelogEntry[] = [
   {
     date: '2026-10-03',
+    version: 'v2.1.0 · Program overlap',
+    title:
+      'A new analysis compares every programme with the others at the same degree level, finds where curricula overlap, and suggests — for review — where courses or staff could be shared, programmes differentiated, or merged',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'Overlap is measured on major courses only: courses two programmes share by code, and courses whose content is equivalent (matched by meaning on the course description where one exists, otherwise on the course name). General-education courses are excluded, as are service courses used across many programmes. Programme learning outcomes are shown as supporting context but never move the score, because they are broad statements that often read alike.',
+      'Education → Program overlap: a network of the programmes that overlap and a ranked list of pairs, each with shared and equivalent courses, which programme sits inside the other, and a suggested action — coordinate shared courses, consolidate equivalent ones, share staff and resources, differentiate, or consider merging / folding in as a track. Every action is for review, not a decision. Thai and international versions of the same programme are labelled and are never told to merge or differentiate.',
+      'An AI-written rationale explains each flagged pair from the evidence, with confidence, sources and a disagree button. The AI cannot change the suggested action; it can only record that it disagrees.',
+      'Program Deep-Dive gains an Overlap section listing a programme’s overlapping siblings; it is hidden when no sibling reaches 30. Risk Management gains two indicators — curriculum overlap and market confusion (very similar recruitment material) — and a Self-competition panel; overall risk tiers do not change.',
+      'Methodology: program-overlap.v1 (calibrated on KKU data before release), risk scoring v1.14. The award line for external grants now says “no stated budget” instead of “฿0k” when projects carry no budget figure.',
+    ],
+  },
+  {
+    date: '2026-10-03',
     version: 'v2.0.2 · External grants become an award on the Financial score',
     title:
       'External research and academic-service grants now add up to +10 points to a programme’s Financial score instead of being a Capability measure — an award for bringing in money beyond tuition and public funding, never a penalty',
