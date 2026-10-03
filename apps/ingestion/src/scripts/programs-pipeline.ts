@@ -129,6 +129,7 @@ import {
   adoptPendingRevision,
   markRevisionAnalysed,
   activeRevisionIdFor,
+  IS_CANONICAL_PROGRAM,
 } from '@kku/db';
 import {
   isProgramPipelinePhase,
@@ -299,11 +300,38 @@ async function runApprovePending(programId: string): Promise<{ ms: number; ok: b
   return { ms, ok: exitCode === 0, notes: exitCode === 0 ? 'approved + materialised' : `exit=${exitCode}` };
 }
 
+/**
+ * Phase OV body. `programIds` scopes the run (the pairs touching those
+ * programmes); omitted, it is a full-portfolio run. Never throws.
+ */
+async function runOverlapPhase(
+  ai: AiService,
+  programIds: string[] | undefined,
+): Promise<{ ok: boolean; costUsd: number; notes: string }> {
+  try {
+    const res = await runProgramOverlap({ programIds, apply: true });
+    const rec = await runOverlapRecommendations({
+      ai,
+      runIds: res.map((x) => x.runId).filter((x): x is string => x !== null),
+    });
+    const notes =
+      res.length === 0
+        ? 'skipped: no canonical programme to compare'
+        : `${res.length} run(s) · ${res.reduce((n, x) => n + x.scored, 0)} pairs scored, ` +
+          `${res.reduce((n, x) => n + x.stored, 0)} stored · recommendations ${rec.written} written / ` +
+          `${rec.skipped} skipped / ${rec.failed} failed`;
+    return { ok: true, costUsd: rec.costUsd, notes };
+  } catch (e) {
+    return { ok: false, costUsd: 0, notes: `failed: ${e instanceof Error ? e.message : String(e)}` };
+  }
+}
+
 async function processProgram(
   program: ProgramSummary,
   args: CliArgs,
   ai: AiService,
   storage: S3Storage,
+  opts: { deferOverlap: boolean } = { deferOverlap: false },
 ): Promise<ProgramReport> {
   const phases: PhaseResult[] = [];
   const shouldRun = (p: Phase) => args.only.includes(p) && !args.skip.has(p);
@@ -737,32 +765,17 @@ async function processProgram(
   // Deterministic, in-process; the AI only words flagged pairs. Runs before
   // phase 8 because the self-competition KRIs read the latest run. Without
   // `pnpm programs:overlap-prep` only the structure layer can score.
+  // With more than one programme selected, main() runs phase OV ONCE after
+  // the loop (a full run, or one scoped run over the whole selection) instead
+  // of writing one scoped run per programme.
   if (shouldRun('phaseOV')) {
-    const t = Date.now();
-    const r = await runProgramOverlap({ programIds: [program.id], apply: true })
-      .then(async (res) => {
-        const rec = await runOverlapRecommendations({
-          ai,
-          runIds: res.map((x) => x.runId).filter((x): x is string => x !== null),
-        });
-        return {
-          status: 'SUCCEEDED' as const,
-          costUsd: rec.costUsd,
-          note:
-            res.length === 0
-              ? 'skipped: not a canonical programme'
-              : `${res.reduce((n, x) => n + x.scored, 0)} pairs scored, ${res.reduce((n, x) => n + x.stored, 0)} stored` +
-                ` · recommendations ${rec.written} written / ${rec.skipped} skipped / ${rec.failed} failed`,
-        };
-      })
-      .catch((e) => ({ status: 'FAILED' as const, costUsd: 0, note: String(e?.message ?? e) }));
-    phases.push({
-      name: 'phaseOV programme overlap',
-      durationMs: Date.now() - t,
-      costUsd: r.costUsd,
-      ok: r.status !== 'FAILED',
-      notes: r.status === 'SUCCEEDED' ? r.note : `failed: ${r.note}`,
-    });
+    if (opts.deferOverlap) {
+      phases.push({ name: 'phaseOV programme overlap', durationMs: 0, costUsd: 0, ok: true, notes: 'deferred to batch overlap run' });
+    } else {
+      const t = Date.now();
+      const r = await runOverlapPhase(ai, [program.id]);
+      phases.push({ name: 'phaseOV programme overlap', durationMs: Date.now() - t, ...r });
+    }
   }
 
   // ── Phase 8 — Risk analysis (deterministic + Pro narrative) ──────
@@ -882,9 +895,13 @@ async function main(): Promise<void> {
   let totalCost = 0;
   let totalMs = 0;
 
+  // Phase OV compares programmes with each other, so a multi-programme run
+  // scores it once after the loop rather than once per programme.
+  const batchOverlap = programs.length > 1 && phases.includes('phaseOV');
+
   for (const p of programs) {
     console.log(`▶ ${p.code} · ${p.nameEn}`);
-    const r = await processProgram(p, args, ai, storage);
+    const r = await processProgram(p, args, ai, storage, { deferOverlap: batchOverlap });
     reports.push(r);
     for (const phase of r.phases) {
       const cost = phase.costUsd > 0 ? `$${phase.costUsd.toFixed(3)}` : '—';
@@ -894,6 +911,21 @@ async function main(): Promise<void> {
     console.log(`    Total: ${fmtMs(r.totalDurationMs)} · $${r.totalCostUsd.toFixed(3)}\n`);
     totalCost += r.totalCostUsd;
     totalMs += r.totalDurationMs;
+  }
+
+  if (batchOverlap) {
+    // The whole canonical portfolio selected (plain --all) → a full run;
+    // otherwise (--resume / --limit) one scoped run over the selection.
+    const canonical = await prisma.program.count({ where: IS_CANONICAL_PROGRAM });
+    const full = programs.length >= canonical;
+    console.log(`▶ Batch overlap run (${full ? 'full portfolio' : `scoped to ${programs.length} programme(s)`})`);
+    const t = Date.now();
+    const r = await runOverlapPhase(ai, full ? undefined : programs.map((p) => p.id));
+    const ms = Date.now() - t;
+    const cost = r.costUsd > 0 ? `$${r.costUsd.toFixed(3)}` : '—';
+    console.log(`    ${r.ok ? '✓' : '✗'} ${'phaseOV programme overlap (batch)'.padEnd(40)} ${fmtMs(ms).padStart(7)} ${cost.padStart(8)}  ${r.notes}\n`);
+    totalCost += r.costUsd;
+    totalMs += ms;
   }
 
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);

@@ -6,6 +6,7 @@ import {
   cosine,
   dot,
   greedyMatch,
+  isLanguageVariant,
   majorCourses,
   scorePair,
   serviceCourseCodes,
@@ -174,6 +175,25 @@ describe('scorePair', () => {
     const s = scorePair(a, b, ctx);
     expect(s.sharedStaff).toBe(1);
     expect(s.languageVariant).toBe(true);
+  });
+
+  it('language variant: languages differ, or exactly one side carries an international marker', () => {
+    const th = prog('a', { nameTh: 'วท.ม. เภสัชวิทยา', nameEn: 'MSc Pharmacology', language: 'TH' });
+    const en = prog('b', { nameTh: 'วท.ม. เภสัชวิทยา', nameEn: 'MSc Pharmacology', language: 'EN' });
+    expect(isLanguageVariant(th, en)).toBe(true);
+    // Both recorded MIXED on dev; one carries the marker in its Thai name.
+    const mixed = prog('c', { nameTh: 'วท.ม. เภสัชวิทยา', nameEn: 'MSc Pharmacology', language: 'MIXED' });
+    const mixedIntl = prog('d', { nameTh: 'วท.ม. เภสัชวิทยา (นานาชาติ)', nameEn: 'MSc Pharmacology', language: 'MIXED' });
+    expect(isLanguageVariant(mixed, mixedIntl)).toBe(true);
+    // ... or only in its English name.
+    const mixedIntlEn = prog('e', { nameTh: 'วท.ม. เภสัชวิทยา', nameEn: 'MSc Pharmacology (International Program)', language: 'MIXED' });
+    expect(isLanguageVariant(mixed, mixedIntlEn)).toBe(true);
+    // Identical unmarked names in the same language: a true duplicate, not a variant.
+    expect(isLanguageVariant(mixed, { ...mixed, id: 'f' })).toBe(false);
+    // Both marked: two international programmes, not a variant pair.
+    expect(isLanguageVariant(mixedIntl, mixedIntlEn)).toBe(false);
+    // Different programmes never qualify.
+    expect(isLanguageVariant(th, prog('g', { nameTh: 'วท.ม. ชีวเคมี (นานาชาติ)', language: 'EN' }))).toBe(false);
   });
 
   it('rescales market similarity between floor and ceiling', () => {

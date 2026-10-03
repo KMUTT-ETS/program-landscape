@@ -19,6 +19,15 @@ export function languageVariantKey(name: string): string {
     .toLowerCase();
 }
 
+const INTERNATIONAL_MARKER = /หลักสูตรนานาชาติ|\(\s*นานาชาติ\s*\)|international\s+program(?:me)?/i;
+
+/** True when a programme name says it is the international version:
+ *  "หลักสูตรนานาชาติ", "(นานาชาติ)" or "International Program(me)". A subject
+ *  that merely contains "international" (International Affairs) does not count. */
+export function hasInternationalMarker(name: string | null): boolean {
+  return name !== null && INTERNATIONAL_MARKER.test(name);
+}
+
 export interface MarketProfileInput {
   nameTh: string;
   nameEn: string | null;

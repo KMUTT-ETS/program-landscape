@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   runCreate: vi.fn(),
   runUpdate: vi.fn(),
   pairCreateMany: vi.fn(),
+  transaction: vi.fn(),
 }));
 
 vi.mock('@kku/db', async () => {
@@ -20,12 +21,14 @@ vi.mock('@kku/db', async () => {
       program: { findMany: mocks.programFindMany },
       programOverlapRun: { create: mocks.runCreate, update: mocks.runUpdate },
       programOverlapPair: { createMany: mocks.pairCreateMany },
+      $transaction: mocks.transaction,
     },
   };
 });
 
 import type { OverlapProgramme } from '../../../packages/db/src/program-overlap/score';
-import { planRunPairs, runProgramOverlap, summarise } from '../src/program-overlap/run';
+import { levelsFor, pairRow, planRunPairs, runProgramOverlap, summarise } from '../src/program-overlap/run';
+import { parseOverlapArgs } from '../src/program-overlap/cli-args';
 
 const v = (deg: number): number[] => [Math.cos((deg * Math.PI) / 180), Math.sin((deg * Math.PI) / 180)];
 const course = (code: string, credits: number, deg: number): OverlapProgramme['courses'][number] => ({
@@ -98,11 +101,24 @@ describe('summarise', () => {
 
 describe('runProgramOverlap', () => {
   const coverage = { level: 'BACHELOR', programmes: 8 };
+  // Writes are modelled as Prisma does them: createMany / update build an
+  // operation, and only $transaction (or awaiting a standalone call) commits.
+  type Op = { op: string; args: { data: unknown } };
+  let committed: Op[];
   beforeEach(() => {
     for (const m of Object.values(mocks)) m.mockReset();
+    committed = [];
     mocks.load.mockResolvedValue({ programmes: progs, coverage });
     mocks.runCreate.mockResolvedValue({ id: 'run1' });
+    mocks.pairCreateMany.mockImplementation((args) => ({ op: 'pairs', args }));
+    mocks.runUpdate.mockImplementation((args) => ({ op: 'runUpdate', args }));
+    mocks.transaction.mockImplementation(async (ops: Op[]) => {
+      committed.push(...ops);
+      return ops;
+    });
   });
+  const committedStatuses = () =>
+    committed.filter((o) => o.op === 'runUpdate').map((o) => (o.args.data as { status: string }).status);
 
   it('dry run computes and writes nothing', async () => {
     const r = await runProgramOverlap({ level: 'BACHELOR', apply: false });
@@ -110,23 +126,60 @@ describe('runProgramOverlap', () => {
     expect(r[0]).toMatchObject({ runId: null, scored: 28, stored: 1, scopeProgramIds: [] });
     expect(r[0]!.distributions.index?.n).toBeGreaterThan(0);
     expect(mocks.runCreate).not.toHaveBeenCalled();
-    expect(mocks.pairCreateMany).not.toHaveBeenCalled();
+    expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
-  it('apply writes the run, its pairs and marks it SUCCEEDED', async () => {
+  it('apply writes the pairs and the SUCCEEDED flip in one transaction', async () => {
     const r = await runProgramOverlap({ level: 'BACHELOR', apply: true });
     expect(r[0]!.runId).toBe('run1');
     expect(mocks.runCreate.mock.calls[0]![0].data).toMatchObject({ level: 'BACHELOR', scopeProgramIds: [], methodologyVersion: 'program-overlap.v1' });
-    const rows = mocks.pairCreateMany.mock.calls[0]![0].data;
+    expect(mocks.transaction).toHaveBeenCalledTimes(1);
+    expect(committed.map((o) => o.op)).toEqual(['pairs', 'runUpdate']);
+    const rows = committed[0]!.args.data as Array<Record<string, unknown>>;
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ runId: 'run1', programAId: 'p1', programBId: 'p2', sharedCredits: 9 });
-    expect(mocks.runUpdate.mock.calls[0]![0].data).toMatchObject({ status: 'SUCCEEDED', pairsScored: 28, pairsStored: 1 });
+    expect(committed[1]!.args.data).toMatchObject({ status: 'SUCCEEDED', pairsScored: 28, pairsStored: 1 });
   });
 
-  it('marks the run FAILED and rethrows when a write fails', async () => {
-    mocks.pairCreateMany.mockRejectedValue(new Error('boom'));
+  it('splits more than 500 stored pairs into batches inside the same transaction', async () => {
+    // Forty programmes with one staff member in common: every one of the 780
+    // pairs is stored (shared staff), with no courses needed.
+    const many = Array.from({ length: 40 }, (_, i) =>
+      prog(`q${String(i).padStart(2, '0')}`, { staffIds: ['shared-staff'] }),
+    );
+    mocks.load.mockResolvedValue({ programmes: many, coverage });
+    const r = await runProgramOverlap({ level: 'BACHELOR', apply: true });
+    expect(r[0]!.stored).toBe(780); // 40·39/2, every pair shares a staff member
+    expect(mocks.transaction).toHaveBeenCalledTimes(1);
+    const batches = committed.filter((o) => o.op === 'pairs').map((o) => (o.args.data as unknown[]).length);
+    expect(batches).toEqual([500, 280]);
+    expect(committed.at(-1)!.op).toBe('runUpdate');
+    expect(committedStatuses()).toEqual(['SUCCEEDED']);
+  });
+
+  it('on failure marks the run FAILED, never commits SUCCEEDED, and rethrows', async () => {
+    mocks.transaction.mockRejectedValue(new Error('boom'));
     await expect(runProgramOverlap({ level: 'BACHELOR', apply: true })).rejects.toThrow('boom');
-    expect(mocks.runUpdate.mock.calls[0]![0].data).toMatchObject({ status: 'FAILED', errorText: 'boom' });
+    expect(committedStatuses()).toEqual([]);
+    const last = mocks.runUpdate.mock.calls.at(-1)![0];
+    expect(last.data).toMatchObject({ status: 'FAILED', errorText: 'boom' });
+  });
+
+  it('a failure to mark FAILED never masks the original error', async () => {
+    mocks.transaction.mockRejectedValue(new Error('boom'));
+    mocks.runUpdate.mockImplementation((args: { data: { status: string } }) => {
+      if (args.data.status === 'FAILED') throw new Error('db down');
+      return { op: 'runUpdate', args };
+    });
+    const err = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await expect(runProgramOverlap({ level: 'BACHELOR', apply: true })).rejects.toThrow('boom');
+    err.mockRestore();
+  });
+
+  it('writes no run for a level with fewer than two programmes', async () => {
+    mocks.load.mockResolvedValue({ programmes: [progs[0]!], coverage });
+    expect(await runProgramOverlap({ level: 'BACHELOR', apply: true })).toEqual([]);
+    expect(mocks.runCreate).not.toHaveBeenCalled();
   });
 
   it('a scoped run resolves its level and skips a programme not canonical there', async () => {
@@ -139,5 +192,75 @@ describe('runProgramOverlap', () => {
     const none = await runProgramOverlap({ programIds: ['nope'], level: 'BACHELOR', apply: true });
     expect(none).toEqual([]);
     expect(mocks.runCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe('levelsFor', () => {
+  beforeEach(() => mocks.programFindMany.mockReset());
+  it('runs all four levels with no level and no programmes', async () => {
+    expect(await levelsFor({})).toEqual(['BACHELOR', 'MASTER', 'DOCTORAL', 'HIGHER_GRAD_DIPLOMA']);
+    expect(mocks.programFindMany).not.toHaveBeenCalled();
+  });
+  it('uses the given level, or the levels of the scoped programmes in canonical order', async () => {
+    expect(await levelsFor({ level: 'MASTER', programIds: ['x'] })).toEqual(['MASTER']);
+    mocks.programFindMany.mockResolvedValue([{ level: 'DOCTORAL' }, { level: 'BACHELOR' }, { level: 'DOCTORAL' }]);
+    expect(await levelsFor({ programIds: ['a', 'b', 'c'] })).toEqual(['BACHELOR', 'DOCTORAL']);
+  });
+});
+
+describe('pairRow', () => {
+  it('maps every stored field, including hash, actions and the language flag', () => {
+    const same = [course('C1', 3, 0), course('C2', 3, 0), course('C3', 3, 0)];
+    const ploSame = plo(0);
+    const s = planRunPairs(
+      [
+        prog('a', { courses: same, plos: ploSame, nameTh: 'X', language: 'TH' }),
+        prog('b', { courses: same, plos: ploSame, nameTh: 'X (หลักสูตรนานาชาติ)', language: 'EN' }),
+        ...['f1', 'f2', 'f3', 'f4', 'f5', 'f6'].map((id) => prog(id)),
+      ],
+      { scopeProgramIds: ['a'] },
+    ).stored.find((x) => x.programBId === 'b')!;
+    const row = pairRow('run9', 'BACHELOR', s);
+    expect(row).toMatchObject({
+      runId: 'run9', level: 'BACHELOR', programAId: 'a', programBId: 'b',
+      structure: s.structure, content: s.content, outcome: s.outcome, overlapIndex: s.overlapIndex,
+      containmentAInB: s.containmentAInB, containmentBInA: s.containmentBInA, band: s.band,
+      sharedCredits: 9, equivCredits: s.equivCredits, sharedStaff: 0, marketSimilarity: null,
+      languageVariant: true, actions: s.actions, primaryAction: s.primaryAction,
+      evidenceHash: s.evidenceHash, methodologyVersion: 'program-overlap.v1',
+    });
+    expect(s.actions.length).toBeGreaterThan(0);
+    expect(s.actions).not.toContain('CONSIDER_MERGE_OR_TRACK');
+    expect(row.evidenceJson).toEqual(s.evidence);
+  });
+});
+
+describe('market cosine histogram', () => {
+  it('records the raw cosine beside the rescaled similarity', () => {
+    const plan = planRunPairs(
+      [prog('m1', { marketVector: v(0) }), prog('m2', { marketVector: v(60) }), prog('m3')],
+      { scopeProgramIds: [] },
+    );
+    expect(plan.histogram.marketCosine).toHaveLength(1);
+    expect(plan.histogram.marketCosine[0]).toBeCloseTo(0.5, 10);
+    expect(plan.histogram.market).toEqual([0]); // 0.5 is under the 0.6 floor
+  });
+});
+
+describe('parseOverlapArgs', () => {
+  it('accepts --level=X and --level X, case-insensitively', () => {
+    expect(parseOverlapArgs(['--level=master', '--apply'])).toEqual({ level: 'MASTER', apply: true, noAi: false, calibrate: false });
+    expect(parseOverlapArgs(['--level', 'DOCTORAL', '--calibrate', '--no-ai'])).toEqual({
+      level: 'DOCTORAL', apply: false, noAi: true, calibrate: true,
+    });
+    expect(parseOverlapArgs([])).toEqual({ level: undefined, apply: false, noAi: false, calibrate: false });
+  });
+  it('rejects unknown flags, unknown levels and a missing value', () => {
+    expect(() => parseOverlapArgs(['--aply'])).toThrow(/unknown argument "--aply"/);
+    expect(() => parseOverlapArgs(['BACHELOR'])).toThrow(/unknown argument/);
+    expect(() => parseOverlapArgs(['--level=PHD'])).toThrow(/unknown --level=PHD/);
+    expect(() => parseOverlapArgs(['--level'])).toThrow(/--level needs a value/);
+    expect(() => parseOverlapArgs(['--level', '--apply'])).toThrow(/--level needs a value/);
+    expect(() => parseOverlapArgs(['--apply=yes'])).toThrow(/unknown argument/);
   });
 });

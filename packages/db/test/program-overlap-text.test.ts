@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildMarketProfileText,
   courseEmbeddingText,
+  hasInternationalMarker,
   languageVariantKey,
   normalisePloText,
   sha256,
@@ -55,5 +56,19 @@ describe('courseEmbeddingText', () => {
 describe('sha256', () => {
   it('is stable hex', () => {
     expect(sha256('a')).toBe('ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb');
+  });
+});
+
+describe('hasInternationalMarker', () => {
+  it('finds the Thai and English international markers, case-insensitively', () => {
+    expect(hasInternationalMarker('วิศวกรรมศาสตรบัณฑิต (หลักสูตรนานาชาติ)')).toBe(true);
+    expect(hasInternationalMarker('วิทยาศาสตรมหาบัณฑิต (เภสัชวิทยา) (นานาชาติ)')).toBe(true);
+    expect(hasInternationalMarker('Doctor of Pharmacy Program (International Program)')).toBe(true);
+    expect(hasInternationalMarker('Forensic Science (international programme)')).toBe(true);
+  });
+  it('ignores names without a marker, including "international" as a subject', () => {
+    expect(hasInternationalMarker('เภสัชศาสตรบัณฑิต')).toBe(false);
+    expect(hasInternationalMarker('Bachelor of Arts Program in International Affairs')).toBe(false);
+    expect(hasInternationalMarker(null)).toBe(false);
   });
 });

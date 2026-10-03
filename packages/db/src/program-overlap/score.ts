@@ -3,7 +3,7 @@
 // Deterministic: same inputs → same scores. No DB, no AI, no clock.
 import type { CourseCategory, OverlapAction, OverlapBand, ProgramLevel } from '@prisma/client';
 import { createHash } from 'node:crypto';
-import { languageVariantKey } from './text';
+import { hasInternationalMarker, languageVariantKey } from './text';
 
 export const PROGRAM_OVERLAP_VERSION = 'program-overlap.v1';
 
@@ -400,15 +400,22 @@ export function scorePair(
   };
 }
 
-/** Thai and international versions of the same programme: different languages
- *  and the same programme name once international markers are stripped.
- *  A shared degreeNameTh alone is deliberately NOT sufficient (spec §5.3 allows
- *  it): on dev, generic degree names such as "วิศวกรรมศาสตรบัณฑิต" and
- *  "ปรัชญาดุษฎีบัณฑิต" span unrelated programmes in both languages, and would
- *  shield real overlaps from the merge action and the KRIs. */
+/** Thai and international versions of the same programme: the same programme
+ *  name once international markers are stripped, AND either the recorded
+ *  languages differ (both known) or exactly one of the two programmes carries
+ *  an international marker in its Thai or English name. The marker arm exists
+ *  because dev records both halves of some pairs as MIXED (e.g. the Thai and
+ *  international MSc Pharmacology). Identical unmarked names in the same
+ *  language are a true duplicate, not a variant.
+ *  A shared degreeNameTh alone is deliberately NOT sufficient: on dev, generic
+ *  degree names such as "วิศวกรรมศาสตรบัณฑิต" and "ปรัชญาดุษฎีบัณฑิต" span
+ *  unrelated programmes in both languages, and would shield real overlaps from
+ *  the merge action and the KRIs. */
 export function isLanguageVariant(a: OverlapProgramme, b: OverlapProgramme): boolean {
-  if (!a.language || !b.language || a.language === b.language) return false;
-  return languageVariantKey(a.nameTh) === languageVariantKey(b.nameTh);
+  if (languageVariantKey(a.nameTh) !== languageVariantKey(b.nameTh)) return false;
+  if (a.language && b.language && a.language !== b.language) return true;
+  const marked = (p: OverlapProgramme): boolean => hasInternationalMarker(p.nameTh) || hasInternationalMarker(p.nameEn);
+  return marked(a) !== marked(b);
 }
 
 /** Store a pair when it scores ≥ storeIndex or shares a major course or staff. */

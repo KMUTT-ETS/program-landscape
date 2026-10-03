@@ -37,7 +37,11 @@ export interface RunHistogram {
   outcome: number[];
   index: number[];
   containment: number[];
+  /** Rescaled 0–100 market similarity. */
   market: number[];
+  /** Raw market-profile cosine (before the floor/ceiling rescale) — what the
+   *  floor and ceiling are calibrated against. */
+  marketCosine: number[];
   /** Highest course cosine between the two programmes' embedded major courses
    *  that are not shared by code (the content layer's candidates). */
   bestCourse: number[];
@@ -53,7 +57,10 @@ export interface PlannedRun {
   histogram: RunHistogram;
 }
 
-/** Highest cosine over the cross product (unit vectors, so dot = cosine). */
+/** Highest cosine over the cross product. Uses `dot`, so it ASSUMES unit
+ *  vectors: true for every stored embedding (writeVector L2-normalises on
+ *  write and the readers return the stored values unchanged). Anything else
+ *  must go through `cosine`. */
 function bestCross(left: ReadonlyArray<readonly number[]>, right: ReadonlyArray<readonly number[]>): number | null {
   if (left.length === 0 || right.length === 0) return null;
   let best = -Infinity;
@@ -77,7 +84,9 @@ export function planRunPairs(
     sorted.map((p) => [p.id, majorCourses(p, serviceCodes).filter((c) => c.vector !== null)]),
   );
   const scope = new Set(opts.scopeProgramIds);
-  const histogram: RunHistogram = { structure: [], content: [], outcome: [], index: [], containment: [], market: [], bestCourse: [], bestPlo: [] };
+  const histogram: RunHistogram = {
+    structure: [], content: [], outcome: [], index: [], containment: [], market: [], marketCosine: [], bestCourse: [], bestPlo: [],
+  };
   const stored: PairScore[] = [];
   const all: PairScore[] | null = opts.keepAll ? [] : null;
   let scored = 0;
@@ -98,6 +107,8 @@ export function planRunPairs(
       push(histogram.containment, s.containmentAInB);
       push(histogram.containment, s.containmentBInA);
       push(histogram.market, s.marketSimilarity);
+      // Unit vectors (see bestCross), so dot = cosine.
+      if (a.marketVector && b.marketVector) histogram.marketCosine.push(dot(a.marketVector, b.marketVector));
       const sharedCodes = new Set(s.evidence.sharedCourses.map((c) => c.code));
       const candA = embeddedMajors.get(a.id)!.filter((c) => !sharedCodes.has(c.code)).map((c) => c.vector!);
       const candB = embeddedMajors.get(b.id)!.filter((c) => !sharedCodes.has(c.code)).map((c) => c.vector!);
@@ -140,6 +151,7 @@ export function summariseHistogram(h: RunHistogram): RunDistributions {
     index: summarise(h.index),
     containment: summarise(h.containment),
     market: summarise(h.market),
+    marketCosine: summarise(h.marketCosine),
     bestCourse: summarise(h.bestCourse),
     bestPlo: summarise(h.bestPlo),
   };
@@ -156,7 +168,7 @@ export interface LevelRunResult {
 }
 
 /** Levels to run: the one asked for, the levels of the scoped programmes, or all. */
-async function levelsFor(opts: { level?: ProgramLevel; programIds?: string[] }): Promise<ProgramLevel[]> {
+export async function levelsFor(opts: { level?: ProgramLevel; programIds?: string[] }): Promise<ProgramLevel[]> {
   if (opts.level) return [opts.level];
   if (!opts.programIds?.length) return [...LEVELS];
   const rows = await prisma.program.findMany({ where: { id: { in: opts.programIds } }, select: { level: true } });
@@ -166,7 +178,7 @@ async function levelsFor(opts: { level?: ProgramLevel; programIds?: string[] }):
 
 const PAIR_BATCH = 500;
 
-function pairRow(runId: string, level: ProgramLevel, s: PairScore): Prisma.ProgramOverlapPairCreateManyInput {
+export function pairRow(runId: string, level: ProgramLevel, s: PairScore): Prisma.ProgramOverlapPairCreateManyInput {
   return {
     runId, level, programAId: s.programAId, programBId: s.programBId,
     structure: s.structure, content: s.content, outcome: s.outcome, overlapIndex: s.overlapIndex,
@@ -180,6 +192,20 @@ function pairRow(runId: string, level: ProgramLevel, s: PairScore): Prisma.Progr
   };
 }
 
+/**
+ * Scores one level at a time and, with `apply`, writes one ProgramOverlapRun per
+ * level. A level with fewer than two canonical programmes gets no run.
+ *
+ * Contract for readers of ProgramOverlapRun / ProgramOverlapPair:
+ *  - Readers MUST filter `status = 'SUCCEEDED'`. A RUNNING or FAILED run has no
+ *    pairs (they are written in one transaction with the SUCCEEDED flip), but
+ *    it still exists as provenance.
+ *  - A full run has `scopeProgramIds = []`. A scoped run covers EVERY pair that
+ *    touches any of its scopeProgramIds. When merging a scoped run over the
+ *    latest full run, drop the full run's rows for every pair touching those
+ *    programmes — even a pair ABSENT from the scoped run, which means it no
+ *    longer meets the storage rule — then add the scoped run's rows.
+ */
 export async function runProgramOverlap(opts: {
   level?: ProgramLevel;
   programIds?: string[];
@@ -188,6 +214,8 @@ export async function runProgramOverlap(opts: {
   const results: LevelRunResult[] = [];
   for (const level of await levelsFor(opts)) {
     const { programmes, coverage } = await loadOverlapProgrammes(level);
+    // Nothing to compare at this level.
+    if (programmes.length < 2) continue;
     const present = new Set(programmes.map((p) => p.id));
     const scopeIds = (opts.programIds ?? []).filter((id) => present.has(id)).sort(byCodeUnits);
     // Scoped, but none of the scoped programmes is canonical at this level.
@@ -208,26 +236,38 @@ export async function runProgramOverlap(opts: {
       },
     });
     try {
+      // All pairs and the SUCCEEDED flip land together or not at all.
+      const writes: Prisma.PrismaPromise<unknown>[] = [];
       for (let k = 0; k < plan.stored.length; k += PAIR_BATCH) {
-        await prisma.programOverlapPair.createMany({
-          data: plan.stored.slice(k, k + PAIR_BATCH).map((s) => pairRow(run.id, level, s)),
-        });
+        writes.push(
+          prisma.programOverlapPair.createMany({
+            data: plan.stored.slice(k, k + PAIR_BATCH).map((s) => pairRow(run.id, level, s)),
+          }),
+        );
       }
-      await prisma.programOverlapRun.update({
-        where: { id: run.id },
-        data: {
-          status: 'SUCCEEDED',
-          completedAt: new Date(),
-          pairsScored: plan.scored,
-          pairsStored: plan.stored.length,
-          coverageJson: { ...coverage, distributions } as unknown as Prisma.InputJsonValue,
-        },
-      });
+      writes.push(
+        prisma.programOverlapRun.update({
+          where: { id: run.id },
+          data: {
+            status: 'SUCCEEDED',
+            completedAt: new Date(),
+            pairsScored: plan.scored,
+            pairsStored: plan.stored.length,
+            coverageJson: { ...coverage, distributions } as unknown as Prisma.InputJsonValue,
+          },
+        }),
+      );
+      await prisma.$transaction(writes);
     } catch (e) {
-      await prisma.programOverlapRun.update({
-        where: { id: run.id },
-        data: { status: 'FAILED', completedAt: new Date(), errorText: e instanceof Error ? e.message : String(e) },
-      });
+      try {
+        await prisma.programOverlapRun.update({
+          where: { id: run.id },
+          data: { status: 'FAILED', completedAt: new Date(), errorText: e instanceof Error ? e.message : String(e) },
+        });
+      } catch (markErr) {
+        // Never mask the original failure; the run stays RUNNING, which readers ignore.
+        console.error(`[program-overlap] could not mark run ${run.id} FAILED:`, markErr);
+      }
       throw e;
     }
     results.push({ ...base, runId: run.id });

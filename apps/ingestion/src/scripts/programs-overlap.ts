@@ -52,6 +52,7 @@ import {
 // createIngestionAiService is the ONLY sanctioned way to build an AiService in
 // an ingestion script — it wires the model-override resolver.
 import { createIngestionAiService } from '../lib/ai-service';
+import { parseOverlapArgs, type OverlapCliArgs } from '../program-overlap/cli-args';
 import {
   LEVELS,
   planRunPairs,
@@ -71,7 +72,8 @@ const LAYER_ROWS: Array<{ key: keyof RunDistributions; label: string; digits: nu
   { key: 'outcome', label: 'outcome (0–100)', digits: 1 },
   { key: 'index', label: 'overlap index', digits: 1 },
   { key: 'containment', label: 'containment (both dirs)', digits: 1 },
-  { key: 'market', label: 'market similarity', digits: 1 },
+  { key: 'market', label: 'market similarity (0–100)', digits: 1 },
+  { key: 'marketCosine', label: 'market cosine (raw)', digits: 3 },
   { key: 'bestCourse', label: 'best course cosine/pair', digits: 3 },
   { key: 'bestPlo', label: 'best PLO cosine/pair', digits: 3 },
 ];
@@ -275,20 +277,15 @@ async function calibrateLevel(level: ProgramLevel, faculty: ReadonlyMap<string, 
 
 // ── Main ────────────────────────────────────────────────────────────────────
 
-function parseLevel(): ProgramLevel | undefined {
-  const arg = process.argv.find((a) => a.startsWith('--level='));
-  if (!arg) return undefined;
-  const raw = arg.slice('--level='.length).toUpperCase();
-  const level = LEVELS.find((l) => l === raw);
-  if (!level) throw new Error(`unknown --level=${raw}; expected one of ${LEVELS.join(', ')}`);
-  return level;
-}
-
 async function main(): Promise<void> {
-  const apply = process.argv.includes('--apply');
-  const noAi = process.argv.includes('--no-ai');
-  const calibrate = process.argv.includes('--calibrate');
-  const level = parseLevel();
+  let args: OverlapCliArgs;
+  try {
+    args = parseOverlapArgs(process.argv.slice(2));
+  } catch (e) {
+    console.error(e instanceof Error ? e.message : String(e));
+    process.exit(1);
+  }
+  const { apply, noAi, calibrate, level } = args;
   const levels = level ? [level] : [...LEVELS];
 
   if (calibrate) {

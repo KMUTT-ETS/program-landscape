@@ -4800,6 +4800,11 @@ model ProgramMarketProfile {
 /// One overlap computation. A full run has empty scopeProgramIds; a phaseOV run
 /// lists the programmes it recomputed. Readers take the latest SUCCEEDED full
 /// run per level and overlay newer scoped runs for the pairs they cover.
+/// program-overlap.v1 run (spec §8). Readers MUST filter status = SUCCEEDED:
+/// pairs are written in one transaction with the SUCCEEDED flip, so RUNNING
+/// and FAILED runs carry no pairs. scopeProgramIds = [] is a full run; a scoped
+/// run covers EVERY pair touching its scopeProgramIds and replaces the full
+/// run's rows for those pairs (including pairs absent from the scoped run).
 model ProgramOverlapRun {
   id                 String               @id @default(cuid())
   methodologyVersion String               @map("methodology_version")
