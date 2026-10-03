@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OverlapAction, OverlapRunStatus } from '@prisma/client';
 
-const mocks = vi.hoisted(() => ({ runFindFirst: vi.fn(), runFindMany: vi.fn(), pairFindMany: vi.fn() }));
+const mocks = vi.hoisted(() => ({ runFindFirst: vi.fn(), runFindMany: vi.fn(), pairFindMany: vi.fn(), programFindMany: vi.fn() }));
 
 // No real client: nothing here can reach the dev database.
 vi.mock('../src/index', () => ({
   prisma: {
     programOverlapRun: { findFirst: mocks.runFindFirst, findMany: mocks.runFindMany },
     programOverlapPair: { findMany: mocks.pairFindMany },
+    program: { findMany: mocks.programFindMany },
   },
 }));
 
@@ -171,6 +172,38 @@ describe('loaders', () => {
     mocks.runFindFirst.mockReset();
     mocks.runFindMany.mockReset();
     mocks.pairFindMany.mockReset();
+    mocks.programFindMany.mockReset();
+  });
+  it('activeOnly drops pairs with a side that is no longer ACTIVE (D5), after the merge', async () => {
+    mocks.runFindFirst.mockResolvedValue({ completedAt: run('f', 1).completedAt });
+    mocks.runFindMany.mockResolvedValue([run('f', 1)]);
+    mocks.pairFindMany.mockResolvedValue([pair('f', 'a', 'b'), pair('f', 'a', 'c')]);
+    mocks.programFindMany.mockResolvedValue([{ id: 'a' }, { id: 'c' }]);
+    const out = await latestOverlapPairs('BACHELOR', { programIds: ['a'], activeOnly: true });
+    expect(mocks.programFindMany.mock.calls[0]![0]).toEqual({
+      where: { id: { in: ['a', 'b', 'c'] }, status: 'ACTIVE' },
+      select: { id: true },
+    });
+    expect(out.pairs.map((p) => p.programBId)).toEqual(['c']);
+  });
+  it('without activeOnly no status query is made', async () => {
+    mocks.runFindFirst.mockResolvedValue({ completedAt: run('f', 1).completedAt });
+    mocks.runFindMany.mockResolvedValue([run('f', 1)]);
+    mocks.pairFindMany.mockResolvedValue([pair('f', 'a', 'b')]);
+    const out = await latestOverlapPairs('BACHELOR');
+    expect(out.pairs).toHaveLength(1);
+    expect(mocks.programFindMany).not.toHaveBeenCalled();
+  });
+  it('the KRI signal ignores a sibling that is no longer ACTIVE', async () => {
+    mocks.runFindFirst.mockResolvedValue({ completedAt: run('f', 1).completedAt });
+    mocks.runFindMany.mockResolvedValue([run('f', 1)]);
+    mocks.pairFindMany.mockResolvedValue([
+      pair('f', 'a', 'b', { overlapIndex: 90, marketSimilarity: 90 }),
+      pair('f', 'a', 'c', { overlapIndex: 55, marketSimilarity: 65 }),
+    ]);
+    mocks.programFindMany.mockResolvedValue([{ id: 'a' }, { id: 'c' }]);
+    const s = await loadOverlapRiskSignal('a', 'BACHELOR');
+    expect(s).toMatchObject({ curriculumOverlapMax: 55, curriculumSiblingId: 'c', marketConfusionMax: 65, marketSiblingId: 'c' });
   });
   it('latestOverlapPairs fetches runs from the latest full run on, and only the selected runs\' pairs', async () => {
     mocks.runFindFirst.mockResolvedValue({ completedAt: run('f', 1).completedAt });

@@ -117,11 +117,15 @@ export interface LatestOverlapPairs {
  * The current overlap pairs of one level: the latest SUCCEEDED full run with
  * newer SUCCEEDED scoped runs overlaid. With `programIds`, only pairs touching
  * one of those programmes are returned (the merge is unaffected: dropping
- * works per pair). Plain Prisma.
+ * works per pair). With `activeOnly`, pairs with a side no longer ACTIVE are
+ * dropped AFTER the merge (D5) — the risk path uses it so a KRI never points
+ * at a closed or suspended sibling; the read models filter ACTIVE themselves
+ * and the pair detail must still find a pair whose sibling has left ACTIVE.
+ * Plain Prisma.
  */
 export async function latestOverlapPairs(
   level: ProgramLevel,
-  opts: { programIds?: readonly string[] } = {},
+  opts: { programIds?: readonly string[]; activeOnly?: boolean } = {},
 ): Promise<LatestOverlapPairs> {
   // Older runs can never be selected: fetch from the latest full run on.
   const latestFull = await prisma.programOverlapRun.findFirst({
@@ -153,5 +157,13 @@ export async function latestOverlapPairs(
       ...(ids ? { OR: [{ programAId: { in: ids } }, { programBId: { in: ids } }] } : {}),
     },
   });
-  return { selection, pairs: mergeOverlapRuns(selection, pairs) };
+  const merged = mergeOverlapRuns(selection, pairs);
+  if (!opts.activeOnly || merged.length === 0) return { selection, pairs: merged };
+  const programIds = [...new Set(merged.flatMap((p) => [p.programAId, p.programBId]))].sort(byCodeUnits);
+  const active = new Set(
+    (await prisma.program.findMany({ where: { id: { in: programIds }, status: 'ACTIVE' }, select: { id: true } })).map(
+      (p) => p.id,
+    ),
+  );
+  return { selection, pairs: merged.filter((p) => active.has(p.programAId) && active.has(p.programBId)) };
 }

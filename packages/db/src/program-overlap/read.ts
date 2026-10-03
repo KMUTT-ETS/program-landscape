@@ -655,7 +655,9 @@ export async function selfCompetitionRows(opts: {
   for (const a of alarms) byLevel.set(a.level, [...new Set([...(byLevel.get(a.level) ?? []), a.programId])]);
   const rowsByPair = new Map<string, { pair: ProgramOverlapPair; breaches: SelfCompetitionKri[] }>();
   for (const [level, programIds] of byLevel) {
-    const { selection, pairs } = await latestOverlapPairs(level, { programIds });
+    // activeOnly, exactly as loadOverlapRiskSignal reads it, so each breach
+    // resolves to the same pair the KRI was computed from.
+    const { selection, pairs } = await latestOverlapPairs(level, { programIds, activeOnly: true });
     const pairById = new Map(pairs.map((p) => [p.id, p]));
     for (const a of alarms.filter((x) => x.level === level)) {
       const signal = overlapRiskSignalFromPairs(a.programId, selection, pairs);

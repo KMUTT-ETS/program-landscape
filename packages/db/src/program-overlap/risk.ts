@@ -113,9 +113,10 @@ export function overlapRiskSignalFromPairs(
 }
 
 /** The overlap signal of one programme at its level, from the latest
- *  SUCCEEDED full run with newer SUCCEEDED scoped runs overlaid. */
+ *  SUCCEEDED full run with newer SUCCEEDED scoped runs overlaid. Siblings no
+ *  longer ACTIVE are ignored (D5). */
 export async function loadOverlapRiskSignal(programId: string, level: ProgramLevel): Promise<OverlapRiskSignal | null> {
-  const { selection, pairs } = await latestOverlapPairs(level, { programIds: [programId] });
+  const { selection, pairs } = await latestOverlapPairs(level, { programIds: [programId], activeOnly: true });
   return overlapRiskSignalFromPairs(programId, selection, pairs);
 }
 
