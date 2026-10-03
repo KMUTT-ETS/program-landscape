@@ -472,6 +472,53 @@ describe('financial — external-grant award', () => {
     expect(grantAwardMock).not.toHaveBeenCalled();
   });
 
+  it('scope path: distinct active staff across the scope programmes, counted once', async () => {
+    mocks.facultyFindMany.mockResolvedValue([{ id: 'fac-1', nameEn: 'F', nameTh: 'ค' }]);
+    const finRow = {
+      scope: 'faculty', scopeId: 'fac-1', year: 2025,
+      applicationsTotal: null, admittedTotal: null, enrolledTotal: 400,
+      retainedYear2Total: null, graduatedOnTimeTotal: null, graduatedLateTotal: null, dropoutsTotal: null,
+      tuitionRevenueTotal: 30_000_000, totalCostTotal: 20_000_000, netContributionTotal: 10_000_000,
+      employmentRateWeighted: null, averageSalaryWeighted: null,
+      programCount: 2, latestFreshness: null,
+    };
+    mocks.queryMetricByScope.mockImplementation(({ family }: { family: string }) =>
+      Promise.resolve(family === 'financial' || family === 'enrollment' ? [finRow] : []),
+    );
+    mocks.programFindMany.mockResolvedValue([{ id: 'p1' }, { id: 'p2' }]);
+    mocks.programFacultyFindMany.mockResolvedValue([
+      { ...staffLink('s1'), programId: 'p1' },
+      { ...staffLink('s1'), programId: 'p2' },
+      { ...staffLink('s2', false), programId: 'p2' },
+    ]);
+
+    grantAwardMock.mockImplementation(() =>
+      Promise.resolve({ label: 'external_grant_award', points: null, raw: { reason: 'source-not-synced' } }),
+    );
+    const base = (await computeHealthScores('university', null))[0]!.dimensions.financial;
+    expect(base.score).not.toBeNull();
+
+    grantAwardMock.mockReset();
+    grantAwardMock.mockImplementation(defaultGrantAward);
+    mocks.programFacultyFindMany.mockClear();
+    const fin = (await computeHealthScores('university', null))[0]!.dimensions.financial;
+
+    // Capability no longer calls the award; the scope call is the one with s1.
+    const scopeCall = grantAwardMock.mock.calls.find(
+      (c) => JSON.stringify([...(c[0] as string[])].sort()) === JSON.stringify(['s1']),
+    );
+    expect(scopeCall?.[0]).toEqual(['s1']);
+    const awardQuery = mocks.programFacultyFindMany.mock.calls.find(
+      (c) => (c[0] as { select?: unknown }).select !== undefined,
+    )?.[0] as { where: { programId: { in: string[] } } } | undefined;
+    expect(awardQuery?.where.programId.in).toEqual(['p1', 'p2']);
+
+    expect(fin.award?.points).toBe(5);
+    expect(fin.award?.baseScore).toBeCloseTo(base.score!, 10);
+    expect(fin.score).toBeCloseTo(Math.min(100, base.score! + 5), 10);
+    expect(fin.dataCompletenessPct).toBe(base.dataCompletenessPct);
+  });
+
   it('does not touch other dimensions', async () => {
     mocks.programFindUnique.mockResolvedValue(programRow);
     mocks.queryMetricByScope.mockResolvedValue([]);
