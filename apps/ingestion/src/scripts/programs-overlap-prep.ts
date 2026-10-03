@@ -55,7 +55,7 @@ async function main(): Promise<void> {
   console.log(`   programmes rewritten           : ${r.plos.programmesRewritten} (${r.plos.rowsWritten} rows, ${verb})`);
   console.log(`   programmes unchanged           : ${r.plos.programmesUnchanged}`);
 
-  console.log('\n2. Course descriptions + CLOs');
+  console.log('\n2. Course descriptions + CLOs (APPROVED or AUTO_APPROVED digests)');
   console.log(`   programmes with approved digest: ${r.courseDescriptions.programmesWithDigest}`);
   console.log(`   courses matched by code        : ${r.courseDescriptions.coursesMatched}`);
   console.log(`   courses changed                : ${r.courseDescriptions.coursesUpdated} (${verb})`);
@@ -77,10 +77,15 @@ async function main(): Promise<void> {
   const c = await overlapPrepCoverage();
   console.log(`\nCoverage of stored data${apply ? '' : ' (before this run)'}: ${c.canonicalProgrammes} canonical programmes`);
   console.log(`   with PLOs                      : ${c.withPlos}`);
+  console.log(`   major courses                  : ${c.majorCourses} (${c.majorCredits} credits)`);
   console.log(
-    `   with described major courses   : ${c.withDescribedMajorCourses} programmes ` +
-      `(${c.describedMajorCourses} of ${c.majorCourses} major courses; ` +
-      `${c.describedMajorCredits} of ${c.majorCredits} major credits = ${pct(c.describedMajorCredits, c.majorCredits)})`,
+    `   major courses embedded         : ${c.embeddedMajorCourses} of ${c.majorCourses} ` +
+      `(${c.embeddedMajorCredits} of ${c.majorCredits} major credits = ${pct(c.embeddedMajorCredits, c.majorCredits)})`,
+  );
+  console.log(
+    `   major courses described        : ${c.describedMajorCourses} of ${c.majorCourses} ` +
+      `(${c.describedMajorCredits} of ${c.majorCredits} major credits = ${pct(c.describedMajorCredits, c.majorCredits)}; ` +
+      `${c.withDescribedMajorCourses} programmes)`,
   );
   console.log(`   with a market profile          : ${c.withMarketProfile}`);
   await prisma.$disconnect();

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { parseCareers, planCourseDescriptionUpdates, planPloRows } from '../src/program-overlap/prep';
+import {
+  DIGEST_REVIEW_STATUSES,
+  isEmbeddableMajorCourse,
+  parseCareers,
+  planCourseDescriptionUpdates,
+  planPloRows,
+} from '../src/program-overlap/prep';
 
 describe('planPloRows', () => {
   it('numbers PLOs, normalises text and drops blanks', () => {
@@ -38,5 +44,29 @@ describe('parseCareers', () => {
     expect(parseCareers([{ titleTh: 'ก' }, { titleEn: 'x' }])).toEqual(['ก']);
     expect(parseCareers(null)).toEqual([]);
     expect(parseCareers({ a: 1 })).toEqual([]);
+  });
+});
+
+describe('isEmbeddableMajorCourse (D7: every major course, described or not)', () => {
+  const named = { courseNameTh: 'วิชา', courseNameEn: null };
+  it('embeds major and uncategorised courses on names alone', () => {
+    for (const category of ['CORE', 'MAJOR_REQUIRED', 'MAJOR_ELECTIVE', 'UNKNOWN', null] as const) {
+      expect(isEmbeddableMajorCourse({ category, ...named })).toBe(true);
+    }
+    expect(isEmbeddableMajorCourse({ category: 'CORE', courseNameTh: null, courseNameEn: 'Course' })).toBe(true);
+  });
+  it('excludes non-major categories', () => {
+    for (const category of ['GENERAL_EDUCATION', 'FREE_ELECTIVE', 'THESIS_PROJECT'] as const) {
+      expect(isEmbeddableMajorCourse({ category, ...named })).toBe(false);
+    }
+  });
+  it('skips a course with neither name', () => {
+    expect(isEmbeddableMajorCourse({ category: 'CORE', courseNameTh: null, courseNameEn: '  ' })).toBe(false);
+  });
+});
+
+describe('DIGEST_REVIEW_STATUSES', () => {
+  it('reads approved and auto-approved digests, nothing else', () => {
+    expect([...DIGEST_REVIEW_STATUSES].sort()).toEqual(['APPROVED', 'AUTO_APPROVED']);
   });
 });

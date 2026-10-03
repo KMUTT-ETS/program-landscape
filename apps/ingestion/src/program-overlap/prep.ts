@@ -2,9 +2,10 @@
 // program-overlap.v1 — data preparation (spec §4.2–4.4).
 //
 //   1. loadPlos              PROGRAM_SKILLS_DETAILED.programLearningOutcomes → program_learning_outcomes
-//   2. loadCourseDescriptions approved PROGRAM_DIGEST.courses[] → ProgramCourse.descriptionTh / learningOutcomesTh
+//   2. loadCourseDescriptions approved/auto-approved PROGRAM_DIGEST.courses[] → ProgramCourse.descriptionTh / learningOutcomesTh
 //   3. loadMarketProfiles    degree names + recruitment summary + careers → program_market_profiles
-//   4. embedPending          PLOs, major courses, market profiles whose text hash changed
+//   4. embedPending          PLOs, every major course (names + description when present),
+//                            market profiles — only where the text hash changed
 //
 // Every step takes { apply }. A dry run only counts — in particular step 4
 // makes NO model call in a dry run; it reports how many texts are pending.
@@ -24,7 +25,7 @@ import {
   EMBED_DIMENSIONS,
   IS_CANONICAL_PROGRAM,
 } from '@kku/db';
-import type { VectorTable, CourseCategory, Prisma } from '@kku/db';
+import type { VectorTable, CourseCategory, Prisma, ReviewStatus } from '@kku/db';
 import type { AiService } from '@kku/shared';
 
 // ── Pure planning ───────────────────────────────────────────────────────────
@@ -89,6 +90,25 @@ function isTitled(v: unknown): v is { titleTh: string } {
 /** Categories whose courses are embedded (spec §4.5). The >25 % service-course
  *  rule is applied at scoring time, not here. */
 export const MAJOR_CATEGORIES: CourseCategory[] = ['CORE', 'MAJOR_REQUIRED', 'MAJOR_ELECTIVE', 'UNKNOWN'];
+
+/** Approved digests feed course descriptions — human-approved or auto-approved
+ *  (D7: descriptions are a bonus, so take every one that exists). */
+export const DIGEST_REVIEW_STATUSES: ReviewStatus[] = ['APPROVED', 'AUTO_APPROVED'];
+
+/**
+ * Should this course be embedded? Every MAJOR course (spec §4.4, decision D7)
+ * — described or not, since courseEmbeddingText degrades to names only. A
+ * course with neither name has nothing to embed.
+ */
+export function isEmbeddableMajorCourse(c: {
+  category: CourseCategory | null;
+  courseNameTh: string | null;
+  courseNameEn: string | null;
+}): boolean {
+  const major = c.category === null || MAJOR_CATEGORIES.includes(c.category);
+  const named = Boolean(c.courseNameTh?.trim() || c.courseNameEn?.trim());
+  return major && named;
+}
 const MAJOR_COURSE_WHERE: Prisma.ProgramCourseWhereInput = {
   program: IS_CANONICAL_PROGRAM,
   OR: [{ category: { in: MAJOR_CATEGORIES } }, { category: null }],
@@ -205,7 +225,7 @@ export async function loadCourseDescriptions({ apply }: ApplyOpt): Promise<Cours
   const programs = await prisma.program.findMany({ where: IS_CANONICAL_PROGRAM, select: { id: true } });
   const ids = programs.map((p) => p.id);
   const digests = await prisma.aiExtraction.findMany({
-    where: { sourceEntityType: 'program', sourceEntityId: { in: ids }, extractionKind: 'PROGRAM_DIGEST', reviewStatus: 'APPROVED' },
+    where: { sourceEntityType: 'program', sourceEntityId: { in: ids }, extractionKind: 'PROGRAM_DIGEST', reviewStatus: { in: DIGEST_REVIEW_STATUSES } },
     orderBy: { createdAt: 'desc' },
     select: { sourceEntityId: true, payloadJson: true },
   });
@@ -359,11 +379,20 @@ export async function pendingEmbeddings(): Promise<{ plos: PendingText[]; course
     .map((r) => ({ id: r.id, text: r.textNormalised }));
 
   const courseRows = await prisma.programCourse.findMany({
-    where: { ...MAJOR_COURSE_WHERE, descriptionTh: { not: null } },
-    select: { id: true, courseNameTh: true, courseNameEn: true, descriptionTh: true, learningOutcomesTh: true, embeddingTextHash: true },
+    where: MAJOR_COURSE_WHERE,
+    select: {
+      id: true,
+      category: true,
+      courseNameTh: true,
+      courseNameEn: true,
+      descriptionTh: true,
+      learningOutcomesTh: true,
+      embeddingTextHash: true,
+    },
   });
   const courses: PendingText[] = [];
   for (const c of courseRows) {
+    if (!isEmbeddableMajorCourse(c)) continue;
     const text = courseEmbeddingText({
       nameTh: c.courseNameTh,
       nameEn: c.courseNameEn,
@@ -427,6 +456,8 @@ export interface OverlapPrepCoverage {
   describedMajorCourses: number;
   majorCredits: number;
   describedMajorCredits: number;
+  embeddedMajorCourses: number;
+  embeddedMajorCredits: number;
   withMarketProfile: number;
 }
 
@@ -440,14 +471,21 @@ export async function overlapPrepCoverage(): Promise<OverlapPrepCoverage> {
   });
   const majors = await prisma.programCourse.findMany({
     where: MAJOR_COURSE_WHERE,
-    select: { programId: true, credits: true, descriptionTh: true },
+    select: { programId: true, credits: true, descriptionTh: true, embeddingTextHash: true },
   });
   const described = new Set<string>();
   let majorCredits = 0;
   let describedMajorCredits = 0;
   let describedMajorCourses = 0;
+  let embeddedMajorCourses = 0;
+  let embeddedMajorCredits = 0;
   for (const c of majors) {
     majorCredits += c.credits ?? 0;
+    // writeVector sets the hash and the vector together.
+    if (c.embeddingTextHash) {
+      embeddedMajorCourses++;
+      embeddedMajorCredits += c.credits ?? 0;
+    }
     if (c.descriptionTh) {
       described.add(c.programId);
       describedMajorCourses++;
@@ -463,6 +501,8 @@ export async function overlapPrepCoverage(): Promise<OverlapPrepCoverage> {
     describedMajorCourses,
     majorCredits,
     describedMajorCredits,
+    embeddedMajorCourses,
+    embeddedMajorCredits,
     withMarketProfile,
   };
 }
