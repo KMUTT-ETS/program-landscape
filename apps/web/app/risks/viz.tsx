@@ -123,9 +123,9 @@ export function FacultyHeatmap({
                       onClick={() => onCellClick?.(row.facultyId, lvl)}
                       className="mx-auto inline-flex h-7 w-7 items-center justify-center rounded-md text-xs font-semibold tabular-nums transition-transform hover:scale-110 cursor-pointer"
                       style={{
-                        background: `${color}${Math.round(40 + intensity * 60).toString(16).padStart(2, '0')}`,
+                        background: tint(color, ((40 + intensity * 60) / 255) * 100),
                         color,
-                        border: `1px solid ${color}66`,
+                        border: `1px solid ${tint(color, 40)}`,
                       }}
                       title={`${row.facultyNameEn}: ${count} ${labelFor(lvl)} program${count === 1 ? '' : 's'}\nClick to filter portfolio`}
                     >
@@ -1021,7 +1021,7 @@ export function TcasSparkline({
 //   matrix score 16-25 → red     (VERY_HIGH)
 
 import type { KkuRiskLevel } from './types';
-import { KKU_LEVEL_FILL, kkuLevelFromMatrixScore } from './types';
+import { KKU_LEVEL_FILL, kkuLevelFromMatrixScore, tint } from './types';
 
 const LIKELIHOOD_LABELS = ['Rare', 'Unlikely', 'Possible', 'Likely', 'Almost certain'];
 const IMPACT_LABELS = ['Insignificant', 'Minor', 'Moderate', 'Major', 'Catastrophic'];
@@ -1168,7 +1168,7 @@ export function KkuScoreBadge({
   return (
     <div
       className={`flex items-center gap-2 rounded-md border ${sizeClasses.wrap}`}
-      style={{ background: `${fill}20`, borderColor: `${fill}66` }}
+      style={{ background: tint(fill, 12.5), borderColor: tint(fill, 40) }}
     >
       <div className="flex items-baseline gap-1">
         <span className={`font-bold tabular-nums ${sizeClasses.score}`} style={{ color: fill }}>

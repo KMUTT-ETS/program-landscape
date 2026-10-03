@@ -142,13 +142,23 @@ export const KKU_LEVEL_LABEL: Record<KkuRiskLevel, { th: string; en: string }> =
   VERY_HIGH: { th: 'สูงมาก', en: 'Very high' },
 };
 
+// Design tokens only (both themes). Hue intent of the KKU scale kept:
+// slate → green → yellow → orange → red. chart-3 (hue 95) and chart-1
+// (hue 50) carry yellow and orange because the status family has a single
+// amber; danger is the KKU "สีแดง".
 export const KKU_LEVEL_FILL: Record<KkuRiskLevel, string> = {
-  NEEDS_DATA: 'rgb(100 116 139)', // slate
-  LOW: 'rgb(34 197 94)', // green
-  MODERATE: 'rgb(234 179 8)', // yellow
-  HIGH: 'rgb(249 115 22)', // orange
-  VERY_HIGH: 'rgb(220 38 38)', // red (KKU "สีแดง")
+  NEEDS_DATA: 'oklch(var(--color-data-neutral))', // slate
+  LOW: 'oklch(var(--color-success-default))', // green
+  MODERATE: 'oklch(var(--color-chart-3))', // yellow
+  HIGH: 'oklch(var(--color-chart-1))', // orange
+  VERY_HIGH: 'oklch(var(--color-danger-default))', // red (KKU "สีแดง")
 };
+
+/** A token colour at `pct` % opacity. The fills are CSS-variable expressions,
+ *  so an appended hex alpha (`${fill}66`) is invalid CSS — use this. */
+export function tint(color: string, pct: number): string {
+  return `color-mix(in oklch, ${color} ${Math.round(Math.min(100, Math.max(0, pct)))}%, transparent)`;
+}
 
 // Score → KKU level (mirror of kkuRiskLevelFromScore in @kku/db).
 export function kkuLevelFromMatrixScore(score: number | null): KkuRiskLevel {
@@ -309,12 +319,14 @@ export const TIER_LABEL: Record<RiskTier, string> = {
   CRITICAL: 'Critical likelihood',
 };
 
+// Name kept for its callers; the values are design tokens, not hex.
+// slate → emerald → amber → orange → rose.
 export const TIER_FILL_HEX: Record<RiskTier, string> = {
-  NEEDS_DATA: 'rgb(100 116 139)',
-  LOW: 'rgb(16 185 129)',
-  MODERATE: 'rgb(251 191 36)',
-  HIGH: 'rgb(249 115 22)',
-  CRITICAL: 'rgb(244 63 94)',
+  NEEDS_DATA: 'oklch(var(--color-data-neutral))',
+  LOW: 'oklch(var(--color-success-default))',
+  MODERATE: 'oklch(var(--color-warning-default))',
+  HIGH: 'oklch(var(--color-chart-1))',
+  CRITICAL: 'oklch(var(--color-danger-default))',
 };
 
 export const MEASURE_KIND_LABEL: Record<RiskMeasureKind, string> = {

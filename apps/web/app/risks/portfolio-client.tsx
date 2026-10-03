@@ -11,7 +11,7 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import type { PortfolioResponse, PortfolioRiskRow, RiskTier, KkuRiskLevel } from './types';
-import { TIER_LABEL, TIER_TONE, TIER_FILL_HEX, KKU_LEVEL_FILL, KKU_LEVEL_LABEL } from './types';
+import { TIER_LABEL, TIER_TONE, TIER_FILL_HEX, KKU_LEVEL_FILL, KKU_LEVEL_LABEL, tint } from './types';
 import {
   FacultyHeatmap,
   ErmScoreHistogram,
@@ -287,8 +287,8 @@ export function RisksPortfolioClient({
                   : 'hover:scale-[1.02] hover:shadow-sm'
               }`}
               style={{
-                background: lvl === 'NEEDS_DATA' ? `${fill}10` : `${fill}18`,
-                borderColor: `${fill}66`,
+                background: lvl === 'NEEDS_DATA' ? tint(fill, 6.3) : tint(fill, 9.4),
+                borderColor: tint(fill, 40),
                 color: lvl === 'NEEDS_DATA' ? undefined : fill,
               }}
               title={`ERM ${KKU_LEVEL_LABEL[lvl].en} (${KKU_LEVEL_LABEL[lvl].th}) · L × I score ${range}`}
@@ -724,8 +724,8 @@ export function RisksPortfolioClient({
                               className="inline-flex items-baseline gap-1 rounded-md px-2 py-0.5 text-xs font-semibold tabular-nums"
                               style={{
                                 color: KKU_LEVEL_FILL[r.kkuRiskLevel],
-                                background: `${KKU_LEVEL_FILL[r.kkuRiskLevel]}18`,
-                                border: `1px solid ${KKU_LEVEL_FILL[r.kkuRiskLevel]}55`,
+                                background: tint(KKU_LEVEL_FILL[r.kkuRiskLevel], 9.4),
+                                border: `1px solid ${tint(KKU_LEVEL_FILL[r.kkuRiskLevel], 33.3)}`,
                               }}
                               title={`L${r.likelihoodBin} × I${r.impactBin} = ${r.kkuMatrixScore} — ${KKU_LEVEL_LABEL[r.kkuRiskLevel].en} (${KKU_LEVEL_LABEL[r.kkuRiskLevel].th})`}
                             >
