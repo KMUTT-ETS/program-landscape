@@ -6,6 +6,7 @@ import {
   type AiService,
   type PeerReviewPayload,
 } from '@kku/shared';
+import { loadProgramPlos } from './plos';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AI peer-review generator. Composes a snapshot of the KKU program's
@@ -161,12 +162,13 @@ export async function generateProgramPeerReview(
 
   // Build the program-content block for the v2 contentModernity +
   // contentGaps assessment. Skills come from ProgramSkill (post-
-  // approval materialised); courses + PLOs come from the latest
-  // approved program-digest extraction payload.
+  // approval materialised); courses come from the latest approved
+  // program-digest extraction payload. PLOs come from the PLO table — the
+  // digest payload has no PLO field, so reading it there (as this did until
+  // 2026-10-03) always sent the prompt an empty list.
   const digestPayload = latestDigest?.payloadJson as
     | {
         courses?: Array<{ code: string; nameTh?: string; nameEn?: string }>;
-        programLearningOutcomes?: string[];
       }
     | null
     | undefined;
@@ -179,7 +181,7 @@ export async function generateProgramPeerReview(
     code: c.code,
     name: c.nameEn || c.nameTh || '',
   }));
-  const programLearningOutcomes = digestPayload?.programLearningOutcomes ?? [];
+  const programLearningOutcomes = await loadProgramPlos(program.id);
 
   const messages = buildProgramPeerReviewMessages({
     programDegree: program.nameEn,
