@@ -1977,7 +1977,7 @@ const dashboardNodes: TopologyNode[] = [
     href: '/cockpit',
     details: {
       description:
-        '5-dimension health heatmap (demand / financial / quality / relevance / capability), BCG-style matrix, rollup tree, AI brief, Council Pack PDF export. Health-score methodology v1.',
+        '5-dimension health heatmap (demand / financial / quality / relevance / capability), BCG-style matrix, rollup tree, AI brief, Council Pack PDF export. Health-score methodology v5.4 (Financial includes the external-grant award).',
     },
   },
   {
@@ -2187,8 +2187,8 @@ const edges: TopologyEdge[] = [
   { from: 'con.kku-research-services', to: 'tab.research-service-project-member', scope: S },
   { from: 'tab.research-service-project', to: 'dash.staff-grants', scope: S },
   { from: 'tab.research-service-project-member', to: 'dash.staff-grants', scope: S },
-  { from: 'tab.research-service-project-member', to: 'dash.cockpit' }, // capability via health-score.v5.3
-  { from: 'tab.research-service-project-member', to: 'dash.program-deep-dive' }, // capability via health-score.v5.3
+  { from: 'tab.research-service-project-member', to: 'dash.cockpit' }, // Financial award via health-score.v5.4
+  { from: 'tab.research-service-project-member', to: 'dash.program-deep-dive' }, // Financial award via health-score.v5.4
   // ── External → Connector ───────────────────────────────────────────
   { from: 'ext.oracle-powerbi', to: 'con.kku-tcas-funnel', scope: E },
   { from: 'ext.oracle-powerbi', to: 'con.kku-admission-campaigns', scope: E },

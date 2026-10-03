@@ -8,7 +8,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { LANDSCAPE_METHODOLOGY_BUNDLE } from '@kku/db';
+import { HEALTH_SCORE_VERSION, LANDSCAPE_METHODOLOGY_BUNDLE } from '@kku/db';
 import { ForbiddenException } from '@nestjs/common';
 import { prisma } from '@kku/db';
 import { ScopeLevelSchema, type ScopeLevel, type SessionUser } from '@kku/shared';
@@ -118,6 +118,14 @@ async function cockpitScopeTargets(
   return targets;
 }
 
+const HEALTH_SOURCE = {
+  id: 'health-score',
+  name: `Health score methodology ${HEALTH_SCORE_VERSION}`,
+};
+const HEALTH_CAVEATS = [
+  'Financial includes an external-grant award of up to +10 points (grant baht per teaching staff per year, last 3 complete fiscal years); it never lowers a score.',
+];
+
 @Controller('/cockpit')
 export class CockpitController {
   constructor(
@@ -154,9 +162,10 @@ export class CockpitController {
   @Provenance({
     sources: [
       { id: 'mv_metrics', name: 'Materialized metric rollups' },
-      { id: 'health-score', name: 'Health score methodology v2.1' },
+      HEALTH_SOURCE,
     ],
-    methodologyVersion: 'health-score.v2.1',
+    methodologyVersion: HEALTH_SCORE_VERSION,
+    caveats: HEALTH_CAVEATS,
   })
   async kpis(
     @AuthSession() user: SessionUser,
@@ -176,8 +185,9 @@ export class CockpitController {
   @Get('heatmap')
   @Authorized('programs:read:all')
   @Provenance({
-    sources: [{ id: 'health-score', name: 'Health score methodology v2.1' }],
-    methodologyVersion: 'health-score.v2.1',
+    sources: [HEALTH_SOURCE],
+    methodologyVersion: HEALTH_SCORE_VERSION,
+    caveats: HEALTH_CAVEATS,
   })
   async heatmap(
     @AuthSession() user: SessionUser,
@@ -198,8 +208,9 @@ export class CockpitController {
   @Get('matrix')
   @Authorized('programs:read:all')
   @Provenance({
-    sources: [{ id: 'health-score', name: 'Health score methodology v2.1' }],
-    methodologyVersion: 'health-score.v2.1',
+    sources: [HEALTH_SOURCE],
+    methodologyVersion: HEALTH_SCORE_VERSION,
+    caveats: HEALTH_CAVEATS,
   })
   async matrix(
     @AuthSession() user: SessionUser,
@@ -222,9 +233,10 @@ export class CockpitController {
   @Provenance({
     sources: [
       { id: 'mv_metrics', name: 'Materialized metric rollups' },
-      { id: 'health-score', name: 'Health score methodology v2.1' },
+      HEALTH_SOURCE,
     ],
-    methodologyVersion: 'health-score.v2.1',
+    methodologyVersion: HEALTH_SCORE_VERSION,
+    caveats: HEALTH_CAVEATS,
   })
   async rollup(
     @AuthSession() user: SessionUser,
@@ -308,7 +320,8 @@ export class CockpitController {
               label: 'Health score methodology',
               source: 'KKU Data Office',
               freshnessDate: formatThaiDate(new Date()),
-              methodologyVersion: 'health-score.v2.1',
+              methodologyVersion: HEALTH_SCORE_VERSION,
+    caveats: HEALTH_CAVEATS,
             },
             {
               id: 'mv-metrics',
