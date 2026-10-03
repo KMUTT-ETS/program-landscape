@@ -75,20 +75,18 @@ vi.mock('../src/index', () => {
   };
 });
 
-// The grant driver reads its own tables through a cached gate; here it only
-// has to be BUILT at both scopes. Outside `mocks` so the beforeEach reset
-// loop does not strip its implementation.
-const grantDriverMock = vi.hoisted(() =>
+// The award loader reads its own tables; here it only has to return something.
+const grantAwardMock = vi.hoisted(() =>
   vi.fn(async (ids: readonly string[]) => ({
-    label: 'external_grant_engagement',
-    value: ids.length ? 50 : null,
-    raw: { fundedStaff: Math.round(ids.length * 0.3), staff: ids.length },
+    label: 'external_grant_award' as const,
+    points: ids.length ? 5 : null,
+    raw: { staff: ids.length },
   })),
 );
-vi.mock('../src/grant-engagement', () => ({
-  GRANT_ENGAGEMENT_LABEL: 'external_grant_engagement',
-  grantEngagementDriver: grantDriverMock,
-}));
+vi.mock('../src/grant-award', async () => {
+  const actual = await vi.importActual<typeof import('../src/grant-award')>('../src/grant-award');
+  return { ...actual, grantAward: grantAwardMock };
+});
 
 vi.mock('../src/scope', async () => {
   const actual = await vi.importActual<typeof import('../src/scope')>('../src/scope');
@@ -498,8 +496,8 @@ describe('driver parity between program and scope scorers', () => {
   });
 });
 
-describe('external_grant_engagement parity', () => {
-  it('is built — not padded — by both capability scorers when staff exist', async () => {
+describe('external-grant award is not a driver', () => {
+  it('never appears in any dimension driver list at either scope', async () => {
     mocks.facultyFindMany.mockResolvedValue([
       { id: 'fac-1', nameEn: 'Faculty of Science', nameTh: 'คณะวิทยาศาสตร์' },
     ]);
@@ -510,18 +508,15 @@ describe('external_grant_engagement parity', () => {
       Promise.resolve({ id: where.id, level: 'BACHELOR', nameTh: 'ก', kmitlCareerIds: [] }),
     );
     mocks.programFacultyFindMany.mockResolvedValue([
-      {
-        programId: 'prog-1',
-        facultyMember: { id: 's1', rank: 'LECTURER', isActive: true, retirementDate: null },
-      },
+      { programId: 'prog-1', facultyMember: { id: 's1', rank: 'LECTURER', isActive: true, retirementDate: null } },
     ]);
-
     const faculty = (await computeHealthScores('university', null))[0]!;
     const program = (await computeHealthScores('faculty', faculty.scopeId))[0]!;
     for (const row of [faculty, program]) {
-      const d = row.dimensions.capability.drivers.find((x) => x.label === 'external_grant_engagement');
-      expect(d?.raw).not.toEqual(DRIVER_NOT_COMPUTED);
-      expect(d?.value).toBe(50);
+      for (const dim of Object.values(row.dimensions)) {
+        expect(dim.drivers.map((d) => d.label)).not.toContain('external_grant_award');
+        expect(dim.drivers.map((d) => d.label)).not.toContain('external_grant_engagement');
+      }
     }
   });
 });

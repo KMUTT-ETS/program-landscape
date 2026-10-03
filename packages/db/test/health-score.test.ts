@@ -97,24 +97,24 @@ vi.mock('../src/index', () => {
   };
 });
 
-// The grant-engagement driver reads its own tables and a cached gate; the
-// scorers only need to hand it the right staff ids. Kept outside `mocks` so
-// the beforeEach mockReset loop does not strip the default implementation
-// without it being re-applied below.
-const grantDriverMock = vi.hoisted(() => vi.fn());
-vi.mock('../src/grant-engagement', () => ({
-  GRANT_ENGAGEMENT_LABEL: 'external_grant_engagement',
-  grantEngagementDriver: grantDriverMock,
-}));
-function defaultGrantDriver(ids: readonly string[]): Promise<{
-  label: string;
-  value: number | null;
+// The award loader reads its own tables and a cached source check; the
+// scorers only need to hand it the right staff ids. The pure parts
+// (awardPoints, withAward) stay real. Kept outside `mocks` so the beforeEach
+// mockReset loop does not strip the default implementation.
+const grantAwardMock = vi.hoisted(() => vi.fn());
+vi.mock('../src/grant-award', async () => {
+  const actual = await vi.importActual<typeof import('../src/grant-award')>('../src/grant-award');
+  return { ...actual, grantAward: grantAwardMock };
+});
+function defaultGrantAward(ids: readonly string[]): Promise<{
+  label: 'external_grant_award';
+  points: number | null;
   raw: Record<string, unknown>;
 }> {
   return Promise.resolve({
-    label: 'external_grant_engagement',
-    value: ids.length ? 50 : null,
-    raw: { fundedStaff: Math.round(ids.length * 0.3), staff: ids.length },
+    label: 'external_grant_award',
+    points: ids.length ? 5 : null,
+    raw: ids.length ? { staff: ids.length } : { reason: 'no-active-staff' },
   });
 }
 
@@ -136,8 +136,8 @@ import {
 beforeEach(() => {
   invalidateAcademicYearCache();
   for (const fn of Object.values(mocks)) fn.mockReset();
-  grantDriverMock.mockReset();
-  grantDriverMock.mockImplementation(defaultGrantDriver);
+  grantAwardMock.mockReset();
+  grantAwardMock.mockImplementation(defaultGrantAward);
   // Defaults — every data source empty → all drivers null. Per-test
   // overrides drive specific scenarios.
   mocks.kmitlDemandFindMany.mockResolvedValue([]);
@@ -363,7 +363,7 @@ describe('financial dimension — tuition_trend_slope ignores the in-flight acad
   });
 });
 
-// ── external_grant_engagement (v5.3) ────────────────────────────────────
+// ── external-grant award on Financial (v5.4) ─────────────────────────────
 
 function staffLink(id: string, isActive = true, rank = 'LECTURER'): {
   programId: string;
@@ -372,90 +372,114 @@ function staffLink(id: string, isActive = true, rank = 'LECTURER'): {
   return { programId: 'p1', facultyMember: { id, rank, isActive, retirementDate: null } };
 }
 
-describe('capability — external_grant_engagement', () => {
-  it('is the fifth canonical capability driver and the version is v5.3', () => {
-    expect(HEALTH_SCORE_VERSION).toBe('health-score.v5.3');
+// A complete prior year with positive contribution → a non-null Financial base.
+function financialRows(): Array<Record<string, number>> {
+  const ctx = deriveAcademicYear(defaultNextStartDate());
+  const prior = ctx.currentAcademicYearBE - 543 - 1;
+  return [prior - 1, prior].map((fiscalYear) => ({
+    fiscalYear,
+    tuitionRevenue: 3_000_000,
+    directCost: 1_000_000,
+    allocatedFacilityCost: 0,
+    allocatedOverhead: 0,
+    netContribution: 2_000_000,
+  }));
+}
+
+const programRow = {
+  id: 'p1', nameEn: 'P', nameTh: 'ป', departmentId: null, level: 'BACHELOR',
+  kmitlCareerIds: [], faculty: { code: null },
+};
+
+describe('v5.4 — capability is back to four drivers', () => {
+  it('drops external_grant_engagement and stamps v5.4', () => {
+    expect(HEALTH_SCORE_VERSION).toBe('health-score.v5.4');
     expect(DIMENSION_DRIVERS.capability).toEqual([
       'senior_rank_share',
       'publications_per_faculty',
       'retirement_horizon_5y',
       'student_faculty_ratio',
-      'external_grant_engagement',
     ]);
+    expect(Object.values(DIMENSION_DRIVERS).flat()).not.toContain('external_grant_award');
   });
 
-  it('program scorer passes the distinct ACTIVE staff ids and carries the driver value', async () => {
-    mocks.programFindUnique.mockResolvedValue({
-      id: 'p1', nameEn: 'P', nameTh: 'ป', departmentId: null, level: 'BACHELOR',
-      kmitlCareerIds: [], faculty: { code: null },
-    });
-    mocks.queryMetricByScope.mockResolvedValue([]);
-    mocks.programFacultyFindMany.mockResolvedValue([
-      staffLink('s1', true, 'PROF'),
-      staffLink('s2'),
-      staffLink('s3'),
-      // the same person linked twice (two roles) counts once
-      staffLink('s2'),
-      staffLink('s4', false),
-    ]);
-
-    const rows = await computeHealthScores('program', 'p1');
-    const cap = rows[0]?.dimensions.capability;
-    const grant = cap?.drivers.find((d) => d.label === 'external_grant_engagement');
-    expect(grant?.value).toBe(50);
-    expect(grantDriverMock).toHaveBeenCalledTimes(1);
-    const ids = grantDriverMock.mock.calls[0]?.[0] as string[];
-    expect([...ids].sort()).toEqual(['s1', 's2', 's3']);
-  });
-
-  it('scope scorer passes staff shared by two programmes once', async () => {
-    mocks.facultyFindMany.mockResolvedValue([{ id: 'fac-1', nameEn: 'F', nameTh: 'ค' }]);
-    mocks.queryMetricByScope.mockResolvedValue([]);
-    mocks.programFindMany.mockResolvedValue([{ id: 'p1' }, { id: 'p2' }]);
-    mocks.programFacultyFindMany.mockResolvedValue([
-      { ...staffLink('s1'), programId: 'p1' },
-      { ...staffLink('s2'), programId: 'p1' },
-      { ...staffLink('s1'), programId: 'p2' },
-      { ...staffLink('s3', false), programId: 'p2' },
-    ]);
-
-    const rows = await computeHealthScores('university', null);
-    const cap = rows[0]?.dimensions.capability;
-    expect(cap?.drivers.find((d) => d.label === 'external_grant_engagement')?.value).toBe(50);
-    expect(grantDriverMock).toHaveBeenCalledTimes(1);
-    const ids = grantDriverMock.mock.calls[0]?.[0] as string[];
-    expect([...ids].sort()).toEqual(['s1', 's2']);
-  });
-
-  it('gate closed: capability is the mean of the other four and completeness drops', async () => {
-    mocks.programFindUnique.mockResolvedValue({
-      id: 'p1', nameEn: 'P', nameTh: 'ป', departmentId: null, level: 'BACHELOR',
-      kmitlCareerIds: [], faculty: { code: null },
-    });
+  it('capability completeness is 100% when its four inputs are present', async () => {
+    mocks.programFindUnique.mockResolvedValue(programRow);
     mocks.queryMetricByScope.mockResolvedValue([]);
     mocks.enrollmentMetricFindFirst.mockResolvedValue({ enrolled: 60 });
     mocks.researchOutputCount.mockResolvedValue(6);
-    mocks.programFacultyFindMany.mockResolvedValue([
-      staffLink('s1', true, 'PROF'),
-      staffLink('s2'),
-      staffLink('s3'),
-    ]);
-    grantDriverMock.mockImplementation((ids: readonly string[]) =>
-      Promise.resolve({
-        label: 'external_grant_engagement',
-        value: null,
-        raw: { reason: 'insufficient-history', staff: ids.length },
-      }),
-    );
+    mocks.programFacultyFindMany.mockResolvedValue([staffLink('s1', true, 'PROF'), staffLink('s2'), staffLink('s3')]);
+    const cap = (await computeHealthScores('program', 'p1'))[0]!.dimensions.capability;
+    expect(cap.drivers).toHaveLength(4);
+    expect(cap.dataCompletenessPct).toBe(100);
+  });
+});
 
-    const rows = await computeHealthScores('program', 'p1');
-    const cap = rows[0]!.dimensions.capability;
-    const others = cap.drivers.filter((d) => d.label !== 'external_grant_engagement');
-    expect(others).toHaveLength(4);
-    const values = others.map((d) => d.value);
-    expect(values.every((v) => v !== null)).toBe(true);
-    const mean = (values as number[]).reduce((s, v) => s + v, 0) / values.length;
-    expect(cap.score).toBeCloseTo(mean, 5);
-    expect(cap.dataCompletenessPct).toBeCloseTo(80, 5);
+describe('financial — external-grant award', () => {
+  it('adds the award on top of the base and leaves completeness alone', async () => {
+    mocks.programFindUnique.mockResolvedValue(programRow);
+    mocks.queryMetricByScope.mockResolvedValue([]);
+    mocks.financialMetricFindMany.mockResolvedValue(financialRows());
+    mocks.programFacultyFindMany.mockResolvedValue([staffLink('s1'), staffLink('s2'), staffLink('s2'), staffLink('s3', false)]);
+
+    grantAwardMock.mockImplementation(() =>
+      Promise.resolve({ label: 'external_grant_award', points: null, raw: { reason: 'source-not-synced' } }),
+    );
+    const base = (await computeHealthScores('program', 'p1'))[0]!.dimensions.financial;
+    expect(base.score).not.toBeNull();
+
+    grantAwardMock.mockImplementation(defaultGrantAward);
+    const fin = (await computeHealthScores('program', 'p1'))[0]!.dimensions.financial;
+    expect(fin.award?.label).toBe('external_grant_award');
+    expect(fin.award?.points).toBe(5);
+    expect(fin.award?.baseScore).toBeCloseTo(base.score!, 10);
+    expect(fin.score).toBeCloseTo(Math.min(100, base.score! + 5), 10);
+    expect(fin.dataCompletenessPct).toBe(base.dataCompletenessPct);
+    expect(fin.drivers.map((d) => d.label)).not.toContain('external_grant_award');
+
+    // Distinct ACTIVE staff only: s2 once, inactive s3 excluded.
+    const ids = grantAwardMock.mock.calls.at(-1)?.[0] as string[];
+    expect([...ids].sort()).toEqual(['s1', 's2']);
+  });
+
+  it('not synced: score equals the base and the award says why', async () => {
+    mocks.programFindUnique.mockResolvedValue(programRow);
+    mocks.queryMetricByScope.mockResolvedValue([]);
+    mocks.financialMetricFindMany.mockResolvedValue(financialRows());
+    mocks.programFacultyFindMany.mockResolvedValue([staffLink('s1')]);
+    grantAwardMock.mockImplementation(() =>
+      Promise.resolve({ label: 'external_grant_award', points: null, raw: { reason: 'source-not-synced' } }),
+    );
+    const fin = (await computeHealthScores('program', 'p1'))[0]!.dimensions.financial;
+    expect(fin.award?.points).toBeNull();
+    expect(fin.score).toBe(fin.award?.baseScore);
+    expect(fin.award?.raw).toEqual({ reason: 'source-not-synced' });
+  });
+
+  it('null base: no award, no grant query, score stays null', async () => {
+    mocks.programFindUnique.mockResolvedValue(programRow);
+    mocks.queryMetricByScope.mockResolvedValue([]);
+    mocks.financialMetricFindMany.mockResolvedValue([]);
+    mocks.programFacultyFindMany.mockResolvedValue([staffLink('s1')]);
+    const fin = (await computeHealthScores('program', 'p1'))[0]!.dimensions.financial;
+    expect(fin.score).toBeNull();
+    expect(fin.award).toEqual({
+      label: 'external_grant_award',
+      points: null,
+      baseScore: null,
+      raw: { reason: 'no-base-financial-score' },
+    });
+    expect(grantAwardMock).not.toHaveBeenCalled();
+  });
+
+  it('does not touch other dimensions', async () => {
+    mocks.programFindUnique.mockResolvedValue(programRow);
+    mocks.queryMetricByScope.mockResolvedValue([]);
+    mocks.financialMetricFindMany.mockResolvedValue(financialRows());
+    mocks.programFacultyFindMany.mockResolvedValue([staffLink('s1')]);
+    const row = (await computeHealthScores('program', 'p1'))[0]!;
+    for (const key of ['attractiveness', 'capability', 'outcomes', 'relevance'] as const) {
+      expect(row.dimensions[key].award).toBeUndefined();
+    }
   });
 });

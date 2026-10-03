@@ -9,7 +9,7 @@ import { JOBTHAI_MIN_LINK_SCORE, JOBTHAI_MIN_POSTINGS_FOR_SIGNAL, JOBTHAI_MIN_RE
 import { programJobThaiSkillCoverage } from './jobthai';
 import { DEMAND_SOURCE_LINKEDIN, demandMatchSourceWhere } from './demand-match-sources';
 import { getAcademicYearContext } from './academic-year';
-import { GRANT_ENGAGEMENT_LABEL, grantEngagementDriver } from './grant-engagement';
+import { GRANT_AWARD_LABEL, grantAward, withAward } from './grant-award';
 import { pickFinancialYear } from './financial-year';
 import {
   dqCompetencyByScope,
@@ -210,9 +210,17 @@ export const FLAGSHIP_REVENUE_FLOOR_THB = 3_000_000;
 //   of a programme's active teaching staff on at least one externally funded
 //   project (research_service_project_members) in the last 3 complete Thai
 //   fiscal years, 60% -> 100. Null, never 0, until the kku-research-services
-//   sync has 30 days of green history. Built by grantEngagementDriver
-//   (packages/db/src/grant-engagement.ts) at both program and scope.
-export const HEALTH_SCORE_VERSION = 'health-score.v5.3';
+//   sync has 30 days of green history. Built by grantEngagementDriver at
+//   both program and scope (that module was removed in v5.4).
+//
+// v5.4 (2026-10-03) — external grants move from Capability to an AWARD on
+//   Financial. The external_grant_engagement driver and its 30-day gate are
+//   removed (Capability is back to four drivers at 25 %). Financial gains up
+//   to +10 points AFTER its drivers are averaged: grant baht per active
+//   teaching staff member per year, last 3 complete Thai FY, log curve
+//   ฿0.1 M → 0 to ฿3 M → +10 (packages/db/src/grant-award.ts). Never lowers
+//   a score, never touches completeness, null base earns nothing.
+export const HEALTH_SCORE_VERSION = 'health-score.v5.4';
 
 // ── Cost-allocation methodology (gap #5) ────────────────────────────
 // The Financial dimension's `net_contribution_per_student` +
@@ -340,7 +348,6 @@ export const DIMENSION_DRIVERS = {
     'publications_per_faculty',
     'retirement_horizon_5y',
     'student_faculty_ratio',
-    GRANT_ENGAGEMENT_LABEL,
   ],
   outcomes: [
     'tcas_min_score_percentile',
@@ -374,6 +381,17 @@ export const HealthScoreSchema = z.object({
       raw: z.unknown(),
     }),
   ),
+  // v5.4: Financial only — the external-grant award added after the drivers
+  // are averaged. Optional so stored snapshots from earlier versions parse.
+  award: z
+    .object({
+      label: z.literal(GRANT_AWARD_LABEL),
+      points: z.number().min(0).max(10).nullable(),
+      baseScore: z.number().min(0).max(100).nullable(),
+      raw: z.unknown(),
+    })
+    .nullable()
+    .optional(),
 });
 export type HealthScore = z.infer<typeof HealthScoreSchema>;
 
@@ -1170,7 +1188,49 @@ async function scoreAttractivenessScope(
 // cannot apply to it.
 const PROGRAM_FINANCIAL_OMITTED = ['revenue_coverage_ratio', 'net_contribution_per_program'] as const;
 
-async function scoreFinancialProgram(
+// v5.4: the external-grant award is applied to the FINISHED Financial score —
+// after summariseDrivers — so it can only raise the score and never moves
+// completeness. A null base earns nothing and costs no grant query.
+async function applyGrantAward(
+  base: HealthScore,
+  staffIds: () => Promise<string[]>,
+): Promise<HealthScore> {
+  if (base.score === null) {
+    return withAward(base, {
+      label: GRANT_AWARD_LABEL,
+      points: null,
+      raw: { reason: 'no-base-financial-score' },
+    });
+  }
+  return withAward(base, await grantAward(await staffIds()));
+}
+
+/** Distinct ACTIVE teaching staff across the given programmes. */
+async function activeStaffIdsForPrograms(programIds: readonly string[]): Promise<string[]> {
+  if (programIds.length === 0) return [];
+  const links = await prisma.programFaculty.findMany({
+    where: { programId: { in: [...programIds] } },
+    select: { facultyMember: { select: { id: true, isActive: true } } },
+  });
+  return [...new Set(links.filter((l) => l.facultyMember.isActive).map((l) => l.facultyMember.id))];
+}
+
+async function scoreFinancialProgram(programId: string, enrollment: MetricRow[]): Promise<HealthScore> {
+  const base = await scoreFinancialProgramBase(programId, enrollment);
+  return applyGrantAward(base, () => activeStaffIdsForPrograms([programId]));
+}
+
+async function scoreFinancialScope(
+  row: MetricRow | null,
+  scope: ScopeLevel,
+  scopeId: string,
+  enrollment: MetricRow[],
+): Promise<HealthScore> {
+  const base = await scoreFinancialScopeBase(row, scope, scopeId, enrollment);
+  return applyGrantAward(base, async () => activeStaffIdsForPrograms(await collectProgramIdsForScope(scopeId, scope)));
+}
+
+async function scoreFinancialProgramBase(
   programId: string,
   enrollment: MetricRow[],
 ): Promise<HealthScore> {
@@ -1274,7 +1334,7 @@ async function scoreFinancialProgram(
   return summariseDrivers('financial', drivers, PROGRAM_FINANCIAL_OMITTED);
 }
 
-async function scoreFinancialScope(
+async function scoreFinancialScopeBase(
   row: MetricRow | null,
   scope: ScopeLevel,
   scopeId: string,
@@ -1282,7 +1342,7 @@ async function scoreFinancialScope(
 ): Promise<HealthScore> {
   // Enrolment for the financial head year, falling back to the latest
   // enrolment row — the MV pivots per family, so the financial row can
-  // carry a null enrolledTotal. Mirrors scoreFinancialProgram.
+  // carry a null enrolledTotal. Mirrors scoreFinancialProgramBase.
   const enrolledHead =
     (row ? enrollment.find((e) => e.year === row.year)?.enrolledTotal : null) ??
     enrollment.at(-1)?.enrolledTotal ??
@@ -1385,20 +1445,16 @@ async function scoreCapabilityProgram(programId: string): Promise<HealthScore> {
   // faculty members.
   const memberIds = active.map((l) => l.facultyMember.id);
   const currentYear = new Date().getUTCFullYear();
-  // Grant engagement counts PEOPLE, so a member linked to the programme in
-  // two roles must be passed once.
-  const [pubCount, grantDriver] = await Promise.all([
+  const pubCount =
     memberIds.length > 0
-      ? prisma.researchOutput.count({
+      ? await prisma.researchOutput.count({
           where: {
             facultyMemberId: { in: memberIds },
             year: { gte: currentYear - 3 },
             ...realDataWhere(),
           },
         })
-      : Promise.resolve(0),
-    grantEngagementDriver([...new Set(memberIds)]),
-  ]);
+      : 0;
 
   const seniorCount = active.filter(
     (l) => l.facultyMember.rank === 'PROF' || l.facultyMember.rank === 'ASSOC_PROF',
@@ -1449,7 +1505,6 @@ async function scoreCapabilityProgram(programId: string): Promise<HealthScore> {
         bandThresholds: SFR_BANDS[sfrBand],
       },
     },
-    grantDriver,
   ];
   return summariseDrivers('capability', drivers);
 }
@@ -1612,8 +1667,6 @@ async function scoreCapabilityScope(scopeId: string, scope: ScopeLevel): Promise
         bandThresholds: SFR_BANDS[scopeBand],
       },
     },
-    // memberIds is already distinct — it comes from the distinctActive map.
-    await grantEngagementDriver(memberIds),
   ];
   return summariseDrivers('capability', drivers);
 }

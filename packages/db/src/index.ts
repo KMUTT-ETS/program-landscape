@@ -48,7 +48,7 @@ export * from './retention';
 export * from './sign-in-lockout';
 export * from './data-quality';
 export * from './research-services';
-export * from './grant-engagement';
+export * from './grant-award';
 export * from './methodology-bundle';
 export * from './evaluations';
 export * from './academic-year';
