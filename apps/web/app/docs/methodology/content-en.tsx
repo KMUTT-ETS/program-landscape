@@ -1863,13 +1863,13 @@ otherwise                                         → SUNSET`}</Pre>
               <TR><TD>Coordinate shared courses</TD><TD>shared credits ≥ 6</TD></TR>
               <TR><TD>Consolidate equivalent courses</TD><TD>equivalent credits ≥ 6</TD></TR>
               <TR><TD>Share staff and resources</TD><TD>index ≥ 50</TD></TR>
-              <TR><TD>Differentiate</TD><TD>index ≥ 50 and market similarity ≥ 75</TD></TR>
+              <TR><TD>Differentiate</TD><TD>index ≥ 50, market similarity ≥ 75, not a language variant</TD></TR>
               <TR><TD>Consider merge or track</TD><TD>index ≥ 70, either containment ≥ 80, not a language variant</TD></TR>
             </tbody>
           </Tbl>
           <P>
             The strongest applicable action is the pair&rsquo;s primary action. For a pair with at
-            least one action and an index ≥ 50, <Code>program-overlap-recommendation.v1</Code> writes
+            least one action and an index ≥ 50, <Code>program-overlap-recommendation.v2</Code> writes
             English reasoning: a rationale citing the evidence, what is distinctive on each side,
             two to four next steps, a confidence, and — when the evidence contradicts the rule — a
             recorded disagreement. <Strong>The AI never changes the action</Strong>; a disagreement

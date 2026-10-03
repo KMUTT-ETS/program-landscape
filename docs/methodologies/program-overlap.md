@@ -12,9 +12,8 @@ the reader contract), `packages/db/src/risk-scoring.ts` (KRI thresholds),
 `apps/ingestion/src/program-overlap/prep.ts` and `run.ts` (data prep and the
 runner), and `packages/shared/src/ai/prompts/program-overlap-recommendation.ts`
 (the AI wording). Design record:
-`docs/superpowers/specs/2026-10-03-program-overlap-design.md` (its sections on
-D9 were being revised when this page was written; where the two differ, this
-page and the code describe the final design).
+`docs/superpowers/specs/2026-10-03-program-overlap-design.md` (where the two ever
+differ, this page and the code describe the final design).
 
 **Versioning.** The thresholds in §11.4 are final for `program-overlap.v1`.
 Changing any of them after release bumps `PROGRAM_OVERLAP_VERSION`; changing
@@ -283,7 +282,7 @@ becomes `primaryAction`. Every action is labelled **for review**.
 | `COORDINATE_SHARED_COURSES` | `sharedCredits ≥ 6` |
 | `CONSOLIDATE_EQUIVALENT_COURSES` | `equivCredits ≥ 6` |
 | `SHARE_STAFF_RESOURCES` | `overlapIndex ≥ 50` |
-| `DIFFERENTIATE` | `overlapIndex ≥ 50` **and** `marketSimilarity ≥ 75` |
+| `DIFFERENTIATE` | `overlapIndex ≥ 50` **and** `marketSimilarity ≥ 75` **and** not a language variant |
 | `CONSIDER_MERGE_OR_TRACK` | `overlapIndex ≥ 70` **and** max(containment) ≥ 80 **and** not a language variant |
 
 **Strength order**, weakest to strongest: coordinate shared courses <
@@ -296,7 +295,7 @@ rules (§11.3) were approximating.
 
 ---
 
-## 8. The AI recommendation (`program-overlap-recommendation.v1`)
+## 8. The AI recommendation (`program-overlap-recommendation.v2`)
 
 - **When:** only for stored pairs with at least one action **and**
   `overlapIndex ≥ 50`. Through `AiService` (`extractStructured`), every call
@@ -485,11 +484,22 @@ actions use courses only, and PLO alignment is shown as context.
 
 ### 11.5 First dev run
 
-All four levels, on the three-layer index before D8 and D9: pairs stored —
-bachelor **608**, master **237**, doctoral **147**, higher graduate diploma
-**18**. The first AI pass wrote **74** recommendations for **USD 0.85**. Those
-figures predate the course-based index; a re-run under D9 will move them, and
-the PLO-only pairs that dominated the master's list no longer score.
+All four levels. The first run, on the three-layer index before D8 and D9,
+stored bachelor **608**, master **237**, doctoral **147**, higher graduate
+diploma **18** pairs and wrote **74** AI recommendations for **USD 0.85**; the
+PLO-only pairs that dominated the master's list no longer score.
+
+Final course-based run (after D9): pairs stored — bachelor **557**, master
+**233**, doctoral **143**, higher graduate diploma **16**. Nine pairs reach an
+index ≥ 50: Early Childhood and Primary Education ↔ B.Ed. (99, merge or
+track); Public Health ↔ Environmental Health (85, merge or track); Mechanical ↔
+Industrial Engineering (62); Electrical ↔ Electrical Engineering (58);
+Chemical ↔ Mechanical Engineering (52); a PhD Medical Science pair (55); and
+three Thai / international language-variant pairs — Pharmacology MSc (100),
+DrPH (100), PharmD (51) — which share courses and staff only. AI
+recommendations across the reruns: 74 → 44 → 9 (reused 6, new 3); total AI
+spend on recommendations ≈ USD 1.55 on dev. Risk phase 8 was deliberately not
+run on dev; it runs on prod.
 
 ---
 
@@ -533,14 +543,21 @@ the PLO-only pairs that dominated the master's list no longer score.
 
 On prod after deploy, from prod's own data — nothing is copied from dev:
 
-1. **Courses-extract v4 backfill** — pipeline phase 2b for programmes whose
-   `ProgramCourse` rows predate `program-courses-extract.v4`
-   (`programs-pipeline … --only=phase2b`; ≈ USD 0.02 a programme).
-2. **`programs:overlap-prep`** — dry run first, then `--apply` (PLOs,
-   descriptions, market profiles, embeddings).
-3. **`programs:overlap`** — dry run first, then `--apply` (one full run per
-   level plus the AI wording).
-4. **Phase 8** (risk assessment) so the two KRIs and their measures are written.
+1. **Courses-extract v4 backfill** — pipeline phase 2b for the programmes whose
+   `ProgramCourse` rows predate `program-courses-extract.v4`. It re-extracts
+   **every** programme it is pointed at (≈ USD 0.022 each, ≈ USD 6.5 for 297);
+   there is no skip-if-already-v4:
+   `docker compose exec ingestion node /app/dist/scripts/programs-pipeline.js --all --only=phase2b`
+2. **Overlap prep** (PLOs, descriptions, market profiles, embeddings; not the
+   v4 backfill):
+   `docker compose exec ingestion node /app/dist/scripts/programs-overlap-prep.js --apply`
+3. **Overlap scoring** (one full run per level plus the AI wording):
+   `docker compose exec ingestion node /app/dist/scripts/programs-overlap.js --apply`
+4. **Risk assessment (phase 8)** so the two KRIs and their measures are written:
+   `docker compose exec ingestion node /app/dist/scripts/risks-assess.js --all`
+   (with AI ≈ USD 0.10 a programme; add `--no-ai` to refresh only the KRIs —
+   that writes new assessments without narrative).
 
-Inside the ingestion container the two overlap scripts are bundled as
-`dist/scripts/programs-overlap-prep.js` and `dist/scripts/programs-overlap.js`.
+Run each from `/opt/program-landscape/current`. Dry-run the two overlap scripts
+(omit `--apply`) first. Running phase 2b or the full pipeline later also runs
+the overlap prep inside phase OV.

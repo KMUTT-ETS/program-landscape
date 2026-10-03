@@ -1,6 +1,6 @@
 # Program overlap: curriculum overlap between programmes of the same degree level
 
-**Date:** 2026-10-03 · **Status:** approved in brainstorming, awaiting spec review
+**Date:** 2026-10-03 · **Status:** approved; implemented 2026-10-03 (see §12 calibration, D1–D9)
 **New methodology:** `program-overlap.v1`. **Methodology changes:** `risk-scoring.v1.13 → v1.14`, plus a methodology bundle tag bump.
 **Answers strategic question 4:** "Which programmes duplicate each other across faculties and could be consolidated?"
 
@@ -53,7 +53,7 @@ It feeds three surfaces:
 ### 4.2 Course descriptions and CLOs
 - Add `descriptionTh String?` and `learningOutcomesTh String[]` to `ProgramCourse`. This is an additive migration.
 - Fill them from the programme's latest `PROGRAM_DIGEST` payload with review status APPROVED or AUTO_APPROVED (`courses[]`), matching on the normalised course code (`packages/db/src/course-code-normalise.ts`).
-- **Measured 2026-10-03:** the digests list far fewer courses than their 80-course cap, about 8 per programme. Only about 1,300 of 6,221 major courses (≈ 21 %) match a description. Descriptions are therefore a bonus, not the basis of the content layer (see §4.4 and §5.1, decision D7). Every pair reports how many of its matches rested on descriptions.
+- **Measured 2026-10-03:** about 25 % of major credits are described, so most matching is by course name. (The earlier 21 % figure was an interim measurement.) Descriptions are therefore a bonus, not the basis of the content layer (see §4.4 and §5.1, decision D7). Every pair reports how many of its matches rested on descriptions.
 
 ### 4.3 PLO table
 - New model `ProgramLearningOutcome` with these fields:
@@ -144,7 +144,7 @@ Market confusion: warn 60 / critical 75 (≈ cosine 0.89 / 0.91 under the 0.80 f
 
 Strength order, weakest to strongest: coordinate shared courses < consolidate equivalent courses < share staff and resources < differentiate < consider merge or track.
 
-### 6.2 AI recommendation: prompt `program-overlap-recommendation.v1`
+### 6.2 AI recommendation: prompt `program-overlap-recommendation.v2`
 - **When it runs:** only for pairs that have at least one action and an index ≥ 50. The call goes through `AiService`, recorded in `AiInference` via the `@AiCall` pattern. About $0.02 per pair.
 - **Input:**
   - both programmes' names (TH and EN), faculty, level and latest intake;
@@ -258,7 +258,7 @@ Strength order, weakest to strongest: coordinate shared courses < consolidate eq
     - the calibration evidence;
     - the 75 % rationale;
     - the language-variant rule;
-    - caveats: the 80-course description cap, category gaps, and that this measures curriculum overlap, not market cannibalisation;
+    - caveats: about 25 % of major credits described (most matching by course name), category gaps, and that this measures curriculum overlap, not market cannibalisation;
   - a new section in the in-app methodology paper (EN and TH);
   - `docs/evaluation-pipeline.md`;
   - the risk methodology docs;
@@ -353,6 +353,11 @@ Measured on dev, 2026-10-03, by course-code prefix:
 
 158 courses with these prefixes had a null or `UNKNOWN` category and were leaking into the major set, where shared general-education courses inflated the structure layer. A code starting GE, LI or 00 is now always general education (§4.5), whatever its category.
 
+### 12.9 Final dev figures (after D9)
+- Pairs stored: bachelor 557, master 233, doctoral 143, higher graduate diploma 16.
+- Nine pairs at index ≥ 50: Early Childhood and Primary Education ↔ B.Ed. 99 (merge or track); Public Health ↔ Environmental Health 85 (merge or track); Mechanical ↔ Industrial Engineering 62; Electrical ↔ Electrical Engineering 58; Chemical ↔ Mechanical Engineering 52; a PhD Medical Science pair 55; three Thai / international pairs (Pharmacology MSc 100, DrPH 100, PharmD 51) that share courses and staff only (language variants).
+- AI recommendations: 74 → 44 → 9 across reruns (reused 6, new 3); ≈ $1.55 in total on dev. Phase 8 was not run on dev.
+
 ### 12.8 Chosen values
 
 | Threshold | Value | Change from provisional |
@@ -383,7 +388,12 @@ Measured on dev, 2026-10-03, by course-code prefix:
 5. **UIs:** dashboard overlap network and pair list, Risk panel, Deep-Dive section.
 6. **Docs.**
 
-On prod after deploy: `programs:overlap-prep --apply` (including the v4 backfill), then `programs:overlap --apply`, then phase 8. Prod recomputes from its own data; nothing is copied from dev.
+On prod after deploy, inside `/opt/program-landscape/current` (prod recomputes from its own data; nothing is copied from dev):
+
+1. `docker compose exec ingestion node /app/dist/scripts/programs-pipeline.js --all --only=phase2b` — the courses-extract v4 backfill. It re-extracts every programme (≈ $0.022 each, ≈ $6.5 for 297); there is no skip-if-already-v4.
+2. `docker compose exec ingestion node /app/dist/scripts/programs-overlap-prep.js --apply` — PLOs, descriptions, market profiles, embeddings. It does **not** include the v4 backfill.
+3. `docker compose exec ingestion node /app/dist/scripts/programs-overlap.js --apply`
+4. `docker compose exec ingestion node /app/dist/scripts/risks-assess.js --all` — phase 8 (≈ $0.10 a programme with AI; `--no-ai` refreshes KRIs only, without narrative).
 
 ## 14. Out of scope
 
