@@ -115,7 +115,10 @@ award: z.object({
 ```
 
 - Only the Financial dimension sets it. Every other dimension leaves it undefined.
-- `raw` carries `{ bahtPerStaffPerYear, bahtPerYear, staff, projects, windowFyBe: [from, to], floorThb: 100000, capThb: 3000000, maxPoints: 10, caveat }`, or `{ reason: 'source-not-synced' }`.
+- `raw` carries `{ bahtPerStaffPerYear, bahtPerYear, staff, projects, windowFyBe: [from, to], floorThb: 100000, capThb: 3000000, maxPoints: 10, caveat }`, or `{ reason }` with `points: null`. The reason is one of:
+  - `'source-not-synced'`;
+  - `'no-base-financial-score'`: base Financial is null, so the award is not computed and no grant query runs;
+  - `'no-active-staff'`.
 - Because the field is optional, stored decision snapshots and v5.3 rows still parse.
 - The award is **not** listed in `DIMENSION_DRIVERS`. It is not an averaged driver, and the driver-parity guard is unchanged.
 
