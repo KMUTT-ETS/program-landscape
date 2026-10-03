@@ -94,7 +94,7 @@ Every unordered pair (A, B) of canonical programmes **at the same level** is sco
   - The courses compared are the described major courses that were *not already matched by code*.
   - Pairs are formed by **one-to-one greedy matching** over cosine similarity, most similar first, so each course is used at most once.
   - A pair is equivalent when cosine ≥ `COURSE_EQUIV_THRESHOLD` (provisionally 0.85; fixed at calibration, §9). This is a stand-in for the 75 % content rule.
-  - `C = 2 × equivCredits / (describedMajorCredits_A + describedMajorCredits_B) × 100`
+  - `C = 2 × (sharedDescribedCredits + equivCredits) / (describedMajorCredits_A + describedMajorCredits_B) × 100`, where `sharedDescribedCredits` covers described courses both programmes share by code. They are trivially equivalent; leaving them out would score two identical programmes 0 on content. `equivCredits` alone (different codes only) drives the "consolidate equivalent courses" action.
   - **Null** when either programme has fewer than 3 described major courses.
 - **Outcome: PLO alignment.**
   - A PLO is **covered** when its best cosine against the other programme's PLOs is ≥ `PLO_MATCH_THRESHOLD` (provisionally 0.80; fixed at calibration).
