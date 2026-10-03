@@ -37,6 +37,7 @@ const ENTRIES: ChangelogEntry[] = [
       'An AI-written rationale explains each flagged pair from the evidence, with confidence, sources and a disagree button. The AI cannot change the suggested action; it can only record that it disagrees.',
       'Program Deep-Dive gains an Overlap section listing a programme’s overlapping siblings; it is hidden when no sibling reaches 30. Risk Management gains two indicators — curriculum overlap and market confusion (very similar recruitment material) — and a Self-competition panel; overall risk tiers do not change.',
       'Methodology: program-overlap.v1 (calibrated on KKU data before release), risk scoring v1.14. The award line for external grants now says “no stated budget” instead of “฿0k” when projects carry no budget figure.',
+      'Curriculum course extraction no longer discards a whole programme’s course list when a course has no English name — about one programme in nine had fallen back to a cruder reading that loses course categories.',
     ],
   },
   {
