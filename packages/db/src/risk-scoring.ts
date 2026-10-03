@@ -33,7 +33,7 @@ import { loadOverlapRiskSignal, type OverlapRiskSignal } from './program-overlap
 // docs/methodologies/risk-scoring.md):
 //   v1.14 (2026-10-03): two KRIs from programme overlap (program-overlap.v1)
 //     — curriculum_overlap_max (WARN 50 / CRITICAL 70) and
-//     market_confusion_max (provisional thresholds until calibration).
+//     market_confusion_max (WARN 60 / CRITICAL 75, calibrated 2026-10-03).
 //     Drivers, tiers and composites are unchanged.
 export const RISK_SCORING_VERSION = 'risk-scoring.v1.14';
 
@@ -1541,7 +1541,7 @@ export function evaluateKris(inputs: ProgramRiskInputs, freshnessDate: Date): Kr
 // overlap bands so the KRI and the Education heatmap agree.
 export const CURRICULUM_OVERLAP_WARN = OVERLAP_THRESHOLDS.bandModerate; // 50
 export const CURRICULUM_OVERLAP_CRITICAL = OVERLAP_THRESHOLDS.bandHigh; // 70
-// Market confusion: provisional until calibration — defined once in
+// Market confusion: calibrated 2026-10-03 (spec §12) — defined once in
 // OVERLAP_THRESHOLDS (marketConfusionWarn / marketConfusion), which also drive
 // pair storage and the DIFFERENTIATE action. Changing them after release
 // bumps RISK_SCORING_VERSION and PROGRAM_OVERLAP_VERSION.

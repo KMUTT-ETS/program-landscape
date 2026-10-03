@@ -51,6 +51,7 @@ const evidence = {
   coverage: {
     majorCoursesA: 10, majorCoursesB: 10, embeddedA: 10, embeddedB: 10, describedA: 10, describedB: 10,
     descriptionMatches: 0, plosA: 5, plosB: 5, defaultedCredits: 0,
+    layerCount: 3, limitedEvidence: false,
   },
 };
 

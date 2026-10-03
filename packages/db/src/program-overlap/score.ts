@@ -1,5 +1,5 @@
 // program-overlap.v1 — pure scoring core. Spec:
-// docs/superpowers/specs/2026-10-03-program-overlap-design.md §4.5–§6.1.
+// docs/superpowers/specs/2026-10-03-program-overlap-design.md §4.5–§6.1, §12.
 // Deterministic: same inputs → same scores. No DB, no AI, no clock.
 import type { CourseCategory, OverlapAction, OverlapBand, ProgramLevel } from '@prisma/client';
 import { createHash } from 'node:crypto';
@@ -7,7 +7,7 @@ import { hasInternationalMarker, languageVariantKey } from './text';
 
 export const PROGRAM_OVERLAP_VERSION = 'program-overlap.v1';
 
-/** Provisional until calibration (spec §9). Changing any value after release
+/** Calibrated 2026-10-03 on dev (spec §12). Changing any value after release
  *  bumps PROGRAM_OVERLAP_VERSION. */
 export interface OverlapThresholds {
   courseEquiv: number;        // cosine for two DESCRIBED courses to count as equivalent
@@ -16,10 +16,10 @@ export interface OverlapThresholds {
   marketFloor: number;        // cosine mapped to 0
   marketCeiling: number;      // cosine mapped to 100
   /** 0–100 market similarity: market_confusion_max WARN, and the floor at
-   *  which a pair is stored even with low curriculum overlap. PROVISIONAL. */
+   *  which a pair is stored even with low curriculum overlap. 60 ≈ cosine 0.89. */
   marketConfusionWarn: number;
   /** 0–100 market similarity: market_confusion_max CRITICAL and the
-   *  DIFFERENTIATE action. PROVISIONAL. */
+   *  DIFFERENTIATE action. 75 ≈ cosine 0.91. */
   marketConfusion: number;
   bandLow: number;
   bandModerate: number;
@@ -36,11 +36,15 @@ export interface OverlapThresholds {
 export const OVERLAP_THRESHOLDS: OverlapThresholds = {
   courseEquiv: 0.85,
   courseEquivName: 0.9,
-  ploMatch: 0.8,
-  marketFloor: 0.6,
+  // Calibrated 2026-10-03 on dev (spec §12). PLO 0.85: at 0.80 template-worded
+  // PLOs of unrelated programmes matched (e.g. finance vs marketing 0.837).
+  ploMatch: 0.85,
+  // Market floor 0.80: same-level market-profile cosines sit at p50 0.76–0.81,
+  // so a 0.60 floor rescaled almost every pair into the top half.
+  marketFloor: 0.8,
   marketCeiling: 0.95,
-  // PROVISIONAL — the market-confusion thresholds are set at calibration
-  // (Task 11, spec §9). The single source of truth: risk-scoring.ts reads them.
+  // The single source of truth for the market-confusion KRI: risk-scoring.ts
+  // reads these.
   marketConfusionWarn: 60,
   marketConfusion: 75,
   bandLow: 30,
@@ -106,6 +110,11 @@ export interface PairEvidence {
     descriptionMatches: number;
     plosA: number; plosB: number;
     defaultedCredits: number;
+    /** Non-null layers (0–3). */
+    layerCount: number;
+    /** Fewer than 2 layers, or no course layer at all: band capped at
+     *  MODERATE and no DIFFERENTIATE / CONSIDER_MERGE_OR_TRACK (spec §12). */
+    limitedEvidence: boolean;
   };
 }
 
@@ -119,6 +128,10 @@ export interface PairScore {
   containmentAInB: number | null;
   containmentBInA: number | null;
   band: OverlapBand;
+  /** Non-null layers (0–3); mirrored in evidence.coverage. */
+  layerCount: number;
+  /** See PairEvidence.coverage.limitedEvidence. */
+  limitedEvidence: boolean;
   sharedCredits: number;
   equivCredits: number;
   sharedStaff: number;
@@ -263,6 +276,11 @@ export function bandFor(index: number | null, t: OverlapThresholds = OVERLAP_THR
   return 'HIGH';
 }
 
+/** A limited-evidence pair never reads HIGH. */
+export function capBand(band: OverlapBand, limitedEvidence: boolean): OverlapBand {
+  return limitedEvidence && band === 'HIGH' ? 'MODERATE' : band;
+}
+
 /** Weakest → strongest; the last applicable one is the primary action. */
 export const ACTION_STRENGTH: readonly OverlapAction[] = [
   'COORDINATE_SHARED_COURSES',
@@ -360,6 +378,11 @@ export function scorePair(
   }
 
   const overlapIndex = mean([structure, content, outcome]);
+  // Strong conclusions need course evidence: a PLO-only index of 100 (e.g.
+  // Agriculture vs Animal Science, template-worded PLOs) would otherwise
+  // recommend a merge.
+  const layerCount = [structure, content, outcome].filter((x) => x !== null).length;
+  const limitedEvidence = layerCount < 2 || (structure === null && content === null);
   const matchedCredits = sharedCredits + (content === null ? 0 : equivCredits);
   const containmentAInB = mean([majA.length && majB.length ? pct(matchedCredits, creditsA) : null, ploShareA]);
   const containmentBInA = mean([majA.length && majB.length ? pct(matchedCredits, creditsB) : null, ploShareB]);
@@ -376,9 +399,9 @@ export function scorePair(
   if (sharedCredits >= t.courseActionCredits) actions.push('COORDINATE_SHARED_COURSES');
   if (equivCredits >= t.courseActionCredits) actions.push('CONSOLIDATE_EQUIVALENT_COURSES');
   if (overlapIndex !== null && overlapIndex >= t.actionIndex) actions.push('SHARE_STAFF_RESOURCES');
-  if (overlapIndex !== null && overlapIndex >= t.actionIndex && marketSimilarity !== null && marketSimilarity >= t.marketConfusion) actions.push('DIFFERENTIATE');
+  if (!limitedEvidence && overlapIndex !== null && overlapIndex >= t.actionIndex && marketSimilarity !== null && marketSimilarity >= t.marketConfusion) actions.push('DIFFERENTIATE');
   const maxContainment = Math.max(containmentAInB ?? 0, containmentBInA ?? 0);
-  if (overlapIndex !== null && overlapIndex >= t.mergeIndex && maxContainment >= t.mergeContainment && !languageVariant) actions.push('CONSIDER_MERGE_OR_TRACK');
+  if (!limitedEvidence && overlapIndex !== null && overlapIndex >= t.mergeIndex && maxContainment >= t.mergeContainment && !languageVariant) actions.push('CONSIDER_MERGE_OR_TRACK');
   const primaryAction = [...ACTION_STRENGTH].reverse().find((x) => actions.includes(x)) ?? null;
 
   const evidence: PairEvidence = {
@@ -393,12 +416,14 @@ export function scorePair(
       describedA, describedB,
       descriptionMatches: equivalent.filter((e) => e.basis === 'description').length,
       plosA: a.plos.length, plosB: b.plos.length, defaultedCredits,
+      layerCount, limitedEvidence,
     },
   };
   return {
     programAId: a.id, programBId: b.id,
     structure, content, outcome, overlapIndex, containmentAInB, containmentBInA,
-    band: bandFor(overlapIndex, t),
+    band: capBand(bandFor(overlapIndex, t), limitedEvidence),
+    layerCount, limitedEvidence,
     sharedCredits, equivCredits, sharedStaff, marketSimilarity, languageVariant,
     actions, primaryAction, evidence,
     evidenceHash: computeEvidenceHash({

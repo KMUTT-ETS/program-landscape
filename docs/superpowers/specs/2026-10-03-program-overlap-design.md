@@ -95,13 +95,13 @@ Every unordered pair (A, B) of canonical ACTIVE programmes **at the same level**
   - The courses compared are the **embedded** major courses (§4.4) that were *not already matched by code*. Most are embedded on names alone (D7).
   - Pairs are formed by **one-to-one greedy matching** over cosine similarity, most similar first, so each course is used at most once.
   - A pair is equivalent when its cosine reaches the threshold for its basis. This stands in for the 75 % content rule.
-    - **Both courses described:** `COURSE_EQUIV_THRESHOLD`, provisionally 0.85.
-    - **Either course name-only:** `COURSE_EQUIV_NAME_THRESHOLD`, provisionally 0.90. Titles carry less information, so they must agree more closely.
-    - Both thresholds are fixed at calibration (§9). Each match records its basis (`description` or `name`).
+    - **Both courses described:** `COURSE_EQUIV_THRESHOLD` = 0.85 (calibrated, §12).
+    - **Either course name-only:** `COURSE_EQUIV_NAME_THRESHOLD` = 0.90 (calibrated, §12). Titles carry less information, so they must agree more closely.
+    - Both thresholds were confirmed at calibration (§12). Each match records its basis (`description` or `name`).
   - `C = 2 × (sharedEmbeddedCredits + equivCredits) / (embeddedMajorCredits_A + embeddedMajorCredits_B) × 100`, where `sharedEmbeddedCredits` covers embedded courses both programmes share by code. They are trivially equivalent; leaving them out would score two identical programmes 0 on content. `equivCredits` alone (different codes only) drives the "consolidate equivalent courses" action.
   - **Null** when either programme has fewer than 3 embedded major courses.
 - **Outcome: PLO alignment.**
-  - A PLO is **covered** when its best cosine against the other programme's PLOs is ≥ `PLO_MATCH_THRESHOLD` (provisionally 0.80; fixed at calibration).
+  - A PLO is **covered** when its best cosine against the other programme's PLOs is ≥ `PLO_MATCH_THRESHOLD` = 0.85 (calibrated, §12; raised from the provisional 0.80).
   - `O = (covered_A + covered_B) / (n_A + n_B) × 100`
   - **Null** when either programme has no PLOs.
 
@@ -114,11 +114,11 @@ Every unordered pair (A, B) of canonical ACTIVE programmes **at the same level**
 
 ### 5.3 Signals reported beside the index (not part of it)
 - **Shared active staff:** distinct `FacultyMember`s with `isActive` who are linked through `ProgramFaculty` to both programmes.
-- **Market similarity:** cosine of the two market-profile embeddings, rescaled to 0–100 against the calibrated floor and ceiling (§9).
+- **Market similarity:** cosine of the two market-profile embeddings, rescaled to 0–100 against the calibrated floor 0.80 and ceiling 0.95 (§12): a cosine of 0.80 or less reads 0, 0.95 or more reads 100.
 - **Language variant:** set when the two programmes have the same normalised `nameTh` once "หลักสูตรนานาชาติ" / "(นานาชาติ)" / "International Program(me)" is stripped, **and** either their recorded `language` differs (both known) **or** exactly one of the two carries one of those international markers in its Thai or English name (case-insensitive). The marker arm exists because dev records both halves of some pairs as `MIXED` (for example the Thai and international MSc Pharmacology); two identical unmarked names in the same language are a true duplicate, not a variant. The degree name alone is *not* enough: generic degree names such as "วิศวกรรมศาสตรบัณฑิต" span unrelated programmes taught in both languages (checked on dev, 2026-10-03). These pairs overlap by design; they are labelled, are never recommended for merging, and are left out of both KRIs.
 
 ### 5.4 Bands and storage
-- **Bands:** high ≥ 70, moderate 50–69, low 30–49. Bands are provisional until calibration.
+- **Bands:** high ≥ 70, moderate 50–69, low 30–49 (confirmed at calibration, §12). A **limited-evidence** pair (§6.1) is capped at moderate.
 - **What is stored:** a pair whose index is ≥ 30, **or** that shares at least one major course or one active staff member, **or** whose market similarity is at or above the market-confusion warn value (60) — so a confusable pair is stored even with low curriculum overlap.
 
 ## 6. Actions and AI recommendations
@@ -126,15 +126,17 @@ Every unordered pair (A, B) of canonical ACTIVE programmes **at the same level**
 ### 6.1 Actions
 Actions are chosen by rules. A pair may receive several; the strongest becomes `primaryAction`. All are labelled "for review".
 
-| Action (enum `OverlapAction`) | Rule (provisional; thresholds fixed at calibration) |
+| Action (enum `OverlapAction`) | Rule (calibrated 2026-10-03, §12) |
 |---|---|
 | `CONSOLIDATE_EQUIVALENT_COURSES` | `equivCredits ≥ 6` |
 | `COORDINATE_SHARED_COURSES` | `sharedCredits ≥ 6` |
 | `SHARE_STAFF_RESOURCES` | index ≥ 50 |
-| `DIFFERENTIATE` | index ≥ 50 **and** market similarity ≥ the market-confusion critical value (75) |
-| `CONSIDER_MERGE_OR_TRACK` | index ≥ 70 **and** max containment ≥ 80 **and** not a language variant |
+| `DIFFERENTIATE` | index ≥ 50 **and** market similarity ≥ the market-confusion critical value (75) **and** not limited evidence |
+| `CONSIDER_MERGE_OR_TRACK` | index ≥ 70 **and** max containment ≥ 80 **and** not a language variant **and** not limited evidence |
 
-Market confusion: warn 60 / critical 75, provisional until calibration; `DIFFERENTIATE` uses the critical value; pairs at or above warn are stored even with low curriculum overlap. Both live in `OVERLAP_THRESHOLDS` (`marketConfusionWarn`, `marketConfusion`).
+**Limited evidence:** a pair with fewer than 2 non-null layers, or with neither course layer (structure, content) non-null. Its band is capped at moderate and it never receives `DIFFERENTIATE` or `CONSIDER_MERGE_OR_TRACK`; the weaker actions still apply. `layerCount` and `limitedEvidence` are reported on the pair and in `evidence.coverage` (no schema change). See §12 for why.
+
+Market confusion: warn 60 / critical 75 (≈ cosine 0.89 / 0.91 under the 0.80 floor), confirmed at calibration; `DIFFERENTIATE` uses the critical value; pairs at or above warn are stored even with low curriculum overlap. Both live in `OVERLAP_THRESHOLDS` (`marketConfusionWarn`, `marketConfusion`).
 
 Strength order, weakest to strongest: coordinate shared courses < consolidate equivalent courses < share staff and resources < differentiate < consider merge or track.
 
@@ -160,7 +162,7 @@ Strength order, weakest to strongest: coordinate shared courses < consolidate eq
 
 - **Two entries are added to `RISK_INDICATOR_CATALOG`** (`packages/db/src/risk-scoring.ts`). Both use `alarmDirection: high`.
   - **`curriculum_overlap_max`:** the programme's highest overlap index against any same-level sibling, excluding language variants. Warning at 50, breach at 70.
-  - **`market_confusion_max`:** the programme's highest market similarity against any same-level sibling, excluding language variants. Market confusion: warn 60 / critical 75, provisional until calibration (`OVERLAP_THRESHOLDS.marketConfusionWarn` / `marketConfusion`); `DIFFERENTIATE` uses the critical value; pairs at or above warn are stored even with low curriculum overlap.
+  - **`market_confusion_max`:** the programme's highest market similarity against any same-level sibling, excluding language variants. Market confusion: warn 60 / critical 75, calibrated 2026-10-03 (`OVERLAP_THRESHOLDS.marketConfusionWarn` / `marketConfusion`); `DIFFERENTIATE` uses the critical value; pairs at or above warn are stored even with low curriculum overlap.
 - **Evaluation:** both are evaluated in phase 8 from the latest SUCCEEDED `ProgramOverlapRun`. Without one, they are null ("no overlap analysis yet"), never 0.
 - **Measures** (in `packages/db/src/risk-measure-rules.ts`):
   - a `curriculum_overlap_max` breach adds `CURRICULUM_DIFFERENTIATE`, and adds `PROGRAM_MERGE` too when the breaching pair's actions include `CONSIDER_MERGE_OR_TRACK`;
@@ -271,7 +273,7 @@ Strength order, weakest to strongest: coordinate shared courses < consolidate eq
   - the evidence hash.
 - **Loader and runner tests (mocked Prisma):**
   - same level only;
-  - canonical programmes only;
+  - canonical ACTIVE programmes only;
   - the storage filter;
   - a scoped run merging over the full run;
   - the KRIs being null without a run and breaching at threshold;
@@ -284,7 +286,56 @@ Strength order, weakest to strongest: coordinate shared courses < consolidate eq
 
 ## 12. Calibration results
 
-*To be completed during implementation (§9). Until then every threshold above is provisional.*
+Calibrated **2026-10-03 on dev**. These values are final for `program-overlap.v1`; any later change bumps the version.
+
+### 12.1 Data coverage
+- **PLOs:** 1,834 PLOs for 285 programmes.
+- **Major courses:** 8,846, all embedded. 25.3 % of major credits are described (description and/or CLOs), across 216 programmes; the rest are embedded on names alone (D7).
+- **Market profiles:** 301.
+- **Courses extract (v4) backfill:** USD 4.83; 160 programmes OK, 57 degraded or skipped, of 217.
+
+### 12.2 Observed distributions
+- **Market-profile cosine** (same-level pairs):
+
+  | Level | p50 | p90 | p99 |
+  |---|---|---|---|
+  | Bachelor | 0.759 | 0.808 | 0.872 |
+  | Master | 0.771 | — | 0.879 |
+  | Doctoral | 0.807 | — | 0.895 |
+
+  Market profiles of programmes at one university share a great deal of wording, so the cosines sit high and close together. Under the provisional 0.60 floor the median bachelor pair already read ≈ 45 and the median doctoral pair ≈ 59, just under the warn value. With the floor at 0.80 the bachelor and master medians read 0, and warn 60 (cosine ≈ 0.89) sits at about the p99 of every level.
+- **Course best-match cosine:** described courses p90 0.719, max 0.884 (200-pair sample); name basis p90 0.732. Both equivalence thresholds (0.85 described, 0.90 name-only) sit above the p90 and are kept.
+
+### 12.3 PLO template finding
+PLOs are written to a shared template, so at 0.80 unrelated programmes covered each other's PLOs. Two examples that match at 0.80 and not at 0.85:
+- finance vs marketing (การเงิน vs การตลาด): **0.837**;
+- physics against materials science: **0.836**.
+
+Pairs with outcome ≥ 50 by PLO threshold:
+
+| Level | 0.80 | 0.85 | 0.90 |
+|---|---|---|---|
+| Bachelor | 86 | 74 | 62 |
+| Master | 81 | 48 | 20 |
+| Doctoral | 37 | 21 | 14 |
+
+0.85 is chosen: it removes the template matches above. A generic-PLO filter is **unnecessary at 0.85**: no PLO matches more than 25 % of programmes at its level.
+
+### 12.4 Limited-evidence rule
+A PLO-only pair could reach index 100 and be recommended for a merge on outcome text alone. Agriculture vs Animal Science did exactly that: outcome 100, no course layer, `CONSIDER_MERGE_OR_TRACK`. Strong conclusions now need course evidence (§6.1): a pair with fewer than 2 non-null layers, or no course layer, is **limited evidence** — band capped at moderate, no `DIFFERENTIATE`, no `CONSIDER_MERGE_OR_TRACK`. It is still stored and still gets the weaker actions.
+
+### 12.5 Chosen values
+
+| Threshold | Value | Change from provisional |
+|---|---|---|
+| `courseEquiv` (both described) | 0.85 | unchanged |
+| `courseEquivName` (name-only) | 0.90 | unchanged |
+| `ploMatch` | **0.85** | 0.80 → 0.85 |
+| `marketFloor` / `marketCeiling` | **0.80** / 0.95 | floor 0.60 → 0.80 |
+| `marketConfusionWarn` / `marketConfusion` | 60 / 75 (≈ cosine 0.89 / 0.91) | unchanged on the 0–100 scale |
+| Bands low / moderate / high | 30 / 50 / 70 | unchanged |
+| Merge rule | index ≥ 70, containment ≥ 80, not a language variant | unchanged, plus not limited evidence |
+| Limited evidence | < 2 layers or no course layer | **new** |
 
 ## 13. Rollout order
 

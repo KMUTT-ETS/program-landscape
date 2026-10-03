@@ -254,7 +254,7 @@ describe('market cosine histogram', () => {
     );
     expect(plan.histogram.marketCosine).toHaveLength(1);
     expect(plan.histogram.marketCosine[0]).toBeCloseTo(0.5, 10);
-    expect(plan.histogram.market).toEqual([0]); // 0.5 is under the 0.6 floor
+    expect(plan.histogram.market).toEqual([0]); // 0.5 is under the 0.80 floor
   });
 });
 

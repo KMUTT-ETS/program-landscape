@@ -241,6 +241,10 @@ const PairEvidenceSchema = z.object({
     plosA: z.number(),
     plosB: z.number(),
     defaultedCredits: z.number(),
+    // Added at calibration (2026-10-03): evidence stored by an earlier run
+    // lacks them and parses as null — re-run program-overlap.
+    layerCount: z.number(),
+    limitedEvidence: z.boolean(),
   }),
 }) satisfies z.ZodType<PairEvidence>;
 

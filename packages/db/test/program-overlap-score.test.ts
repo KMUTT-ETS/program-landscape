@@ -229,17 +229,19 @@ describe('bands and actions', () => {
   });
 
   it('differentiate needs index ≥ 50 and market similarity at the threshold', () => {
+    // Two course layers + outcome, so the pair is not limited evidence.
     const plo = [{ ordinal: 1, text: 'x', vector: v(0) }];
+    const same = [course('C1', 3), course('C2', 3), course('C3', 3)];
     const s = scorePair(
-      prog('a', { plos: plo, marketVector: v(0) }),
-      prog('b', { plos: plo, marketVector: v(0) }),
+      prog('a', { courses: same, plos: plo, marketVector: v(0) }),
+      prog('b', { courses: same, plos: plo, marketVector: v(0) }),
       { serviceCodes: new Set(), thresholds: T },
     );
     expect(s.actions).toContain('DIFFERENTIATE');
-    // market ≈ 70: above warn, below the critical value DIFFERENTIATE uses
+    // cos 25° = 0.906 → market ≈ 70.9: above warn (60), below the critical 75 DIFFERENTIATE uses
     const mid = scorePair(
-      prog('a', { plos: plo, marketVector: v(0) }),
-      prog('b', { plos: plo, marketVector: v(32.3) }),
+      prog('a', { courses: same, plos: plo, marketVector: v(0) }),
+      prog('b', { courses: same, plos: plo, marketVector: v(25) }),
       { serviceCodes: new Set(), thresholds: T },
     );
     expect(mid.marketSimilarity!).toBeGreaterThan(T.marketConfusionWarn);
@@ -267,7 +269,8 @@ describe('bands and actions', () => {
 
   it('shouldStorePair: market similarity at the market-confusion warn stores a pair with no curriculum overlap', () => {
     const ctx = { serviceCodes: new Set<string>(), thresholds: T };
-    const close = scorePair(prog('a', { marketVector: v(0) }), prog('b', { marketVector: v(30) }), ctx);
+    // cos 25° = 0.906 → ≈ 70.9 ≥ warn 60; cos 50° = 0.643 → 0
+    const close = scorePair(prog('a', { marketVector: v(0) }), prog('b', { marketVector: v(25) }), ctx);
     expect(close.overlapIndex).toBeNull();
     expect(close.marketSimilarity!).toBeGreaterThanOrEqual(T.marketConfusionWarn);
     expect(shouldStorePair(close)).toBe(true);
@@ -279,7 +282,7 @@ describe('bands and actions', () => {
     expect(shouldStorePair({ ...far, marketSimilarity: T.marketConfusionWarn - 0.01 })).toBe(false);
   });
 
-  it('market-confusion thresholds: warn 60, critical 75 (provisional)', () => {
+  it('market-confusion thresholds: warn 60, critical 75', () => {
     expect([T.marketConfusionWarn, T.marketConfusion]).toEqual([60, 75]);
   });
 
@@ -369,5 +372,62 @@ describe('review fixes', () => {
     });
     expect(computeEvidenceHash(payload(50.00001))).toBe(computeEvidenceHash(payload(50.00002)));
     expect(computeEvidenceHash(payload(50.00001))).not.toBe(computeEvidenceHash(payload(50.1)));
+  });
+});
+
+describe('calibration 2026-10-03 (spec §12)', () => {
+  const ctx = { serviceCodes: new Set<string>(), thresholds: T };
+  const at = (cos: number): number[] => v((Math.acos(cos) * 180) / Math.PI);
+
+  it('calibrated values', () => {
+    expect([T.ploMatch, T.marketFloor, T.marketCeiling, T.courseEquiv, T.courseEquivName]).toEqual([0.85, 0.8, 0.95, 0.85, 0.9]);
+    expect([T.bandLow, T.bandModerate, T.bandHigh]).toEqual([30, 50, 70]);
+  });
+
+  it('a PLO is covered at cosine 0.86 but not at 0.84', () => {
+    const p = (vec: number[]) => [{ ordinal: 1, text: 'x', vector: vec }];
+    expect(scorePair(prog('a', { plos: p(v(0)) }), prog('b', { plos: p(at(0.84)) }), ctx).outcome).toBe(0);
+    expect(scorePair(prog('a', { plos: p(v(0)) }), prog('b', { plos: p(at(0.86)) }), ctx).outcome).toBe(100);
+  });
+
+  it('market similarity rescales cosine 0.80 → 0 and 0.89 → ≈ 60', () => {
+    const m = (cos: number) => scorePair(prog('a', { marketVector: v(0) }), prog('b', { marketVector: at(cos) }), ctx).marketSimilarity!;
+    expect(m(0.8)).toBeCloseTo(0, 6);
+    expect(m(0.89)).toBeCloseTo(60, 6);
+    expect(m(0.7)).toBe(0);
+  });
+
+  it('a PLO-only pair is limited evidence: band capped at MODERATE, no merge or differentiate', () => {
+    const plo = [{ ordinal: 1, text: 'x', vector: v(0) }];
+    const s = scorePair(prog('a', { plos: plo, marketVector: v(0) }), prog('b', { plos: plo, marketVector: v(0) }), ctx);
+    expect(s.overlapIndex).toBe(100);
+    expect(s.layerCount).toBe(1);
+    expect(s.limitedEvidence).toBe(true);
+    expect(s.evidence.coverage.limitedEvidence).toBe(true);
+    expect(s.evidence.coverage.layerCount).toBe(1);
+    expect(s.band).toBe('MODERATE');
+    expect(s.actions).not.toContain('CONSIDER_MERGE_OR_TRACK');
+    expect(s.actions).not.toContain('DIFFERENTIATE');
+    expect(s.actions).toContain('SHARE_STAFF_RESOURCES');
+    expect(s.primaryAction).toBe('SHARE_STAFF_RESOURCES');
+  });
+
+  it('two layers including a course layer keep HIGH and the merge action', () => {
+    // 2 courses → content null (needs 3 embedded); structure 100 + outcome 100.
+    const two = [course('C1', 3), course('C2', 3)];
+    const plo = [{ ordinal: 1, text: 'x', vector: v(0) }];
+    const s = scorePair(prog('a', { courses: two, plos: plo }), prog('b', { courses: two, plos: plo }), ctx);
+    expect(s.content).toBeNull();
+    expect(s.layerCount).toBe(2);
+    expect(s.limitedEvidence).toBe(false);
+    expect(s.band).toBe('HIGH');
+    expect(s.actions).toContain('CONSIDER_MERGE_OR_TRACK');
+  });
+
+  it('a structure-only pair is limited evidence (fewer than 2 layers)', () => {
+    const s = scorePair(prog('a', { courses: [course('C1', 3)] }), prog('b', { courses: [course('C1', 3)] }), ctx);
+    expect(s.structure).toBe(100);
+    expect(s.limitedEvidence).toBe(true);
+    expect(s.band).toBe('MODERATE');
   });
 });
