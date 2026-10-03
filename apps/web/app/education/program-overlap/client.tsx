@@ -11,13 +11,10 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
 import type { ApiMeta } from '@kku/shared';
 import {
   Badge,
-  Button,
   Card,
-  ConfidenceBadge,
   FreshnessBadge,
   OverlapMatrix,
   ProvenanceButton,
@@ -27,11 +24,17 @@ import {
 } from '@kku/ui';
 import { FilterField, FilterRail, FilterSelect } from '@/components/filter-rail';
 import { startRouteProgress } from '@/components/route-progress';
-import { submitDisagreementAction } from '@/lib/actions/program-deep-dive';
+import {
+  EquivalentCoursesList,
+  LimitedEvidenceNote,
+  OverlapLayerBar as LayerBar,
+  OverlapPanelSection as PanelSection,
+  OverlapRecommendation,
+  PloMatchView,
+  SharedCoursesTable,
+} from '@/components/overlap/pair-evidence';
 import {
   LANGUAGE_VARIANT_LABEL,
-  OVERLAP_ACTION_LABEL,
-  OVERLAP_ACTION_ORDER,
   OVERLAP_LAYERS,
   OVERLAP_LEVELS,
   THRESHOLD_OPTIONS,
@@ -39,8 +42,10 @@ import {
   layerValue,
   matrixTitle,
   overlapQueryString,
+  isLimitedEvidence,
   pct,
   programmeLabel,
+  sortActionsStrongestFirst,
   type OverlapFilters,
   type OverlapMatrixResponse,
   type OverlapPairDetail,
@@ -393,9 +398,7 @@ function PairPanel({ pairId, onClose }: { pairId: string; onClose: () => void })
 
 function PairDetailView({ d }: { d: OverlapPairDetail }) {
   const ev = d.evidence;
-  const actions = [...d.actions].sort(
-    (x, y) => OVERLAP_ACTION_ORDER.indexOf(y) - OVERLAP_ACTION_ORDER.indexOf(x),
-  );
+  const actions = sortActionsStrongestFirst(d.actions);
   const nameA = programmeLabel(d.programA);
   const nameB = programmeLabel(d.programB);
   return (
@@ -408,6 +411,7 @@ function PairDetailView({ d }: { d: OverlapPairDetail }) {
           {d.languageVariant ? <Badge tone="info">{LANGUAGE_VARIANT_LABEL}</Badge> : null}
           {!d.isCurrent ? <Badge tone="outline">Superseded by a newer run</Badge> : null}
         </div>
+        {isLimitedEvidence(ev) ? <LimitedEvidenceNote /> : null}
         {d.languageVariant ? (
           <p className="text-xs text-text-tertiary">
             These are the Thai and international versions of one programme. They overlap by design, are
@@ -452,86 +456,25 @@ function PairDetailView({ d }: { d: OverlapPairDetail }) {
       </PanelSection>
 
       <PanelSection title={`Shared courses · ${d.sharedCredits} credits`}>
-        {!ev || ev.sharedCourses.length === 0 ? (
-          <p className="text-text-tertiary">No major course is shared by code.</p>
-        ) : (
-          <table className="w-full text-xs">
-            <tbody>
-              {ev.sharedCourses.map((c) => (
-                <tr key={c.code} className="border-t border-subtle first:border-t-0">
-                  <td className="py-[6px] pr-[12px] font-mono tabular-nums text-text-secondary">{c.code}</td>
-                  <td className={`py-[6px] ${c.nameTh ? '' : 'text-text-tertiary'}`} lang="th">
-                    {c.nameTh ?? 'Name not recorded'}
-                  </td>
-                  <td className="py-[6px] pl-[12px] text-right tabular-nums">{c.credits} cr</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        <SharedCoursesTable evidence={ev} />
       </PanelSection>
 
       <PanelSection title={`Equivalent courses · ${d.equivCredits} credits`}>
-        {!ev || ev.equivalentCourses.length === 0 ? (
-          <p className="text-text-tertiary">No equivalent course pairs with different codes.</p>
-        ) : (
-          <ul className="flex flex-col">
-            {ev.equivalentCourses.map((c) => (
-              <li
-                key={`${c.codeA}|${c.codeB}`}
-                className="grid grid-cols-[1fr_auto] gap-x-[12px] border-t border-subtle py-[6px] text-xs first:border-t-0"
-              >
-                <span lang="th">
-                  <span className="font-mono text-text-secondary">{c.codeA}</span> {c.nameA ?? '—'}
-                  <span className="mx-[6px] text-text-tertiary">↔</span>
-                  <span className="font-mono text-text-secondary">{c.codeB}</span> {c.nameB ?? '—'}
-                </span>
-                <span className="text-right tabular-nums">
-                  {Math.round(c.similarity * 100)}% · {c.credits} cr
-                  {c.basis === 'name' ? (
-                    <span className="block text-text-tertiary">name match</span>
-                  ) : null}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <EquivalentCoursesList evidence={ev} />
       </PanelSection>
 
       <PanelSection title="Programme learning outcomes">
-        {!ev ? (
-          <p className="text-text-tertiary">Evidence unavailable.</p>
-        ) : (
-          <div className="flex flex-col gap-[8px] text-xs">
-            <p className="text-text-secondary">
-              {ev.matchedPlos.length} matched pair{ev.matchedPlos.length === 1 ? '' : 's'} ·{' '}
-              {ev.coverage.plosA} PLOs in A · {ev.coverage.plosB} in B
-            </p>
-            {ev.matchedPlos.length > 0 ? (
-              <details>
-                <summary className="cursor-pointer select-none text-text-secondary hover:text-text-primary">
-                  Matched PLOs
-                </summary>
-                <ul className="mt-[6px] flex flex-col">
-                  {ev.matchedPlos.map((m) => (
-                    <li key={`${m.ordinalA}|${m.ordinalB}`} className="border-t border-subtle py-[6px] first:border-t-0">
-                      <span className="tabular-nums text-text-tertiary">
-                        A{m.ordinalA} ↔ B{m.ordinalB} · {Math.round(m.similarity * 100)}%
-                      </span>
-                      <span className="mt-[2px] block">{m.textA}</span>
-                      <span className="mt-[2px] block text-text-secondary">{m.textB}</span>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            ) : null}
-            <UnmatchedPlos label={`Only in A · ${nameA}`} items={ev.unmatchedPlosA} />
-            <UnmatchedPlos label={`Only in B · ${nameB}`} items={ev.unmatchedPlosB} />
-          </div>
-        )}
+        <PloMatchView evidence={ev} labelA={`A · ${nameA}`} labelB={`B · ${nameB}`} />
       </PanelSection>
 
-      <Recommendation d={d} />
+      <OverlapRecommendation
+        pairId={d.pairId}
+        recommendation={d.recommendation}
+        primaryAction={d.primaryAction}
+        programmes={[d.programA, d.programB]}
+        labelA="A"
+        labelB="B"
+      />
 
       {ev ? (
         <details className="text-xs text-text-tertiary">
@@ -577,171 +520,5 @@ function ProgrammeLine({ side, p }: { side: 'A' | 'B'; p: OverlapPairDetail['pro
         </span>
       </span>
     </div>
-  );
-}
-
-function PanelSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="flex flex-col gap-[8px]">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">{title}</h3>
-      {children}
-    </section>
-  );
-}
-
-function LayerBar({ label, value, strong }: { label: string; value: number | null; strong?: boolean }) {
-  return (
-    <div className="grid grid-cols-[minmax(0,1fr)_120px_36px] items-center gap-[12px]">
-      <span className={strong ? 'font-medium text-text-primary' : 'text-text-secondary'}>{label}</span>
-      <span className="h-[6px] overflow-hidden rounded-full bg-surface-2">
-        {value !== null ? (
-          <span
-            className="block h-full rounded-full bg-accent-default"
-            style={{ width: `${Math.max(0, Math.min(100, value))}%`, opacity: strong ? 1 : 0.7 }}
-          />
-        ) : null}
-      </span>
-      <span className={`text-right tabular-nums ${value === null ? 'text-text-tertiary' : 'text-text-primary'}`}>
-        {pct(value)}
-      </span>
-    </div>
-  );
-}
-
-function UnmatchedPlos({ label, items }: { label: string; items: string[] }) {
-  if (items.length === 0) return null;
-  return (
-    <details>
-      <summary className="cursor-pointer select-none text-text-secondary hover:text-text-primary" lang="th">
-        {label} ({items.length})
-      </summary>
-      <ul className="mt-[6px] flex list-disc flex-col gap-[4px] pl-[18px]">
-        {items.map((t, i) => (
-          <li key={i}>{t}</li>
-        ))}
-      </ul>
-    </details>
-  );
-}
-
-function Recommendation({ d }: { d: OverlapPairDetail }) {
-  const r = d.recommendation;
-  const [open, setOpen] = React.useState(false);
-  const [text, setText] = React.useState('');
-  const [busy, setBusy] = React.useState(false);
-
-  if (!r) {
-    return (
-      <PanelSection title="AI suggestion">
-        <p className="text-text-tertiary">
-          None written. A suggestion is drafted only for pairs with at least one action and an index of 50
-          or more.
-        </p>
-      </PanelSection>
-    );
-  }
-
-  const onSubmit = async () => {
-    if (!text.trim()) {
-      toast.error('Describe your disagreement');
-      return;
-    }
-    setBusy(true);
-    const input = {
-      sectionKey: `overlap:${d.pairId}`.slice(0, 60),
-      aiInferenceId: r.aiInferenceId ?? undefined,
-      bodyEn: text,
-    };
-    // The note attaches to a programme the caller can see; either side of the
-    // pair may be outside their scope, so try A, then B.
-    let res = await submitDisagreementAction({ programId: d.programA.id, ...input });
-    if (!res.ok) res = await submitDisagreementAction({ programId: d.programB.id, ...input });
-    setBusy(false);
-    if (res.ok) {
-      toast.success('Disagreement recorded — thank you');
-      setOpen(false);
-      setText('');
-    } else toast.error(res.message);
-  };
-
-  return (
-    <PanelSection title="AI suggestion">
-      <div className="flex flex-wrap items-center gap-[8px]">
-        <ConfidenceBadge value={r.confidence} />
-        {r.stale ? <Badge tone="warning">Evidence changed since this was written</Badge> : null}
-        <span className="ml-auto text-xs text-text-tertiary">{r.promptVersion}</span>
-      </div>
-      <p className="leading-relaxed text-text-primary">{r.rationale}</p>
-      {r.disagreesWithAction && d.primaryAction ? (
-        <div className="rounded-md border border-subtle bg-surface-2 p-[10px] text-xs">
-          <span className="font-semibold text-text-primary">
-            The AI disagrees with “{OVERLAP_ACTION_LABEL[d.primaryAction]}”.
-          </span>{' '}
-          <span className="text-text-secondary">
-            {r.disagreementReason ?? 'No reason given.'} The rule-chosen action stands until a person reviews it.
-          </span>
-        </div>
-      ) : null}
-      <details>
-        <summary className="cursor-pointer select-none text-xs text-text-secondary hover:text-text-primary">
-          Show reasoning
-        </summary>
-        <div className="mt-[8px] flex flex-col gap-[8px] text-xs">
-          <p>
-            <span className="font-semibold">What is distinctive about A.</span>{' '}
-            <span className="text-text-secondary">{r.distinctiveA}</span>
-          </p>
-          <p>
-            <span className="font-semibold">What is distinctive about B.</span>{' '}
-            <span className="text-text-secondary">{r.distinctiveB}</span>
-          </p>
-          <div>
-            <span className="font-semibold">Next steps</span>
-            <ol className="mt-[4px] flex list-decimal flex-col gap-[2px] pl-[18px] text-text-secondary">
-              {r.nextSteps.map((s, i) => (
-                <li key={i}>{s}</li>
-              ))}
-            </ol>
-          </div>
-        </div>
-      </details>
-      <div className="flex flex-wrap items-center gap-x-[12px] gap-y-[4px] text-xs text-text-tertiary">
-        <span>Sources:</span>
-        <Link href={`/programs/${d.programA.id}`} className="text-accent-default hover:underline">
-          {d.programA.code} Deep-Dive
-        </Link>
-        <Link href={`/programs/${d.programB.id}`} className="text-accent-default hover:underline">
-          {d.programB.code} Deep-Dive
-        </Link>
-        <span>the overlap evidence above</span>
-        {r.aiInferenceId ? <span className="font-mono">inference {r.aiInferenceId}</span> : null}
-        <Button size="xs" variant="ghost" className="ml-auto" onClick={() => setOpen(true)}>
-          Disagree
-        </Button>
-      </div>
-      {open ? (
-        <div className="flex flex-col gap-[8px] rounded-md border border-subtle bg-surface-2 p-[12px]">
-          <label htmlFor={`disagree-${d.pairId}`} className="text-xs font-semibold">
-            Disagreement with this suggestion
-          </label>
-          <textarea
-            id={`disagree-${d.pairId}`}
-            className="rounded border border-subtle bg-surface-0 p-[8px] text-sm"
-            rows={3}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="What is wrong, missing or misleading? Specifics help the next model version."
-          />
-          <div className="flex items-center gap-[8px]">
-            <Button size="sm" variant="danger" disabled={busy} onClick={() => void onSubmit()}>
-              {busy ? 'Submitting…' : 'Submit'}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-          </div>
-        </div>
-      ) : null}
-    </PanelSection>
   );
 }

@@ -8,35 +8,26 @@ import type {
   OverlapMatrixResponse,
   OverlapPairDetail,
 } from '@kku/db';
+import { LANGUAGE_VARIANT_LABEL, OVERLAP_ACTION_LABEL } from '@/components/overlap/labels';
 
 export type { OverlapMatrixLayer, OverlapMatrixResponse, OverlapPairDetail };
 export type OverlapCell = ApiOverlapMatrixCell;
-export type OverlapActionKey = NonNullable<OverlapPairDetail['primaryAction']>;
 export type OverlapLevel = OverlapMatrixResponse['level'];
 
-/** Weakest → strongest, the order the rules rank them (spec §6.1). */
-export const OVERLAP_ACTION_ORDER: readonly OverlapActionKey[] = [
-  'COORDINATE_SHARED_COURSES',
-  'CONSOLIDATE_EQUIVALENT_COURSES',
-  'SHARE_STAFF_RESOURCES',
-  'DIFFERENTIATE',
-  'CONSIDER_MERGE_OR_TRACK',
-];
-
-export const OVERLAP_ACTION_LABEL: Record<OverlapActionKey, string> = {
-  COORDINATE_SHARED_COURSES: 'Coordinate shared courses',
-  CONSOLIDATE_EQUIVALENT_COURSES: 'Consolidate equivalent courses',
-  SHARE_STAFF_RESOURCES: 'Share staff & resources',
-  DIFFERENTIATE: 'Differentiate',
-  CONSIDER_MERGE_OR_TRACK: 'Consider merge or track',
-};
-
-/** Every action is a suggestion for a human to weigh, never a verdict. */
-export function actionBadgeLabel(action: OverlapActionKey): string {
-  return `${OVERLAP_ACTION_LABEL[action]} — for review`;
-}
-
-export const LANGUAGE_VARIANT_LABEL = 'Thai / international versions';
+// Action labels, formatters and the language-variant label are shared with
+// the Deep-Dive section and the Risk panel; re-exported so this module stays
+// the dashboard's single import point.
+export {
+  LANGUAGE_VARIANT_LABEL,
+  OVERLAP_ACTION_LABEL,
+  OVERLAP_ACTION_ORDER,
+  actionBadgeLabel,
+  isLimitedEvidence,
+  pct,
+  programmeLabel,
+  sortActionsStrongestFirst,
+  type OverlapActionKey,
+} from '@/components/overlap/labels';
 
 export const OVERLAP_LEVELS: ReadonlyArray<{ value: OverlapLevel; label: string }> = [
   { value: 'BACHELOR', label: 'Bachelor' },
@@ -100,16 +91,6 @@ export function matrixTitle(
   if (cell.primaryAction) parts.push(OVERLAP_ACTION_LABEL[cell.primaryAction]);
   if (cell.languageVariant) parts.push(LANGUAGE_VARIANT_LABEL);
   return parts.join(' · ');
-}
-
-/** "72" / "—" for a nullable 0–100 figure. */
-export function pct(v: number | null): string {
-  return v === null ? '—' : String(Math.round(v));
-}
-
-/** Short programme label: Thai name (data labels stay Thai), code as fallback. */
-export function programmeLabel(p: { code: string; nameTh: string; nameEn: string | null }): string {
-  return p.nameTh || p.nameEn || p.code;
 }
 
 /** Filters held in the URL. */

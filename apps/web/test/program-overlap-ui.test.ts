@@ -16,6 +16,7 @@ const read = (p: string) => readFileSync(path.join(__dirname, '..', p), 'utf8');
 const DIR = 'app/education/program-overlap';
 const page = read(`${DIR}/page.tsx`);
 const client = read(`${DIR}/client.tsx`);
+const sharedPair = read('src/components/overlap/pair-evidence.tsx');
 const surface = `${page}\n${client}`;
 
 const names = new Map([
@@ -57,9 +58,15 @@ describe('program overlap dashboard wiring', () => {
   });
 
   it('shows the AI suggestion with confidence, reasoning and a disagree button', () => {
-    expect(client).toContain('<ConfidenceBadge');
-    expect(client).toContain('Show reasoning');
-    expect(client).toContain('submitDisagreementAction');
+    // The recommendation block is shared with the Deep-Dive section.
+    expect(client).toContain('<OverlapRecommendation');
+    expect(sharedPair).toContain('<ConfidenceBadge');
+    expect(sharedPair).toContain('Show reasoning');
+    expect(sharedPair).toContain('submitDisagreementAction');
+  });
+
+  it('notes limited evidence on the pair panel', () => {
+    expect(client).toContain('isLimitedEvidence(ev) ? <LimitedEvidenceNote />');
   });
 
   it('renders an explicit empty state when no run exists', () => {
@@ -69,7 +76,8 @@ describe('program overlap dashboard wiring', () => {
 
   it('never runtime-imports @kku/db or the @kku/shared barrel in client code', () => {
     const types = read(`${DIR}/types.ts`);
-    for (const src of [client, types]) {
+    const labels = read('src/components/overlap/labels.ts');
+    for (const src of [client, types, sharedPair, labels]) {
       expect(src).not.toMatch(/^import \{[^}]*\} from '@kku\/db'/m);
       expect(src).not.toMatch(/^import \{[^}]*\} from '@kku\/shared'/m);
     }
