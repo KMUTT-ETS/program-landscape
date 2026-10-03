@@ -97,6 +97,8 @@ describe('overlapMatrix', () => {
     expect(m.cells.map((c) => c.pairId).sort()).toEqual(['f:b-c', 's:a-c']);
     expect(m.methodologyVersion).toBe(PROGRAM_OVERLAP_VERSION);
     expect([...m.order].sort()).toEqual(['a', 'b', 'c']);
+    // Only canonical ACTIVE programmes are compared (D5).
+    expect(mocks.programFindMany.mock.calls[0]![0].where).toMatchObject({ status: 'ACTIVE', level: 'BACHELOR' });
   });
 
   it('returns an empty matrix when no run exists', async () => {

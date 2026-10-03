@@ -358,7 +358,9 @@ export function overlapMatrixKpis(
  * The programme-by-programme matrix for one level. With `facultyId`, shows
  * that faculty's programmes plus any outside programme holding a stored pair
  * with one of them; cells are the pairs touching the faculty. Without it,
- * every canonical programme of the level that a stored pair names.
+ * every canonical ACTIVE programme of the level that a stored pair names.
+ * Only ACTIVE programmes are compared (D5): a pair whose side has since left
+ * ACTIVE is dropped from every read model.
  */
 export async function overlapMatrix(opts: {
   level: ProgramLevel;
@@ -384,7 +386,7 @@ export async function overlapMatrix(opts: {
   }
 
   const levelProgrammes: ProgrammeRow[] = await prisma.program.findMany({
-    where: { ...IS_CANONICAL_PROGRAM, level: opts.level },
+    where: { ...IS_CANONICAL_PROGRAM, status: 'ACTIVE', level: opts.level },
     select: PROGRAMME_SELECT,
   });
   const byId = new Map(levelProgrammes.map((p) => [p.id, p]));
@@ -512,7 +514,7 @@ export async function programOverlapSection(programId: string): Promise<ProgramO
     siblingPairs.length === 0
       ? [[] as ProgrammeRow[], [] as ProgramOverlapRecommendation[]]
       : await Promise.all([
-          prisma.program.findMany({ where: { id: { in: siblingIds } }, select: PROGRAMME_SELECT }),
+          prisma.program.findMany({ where: { id: { in: siblingIds }, status: 'ACTIVE' }, select: PROGRAMME_SELECT }),
           prisma.programOverlapRecommendation.findMany({ where: { pairId: { in: siblingPairs.map((p) => p.id) } } }),
         ]);
   const siblingById = new Map(siblingRows.map((p) => [p.id, p]));
@@ -657,7 +659,7 @@ export async function selfCompetitionRows(opts: {
   const entries = [...rowsByPair.values()];
   const programIds = [...new Set(entries.flatMap((e) => [e.pair.programAId, e.pair.programBId]))];
   const [programmeRows, assessments] = await Promise.all([
-    prisma.program.findMany({ where: { id: { in: programIds } }, select: PROGRAMME_SELECT }),
+    prisma.program.findMany({ where: { id: { in: programIds }, status: 'ACTIVE' }, select: PROGRAMME_SELECT }),
     prisma.riskAssessment.findMany({
       where: { programId: { in: programIds } },
       orderBy: [{ assessedAt: 'desc' }, { id: 'desc' }],

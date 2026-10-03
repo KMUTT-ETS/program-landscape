@@ -94,7 +94,7 @@ describe('loadOverlapProgrammes', () => {
     mocks.courseFindMany.mockResolvedValue([course('c1', 'p1', 'AA100'), course('c2', 'p1', 'BB100', 'd')]);
     mocks.staffFindMany.mockResolvedValue([]);
     const r = await loadOverlapProgrammes('MASTER');
-    expect(mocks.programFindMany.mock.calls[0]![0].where).toEqual({ sequenceNoFromSheet: { not: null }, level: 'MASTER' });
+    expect(mocks.programFindMany.mock.calls[0]![0].where).toEqual({ sequenceNoFromSheet: { not: null }, status: 'ACTIVE', level: 'MASTER' });
     expect(mocks.readCourseVectors).toHaveBeenCalledWith(['c1', 'c2']);
     expect(mocks.readPloVectors).toHaveBeenCalledWith(['p1']);
     // The prog row says BACHELOR; the assembler drops anything not at the asked level.

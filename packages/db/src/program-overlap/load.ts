@@ -1,5 +1,5 @@
 // program-overlap.v1 — loads the scoring input for one degree level (spec §5,
-// D5: same level only, canonical programmes only).
+// D5: same level only, canonical ACTIVE programmes only).
 //
 // Determinism: programmes come back sorted by id, courses by code (then id),
 // PLOs by ordinal and staff ids sorted. The greedy matcher's tie-breaks and the
@@ -126,11 +126,11 @@ export function assembleOverlapProgrammes(
   return { programmes, coverage };
 }
 
-/** Every canonical programme at `level`, with courses, PLOs, market vector and
+/** Every canonical ACTIVE programme at `level`, with courses, PLOs, market vector and
  *  active staff. */
 export async function loadOverlapProgrammes(level: ProgramLevel): Promise<OverlapLoad> {
   const programmes = await prisma.program.findMany({
-    where: { ...IS_CANONICAL_PROGRAM, level },
+    where: { ...IS_CANONICAL_PROGRAM, status: 'ACTIVE', level },
     select: { id: true, code: true, level: true, facultyId: true, nameTh: true, nameEn: true, degreeNameTh: true, language: true },
     orderBy: { id: 'asc' },
   });

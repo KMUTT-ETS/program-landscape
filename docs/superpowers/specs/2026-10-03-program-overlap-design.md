@@ -31,7 +31,7 @@ It feeds three surfaces:
 | D2 | **Graded actions with evidence, always labelled "for review".** Rules pick the actions; the AI only writes the reasoning and may record that it disagrees. "Consider merging" needs both high overlap and high containment. |
 | D3 | **Self-competition enters Risk Management as two new KRIs.** Risk tiers do not change. |
 | D4 | **A deterministic, three-layer index.** The layers are structure, content and outcome, weighted equally, with containment measured in both directions. The AI drafts wording only for flagged pairs. This was chosen over AI judging every pair (≈ $140 a run and not reproducible) and over keyword similarity (weak on Thai). |
-| D5 | **Same degree level, all faculties.** Only canonical programmes (`IS_CANONICAL_PROGRAM`) are compared. Bachelor is never compared with master. |
+| D5 | **Same degree level, all faculties.** Only canonical ACTIVE programmes (`IS_CANONICAL_PROGRAM` + `status = 'ACTIVE'`) are compared. Bachelor is never compared with master. |
 | D6 | **The Deep-Dive Overlap section is hidden** when the programme has no sibling scoring 30 or more, or when no overlap run exists. |
 | D7 | **The content layer is based on course names, with descriptions added where available** (decided 2026-10-03, after the prep dry run measured description coverage at about 21 %). Name-only matches need a stricter threshold. Extracting full descriptions from every PDF was rejected for cost and delay; it could be added later as v2. |
 
@@ -84,7 +84,7 @@ It feeds three surfaces:
 
 ## 5. Scoring (`program-overlap.v1`)
 
-Every unordered pair (A, B) of canonical programmes **at the same level** is scored.
+Every unordered pair (A, B) of canonical ACTIVE programmes **at the same level** is scored.
 
 ### 5.1 Layers (each 0–100, or null)
 - **Structure: courses literally shared.**

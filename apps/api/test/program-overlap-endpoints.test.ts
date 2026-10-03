@@ -106,15 +106,20 @@ describe('ProgramOverlapController', () => {
     await expect(c.pair(user('SYSTEM_ADMIN'), 'x')).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('pair detail: a scoped caller must be able to see BOTH programmes', async () => {
+  it('pair detail: a scoped caller needs AT LEAST ONE programme in scope', async () => {
     mocks.overlapPairDetail.mockResolvedValue(detail);
+    // f1 granted, f2 outside → allowed (outside siblings are shown in the matrix).
     mocks.resolveEffectiveScope.mockResolvedValue({ mode: 'scoped', facultyIds: ['f1'], programIds: [] });
-    await expect(c.pair(user('FACULTY_USER', 'f1'), 'p')).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(c.pair(user('FACULTY_USER', 'f1'), 'p')).resolves.toMatchObject({ data: detail });
+
+    // Neither side in scope → 403.
+    mocks.resolveEffectiveScope.mockResolvedValue({ mode: 'scoped', facultyIds: ['f9'], programIds: [] });
+    await expect(c.pair(user('FACULTY_USER', 'f9'), 'p')).rejects.toBeInstanceOf(ForbiddenException);
 
     // A programme grant in f2 rolls up to f2, as clampFacultyIdFilter does.
-    mocks.resolveEffectiveScope.mockResolvedValue({ mode: 'scoped', facultyIds: ['f1'], programIds: ['prog-in-f2'] });
+    mocks.resolveEffectiveScope.mockResolvedValue({ mode: 'scoped', facultyIds: [], programIds: ['prog-in-f2'] });
     mocks.programFindMany.mockResolvedValue([{ facultyId: 'f2' }]);
-    await expect(c.pair(user('FACULTY_USER', 'f1'), 'p')).resolves.toMatchObject({ data: detail });
+    await expect(c.pair(user('PROGRAM_USER'), 'p')).resolves.toMatchObject({ data: detail });
   });
 
   it('pair detail: university-wide callers pass', async () => {
