@@ -1454,7 +1454,7 @@ const tableNodes: TopologyNode[] = [
     subtitle: 'occupation × demanded skill',
     details: {
       description:
-        'Occupations derived from JobThai job categories, the skills each demands (a skill counts at a 5% posting share), and the programme links (jobthai-bridge.v3, by stated field of study at an education level the graduates hold, preferring an approved field’s reviewed assignments over a name match). Rebuilt by the jobthai connector at the end of every run. Read by the AI curriculum check (demand-match.v4), the jobthai_demand_alignment driver of health-score.v5.3 (Relevance, domestic 75 : global 25) and the Deep-Dive Skills coverage JobThai view.',
+        'Occupations derived from JobThai job categories, the skills each demands (a skill counts at a 5% posting share), and the programme links (jobthai-bridge.v3, by stated field of study at an education level the graduates hold, preferring an approved field’s reviewed assignments over a name match). Rebuilt by the jobthai connector at the end of every run. Read by the AI curriculum check (demand-match.v4), the jobthai_demand_alignment driver of health-score.v5.4 (Relevance, domestic 75 : global 25) and the Deep-Dive Skills coverage JobThai view.',
       prismaModel: 'JobThaiOccupation + JobThaiOccupationSkill + ProgramJobThaiLink',
       relatedTables: [
         'JobThai occupations — JobThaiOccupation',
@@ -2582,7 +2582,7 @@ const edges: TopologyEdge[] = [
   // Existing Cockpit gets two more upstream feeders (newly-surfaced)
   { from: 'tab.employer-feedback', to: 'dash.cockpit' },
   { from: 'tab.kmitl-demand', to: 'dash.cockpit' }, // demand dimension via health-score.v2
-  { from: 'tab.jobthai-occupations', to: 'dash.cockpit' }, // relevance via health-score.v5.3
+  { from: 'tab.jobthai-occupations', to: 'dash.cockpit' }, // relevance via health-score.v5.4
 
   // Existing Program Deep-Dive picks up the new connector outputs
   { from: 'tab.student-demographic', to: 'dash.program-deep-dive' },

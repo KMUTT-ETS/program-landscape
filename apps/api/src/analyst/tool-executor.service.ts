@@ -529,7 +529,7 @@ export class AnalystToolExecutor {
             name: 'health-score',
             version: HEALTH_SCORE_VERSION,
             summary:
-              'Equal-weighted 5-dimension composite (demand / financial / quality / relevance / capability). Missing metrics are EXCLUDED from the average, never substituted with 0.',
+              'Equal-weighted 5-dimension composite (attractiveness / financial / capability / outcomes / relevance). Missing metrics are EXCLUDED from the average, never substituted with 0. Financial includes an external-grant award of up to +10 points, added after its drivers are averaged; it is never a penalty.',
             docPath: 'docs/methodologies/health-score.md',
           };
         case 'forecasting':
