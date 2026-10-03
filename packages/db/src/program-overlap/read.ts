@@ -509,6 +509,18 @@ export async function overlapPairDetail(pairId: string): Promise<OverlapPairDeta
   };
 }
 
+/** completedAt (ISO) of the newest SUCCEEDED overlap run, of one level or
+ *  of any; null when there is none. The freshness of an empty overlap-derived
+ *  answer. */
+export async function latestOverlapRunCompletedAt(level?: ProgramLevel): Promise<string | null> {
+  const run = await prisma.programOverlapRun.findFirst({
+    where: { status: 'SUCCEEDED', completedAt: { not: null }, ...(level ? { level } : {}) },
+    orderBy: { completedAt: 'desc' },
+    select: { completedAt: true },
+  });
+  return run?.completedAt?.toISOString() ?? null;
+}
+
 // ─── Deep-Dive section ──────────────────────────────────────────────────
 
 /**

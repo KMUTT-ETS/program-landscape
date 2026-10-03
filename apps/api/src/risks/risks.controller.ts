@@ -1,7 +1,13 @@
 import { Body, Controller, ForbiddenException, Get, NotFoundException, Param, Patch, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
-import { RISK_SCORING_VERSION, prisma, selfCompetitionRows, type SelfCompetitionRow } from '@kku/db';
-import type { SessionUser } from '@kku/shared';
+import {
+  RISK_SCORING_VERSION,
+  latestOverlapRunCompletedAt,
+  prisma,
+  selfCompetitionRows,
+  type SelfCompetitionRow,
+} from '@kku/db';
+import type { ApiMeta, SessionUser } from '@kku/shared';
 import {
   AuditLog,
   AuthSession,
@@ -113,7 +119,7 @@ export class RisksController {
   async selfCompetition(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(SelfCompetitionQuerySchema)) q: SelfCompetitionQuery,
-  ): Promise<SelfCompetitionRow[]> {
+  ): Promise<{ data: SelfCompetitionRow[]; meta: Partial<ApiMeta> }> {
     const scope = await resolveEffectiveScope(user);
     if (scope.mode === 'none') {
       throw new ForbiddenException(
@@ -129,12 +135,26 @@ export class RisksController {
           "You can only view risks for faculties / programs assigned to your account.",
         );
       }
-      opts.facultyIds = q.facultyId ? [q.facultyId] : scope.facultyIds;
-      opts.programIds = scope.programIds;
+      if (q.facultyId) {
+        // An explicit faculty filter means THAT faculty only: programme
+        // grants elsewhere are not ORed back in.
+        opts.facultyIds = [q.facultyId];
+      } else {
+        opts.facultyIds = scope.facultyIds;
+        opts.programIds = scope.programIds;
+      }
     } else if (q.facultyId) {
       opts.facultyIds = [q.facultyId];
     }
-    return selfCompetitionRows(opts);
+    const data = await selfCompetitionRows(opts);
+    // Freshness: the newest breach a listed pair rests on; with nothing
+    // listed, the overlap run the (empty) answer rests on.
+    let freshnessDate: string | null = null;
+    for (const r of data) {
+      for (const b of r.breaches) if (freshnessDate === null || b.observedAt > freshnessDate) freshnessDate = b.observedAt;
+    }
+    if (freshnessDate === null) freshnessDate = await latestOverlapRunCompletedAt(q.level);
+    return { data, meta: { freshnessDate } };
   }
 
   @Get('indicators')

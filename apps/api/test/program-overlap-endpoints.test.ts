@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   overlapPairDetail: vi.fn(),
   programOverlapSection: vi.fn(),
   selfCompetitionRows: vi.fn(),
+  latestOverlapRunCompletedAt: vi.fn(),
   programFindMany: vi.fn(),
   assertCanSeeFacultyDashboards: vi.fn(),
   clampFacultyIdFilter: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock('@kku/db', async () => {
     overlapPairDetail: mocks.overlapPairDetail,
     programOverlapSection: mocks.programOverlapSection,
     selfCompetitionRows: mocks.selfCompetitionRows,
+    latestOverlapRunCompletedAt: mocks.latestOverlapRunCompletedAt,
     prisma: { program: { findMany: mocks.programFindMany } },
   };
 });
@@ -171,6 +173,31 @@ describe('RisksController self-competition', () => {
     await c.selfCompetition(user('FACULTY_USER', 'f1'), parse({ level: 'BACHELOR' }));
     expect(mocks.selfCompetitionRows).toHaveBeenCalledWith({ level: 'BACHELOR', facultyIds: ['f1'], programIds: ['p9'] });
     await expect(c.selfCompetition(user('FACULTY_USER', 'f1'), parse({ facultyId: 'f2' }))).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('a scoped facultyId restricts to that faculty only — programme grants elsewhere are not ORed in', async () => {
+    mocks.resolveEffectiveScope.mockResolvedValue({ mode: 'scoped', facultyIds: ['f1', 'f2'], programIds: ['p9'] });
+    mocks.selfCompetitionRows.mockResolvedValue([]);
+    await c.selfCompetition(user('FACULTY_USER', 'f1'), parse({ facultyId: 'f2' }));
+    expect(mocks.selfCompetitionRows).toHaveBeenCalledWith({ level: undefined, facultyIds: ['f2'] });
+  });
+
+  it('freshness is the newest contributing breach, else the overlap run', async () => {
+    const breach = (observedAt: string) => ({ programId: 'a', indicatorSlug: 'curriculum_overlap_max', severity: 'WARN', value: 55, observedAt });
+    mocks.selfCompetitionRows.mockResolvedValue([
+      { pairId: 'x', breaches: [breach('2026-10-01T00:00:00.000Z'), breach('2026-10-02T05:00:00.000Z')] },
+      { pairId: 'y', breaches: [breach('2026-09-30T00:00:00.000Z')] },
+    ]);
+    const r = await c.selfCompetition(user('SYSTEM_ADMIN'), parse({ level: 'BACHELOR' }));
+    expect(r.data).toHaveLength(2);
+    expect(r.meta.freshnessDate).toBe('2026-10-02T05:00:00.000Z');
+    expect(mocks.latestOverlapRunCompletedAt).not.toHaveBeenCalled();
+
+    mocks.selfCompetitionRows.mockResolvedValue([]);
+    mocks.latestOverlapRunCompletedAt.mockResolvedValue('2026-10-03T01:00:00.000Z');
+    const empty = await c.selfCompetition(user('SYSTEM_ADMIN'), parse({ level: 'MASTER' }));
+    expect(mocks.latestOverlapRunCompletedAt).toHaveBeenCalledWith('MASTER');
+    expect(empty.meta.freshnessDate).toBe('2026-10-03T01:00:00.000Z');
   });
 
   it('passes an admin facultyId filter through', async () => {

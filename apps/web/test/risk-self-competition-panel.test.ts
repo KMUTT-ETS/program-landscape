@@ -47,6 +47,12 @@ const row: SelfCompetitionRow = {
 const meta = { freshnessDate: null, sources: [] };
 
 describe('SelfCompetitionPanel', () => {
+  it('shows the freshness of the answer, also when nothing is listed', () => {
+    const fresh = { freshnessDate: '2026-10-02T05:00:00.000Z', sources: [] };
+    expect(render(React.createElement(SelfCompetitionPanel, { rows: [row], meta: fresh }))).toContain('Updated 2026-10-02');
+    expect(render(React.createElement(SelfCompetitionPanel, { rows: [], meta: fresh }))).toContain('Updated 2026-10-02');
+  });
+
   it('renders the explicit empty state', () => {
     expect(render(React.createElement(SelfCompetitionPanel, { rows: [], meta }))).toContain(SELF_COMPETITION_EMPTY);
   });

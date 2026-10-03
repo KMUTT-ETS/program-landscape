@@ -35,6 +35,7 @@ vi.mock('../src/academic-year', () => ({
 import {
   overlapMatrix,
   overlapMatrixKpis,
+  latestOverlapRunCompletedAt,
   overlapPairDetail,
   parsePairEvidence,
   programOverlapSection,
@@ -300,5 +301,19 @@ describe('selfCompetitionRows', () => {
   it('returns nothing for a scoped caller with no grants, without querying', async () => {
     expect(await selfCompetitionRows({ facultyIds: [], programIds: [] })).toEqual([]);
     expect(mocks.breachFindMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('latestOverlapRunCompletedAt', () => {
+  it('reads the newest SUCCEEDED run, level-filtered when given', async () => {
+    mocks.runFindFirst.mockReset().mockResolvedValue({ completedAt: new Date(Date.UTC(2026, 9, 3)) });
+    expect(await latestOverlapRunCompletedAt('MASTER')).toBe('2026-10-03T00:00:00.000Z');
+    expect(mocks.runFindFirst.mock.calls[0]![0]).toMatchObject({
+      where: { status: 'SUCCEEDED', completedAt: { not: null }, level: 'MASTER' },
+      orderBy: { completedAt: 'desc' },
+    });
+    mocks.runFindFirst.mockResolvedValue(null);
+    expect(await latestOverlapRunCompletedAt()).toBeNull();
+    expect(mocks.runFindFirst.mock.calls[1]![0].where).not.toHaveProperty('level');
   });
 });

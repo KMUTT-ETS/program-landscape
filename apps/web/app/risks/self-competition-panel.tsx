@@ -10,7 +10,7 @@
 
 import Link from 'next/link';
 import type { ApiMeta } from '@kku/shared';
-import { Badge, ProvenanceButton } from '@kku/ui';
+import { Badge, FreshnessBadge, ProvenanceButton } from '@kku/ui';
 import { programmeLabel } from '@/components/overlap/labels';
 import { MEASURE_KIND_LABEL, type SelfCompetitionKri, type SelfCompetitionRow } from './types';
 
@@ -51,7 +51,8 @@ export function SelfCompetitionPanel({
           </p>
         </div>
         {meta ? (
-          <span className="ml-auto">
+          <span className="ml-auto flex items-center gap-[8px]">
+            <FreshnessBadge freshnessDate={meta.freshnessDate} label="overlap indicators" />
             <ProvenanceButton title="Self-competition" meta={meta} size="xs" />
           </span>
         ) : null}
