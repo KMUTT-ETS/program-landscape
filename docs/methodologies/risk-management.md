@@ -41,7 +41,7 @@ higher-grad-diploma risk is not part of v1.
 
 ### Layer 1 — Risk Indicators (KRIs)
 
-`RiskIndicator` rows (5 in the v1 catalog, seeded from
+`RiskIndicator` rows (7 in the catalog since `risk-scoring.v1.14`, seeded from
 `RISK_INDICATOR_CATALOG`) are the always-on alarm system. Each
 indicator has:
 
@@ -75,6 +75,12 @@ Breach history is the time-series that drives the KRI dashboards in
 | `late_round_dependency` | `late-round reg_reported ÷ total reg_reported` | ≥ 0.5 | ≥ 0.7 | high |
 | `skill_automation_index` | `COUNT(skills where automationRisk=HIGH) / COUNT(skills)` | ≥ 0.3 | ≥ 0.6 | high |
 | `bachelor_intake_floor` | `Σ reg_reported` (latest year) — KKU Council policy ≥ 30/year | < 36 | < 30 | low |
+| `curriculum_overlap_max` | highest `program-overlap.v1` course-based overlap index against a same-level sibling, language variants excluded | ≥ 50 | ≥ 70 | high |
+| `market_confusion_max` | highest `program-overlap.v1` market similarity against a same-level sibling, language variants excluded | ≥ 60 | ≥ 75 | high |
+
+The two overlap KRIs (added 2026-10-03, `risk-scoring.v1.14`) emit no row
+until an overlap run covers the programme; see
+`docs/methodologies/program-overlap.md` §9.
 
 The catalog is analyst-tunable via `/admin/risks/indicators/` in v2;
 v1 thresholds match the Council ERM templates 2026-Q1.
@@ -97,8 +103,10 @@ RiskMeasure** per matched rule. The candidates serve two purposes:
    cover dimensions the rule engine doesn't capture (peer white-spaces,
    sector outlook, qualitative caveats).
 
-**v1 rule catalog** (six rules covering all five KRIs; the intake-floor
-indicator has two rules — different mitigations for WARN vs CRITICAL):
+**Rule catalog** (`risk-measure-rules.v2`: nine rules covering all seven KRIs;
+the intake-floor indicator has two rules — different mitigations for WARN vs
+CRITICAL — and a CRITICAL curriculum overlap fires a differentiation rule plus,
+for a merge candidate only, a merge-review rule):
 
 | Indicator | Severity | Measure kind | Horizon | Cost | Priority |
 |---|---|---|---|---|---|
@@ -108,6 +116,9 @@ indicator has two rules — different mitigations for WARN vs CRITICAL):
 | `skill_automation_index` | WARN | `CURRICULUM_MODERNIZE` | SHORT_TERM | LOW | 2 |
 | `bachelor_intake_floor` | WARN | `RECRUITMENT_CHANNEL` | SHORT_TERM | LOW | 3 |
 | `bachelor_intake_floor` | CRITICAL | `COHORT_REDUCTION` | MEDIUM_TERM | MEDIUM | 1 |
+| `curriculum_overlap_max` | CRITICAL | `CURRICULUM_DIFFERENTIATE` | MEDIUM_TERM | MEDIUM | 2 |
+| `curriculum_overlap_max` (flag `merge-candidate`) | CRITICAL | `PROGRAM_MERGE` | LONG_TERM | HIGH | 1 |
+| `market_confusion_max` | CRITICAL | `CURRICULUM_DIFFERENTIATE` | SHORT_TERM | LOW | 3 |
 
 Matching is **exact-severity** — a rule with `triggerSeverity = WARN`
 only fires on WARN breaches, not on CRITICAL. This is deliberate: a

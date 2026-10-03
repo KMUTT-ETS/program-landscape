@@ -30,6 +30,7 @@ import { DASHBOARD_OVERVIEW_VERSION } from '../src/dashboard-overview';
 import { DECISION_WORKSPACE_VERSION } from '../src/decisions';
 import { DATA_QUALITY_VERSION } from '../src/data-quality';
 import { JOBTHAI_BRIDGE_VERSION } from '../src/jobthai-bridge';
+import { PROGRAM_OVERLAP_VERSION } from '../src/program-overlap/score';
 
 import {
   FORECASTING_VERSION,
@@ -56,6 +57,7 @@ import {
   ANALYST_SAFETY_VERSION,
   ANALYST_TOOLS_VERSION,
   EXPERTISE_NARRATIVE_VERSION,
+  PROGRAM_OVERLAP_RECOMMENDATION_VERSION,
 } from '@kku/shared';
 
 describe('LANDSCAPE_METHODOLOGY_BUNDLE', () => {
@@ -114,6 +116,8 @@ describe('LANDSCAPE_METHODOLOGY_BUNDLE', () => {
     expect(METHODOLOGY_MANIFEST['analyst-safety']).toBe(ANALYST_SAFETY_VERSION);
     expect(METHODOLOGY_MANIFEST['analyst-tools']).toBe(ANALYST_TOOLS_VERSION);
     expect(METHODOLOGY_MANIFEST['expertise-narrative']).toBe(EXPERTISE_NARRATIVE_VERSION);
+    expect(METHODOLOGY_MANIFEST['program-overlap']).toBe(PROGRAM_OVERLAP_VERSION);
+    expect(METHODOLOGY_MANIFEST['program-overlap-recommendation']).toBe(PROGRAM_OVERLAP_RECOMMENDATION_VERSION);
     // lifecycle is the one non-imported entry — kept inline in
     // methodology-bundle.ts because LIFECYCLE_VERSION is not exported
     // from program-deep-dive.ts. When that gets exported, replace this

@@ -4,7 +4,9 @@
 >
 > **Audience.** Engineers + analysts working across modules. Read this before making cross-cutting changes; otherwise consult the per-methodology doc.
 >
-> **Last updated.** 2026-09-21 (v1.9.8 — the job-108 archive is backfilled in full on dev: 1,997 announcements, 5,700 postings, 10.7 % of the demand corpus. No formula changed, so `gap-map.v2` is unchanged; what changed is coverage, and the blended basis now collapses `too-few-postings` from 9 fields to 1. Government-only field strings clearing the 5-mention floor went 0 → 262 (198 atomic, 64 compound — see `docs/methodologies/gap-map.md` §15 item 8). **The taxonomy has not been rebuilt, so none of those 262 has become a field yet.**)
+> **Last updated.** 2026-10-03 (`program-overlap.v1` — same-level curriculum overlap between programmes, a pair-level signal rather than a per-programme verdict: a course-based overlap index (mean of shared major courses and equivalent courses by embedding), with PLO alignment shown as supporting context and market similarity and shared staff beside it. Read by `/education/program-overlap`, the Deep-Dive *Overlap* section, and two new risk KRIs (`curriculum_overlap_max`, `market_confusion_max`, `risk-scoring.v1.14`) with three new measure rules (`risk-measure-rules.v2`). New prompt `program-overlap-recommendation.v1`. See §7.1c and `docs/methodologies/program-overlap.md`.)
+>
+> Previously 2026-09-21 (v1.9.8 — the job-108 archive is backfilled in full on dev: 1,997 announcements, 5,700 postings, 10.7 % of the demand corpus. No formula changed, so `gap-map.v2` is unchanged; what changed is coverage, and the blended basis now collapses `too-few-postings` from 9 fields to 1. Government-only field strings clearing the 5-mention floor went 0 → 262 (198 atomic, 64 compound — see `docs/methodologies/gap-map.md` §15 item 8). **The taxonomy has not been rebuilt, so none of those 262 has become a field yet.**)
 >
 > Previously 2026-09-20 (`gap-map.v1 → gap-map.v2` — a second demand source, Thai government recruitment announcements scraped from job-108.com, joins JobThai behind a selectable `basis` parameter (`private` / `public` / `all`, default `all`). Bumped because the denominator a published figure was computed under has changed; a v1 demand share and a v2 demand share are not comparable. See `docs/methodologies/gap-map.md` and `docs/data-sources/job-108.md`.)
 >
@@ -27,6 +29,8 @@ A single program carries up to **five** signed verdicts. Each is independently v
 | **Risk Tier** | `LOW` / `MODERATE` / `HIGH` / `CRITICAL` / `NEEDS_DATA` + L1/L2/L3 drivers + I1/I2 impact + composite | `methodologyVersion: 'risk-scoring.v1.11'` on `RiskAssessment` + `risk-assessment.v2` on AI overlay | `packages/db/src/risk-scoring.ts` + `packages/shared/src/ai/prompts/risk-assessment.ts` |
 | **KKU 5×5 Matrix** | `LOW` / `MODERATE` / `HIGH` / `VERY_HIGH` / `NEEDS_DATA` + `matrixScore` 1–25 (likelihood × impact bins) | Derived from Risk Tier; same methodology stamp | `bin5` + `deriveKkuMatrix` in `risk-scoring.ts` |
 | **BCG Quadrant** | `star` / `cash-cow` / `question` / `dog` / `dead` | `methodologyVersion: 'dashboard-overview.v1'` on cockpit payload | `packages/db/src/dashboard-overview.ts:486-505` |
+
+**Plus one pair-level signal** (not a per-programme verdict): **programme overlap** (`program-overlap.v1`, `packages/db/src/program-overlap/`) scores every same-level pair of programmes and stores the notable ones in `program_overlap_pairs`. It reaches a programme only through two risk KRIs and the Deep-Dive *Overlap* section — see §7.1c.
 
 **Plus two enum statuses** that flow alongside but are *not* computed:
 
@@ -331,13 +335,14 @@ grounding, confidence rubric, tell-ban, versioning, data-channel manifest) live 
 | `job-field-taxonomy.v1` | Clusters JobThai's free-text field-of-study strings (≥ 5 mentions) into canonical fields with Thai + English names → `job_field_taxonomy` rows, `PROPOSED`, reviewed at `/admin/job-fields`. **The rows of the gap map.** Batched 200; existing non-rejected fields ride along as anchors |
 | `program-job-field.v1` | Assigns ≤ 3 canonical fields per programme → `program_job_fields` (`source = 'ai'`), only for programmes the name-match rule did not place. **The supply side of the gap map** |
 
-### 6.3 Verdict / assessment (the Council-affecting ones) — 5 prompts
+### 6.3 Verdict / assessment (the Council-affecting ones) — 6 prompts
 
 | Prompt | Materialises into | What it contributes |
 |---|---|---|
 | `program-peer-review.v4` | `program_peer_reviews.payloadJson` | **Drives lifecycle drivers 5+6** (`contentModernity.verdict` + `contentGaps[severity='major']`); feeds Deep-Dive Peer Comparison section; feeds AI-readiness gaps/recs (AI-filtered subset) |
 | `program-ai-readiness.v4` | `program_ai_readiness_assessments.payloadJson` | Discipline-aware override of deterministic AI readiness (Path B in §4), now with Human-Agency-Scale + automation-zone task-family analysis; feeds Risk L2 (readiness deficit + disruption signal); also feeds Deep-Dive |
 | `risk-assessment.v4` | `RiskAssessment` AI columns (narrative + measures + caveats) | Council-facing risk narrative + named mitigation measures; reconciles rule-derived candidate measures from `risk-measure-rules.v2`; v4 adds the named overlap siblings (program-overlap.v1) (the deterministic engine, NOT a prompt file — don't confuse with an AI prompt when searching) |
+| `program-overlap-recommendation.v1` | `program_overlap_recommendations` | English reasoning for a flagged overlap pair (≥ 1 action and index ≥ 50): rationale, what is distinctive on each side, 2–4 next steps, confidence, and an optional disagreement with the rule-chosen action. **Never changes the action.** Re-run only when the pair's evidence hash or the prompt version changes |
 | `program-pedagogy.v1.1` | `ProgramPedagogyAssessment` → health-score `pedagogical_fit` relevance driver | Discipline-aware pedagogy fit (PBL/clinical/capstone/etc. vs discipline norms) + QA-system scoring, grounded in verbatim PDF quotes |
 | `decision-review.ts` (exports `outcome-review.v1`) | `DecisionOutcomeReview.payloadJson` | Fires at 6mo/1y/3y horizons after decision approval; produces actual-vs-projected narrative. File/constant name mismatch (`decision-review.ts` ↔ `outcome-review.v1`) — regularise at next bump |
 
@@ -425,6 +430,11 @@ Quick "where does this number come from" reference. Read this when a UI value lo
 | `student_cohort_distributions` | Lifecycle driver 8 (delayed graduation share) · Deep-Dive Cohort Distribution panel |
 | `alumni_cohort_status` | Deep-Dive Demand Funnel (graduated/dropped/renounced buckets) |
 | `program_strategic_narratives` | Deep-Dive header brief · home dashboard pulse |
+| `program_learning_outcomes` | Overlap outcome layer (PLO alignment — supporting context, not in the index) · peer-review prompt PLO list (it previously read an empty list from the digest) |
+| `program_courses` (+ `descriptionTh`, `learningOutcomesTh`, `embedding`) | Overlap structure + content layers (major courses only) · everything that already read `program_courses` |
+| `program_market_profiles` | Overlap market similarity → `market_confusion_max` KRI · `DIFFERENTIATE` action |
+| `program_overlap_runs` × `program_overlap_pairs` | `/education/program-overlap` · Deep-Dive *Overlap* section · `/risks` Self-competition panel · Risk KRIs `curriculum_overlap_max` + `market_confusion_max` (phase 8) · `risk-assessment.v4` named siblings |
+| `program_overlap_recommendations` | Overlap pair side panel and Deep-Dive expanded row (AI wording, confidence, disagreement) |
 | `risk_assessments` | `/risks/portfolio` + `/risks/programs/[id]` · cockpit risk-tier surfacing |
 | `decision_outcome_reviews` | Decision Workspace outcome panel · search-lessons-learned |
 | `mv_program_metrics` / `mv_*_metrics` | `queryMetricByScope()` — exclusively |
@@ -456,6 +466,38 @@ Two gating notes that have bitten before: `jobthai_occupation_skills` carries no
 table above is gated, including the two new taxonomy tables, whose writers stamp the
 JobThai run.
 
+### 7.1c Programme overlap's input set (`program-overlap.v1`)
+
+**Inputs.** Canonical ACTIVE programmes of one level; their `program_courses`
+(major courses only: `GENERAL_EDUCATION` / `FREE_ELECTIVE` / `THESIS_PROJECT`
+excluded, codes starting GE / LI / 00 always excluded as general education, plus
+any code used by more than 25 % of the level's programmes),
+course embeddings, `program_learning_outcomes` (from the latest
+`PROGRAM_SKILLS_DETAILED` extraction), `program_market_profiles`, and
+`program_faculties × faculty_members` (active staff only). The index uses the
+course layers only; PLO alignment is computed and shown as context. Course categories come
+from `program-courses-extract.v4` (phase 2b); descriptions and CLOs from approved
+`PROGRAM_DIGEST` payloads; embeddings from `gemini-embedding-001` at 1536
+dimensions, written by `pnpm programs:overlap-prep`.
+
+**Outputs.** `pnpm programs:overlap --apply` (full run per level) or pipeline
+phase `phaseOV` (scoped run for the selected programmes) writes a
+`program_overlap_runs` row and its `program_overlap_pairs`; the AI writes
+`program_overlap_recommendations` for flagged pairs. Readers take the latest
+SUCCEEDED full run of the level and overlay newer SUCCEEDED scoped runs
+(`latestOverlapPairs`, `packages/db/src/program-overlap/merge.ts`). The run row
+is the provenance — the equivalent of `ingestion_run_id` for this derived data,
+so `realDataWhere()` does not apply.
+
+**Cross-joins into risk.** Phase 8 reads the merged pairs through
+`loadOverlapRiskSignal` into `ProgramRiskInputs.overlap`: the max overlap index
+and max market similarity against a same-level sibling (language variants
+excluded) become `curriculum_overlap_max` (50 / 70) and `market_confusion_max` (60 / 75). A CRITICAL breach fires
+`CURRICULUM_DIFFERENTIATE`, and `PROGRAM_MERGE` for a merge candidate
+(`risk-measure-rules.v2`); `risk-assessment.v4` is given the named siblings. No
+overlap figure enters the composite, the tiers, the Health Score or the
+Lifecycle Verdict.
+
 ### 7.2 By scorer/verdict → its full input set
 
 | Output | Inputs |
@@ -464,6 +506,7 @@ JobThai run.
 | `lifecycle.v1.1` | Above (via health) + `program_ai_readiness_assessments` (via `programAiReadiness` Path B) + `program_peer_reviews` (drivers 5+6) + `student_cohort_distributions` (driver 8) |
 | `risk-scoring.v1.11` L+I | `tcas_admission_funnels` (L1+L3) + `program_skills × skill.automationRisk` (L2) + `program_ai_readiness_assessments` (L2) + `financial_metrics` (I1+I2) — no Health Score dependency |
 | `dashboard-overview.v1` | `enrollment_metrics` + `financial_metrics` (BCG + KPIs) + `program_lifecycle_snapshots` (lifecycle distribution) + `program_strategic_narratives` (pulse) + `programs` (canonical filter) + `computeHealthScores('university')` (FacultyHealth rollup) |
+| `program-overlap.v1` (pair) | `program_courses` (categories, credits, embeddings) + `program_learning_outcomes` + `program_market_profiles` + `program_faculties × faculty_members` (isActive) — same level, canonical ACTIVE only; no Health Score dependency |
 | BCG quadrant | 3y enrollment delta + latest year netContribution → 4 quadrants + `dead` (zero enrolment override) |
 
 ---
@@ -476,6 +519,9 @@ JobThai run.
 | `/programs/[id]` | 10 fan-out endpoints in `programs.controller.ts` | `programOverview` · `programDemandFunnel` · `programStudentCohorts` · `programDemographicOutlook` · `programFinancials` · `programSkills` · `programOutcomes` · `programFaculty` (role-gated) · `programPeers` · `programTrends` · `programDecisions` · `programStrategicNarrative` · `programLifecycleVerdict` · `programAiReadiness` |
 | `/risks/portfolio` + `/risks/programs/[id]` | `RiskAssessment` table reads | Built by `pnpm risks:assess --all` batch |
 | `/gap-analysis` | `computeGapMap` (one call builds the whole page) | `gap-map.ts` + `gap-map-rules.ts` + `gap-map-signals.ts` — `gap-map.v2`; Council brief `gap-brief.v1`. `computeProgramDemandGaps` survives in `gap-analysis.ts` as AI-Analyst evidence only |
+| `/education/program-overlap` | `overlapMatrix` / `overlapPairDetail` in `packages/db/src/program-overlap/read.ts` | Reads stored pairs only (`program-overlap.v1`); clustered heatmap, groups, pair side panel with the AI wording |
+| `/programs/[id]` *Overlap* section | `programOverlapSection` (`GET /programs/:id/overlap`) | Hidden when no sibling reaches index 30 or no run exists |
+| `/risks` Self-competition panel | `selfCompetitionRows` (`GET /risks/self-competition`) | Pairs behind the two overlap KRIs |
 | `/scenarios` | scenario-engine.v1 (pure function, in `@kku/shared`) | Deterministic; same input + seed → same output |
 | `/benchmarking` | benchmarking.v1 (`benchmarking.ts`) | 6 helpers: peerSets · portfolioComparison · subjectLeadership · programPeers · whiteSpaces · distinctiveness |
 | `/trends` | `TrendsRadar` polar viz | Reads `trend_signals` directly + 6 monitor cron stubs |
@@ -544,7 +590,7 @@ Every score row carries a `methodologyVersion`. Bumping rules:
 | Methodology doc rephrasing without code change | **no bump** | n/a |
 
 Per-prompt versions:
-- `program-digest.v1` · `program-peer-review.v2` · `program-peer-selection.v1` · `program-ai-readiness.v2` · `risk-assessment.v2` · `program-strategic-narrative.v1` · `expertise-narrative.v2` · `analyst-system.v1` · `analyst-safety.v1` · `outcome-review.v1`
+- `program-digest.v1` · `program-peer-review.v2` · `program-peer-selection.v1` · `program-ai-readiness.v2` · `risk-assessment.v2` · `program-strategic-narrative.v1` · `expertise-narrative.v2` · `analyst-system.v1` · `analyst-safety.v1` · `outcome-review.v1` · `program-overlap-recommendation.v1`
 
 Per-scorer versions:
 - `health-score.v3.4` (current; v1/v2/v2.1 retained for audit)
@@ -553,6 +599,7 @@ Per-scorer versions:
 - `benchmarking.v1`
 - `forecasting.v1` (no consumer since v1.9.7 — retained for audit of stored `forecast_runs`)
 - `scenario-engine.v1`
+- `program-overlap.v1` (pair-level; feeds `risk-scoring.v1.14`'s two overlap KRIs)
 - `gap-map.v2` (replaced `gap-analysis.v1` + `gap-lenses.v1` at v1.9.7 as `gap-map.v1`, both retired; bumped to v2 when job-108 government demand joined JobThai behind a selectable basis)
 - `dashboard-overview.v1`
 - `ai-readiness.v1` (deterministic Path A)

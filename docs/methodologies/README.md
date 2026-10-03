@@ -19,6 +19,8 @@ lookup map in `@kku/shared/methodologies.ts`.
 | `gap-brief` | Gap Analyzer (Council brief) | `gap-brief.v1` | `packages/shared/src/ai/prompts/gap-brief.ts` |
 | `job-field-taxonomy` | Gap Analyzer (the rows) | `job-field-taxonomy.v1` | [gap-map.md](./gap-map.md) §7 |
 | `program-job-field` | Gap Analyzer (programme assignments) | `program-job-field.v1` | [gap-map.md](./gap-map.md) §7 |
+| `program-overlap` | Education (program overlap), Deep-Dive, Risk Management (two KRIs) | `program-overlap.v1` | [program-overlap.md](./program-overlap.md) |
+| `program-overlap-recommendation` | Program overlap (AI wording for flagged pairs) | `program-overlap-recommendation.v1` | [program-overlap.md](./program-overlap.md) §8 |
 | `scenario-engine` | Scenario Planner | `scenario-engine.v1` | [scenario-engine.md](./scenario-engine.md) |
 | `benchmarking` | Benchmarking | `benchmarking.v1` | See [benchmarking.md](./benchmarking.md) (placeholder — extend from service comments) |
 | `curriculum-heuristic` | PDF intake / curriculum extraction | `heuristic-v1` | In-code docstring: `apps/ingestion/src/pdf-intake/extractors/curriculum-extractor.ts` |
@@ -30,9 +32,9 @@ lookup map in `@kku/shared/methodologies.ts`.
 | `methodology-bundle` | Cross-cutting (release stamp) | `landscape-2026-05.v1` (tag) + 8-char fingerprint | `packages/db/src/methodology-bundle.ts` |
 | `verdict-stability` | Verdict back-test loop | `verdict-stability.v1` | [verdict-stability.md](./verdict-stability.md) |
 | `cross-scope-consistency` | Top-down vs bottom-up divergence | `cross-scope-consistency.v1` | [cross-scope-consistency.md](./cross-scope-consistency.md) |
-| `risk-scoring` | Risk Management (formula) | `risk-scoring.v1.13` | [risk-scoring.md](./risk-scoring.md) |
+| `risk-scoring` | Risk Management (formula) | `risk-scoring.v1.14` | [risk-scoring.md](./risk-scoring.md) |
 | `risk-management` | Risk Management (workflow) | `risk-management.v2` | [risk-management.md](./risk-management.md) |
-| `risk-measure-rules` | Risk Management (rule engine) | `risk-measure-rules.v1` | `packages/db/src/risk-measure-rules.ts` |
+| `risk-measure-rules` | Risk Management (rule engine) | `risk-measure-rules.v2` | `packages/db/src/risk-measure-rules.ts` |
 | `risk-assessment` | Risk Management (AI prompt) | `risk-assessment.v4` | `packages/shared/src/ai/prompts/risk-assessment.ts` |
 | `class-gpa` | `/education/performance` — class-GPA section | `class-gpa.v1` | [class-gpa.md](./class-gpa.md) |
 

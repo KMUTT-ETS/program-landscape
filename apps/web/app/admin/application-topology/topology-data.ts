@@ -697,6 +697,41 @@ const connectorNodes: TopologyNode[] = [
       cadence: 'Manual / per-PDF · pnpm programs:pipeline',
     },
   },
+  {
+    id: 'scr.programs-overlap-prep',
+    lane: 'connector',
+    kind: 'script',
+    label: 'programs-overlap-prep',
+    subtitle: 'Manual · overlap data prep',
+    details: {
+      description:
+        'Data preparation for programme overlap (program-overlap.v1): the PLO table from the latest PROGRAM_SKILLS_DETAILED extraction, course descriptions + CLOs from APPROVED / AUTO_APPROVED digests, market profiles (names, degree names, recruitment summary, careers), then 1536-d embeddings of PLOs, every major course and every market profile.',
+      cadence: 'Manual · pnpm programs:overlap-prep [--apply]',
+      notes: [
+        'Dry run counts only and makes no model call; --apply writes',
+        'Idempotent: a vector is re-embedded only when the sha256 of its text changes',
+        'Course categories come from a separate phase-2b backfill (program-courses-extract.v4), run first',
+        'Bundled to dist/ for prod operator-run.',
+      ],
+    },
+  },
+  {
+    id: 'scr.programs-overlap',
+    lane: 'connector',
+    kind: 'script',
+    label: 'programs-overlap',
+    subtitle: 'Manual · same-level overlap run',
+    details: {
+      description:
+        'Scores every same-level pair of canonical ACTIVE programmes (program-overlap.v1): a course-based overlap index (shared courses + equivalent courses), PLO alignment as context, containment, shared staff, market similarity and rule-chosen actions. Writes one ProgramOverlapRun per level with its stored pairs, then the AI wording for flagged pairs. Pipeline phase OV writes scoped runs for selected programmes.',
+      cadence: 'Manual · pnpm programs:overlap [--apply] [--no-ai] · programs-pipeline phase OV',
+      notes: [
+        'Dry run computes everything and prints the distributions; writes nothing',
+        'Readers take the latest SUCCEEDED full run per level and overlay newer scoped runs (program-overlap/merge.ts)',
+        'Bundled to dist/ for prod operator-run.',
+      ],
+    },
+  },
 
   // ──────────────────────────────────────────────────────────────────────
   // AI tasks — grouped by trigger family.
@@ -966,6 +1001,30 @@ const connectorNodes: TopologyNode[] = [
       description:
         'Combines deterministic L1/L2/L3 scores (risk-scoring.v1) with AI narrative + 2-4 specific RiskMeasure recommendations per program. Writes RiskAssessment + RiskMeasure + KRI breach evaluations.',
       cadence: 'Per-program · programs-pipeline phase 8',
+    },
+  },
+  {
+    id: 'ai.program-overlap-embed',
+    lane: 'ai',
+    kind: 'ai-task',
+    label: 'Overlap embeddings',
+    subtitle: 'gemini-embedding-001 · 1536-d',
+    details: {
+      description:
+        'Embeds PLOs, every major course (names, plus description and CLOs where present) and every programme market profile at 1536 dimensions, L2-normalised before storage. Vectors are written and read through raw SQL with Zod-validated results.',
+      cadence: 'Per overlap prep · pnpm programs:overlap-prep --apply',
+    },
+  },
+  {
+    id: 'ai.program-overlap-recommendation',
+    lane: 'ai',
+    kind: 'ai-task',
+    label: 'Overlap recommendation',
+    subtitle: 'Phase OV · program-overlap-recommendation.v1',
+    details: {
+      description:
+        'English reasoning for a flagged overlap pair (at least one action and index ≥ 50): rationale, what is distinctive on each side, 2–4 next steps, confidence, and an optional disagreement with the rule-chosen action. Never changes the action. Reused across runs while the pair evidence hash and prompt version are unchanged.',
+      cadence: 'Per overlap run · programs:overlap --apply / phase OV',
     },
   },
 
@@ -1735,6 +1794,58 @@ const tableNodes: TopologyNode[] = [
     },
   },
   {
+    id: 'tab.program-learning-outcome',
+    lane: 'table',
+    kind: 'table',
+    label: 'ProgramLearningOutcome',
+    subtitle: 'PLOs + embedding',
+    details: {
+      description:
+        'One row per programme learning outcome: verbatim Thai text, a normalised text with "PLO 1.1" style labels stripped, and a 1536-d embedding. Source: the latest PROGRAM_SKILLS_DETAILED extraction. Read by the overlap outcome layer (supporting context, not part of the index) and the peer-review prompt.',
+      prismaModel: 'ProgramLearningOutcome',
+    },
+  },
+  {
+    id: 'tab.program-market-profile',
+    lane: 'table',
+    kind: 'table',
+    label: 'ProgramMarketProfile',
+    subtitle: 'market text + embedding',
+    details: {
+      description:
+        'One row per programme: the market-facing text (names, degree names, recruitment summary, careers), its sha256 and a 1536-d embedding. Drives overlap market similarity, the market_confusion_max KRI and the DIFFERENTIATE action.',
+      prismaModel: 'ProgramMarketProfile',
+    },
+  },
+  {
+    id: 'tab.program-overlap-pair',
+    lane: 'table',
+    kind: 'table',
+    label: 'ProgramOverlapPair',
+    subtitle: '+ ProgramOverlapRun',
+    details: {
+      description:
+        'Stored same-level overlap pairs per run: structure, content, outcome (context), course-based overlap index, containment both ways, band, shared and equivalent credits, shared staff, market similarity, language-variant flag, actions and evidenceJson. The run row (methodology version, scope, thresholds, coverage) is the provenance.',
+      prismaModel: 'ProgramOverlapRun + ProgramOverlapPair',
+      notes: [
+        'Readers take only SUCCEEDED runs: the latest full run per level with newer scoped runs overlaid',
+        'Read by risk phase 8 for curriculum_overlap_max + market_confusion_max',
+      ],
+    },
+  },
+  {
+    id: 'tab.program-overlap-recommendation',
+    lane: 'table',
+    kind: 'table',
+    label: 'ProgramOverlapRecommendation',
+    subtitle: 'AI wording per flagged pair',
+    details: {
+      description:
+        'The AI rationale, distinctive points, next steps, confidence and any disagreement for a flagged pair, with promptVersion, aiInferenceId and the evidence hash it was written against.',
+      prismaModel: 'ProgramOverlapRecommendation',
+    },
+  },
+  {
     id: 'tab.ai-inference',
     lane: 'table',
     kind: 'table',
@@ -1887,7 +1998,7 @@ const dashboardNodes: TopologyNode[] = [
     href: '/education/program-overlap',
     details: {
       description:
-        'Same-level programmes compared on three curriculum layers — major courses shared by code, equivalent course content (embedding match) and PLO alignment — plus market similarity beside the index. Clustered programme × programme heatmap with outlined overlap groups, KPI strip, and a side panel per pair: layer bars, containment, shared and equivalent courses, matched / unmatched PLOs, shared staff, rule-chosen actions (all for review) and the AI suggestion with confidence and a disagree button. Faculty-grain: guarded like /education/recruitment and clamped to the caller faculty.',
+        'Same-level programmes compared on a course-based overlap index — major courses shared by code and equivalent course content (embedding match) — with PLO alignment shown as supporting context and market similarity beside the index. Clustered programme × programme heatmap with outlined overlap groups, KPI strip, and a side panel per pair: layer bars, containment, shared and equivalent courses, matched / unmatched PLOs, shared staff, rule-chosen actions (all for review) and the AI suggestion with confidence and a disagree button. Faculty-grain: guarded like /education/recruitment and clamped to the caller faculty.',
     },
   },
 
@@ -2001,7 +2112,7 @@ const dashboardNodes: TopologyNode[] = [
     href: '/programs',
     details: {
       description:
-        "14 sections fan-out: overview, demand funnel, student cohorts, TCAS stats, recruitment, AI peers, AI readiness, lifecycle, strategic narrative, demographic outlook, financials, skills, outcomes, faculty composition, peers, trends, research expertise, curriculum revision. Role-gated faculty visibility (COUNCIL gets aggregates-only).",
+        "14 sections fan-out: overview, demand funnel, student cohorts, TCAS stats, recruitment, AI peers, AI readiness, lifecycle, strategic narrative, demographic outlook, financials, skills, outcomes, faculty composition, peers, trends, research expertise, curriculum revision, overlap (same-level siblings from program-overlap.v1; hidden when no sibling reaches index 30). Role-gated faculty visibility (COUNCIL gets aggregates-only).",
     },
   },
   {
@@ -2044,7 +2155,7 @@ const dashboardNodes: TopologyNode[] = [
     href: '/risks',
     details: {
       description:
-        'Cross-program risk view — composite tier histogram, top-N riskiest, revenue-at-risk rollups by faculty, recent KRI breaches.',
+        'Cross-program risk view — composite tier histogram, top-N riskiest, revenue-at-risk rollups by faculty, recent KRI breaches, and the Self-competition panel (pairs behind the curriculum_overlap_max and market_confusion_max KRIs).',
     },
   },
   {
@@ -2291,6 +2402,27 @@ const edges: TopologyEdge[] = [
   { from: 'tab.program', to: 'dash.education-program-overlap', scope: E },
   { from: 'tab.program-course', to: 'dash.education-program-overlap', scope: E },
   { from: 'tab.faculty', to: 'dash.education-program-overlap', scope: E },
+  // Programme overlap (program-overlap.v1): prep → embeddings → run → surfaces
+  { from: 'scr.programs-overlap-prep', to: 'tab.program-learning-outcome', scope: E },
+  { from: 'scr.programs-overlap-prep', to: 'tab.program-market-profile', scope: E },
+  { from: 'scr.programs-overlap-prep', to: 'tab.program-course', scope: E },
+  { from: 'scr.programs-overlap-prep', to: 'ai.program-overlap-embed', scope: E },
+  { from: 'ai.program-overlap-embed', to: 'tab.program-learning-outcome', scope: E },
+  { from: 'ai.program-overlap-embed', to: 'tab.program-market-profile', scope: E },
+  { from: 'ai.program-overlap-embed', to: 'tab.program-course', scope: E },
+  { from: 'scr.programs-overlap', to: 'tab.program-overlap-pair', scope: E },
+  { from: 'scr.programs-pipeline', to: 'tab.program-overlap-pair', scope: E }, // phase OV scoped runs
+  { from: 'scr.programs-overlap', to: 'ai.program-overlap-recommendation', scope: E },
+  { from: 'tab.program-overlap-pair', to: 'ai.program-overlap-recommendation', scope: E },
+  { from: 'ai.program-overlap-recommendation', to: 'tab.program-overlap-recommendation', scope: E },
+  { from: 'tab.program-overlap-pair', to: 'dash.education-program-overlap', scope: E },
+  { from: 'tab.program-overlap-recommendation', to: 'dash.education-program-overlap', scope: E },
+  { from: 'tab.program-learning-outcome', to: 'dash.education-program-overlap', scope: E },
+  { from: 'tab.program-overlap-pair', to: 'dash.program-deep-dive' },
+  { from: 'tab.program-overlap-recommendation', to: 'dash.program-deep-dive' },
+  { from: 'tab.program-overlap-pair', to: 'ai.risk-assess' }, // overlap KRIs + named siblings
+  { from: 'tab.program-overlap-pair', to: 'dash.risk-portfolio' }, // Self-competition panel
+  { from: 'tab.program-learning-outcome', to: 'ai.program-peers' }, // peer review reads PLOs
 
   // Staff workforce
   { from: 'tab.staff-master-record', to: 'dash.staff-workforce', scope: S },

@@ -95,17 +95,18 @@ export function MethodologyContentEn() {
           (a four-band classifier — Sunset / Stable / Rising / Frontier — that integrates the health
           score with content-modernity and AI-readiness signals). This paper specifies the inputs,
           formulas, aggregation rules, null-handling conventions, and governance guardrails of both.
-          It also specifies the two <Strong>portfolio-level</Strong> layers that sit beside them and
+          It also specifies the three <Strong>portfolio-level</Strong> layers that sit beside them and
           are not reducible to either: <Strong>Risk Management</Strong> (§5), which turns those
-          scores into watched indicators and tracked mitigations, and the{' '}
+          scores into watched indicators and tracked mitigations; the{' '}
           <Strong>Gap Analyzer</Strong> (§6), which starts from labour-market demand rather than
           from KKU and asks which fields of study the portfolio serves, over-serves or does not
-          serve at all. The intended audience is decision-makers (University Council, executive
+          serve at all; and <Strong>Program overlap</Strong> (§7), which measures how far
+          programmes of the same degree level share courses and equivalent course content. The intended audience is decision-makers (University Council, executive
           officers, deans) and program coordinators who must interpret these outputs when reviewing
           the program portfolio. The paper is deliberately conservative in its claims: every score
           informs, none decides, and program closure / merger / launch decisions remain a
           human-in-the-loop process requiring two-reviewer Council approval regardless of the
-          computed values. Limitations and known data gaps are documented in §9.
+          computed values. Limitations and known data gaps are documented in §10.
         </P>
       </DocSection>
 
@@ -140,12 +141,15 @@ export function MethodologyContentEn() {
               <Em>strategic trajectory</Em> by combining the health score with content-modernity and
               AI-readiness signals.</LI>
           </UL>
-          <P>and <Strong>two portfolio-level layers</Strong> that read alongside them:</P>
+          <P>and <Strong>three portfolio-level layers</Strong> that read alongside them:</P>
           <UL>
             <LI><Strong>Risk Management</Strong> (§5) — key risk indicators, an AI-assisted risk
               assessment, and the mitigation lifecycle that follows from them.</LI>
             <LI><Strong>The Gap Analyzer</Strong> (§6) — a demand-first map of the fields of study
               employers ask for, against the graduates KKU produces in each.</LI>
+            <LI><Strong>Program overlap</Strong> (§7) — a course-based overlap index between
+              programmes of the same degree level, with graded actions for review and two risk
+              indicators.</LI>
           </UL>
           <P>
             Other quantitative outputs from the platform (cost allocation, scenario projection,
@@ -492,7 +496,7 @@ export function MethodologyContentEn() {
                 <TR>
                   <TD mono>demographic_resilience</TD>
                   <TD><Code>100 − clamp(requiredShareAt+10y × 100 000 × 100)</Code>. The required share is the fraction of Thailand's 18–22 cohort the programme would need to recruit from, ten years out, to maintain its current intake. {'<'} 0.05% → ≈ 100; {'>'} 0.2% → ≈ 0.</TD>
-                  <TD><Code>programDemographicOutlook</Code> (driven by Thailand cohort projections; see §4.3 for the calculation, §7 for the data source, and <Code>docs/methodologies/forecasting.md</Code>).</TD>
+                  <TD><Code>programDemographicOutlook</Code> (driven by Thailand cohort projections; see §4.3 for the calculation, §8 for the data source, and <Code>docs/methodologies/forecasting.md</Code>).</TD>
                 </TR>
                 <TR>
                   <TD mono>strategic_sector_alignment</TD>
@@ -539,7 +543,7 @@ export function MethodologyContentEn() {
             slopes, per-level revenue targets, intake floors, peer-subject percentiles) rolls up as the
             mean of its program values; a driver whose scale is scope-invariant is computed as a
             ratio of sums, which weights each program by its size. A faculty's score is therefore{' '}
-            <Strong>not</Strong> the simple average of its programs' scores, deliberately — see §9.3
+            <Strong>not</Strong> the simple average of its programs' scores, deliberately — see §10.3
             for the measured difference.
           </P>
           <P>
@@ -1053,7 +1057,7 @@ otherwise                                         → SUNSET`}</Pre>
             count of <Code>severity = major</Code> content gaps. The richer fields are
             presentation-only on the Deep-Dive. AI peer-review outputs below the auto-approve
             confidence threshold (currently 0.85, configurable) sit in an analyst review queue and
-            are never silently materialised — see §8 (Governance).
+            are never silently materialised — see §9 (Governance).
           </P>
         </DocSubsection>
 
@@ -1144,17 +1148,20 @@ otherwise                                         → SUNSET`}</Pre>
 
         <DocSubsection number="5.1" title="Four operational layers">
           <OL>
-            <LI><Strong>KRI alarms</Strong> — five pre-defined indicators evaluated nightly against each program. Each breach (warn / critical) lands in <Code>risk_indicator_breaches</Code> with a freshness date. Deterministic, no AI in the loop.</LI>
-            <LI><Strong>Rule engine (v2)</Strong> — deterministic mapper from fired KRIs to candidate <Code>RiskMeasure</Code> templates (<Code>risk-measure-rules.v1</Code> — six rules across all five v1 KRIs). Fires BEFORE the AI; the candidates are the safety net guaranteeing every breach gets at least one mitigation proposal even when AI is unavailable.</LI>
+            <LI><Strong>KRI alarms</Strong> — seven pre-defined indicators evaluated nightly against each program. Each breach (warn / critical) lands in <Code>risk_indicator_breaches</Code> with a freshness date. Deterministic, no AI in the loop.</LI>
+            <LI><Strong>Rule engine (v2)</Strong> — deterministic mapper from fired KRIs to candidate <Code>RiskMeasure</Code> templates (<Code>risk-measure-rules.v2</Code> — nine rules across all seven KRIs). Fires BEFORE the AI; the candidates are the safety net guaranteeing every breach gets at least one mitigation proposal even when AI is unavailable.</LI>
             <LI><Strong>Periodic AI risk assessment</Strong> — analyst-triggered Gemini call (<Code>pnpm risks:assess</Code>) that reads the L1/L2/L3 likelihood drivers, the impact dimensions, AND the rule-derived candidates. Produces narratives and 2–4 specific RiskMeasure proposals per program, persists a <Code>RiskAssessment</Code> row with full AI provenance.</LI>
             <LI><Strong>Measure lifecycle</Strong> — proposed mitigations move <Code>PROPOSED → ACCEPTED / REJECTED → IN_PROGRESS → COMPLETED</Code>, with optional binding to a <Code>CouncilDecision</Code> in the Decision Workspace.</LI>
           </OL>
         </DocSubsection>
 
-        <DocSubsection number="5.2" title="KRI catalog (v1)">
+        <DocSubsection number="5.2" title="KRI catalog">
           <P>
-            The v1 indicator set has five KRIs, all bachelor-only. Thresholds
-            were calibrated against the KKU Council ERM template for 2026-Q1.
+            The indicator set has seven KRIs, all bachelor-only. The first five
+            were calibrated against the KKU Council ERM template for 2026-Q1; the
+            two overlap KRIs were added in <Code>risk-scoring.v1.14</Code>
+            (2026-10-03) from Program overlap (§7.5), with their market values
+            calibrated on the same day.
             Catalog is analyst-tunable via <Code>/admin/risks/indicators/</Code>{' '}
             in v2; v1 thresholds are seeded constants in{' '}
             <Code>RISK_INDICATOR_CATALOG</Code>.
@@ -1175,6 +1182,8 @@ otherwise                                         → SUNSET`}</Pre>
               <TR><TD mono>late_round_dependency</TD><TD>late-round reg_reported ÷ total reg_reported</TD><TD>≥ 0.5</TD><TD>≥ 0.7</TD><TD>high</TD></TR>
               <TR><TD mono>skill_automation_index</TD><TD>COUNT(skills WHERE automationRisk = HIGH) ÷ COUNT(skills)</TD><TD>≥ 0.3</TD><TD>≥ 0.6</TD><TD>high</TD></TR>
               <TR><TD mono>bachelor_intake_floor</TD><TD>Σ reg_reported (latest year) · KKU Council policy ≥ 30/year</TD><TD>&lt; 36</TD><TD>&lt; 30</TD><TD>low</TD></TR>
+              <TR><TD mono>curriculum_overlap_max</TD><TD>MAX(course-based overlap index) against a same-level sibling, language variants excluded</TD><TD>≥ 50</TD><TD>≥ 70</TD><TD>high</TD></TR>
+              <TR><TD mono>market_confusion_max</TD><TD>MAX(market similarity) against a same-level sibling, language variants excluded</TD><TD>≥ 60</TD><TD>≥ 75</TD><TD>high</TD></TR>
             </tbody>
           </Tbl>
           <P>
@@ -1200,10 +1209,12 @@ otherwise                                         → SUNSET`}</Pre>
             instructed to keep, refine, or extend them rather than reinvent.
           </P>
           <P>
-            <Strong>v1 rule catalog</Strong> — six rules covering all five v1
-            KRIs. The intake-floor indicator has two rules because the
-            mitigation differs by severity (WARN suggests outreach; CRITICAL
-            suggests cohort restructuring):
+            <Strong>Rule catalog</Strong> (<Code>risk-measure-rules.v2</Code>) —
+            nine rules covering all seven KRIs. The intake-floor indicator has
+            two rules because the mitigation differs by severity (WARN suggests
+            outreach; CRITICAL suggests cohort restructuring), and a CRITICAL
+            curriculum overlap fires a differentiation rule plus, only when the
+            closest sibling carries the merge action, a merge-review rule:
           </P>
           <Tbl>
             <THead>
@@ -1223,6 +1234,9 @@ otherwise                                         → SUNSET`}</Pre>
               <TR><TD mono>skill_automation_index</TD><TD>WARN</TD><TD mono>CURRICULUM_MODERNIZE</TD><TD>SHORT_TERM</TD><TD>LOW</TD><TD>2</TD></TR>
               <TR><TD mono>bachelor_intake_floor</TD><TD>WARN</TD><TD mono>RECRUITMENT_CHANNEL</TD><TD>SHORT_TERM</TD><TD>LOW</TD><TD>3</TD></TR>
               <TR><TD mono>bachelor_intake_floor</TD><TD>CRITICAL</TD><TD mono>COHORT_REDUCTION</TD><TD>MEDIUM_TERM</TD><TD>MEDIUM</TD><TD>1</TD></TR>
+              <TR><TD mono>curriculum_overlap_max</TD><TD>CRITICAL</TD><TD mono>CURRICULUM_DIFFERENTIATE</TD><TD>MEDIUM_TERM</TD><TD>MEDIUM</TD><TD>2</TD></TR>
+              <TR><TD mono>curriculum_overlap_max (merge candidate)</TD><TD>CRITICAL</TD><TD mono>PROGRAM_MERGE</TD><TD>LONG_TERM</TD><TD>HIGH</TD><TD>1</TD></TR>
+              <TR><TD mono>market_confusion_max</TD><TD>CRITICAL</TD><TD mono>CURRICULUM_DIFFERENTIATE</TD><TD>SHORT_TERM</TD><TD>LOW</TD><TD>3</TD></TR>
             </tbody>
           </Tbl>
           <P>
@@ -1745,7 +1759,164 @@ otherwise                                         → SUNSET`}</Pre>
         </DocSubsection>
       </DocSection>
 
-      <DocSection id="data-sources" number="7." title="Data sources and provenance">
+      <DocSection id="program-overlap" number="7." title="Program overlap — same-level curriculum overlap">
+        <P>
+          <Strong>Program overlap</Strong> (<Code>program-overlap.v1</Code>) answers strategic
+          question 4: which programmes duplicate each other across faculties and could share
+          courses, share staff, be differentiated or — where the evidence is strong — be merged.
+          Every pair of canonical ACTIVE programmes <Strong>at the same degree level</Strong> is
+          compared, across all faculties; a bachelor programme is never compared with a master&rsquo;s.
+          It is a <Strong>pair-level</Strong> signal, not a per-programme score, and it measures{' '}
+          <Strong>curriculum</Strong> overlap, not market cannibalisation.
+        </P>
+        <P>
+          The companion canonical doc is <Code>docs/methodologies/program-overlap.md</Code>.
+          Locked references: <Code>packages/db/src/program-overlap/score.ts</Code> (every formula
+          and threshold), <Code>merge.ts</Code> (the reader contract), <Code>risk.ts</Code> (the
+          KRI signal), <Code>apps/ingestion/src/program-overlap/</Code> (data prep and the runner).
+        </P>
+
+        <DocSubsection number="7.1" title="The practice it is modelled on">
+          <UL>
+            <LI><Strong>Credit transfer and programme review.</Strong> Shared courses are counted by credit. A course with a different code counts as equivalent when its content matches closely; the threshold stands in for the Thai credit-transfer rule that course content must match at least 75 %.</LI>
+            <LI><Strong>Curriculum mapping (AUN-QA, TQF).</Strong> Each PLO is matched to its closest counterpart in the other programme, in both directions. It is shown to the reviewer as context and is not scored (§7.3).</LI>
+            <LI><Strong>Containment.</Strong> &ldquo;A sits largely inside B&rdquo; is how a review spots a programme that could become a track of another; it is measured on credits, in each direction.</LI>
+          </UL>
+        </DocSubsection>
+
+        <DocSubsection number="7.2" title="Data preparation and the major-course rule">
+          <P>
+            <Code>pnpm programs:overlap-prep</Code> builds a PLO table from the latest PLO
+            extraction, attaches course descriptions and CLOs from approved curriculum digests,
+            composes a market profile per programme (names, degree names, recruitment summary,
+            careers) and embeds all three with <Code>gemini-embedding-001</Code> at 1536
+            dimensions, L2-normalised. Course categories come from a re-run of the course
+            extractor (<Code>program-courses-extract.v4</Code>). Descriptions cover about a
+            quarter of major credits, so <Strong>every major course is embedded on its names</Strong>,
+            with its description and CLOs added where they exist.
+          </P>
+          <P>
+            <Strong>Major courses</Strong> exclude general education, free electives and
+            thesis/project; a course coded <Code>GE</Code>, <Code>LI</Code> or <Code>00</Code> is
+            always general education; and a code used by more than 25 % of the programmes at the
+            level is a service course and is excluded too. A course with no recorded credits
+            counts as 3 credits, and the number defaulted is reported.
+          </P>
+        </DocSubsection>
+
+        <DocSubsection number="7.3" title="The overlap index — course-based">
+          <Tbl>
+            <THead>
+              <TR>
+                <TH width="20%">Layer</TH>
+                <TH>Formula (0–100)</TH>
+                <TH width="26%">Null when</TH>
+              </TR>
+            </THead>
+            <tbody>
+              <TR><TD>Structure (shared courses)</TD><TD>2 × shared credits ÷ (major credits A + major credits B); a shared course counts its smaller credit value</TD><TD>either programme has no major courses</TD></TR>
+              <TR><TD>Content (equivalent courses)</TD><TD>One-to-one greedy matching of embedded major courses not shared by code, most similar first; a match needs cosine ≥ 0.85 when both courses are described, ≥ 0.90 when either is matched on its name only. 2 × (shared embedded credits + equivalent credits) ÷ (embedded credits A + B)</TD><TD>either side has fewer than 3 embedded major courses</TD></TR>
+              <TR><TD>Outcome (PLO alignment) — <Em>context only</Em></TD><TD>A PLO is covered when its best match in the other programme reaches cosine 0.85; (covered A + covered B) ÷ (PLOs A + PLOs B)</TD><TD>either programme has no PLOs</TD></TR>
+            </tbody>
+          </Tbl>
+          <P>
+            <Strong>Overlap index = the mean of the non-null course layers</Strong> (structure and
+            content, equal weights). A pair with neither course layer is{' '}
+            <Strong>not scored — no course comparison</Strong>: no index, no band, no action.
+            Missing layers are excluded, never read as 0. Bands: <Strong>high</Strong> ≥ 70,{' '}
+            <Strong>moderate</Strong> 50–69, <Strong>low</Strong> 30–49.
+          </P>
+          <P>
+            <Strong>Why PLOs are context only.</Strong> PLOs are written to a shared template.
+            At calibration, finance and marketing PLOs matched at 0.837 and physics against
+            materials science at 0.836; on the first real run, 27 of the 29 master&rsquo;s pairs
+            scoring 50 or more rested on PLO text alone, most of them unrelated programmes such as
+            Dentistry and Architecture. Two interim patches (a limited-evidence cap, then a
+            corroboration rule) were withdrawn in favour of removing the cause: the index,
+            containment, actions, storage and KRIs now use courses only, and PLO alignment is
+            shown beside them so a reviewer can still see it.
+          </P>
+          <P>
+            <Strong>Containment</Strong> A-in-B = (shared credits + equivalent credits) ÷ A&rsquo;s
+            major credits, and the same the other way round. <Strong>Signals beside the
+            index</Strong>: shared active teaching staff; <Strong>market similarity</Strong>, the
+            cosine of the two market profiles rescaled so 0.80 reads 0 and 0.95 reads 100; and a{' '}
+            <Strong>language-variant</Strong> flag for the Thai and international versions of one
+            programme, which overlap by design and are never recommended for merging nor counted in
+            the KRIs.
+          </P>
+          <P>
+            A pair is <Strong>stored</Strong> when its index is ≥ 30, it shares a major course or an
+            active staff member, or its market similarity reaches 60.
+          </P>
+        </DocSubsection>
+
+        <DocSubsection number="7.4" title="Actions — always for review">
+          <Tbl>
+            <THead>
+              <TR>
+                <TH width="40%">Action (weakest to strongest)</TH>
+                <TH>Rule</TH>
+              </TR>
+            </THead>
+            <tbody>
+              <TR><TD>Coordinate shared courses</TD><TD>shared credits ≥ 6</TD></TR>
+              <TR><TD>Consolidate equivalent courses</TD><TD>equivalent credits ≥ 6</TD></TR>
+              <TR><TD>Share staff and resources</TD><TD>index ≥ 50</TD></TR>
+              <TR><TD>Differentiate</TD><TD>index ≥ 50 and market similarity ≥ 75</TD></TR>
+              <TR><TD>Consider merge or track</TD><TD>index ≥ 70, either containment ≥ 80, not a language variant</TD></TR>
+            </tbody>
+          </Tbl>
+          <P>
+            The strongest applicable action is the pair&rsquo;s primary action. For a pair with at
+            least one action and an index ≥ 50, <Code>program-overlap-recommendation.v1</Code> writes
+            English reasoning: a rationale citing the evidence, what is distinctive on each side,
+            two to four next steps, a confidence, and — when the evidence contradicts the rule — a
+            recorded disagreement. <Strong>The AI never changes the action</Strong>; a disagreement
+            is shown beside it for a human to judge. A recommendation is reused across runs while
+            the pair&rsquo;s evidence hash and the prompt version are unchanged.
+          </P>
+        </DocSubsection>
+
+        <DocSubsection number="7.5" title="Risk indicators and the reader contract">
+          <P>
+            Two KRIs join the Risk Management catalog (§5.2, <Code>risk-scoring.v1.14</Code>), read
+            from the programme&rsquo;s current same-level pairs with language variants excluded:{' '}
+            <Code>curriculum_overlap_max</Code> (highest index; warn 50, critical 70) and{' '}
+            <Code>market_confusion_max</Code> (highest market similarity; warn 60, critical 75 —
+            about cosine 0.89 and 0.91). With no run covering the programme there is no row, never
+            0; once one does, a programme with nothing stored reads OK with no value, because both
+            storage floors sit at or below warn. A critical breach fires a differentiation measure,
+            and a merge-review measure when the closest sibling carries the merge action. Risk tiers
+            and composites are unchanged.
+          </P>
+          <P>
+            Every run is stored with its methodology version, thresholds and coverage. Readers take
+            the latest successful full run of a level and overlay newer successful runs scoped to
+            selected programmes (pipeline phase OV), which replace every pair touching those
+            programmes.
+          </P>
+        </DocSubsection>
+
+        <DocSubsection number="7.6" title="Calibration and limitations">
+          <P>
+            Calibrated on development on 2026-10-03: 1,834 PLOs for 285 programmes, 8,846 major
+            courses (25.3 % of major credits described), 301 market profiles. Same-level market
+            cosines sit high and close together (bachelor median 0.759, 99th percentile 0.872), which
+            is why the floor is 0.80 and the warn value sits at about the 99th percentile. Course
+            best-match cosines sit at a 90th percentile of 0.72–0.73, below both equivalence
+            thresholds.
+          </P>
+          <UL>
+            <LI><Strong>Curriculum overlap is not market cannibalisation.</Strong> Two programmes can share courses and recruit different students; applicant overlap cannot be measured because TCAS data is aggregate only.</LI>
+            <LI><Strong>Most course matching rests on names.</Strong> About 25 % of major credits are described; a name-only match must reach the stricter 0.90.</LI>
+            <LI><Strong>Course categories are missing where extraction degraded</Strong> (57 of 217 programmes in the backfill), so some general-education courses with other codes can still reach the course layers.</LI>
+            <LI><Strong>Graduate PLOs are generic</Strong>, and a graduate programme with few extracted courses may read &ldquo;not scored&rdquo;.</LI>
+          </UL>
+        </DocSubsection>
+      </DocSection>
+
+      <DocSection id="data-sources" number="8." title="Data sources and provenance">
         <P>
           This section lists every external and internal data source consumed by the health score and
           lifecycle verdict, with attribution. Each source has a per-source specification at{' '}
@@ -1810,7 +1981,7 @@ otherwise                                         → SUNSET`}</Pre>
               <TD>LinkedIn-derived labour-market skill demand — aggregated skill demand by career, derived from LinkedIn profiles and Thai job postings</TD>
               <TD><Strong>Data: LinkedIn.</Strong> Subscriber / licence-holder: <Strong>MHESI</Strong>. API hosted by KMITL on behalf of MHESI</TD>
               <TD>Relevance (<Code>labour_market_alignment</Code>, <Code>strategic_sector_alignment</Code>), Gap Analyzer (the rising-skills panel inside a row)</TD>
-              <TD><Strong>Live</Strong> since 2026-05-01. The newest capture (2026-09-14) carries <Strong>no Thailand rows</Strong> — every growth figure currently read from it is a global fallback (§9.8).</TD>
+              <TD><Strong>Live</Strong> since 2026-05-01. The newest capture (2026-09-14) carries <Strong>no Thailand rows</Strong> — every growth figure currently read from it is a global fallback (§10.8).</TD>
             </TR>
             <TR>
               <TD mono>jobthai</TD>
@@ -1907,8 +2078,8 @@ otherwise                                         → SUNSET`}</Pre>
         </P>
       </DocSection>
 
-      <DocSection id="governance" number="8." title="Governance, audit, and versioning">
-        <DocSubsection number="8.1" title="Versioning policy">
+      <DocSection id="governance" number="9." title="Governance, audit, and versioning">
+        <DocSubsection number="9.1" title="Versioning policy">
           <P>The methodology version constants are:</P>
           <UL>
             <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v5.4'</Code> (in <Code>packages/db/src/health-score.ts</Code>).</LI>
@@ -1928,7 +2099,7 @@ otherwise                                         → SUNSET`}</Pre>
           </P>
         </DocSubsection>
 
-        <DocSubsection number="8.2" title="Audit and reproducibility">
+        <DocSubsection number="9.2" title="Audit and reproducibility">
           <P>Every score and verdict is reproducible from:</P>
           <OL>
             <LI>The git commit recorded in the <Code>programLifecycleSnapshots.driversJson</Code> payload (or, for health scores, the <Code>IngestionRun</Code> rows referenced in provenance);</LI>
@@ -1941,7 +2112,7 @@ otherwise                                         → SUNSET`}</Pre>
           </P>
         </DocSubsection>
 
-        <DocSubsection number="8.3" title="Human-in-the-loop requirement">
+        <DocSubsection number="9.3" title="Human-in-the-loop requirement">
           <P>
             No score, verdict, or AI-generated narrative authorises an institutional decision. Per{' '}
             <Code>docs/ai-governance.md</Code>:
@@ -1953,7 +2124,7 @@ otherwise                                         → SUNSET`}</Pre>
           </UL>
         </DocSubsection>
 
-        <DocSubsection number="8.4" title="Guardrails enforced at compute time">
+        <DocSubsection number="9.4" title="Guardrails enforced at compute time">
           <P>The scoring service enforces, at every computation:</P>
           <UL>
             <LI>All driver and dimension scores are clamped to <Code>[0, 100]</Code>.</LI>
@@ -1965,9 +2136,9 @@ otherwise                                         → SUNSET`}</Pre>
         </DocSubsection>
       </DocSection>
 
-      <DocSection id="limitations" number="9." title="Limitations and known caveats">
+      <DocSection id="limitations" number="10." title="Limitations and known caveats">
         <P>This section is deliberately exhaustive. Decision-makers should read it with care.</P>
-        <DocSubsection number="9.1" title="Equal-weighting is a deliberate, conservative default">
+        <DocSubsection number="10.1" title="Equal-weighting is a deliberate, conservative default">
           <P>
             The composite score weighs all five dimensions equally. This is a least-arguable default:
             any weighted formulation encodes a value judgement, and the application errs toward making
@@ -1979,7 +2150,7 @@ otherwise                                         → SUNSET`}</Pre>
           </P>
         </DocSubsection>
 
-        <DocSubsection number="9.2" title="Data completeness varies sharply across programs">
+        <DocSubsection number="10.2" title="Data completeness varies sharply across programs">
           <P>A non-trivial number of KKU programs lack complete data for one or more dimensions:</P>
           <UL>
             <LI>Graduate outcomes arrive through survey-report intake (<Code>kku-alumni</Code>), so Outcomes coverage follows which survey reports have been ingested; programmes without one rely on the TCAS minimum-score percentile, student satisfaction and digital competency.</LI>
@@ -1992,7 +2163,7 @@ otherwise                                         → SUNSET`}</Pre>
           </P>
         </DocSubsection>
 
-        <DocSubsection number="9.3" title="Cross-scope consistency is not asserted">
+        <DocSubsection number="10.3" title="Cross-scope consistency is not asserted">
           <P>
             A faculty's overall health score is not guaranteed to equal the average of its programs'
             scores. Before <Code>health-score.v5.0</Code> the gap was large and one-sided — measured
@@ -2005,7 +2176,7 @@ otherwise                                         → SUNSET`}</Pre>
           </P>
         </DocSubsection>
 
-        <DocSubsection number="9.4" title="Some signals are still synthetic or proxied">
+        <DocSubsection number="10.4" title="Some signals are still synthetic or proxied">
           <UL>
             <LI>JobThai describes the national labour market, not KKU's region: 37% of postings are in Bangkok and 3.3% across the 20 Northeast provinces. Only 41 postings state a postgraduate minimum, so master's and doctoral programmes normally receive no JobThai signal — a data gap, not zero demand.</LI>
             <LI>Profession fit (§4.4) is an AI judgement with a stated reason, not a lookup. Repeated runs can move individual calls, which is why a JobThai score needs at least 5 relevant skills; an analyst who disagrees with a call can record the disagreement from the page.</LI>
@@ -2013,7 +2184,7 @@ otherwise                                         → SUNSET`}</Pre>
           </UL>
         </DocSubsection>
 
-        <DocSubsection number="9.5" title="The lifecycle verdict's modifier gates are an institutional position, not an empirical fact">
+        <DocSubsection number="10.5" title="The lifecycle verdict's modifier gates are an institutional position, not an empirical fact">
           <P>
             The two AI-readiness floors (§3.5) and the OLD_SCHOOL content cap (§3.5) are explicit
             institutional positions, not findings. Decision-makers may disagree with those positions;
@@ -2021,7 +2192,7 @@ otherwise                                         → SUNSET`}</Pre>
           </P>
         </DocSubsection>
 
-        <DocSubsection number="9.6" title="The verdict bands are calibration choices">
+        <DocSubsection number="10.6" title="The verdict bands are calibration choices">
           <P>
             The trajectory cut-offs (45 / 65 / 80) and the health bands (40 / 65) were chosen to
             produce a roughly even distribution of programs across bands at KKU's current state. They
@@ -2030,7 +2201,7 @@ otherwise                                         → SUNSET`}</Pre>
           </P>
         </DocSubsection>
 
-        <DocSubsection number="9.7" title="Score volatility under data refreshes">
+        <DocSubsection number="10.7" title="Score volatility under data refreshes">
           <P>
             A single ingestion run can move a program's overall score by several points if it lands a
             previously-missing driver. This is by design (we want fresh data to register). Users of
@@ -2039,7 +2210,7 @@ otherwise                                         → SUNSET`}</Pre>
           </P>
         </DocSubsection>
 
-        <DocSubsection number="9.8" title="The Gap Analyzer's supply side is softer than its demand side">
+        <DocSubsection number="10.8" title="The Gap Analyzer's supply side is softer than its demand side">
           <P>
             Four caveats travel with every figure on the gap map. They are stated in full at
             &sect;6.9 and in the provenance drawer on the page itself; they are repeated here
@@ -2084,7 +2255,7 @@ otherwise                                         → SUNSET`}</Pre>
         </DocSubsection>
       </DocSection>
 
-      <DocSection id="glossary" number="10." title="Glossary">
+      <DocSection id="glossary" number="11." title="Glossary">
         <UL>
           <LI><Strong>CUPT</Strong> — Council of University Presidents of Thailand (สมาคมที่ประชุมอธิการบดีแห่งประเทศไทย); administers TCAS.</LI>
           <LI><Strong>TCAS</Strong> — Thai University Central Admission System; the four-round national admission process for Thai universities. KKU participates in rounds 1–4.</LI>
@@ -2105,13 +2276,13 @@ otherwise                                         → SUNSET`}</Pre>
         </UL>
       </DocSection>
 
-      <DocSection id="references" number="11." title="References">
+      <DocSection id="references" number="12." title="References">
         <P>
           The following are the actual source materials this paper draws from. References are split
           into (a) institutional source code and documentation that defines the methodology, and (b)
           external public references for the data sources cited.
         </P>
-        <DocSubsection number="11.1" title="Internal — methodology canon">
+        <DocSubsection number="12.1" title="Internal — methodology canon">
           <UL>
             <LI><Code>packages/db/src/health-score.ts</Code>. Primary implementation of the five-dimension health score scorers. Methodology version constant <Code>HEALTH_SCORE_VERSION</Code>.</LI>
             <LI><Code>packages/db/src/program-deep-dive.ts</Code>. Primary implementation of <Code>programLifecycleVerdict</Code> and <Code>programAiReadiness</Code>. Methodology version constant <Code>LIFECYCLE_VERSION</Code>.</LI>
@@ -2120,14 +2291,15 @@ otherwise                                         → SUNSET`}</Pre>
             <LI><Code>packages/db/src/jobthai-bridge.ts</Code> and <Code>packages/db/src/jobthai.ts</Code>. Programme–occupation links (<Code>JOBTHAI_BRIDGE_VERSION</Code>) and the per-programme JobThai demand read by both the health driver and the Deep-Dive.</LI>
             <LI><Code>packages/shared/src/ai/prompts/demand-skill-match.ts</Code>. The curriculum check and profession-fit classification (<Code>DEMAND_MATCH_VERSION</Code>).</LI>
             <LI><Code>docs/methodologies/gap-map.md</Code>. The Gap Analyzer methodology (§6), including the open decisions listed at §6.9. Implementation: <Code>packages/db/src/gap-map.ts</Code> (the query), <Code>packages/db/src/gap-map-rules.ts</Code> (the pure verdict, supply and pipeline rules, and the version constant <Code>GAP_MAP_VERSION</Code>), <Code>packages/db/src/gap-map-signals.ts</Code> (the rising-skills and trend-signal panel), <Code>packages/db/src/job-fields.ts</Code> (the taxonomy build).</LI>
+            <LI><Code>docs/methodologies/program-overlap.md</Code>. The Program overlap methodology (§7), including the calibration evidence. Implementation: <Code>packages/db/src/program-overlap/</Code>.</LI>
             <LI><Code>docs/methodologies/forecasting.md</Code>. Forecasting methodology feeding demographic-resilience and trend drivers.</LI>
-            <LI><Code>docs/data-sources/&lt;slug&gt;.md</Code>. Per-source specifications; one file per data source listed in §7.</LI>
-            <LI><Code>docs/ai-governance.md</Code>. AI governance policy, including the human-in-the-loop and review-threshold rules cited in §8.</LI>
+            <LI><Code>docs/data-sources/&lt;slug&gt;.md</Code>. Per-source specifications; one file per data source listed in §8.</LI>
+            <LI><Code>docs/ai-governance.md</Code>. AI governance policy, including the human-in-the-loop and review-threshold rules cited in §9.</LI>
             <LI><Code>CLAUDE.md</Code>. Project charter and the eight strategic questions referenced in §2.1.</LI>
           </UL>
         </DocSubsection>
 
-        <DocSubsection number="11.2" title="External — data source operators (publicly available references)">
+        <DocSubsection number="12.2" title="External — data source operators (publicly available references)">
           <UL>
             <LI><Strong>OurResearch / OpenAlex.</Strong> Public scholarly-works catalogue. <a className="text-accent underline-offset-2 hover:underline" href="https://openalex.org" target="_blank" rel="noopener noreferrer">https://openalex.org</a>.</LI>
             <LI><Strong>CUPT (Council of University Presidents of Thailand).</Strong> Administers TCAS. <a className="text-accent underline-offset-2 hover:underline" href="https://www.mytcas.com" target="_blank" rel="noopener noreferrer">https://www.mytcas.com</a>.</LI>
@@ -2142,7 +2314,7 @@ otherwise                                         → SUNSET`}</Pre>
           </UL>
         </DocSubsection>
 
-        <DocSubsection number="11.3" title="External — referenced policy frameworks">
+        <DocSubsection number="12.3" title="External — referenced policy frameworks">
           <UL>
             <LI>The <Strong>Bio-Circular-Green (BCG) economic model</Strong> is a Thai national-strategy framework articulated by the Royal Thai Government and operationalised through MHESI and NXPO. Public materials are available on the NXPO website.</LI>
             <LI>The <Strong>S-curve target industries</Strong> are likewise defined in Thai government strategy documentation.</LI>
@@ -2185,6 +2357,7 @@ otherwise                                         → SUNSET`}</Pre>
             <TR><TD mono>1.8</TD><TD>2026-09-20</TD><TD><Strong>Figures on &sect;6 computed under <Code>gap-map.v1</Code> and under <Code>gap-map.v2</Code> are not comparable, even for the same field of study &mdash; read this entry before quoting any number from &sect;6.</Strong> Re-issued for <Code>gap-map.v2</Code>: Thai government and state-enterprise recruitment announcements scraped from job-108.com join JobThai as a second demand source. A request-scoped <Strong>demand basis</Strong> (<Code>private</Code> &mdash; JobThai only, what every <Code>gap-map.v1</Code> figure was; <Code>public</Code> &mdash; job-108 only, inside an operator-configurable counting window, since job-108 postings carry a real date and JobThai&rsquo;s do not; <Code>all</Code> &mdash; both, blended) selects which source or sources form the demand denominator of &sect;6.3. <Strong><Code>all</Code> is the default</Strong>, because excluding the state biases the map against exactly the nursing, public-health, teaching and agriculture programmes a regional university exists to feed. The version constant moved because the repo&rsquo;s rule is that a version identifies the formula a <Em>published</Em> figure was computed under, and <Code>gap-map.v1</Code> had by this point reached production. The supply side of &sect;6.4 and the verdict rule of &sect;6.5 are <Strong>unchanged</Strong> &mdash; the basis is one input to an unchanged function, not a change to the function. Every row carries its private-only and public-only shares alongside whichever basis is active, so switching the basis needs no second request. A calibration run (120 JobThai postings, read through both the shipped regex and the new job-108 AI extractor) measured how far the two field-of-study extraction methods disagree on identical text: 33 of 120 agreed exactly, 33 more found by the model that the regex missed, 5 more found by the regex that the model missed. Of the 69 field names the regex missed, only 4 (5.8&#37;) contain &ldquo;และ&rdquo; (&ldquo;and&rdquo;) &mdash; confirming, but as a minority cause, that the shipped JobThai extractor&rsquo;s regex incorrectly treats &ldquo;และ&rdquo; as a separator inside compound Thai discipline names. <Strong>Not fixed here</Strong> &mdash; fixing it would move every existing JobThai-side demand share on &sect;6. Methodology: <Code>docs/methodologies/gap-map.md</Code> &sect;14.</TD></TR>
             <TR><TD mono>1.9</TD><TD>2026-10-02</TD><TD>Re-issued for <Code>health-score.v5.3</Code>: the Capability dimension gains the <Code>external_grant_engagement</Code> driver (&sect;2.2.3). All five Capability drivers now carry 20 % each instead of 25 %; dimension weights and the lifecycle verdict are unchanged.</TD></TR>
             <TR><TD mono>1.10</TD><TD>2026-10-03</TD><TD>Re-issued for <Code>health-score.v5.4</Code>: external grants move from a Capability driver to an award of up to +10 on Financial. Capability returns to four drivers at 25 % each (&sect;2.2.2, &sect;2.2.3).</TD></TR>
+            <TR><TD mono>1.11</TD><TD>2026-10-03</TD><TD>New &sect;7 <Strong>Program overlap</Strong> for <Code>program-overlap.v1</Code> and its AI wording <Code>program-overlap-recommendation.v1</Code>: a course-based overlap index between programmes of the same degree level, PLO alignment shown as context, graded actions for review, and two risk indicators. Placed after the Gap Analyzer as the third portfolio-level layer; data sources 7&rarr;8, governance 8&rarr;9, limitations 9&rarr;10, glossary 10&rarr;11 and references 11&rarr;12 are renumbered with every cross-reference outside this appendix. &sect;5 updated for <Code>risk-scoring.v1.14</Code> (seven KRIs), <Code>risk-measure-rules.v2</Code> (nine rules) and <Code>risk-assessment.v4</Code>; risk tiers and composites are unchanged.</TD></TR>
           </tbody>
         </Tbl>
         <P>
@@ -2226,6 +2399,8 @@ otherwise                                         → SUNSET`}</Pre>
             <TR><TD mono>risk-scoring.v1.12</TD><TD>2026-06-01</TD><TD>L1 recruitment-decay inputs and the cross-program competitiveness percentile re-sourced from the campaign-grain <Code>POWERBI.ADMISSION_STAT</Code> feed (<Code>admission_campaign_stats</Code>), replacing <Code>ADMISSION_STAT_CURRID</Code> / <Code>tcas_admission_funnels</Code>. No change to the composite formula or driver weights.</TD></TR>
             <TR><TD mono>risk-management.v1</TD><TD>2026-05-19</TD><TD>Workflow layer documented for the first time (§5 in this paper). Three operational layers: KRI alarms (5 indicators: application_seat_ratio, enrollment_fill_rate, late_round_dependency, skill_automation_index, bachelor_intake_floor), AI risk assessment pipeline (<Code>pnpm risks:assess</Code> producing RiskAssessment + 2–4 RiskMeasure rows per program), and the PROPOSED→ACCEPTED→IN_PROGRESS→COMPLETED measure lifecycle with optional binding to CouncilDecision. KKU 5×5 institutional matrix mapped from the composite formula. No formula change vs risk-scoring.v1.9.</TD></TR>
             <TR><TD mono>risk-management.v2 + risk-measure-rules.v1 + risk-assessment.v3</TD><TD>2026-05-19</TD><TD>Closes v1's biggest gap: <Strong>automated breach → measure link</Strong>. New deterministic rule engine in <Code>risk-measure-rules.v1</Code> (six rules across all five v1 KRIs, exact-severity matching) fires one candidate measure per matched (KRI × severity) pair BEFORE the AI runs. Additive migration <Code>20260519120000_risk_measure_trigger</Code> adds <Code>RiskMeasure.triggerIndicatorSlug</Code> + <Code>triggerSeverity</Code> columns for provenance. AI prompt bumped to <Code>risk-assessment.v3</Code> to accept candidates as input and echo back trigger fields. <Code>--no-ai</Code> path now also persists rule-derived candidates so Council never sees an empty mitigation list for a program with fired KRIs. No formula change vs risk-scoring.v1.9.</TD></TR>
+            <TR><TD mono>risk-scoring.v1.14 + risk-measure-rules.v2 + risk-assessment.v4</TD><TD>2026-10-03</TD><TD>Two KRIs from Program overlap (&sect;7.5): <Code>curriculum_overlap_max</Code> (warn 50, critical 70) and <Code>market_confusion_max</Code> (warn 60, critical 75). Three new measure rules, the merge-review rule firing only when the closest sibling carries the merge action. The AI risk prompt receives the named siblings and is told every overlap measure is for review and never to propose closure. Drivers, composite, tiers and the 5&times;5 matrix are unchanged.</TD></TR>
+            <TR><TD mono>program-overlap.v1</TD><TD>2026-10-03</TD><TD><Strong>Same-level curriculum overlap.</Strong> Every pair of canonical ACTIVE programmes at one degree level is compared on a <Strong>course-based</Strong> index: the mean of shared major courses (by credit) and equivalent major courses with different codes (embedding match at 0.85 when both courses are described, 0.90 when either is matched on its name). PLO alignment (0.85) is computed and shown as context only, after the first real run showed template-worded PLOs making unrelated programmes look alike; an interim limited-evidence cap and corroboration rule were withdrawn in its favour. Containment both ways on credits; market similarity rescaled from cosine 0.80&ndash;0.95; language variants labelled and never recommended for merging. Graded actions for review; AI wording by <Code>program-overlap-recommendation.v1</Code>, which never changes the action.</TD></TR>
           </tbody>
         </Tbl>
       </DocSection>

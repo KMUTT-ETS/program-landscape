@@ -41,6 +41,7 @@ import { DASHBOARD_OVERVIEW_VERSION } from './dashboard-overview';
 import { DECISION_WORKSPACE_VERSION } from './decisions';
 import { DATA_QUALITY_VERSION } from './data-quality';
 import { JOBTHAI_BRIDGE_VERSION } from './jobthai-bridge';
+import { PROGRAM_OVERLAP_VERSION } from './program-overlap/score';
 
 // ── Imports from @kku/shared (engines + prompts) ────────────────────────
 import {
@@ -73,6 +74,7 @@ import {
   ANALYST_SAFETY_VERSION,
   ANALYST_TOOLS_VERSION,
   EXPERTISE_NARRATIVE_VERSION,
+  PROGRAM_OVERLAP_RECOMMENDATION_VERSION,
 } from '@kku/shared';
 
 // Lifecycle verdict version is private to program-deep-dive.ts at the
@@ -111,7 +113,7 @@ const LIFECYCLE_VERSION = 'lifecycle.v1.4';
  * this on a sub-version update — CI fails until either the tag bumps
  * or the change is undone.
  */
-export const BUNDLE_CALENDAR_TAG = 'landscape-2026-10.v2';
+export const BUNDLE_CALENDAR_TAG = 'landscape-2026-10.v3';
 
 /**
  * The full sub-version manifest. Keys are stable, ordered alphabetically
@@ -160,6 +162,12 @@ export const METHODOLOGY_MANIFEST = {
   'program-faculty':           PROGRAM_FACULTY_VERSION,
   // Which fields of study each programme supplies — the map's supply side.
   'program-job-field':         PROGRAM_JOB_FIELD_VERSION,
+  // Same-level curriculum overlap: drives the Education overlap heatmap, the
+  // Deep-Dive overlap section and two risk KRIs (curriculum_overlap_max,
+  // market_confusion_max), so a threshold change moves Council figures.
+  'program-overlap':           PROGRAM_OVERLAP_VERSION,
+  // Wording for flagged overlap pairs — never changes the rule-chosen action.
+  'program-overlap-recommendation': PROGRAM_OVERLAP_RECOMMENDATION_VERSION,
   'program-peer-review':       PROGRAM_PEER_REVIEW_VERSION,
   'program-pedagogy':          PROGRAM_PEDAGOGY_VERSION,
   'program-peer-selection':    PROGRAM_PEER_SELECTION_VERSION,
