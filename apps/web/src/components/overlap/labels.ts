@@ -64,20 +64,9 @@ export function isUncorroborated(evidence: PairEvidence | null | undefined): boo
   return evidence?.coverage.uncorroborated === true;
 }
 
-/**
- * The same test for a matrix cell, which carries no evidence. The scorer
- * leaves overlapIndex null with measured layers ONLY for an uncorroborated
- * pair (an index is otherwise the mean of the non-null layers), so a null
- * index beside any non-null layer identifies one exactly. A pair with no
- * layers at all is a market-only pair, not an uncorroborated one.
- */
-export function isUncorroboratedCell(cell: {
-  overlapIndex: number | null;
-  structure: number | null;
-  content: number | null;
-  outcome: number | null;
-}): boolean {
-  return cell.overlapIndex === null && (cell.structure !== null || cell.content !== null || cell.outcome !== null);
+/** The same test for a matrix cell, which carries the flag itself. */
+export function isUncorroboratedCell(cell: { uncorroborated: boolean }): boolean {
+  return cell.uncorroborated;
 }
 
 /** "72" / "—" for a nullable 0–100 figure. */

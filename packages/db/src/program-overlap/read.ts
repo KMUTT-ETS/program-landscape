@@ -75,6 +75,12 @@ export interface OverlapMatrixCell {
   band: OverlapBand;
   primaryAction: OverlapAction | null;
   languageVariant: boolean;
+  /** evidence.coverage.limitedEvidence (spec §12.4); false when the stored
+   *  evidence does not parse. */
+  limitedEvidence: boolean;
+  /** evidence.coverage.uncorroborated (D8): index null, band NONE, no
+   *  actions; false when the stored evidence does not parse. */
+  uncorroborated: boolean;
 }
 
 export interface OverlapMatrixKpis {
@@ -425,19 +431,24 @@ export async function overlapMatrix(opts: {
     OVERLAP_THRESHOLDS.bandModerate,
   );
 
-  const cells: OverlapMatrixCell[] = pairs.map((p) => ({
-    a: p.programAId,
-    b: p.programBId,
-    pairId: p.id,
-    overlapIndex: p.overlapIndex,
-    structure: p.structure,
-    content: p.content,
-    outcome: p.outcome,
-    marketSimilarity: p.marketSimilarity,
-    band: p.band,
-    primaryAction: p.primaryAction,
-    languageVariant: p.languageVariant,
-  }));
+  const cells: OverlapMatrixCell[] = pairs.map((p) => {
+    const coverage = parsePairEvidence(p.evidenceJson)?.coverage;
+    return {
+      a: p.programAId,
+      b: p.programBId,
+      pairId: p.id,
+      overlapIndex: p.overlapIndex,
+      structure: p.structure,
+      content: p.content,
+      outcome: p.outcome,
+      marketSimilarity: p.marketSimilarity,
+      band: p.band,
+      primaryAction: p.primaryAction,
+      languageVariant: p.languageVariant,
+      limitedEvidence: coverage?.limitedEvidence ?? false,
+      uncorroborated: coverage?.uncorroborated ?? false,
+    };
+  });
 
   return {
     ...base,

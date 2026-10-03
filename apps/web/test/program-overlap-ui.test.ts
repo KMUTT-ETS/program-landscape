@@ -35,6 +35,8 @@ const cell = (over: Partial<OverlapCell> = {}): OverlapCell => ({
   band: 'HIGH',
   primaryAction: 'CONSIDER_MERGE_OR_TRACK',
   languageVariant: false,
+  limitedEvidence: false,
+  uncorroborated: false,
   ...over,
 });
 
@@ -128,7 +130,7 @@ describe('matrixTitle', () => {
   it('says "not scored" for an uncorroborated PLO match (D8)', () => {
     expect(
       matrixTitle(
-        cell({ overlapIndex: null, structure: null, content: null, outcome: 100, marketSimilarity: 12, primaryAction: null }),
+        cell({ overlapIndex: null, structure: null, content: null, outcome: 100, marketSimilarity: 12, primaryAction: null, band: 'NONE', limitedEvidence: true, uncorroborated: true }),
         names,
       ),
     ).toBe('A ↔ B · not scored (uncorroborated PLO match) · market similarity 12');

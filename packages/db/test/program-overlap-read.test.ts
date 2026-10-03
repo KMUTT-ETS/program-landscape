@@ -67,6 +67,7 @@ interface PairOpts {
   actions?: OverlapAction[];
   equiv?: number;
   lv?: boolean;
+  ev?: unknown;
 }
 const pair = (runId: string, a: string, b: string, o: PairOpts = {}) => ({
   id: `${runId}:${a}-${b}`, runId, level: 'BACHELOR' as const, programAId: a, programBId: b,
@@ -74,7 +75,7 @@ const pair = (runId: string, a: string, b: string, o: PairOpts = {}) => ({
   containmentAInB: 70, containmentBInA: 30, band: o.band ?? 'MODERATE',
   sharedCredits: 6, equivCredits: o.equiv ?? 0, sharedStaff: 1, marketSimilarity: o.market ?? null,
   languageVariant: o.lv ?? false, actions: o.actions ?? [], primaryAction: o.actions?.at(-1) ?? null,
-  evidenceJson: evidence, evidenceHash: 'h', methodologyVersion: PROGRAM_OVERLAP_VERSION, createdAt: new Date(),
+  evidenceJson: o.ev === undefined ? evidence : o.ev, evidenceHash: 'h', methodologyVersion: PROGRAM_OVERLAP_VERSION, createdAt: new Date(),
 });
 const prog = (id: string, facultyId = 'f1') => ({
   id, code: `C-${id}`, nameTh: `th-${id}`, nameEn: `en-${id}`, facultyId, faculty: { code: facultyId.toUpperCase(), nameEn: facultyId },
@@ -100,6 +101,26 @@ describe('overlapMatrix', () => {
     expect([...m.order].sort()).toEqual(['a', 'b', 'c']);
     // Only canonical ACTIVE programmes are compared (D5).
     expect(mocks.programFindMany.mock.calls[0]![0].where).toMatchObject({ status: 'ACTIVE', level: 'BACHELOR' });
+  });
+
+  it('carries the limited-evidence and uncorroborated flags from the parsed evidence', async () => {
+    mocks.runFindFirst.mockResolvedValue({ completedAt: run('f', 1).completedAt });
+    mocks.runFindMany.mockResolvedValue([run('f', 1)]);
+    const uncorroborated = { ...evidence, coverage: { ...evidence.coverage, layerCount: 1, limitedEvidence: true, uncorroborated: true } };
+    mocks.pairFindMany.mockResolvedValue([
+      pair('f', 'a', 'b'),
+      pair('f', 'a', 'c', { index: null, band: 'NONE', ev: uncorroborated }),
+      pair('f', 'b', 'c', { ev: { not: 'evidence' } }),
+    ]);
+    mocks.programFindMany.mockResolvedValue([prog('a'), prog('b'), prog('c')]);
+    const m = await overlapMatrix({ level: 'BACHELOR' });
+    const flags = Object.fromEntries(m.cells.map((c) => [c.pairId, [c.limitedEvidence, c.uncorroborated]]));
+    expect(flags).toEqual({
+      'f:a-b': [false, false],
+      'f:a-c': [true, true],
+      // Unparseable evidence reads as not flagged rather than throwing.
+      'f:b-c': [false, false],
+    });
   });
 
   it('returns an empty matrix when no run exists', async () => {

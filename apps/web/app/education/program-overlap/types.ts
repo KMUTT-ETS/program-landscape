@@ -73,7 +73,16 @@ const round = (n: number) => Math.round(n);
 export function matrixTitle(
   cell: Pick<
     OverlapCell,
-    'a' | 'b' | 'overlapIndex' | 'structure' | 'content' | 'outcome' | 'marketSimilarity' | 'primaryAction' | 'languageVariant'
+    | 'a'
+    | 'b'
+    | 'overlapIndex'
+    | 'structure'
+    | 'content'
+    | 'outcome'
+    | 'marketSimilarity'
+    | 'primaryAction'
+    | 'languageVariant'
+    | 'uncorroborated'
   >,
   names: ReadonlyMap<string, string> | Readonly<Record<string, string>>,
 ): string {
@@ -81,7 +90,7 @@ export function matrixTitle(
     (names instanceof Map ? names.get(id) : (names as Readonly<Record<string, string>>)[id]) ?? id;
   const parts: string[] = [`${name(cell.a)} ↔ ${name(cell.b)}`];
   if (isUncorroboratedCell(cell)) {
-    // D8: layers were measured but nothing corroborates the PLO match.
+    // D8: a PLO-only match that nothing corroborates is not scored.
     parts.push('not scored (uncorroborated PLO match)');
   } else if (cell.overlapIndex !== null) {
     const layers: string[] = [];

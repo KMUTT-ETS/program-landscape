@@ -256,10 +256,9 @@ describe('corroboration (D8)', () => {
     expect(isLimitedEvidence(uncorroborated)).toBe(true);
   });
 
-  it('identifies an uncorroborated matrix cell by a null index beside measured layers', () => {
-    expect(isUncorroboratedCell({ overlapIndex: null, structure: null, content: null, outcome: 88 })).toBe(true);
-    expect(isUncorroboratedCell({ overlapIndex: null, structure: null, content: null, outcome: null })).toBe(false);
-    expect(isUncorroboratedCell({ overlapIndex: 60, structure: null, content: null, outcome: 60 })).toBe(false);
+  it('reads the uncorroborated flag the matrix cell carries', () => {
+    expect(isUncorroboratedCell({ uncorroborated: true })).toBe(true);
+    expect(isUncorroboratedCell({ uncorroborated: false })).toBe(false);
   });
 
   it('says the moderate cap applies only to corroborated limited pairs', () => {
