@@ -28,7 +28,17 @@ import {
   withOverlapSection,
 } from '../app/programs/[id]/overlap-section';
 import type { OverlapSibling, ProgramOverlapSection } from '../app/programs/[id]/types';
-import { LIMITED_EVIDENCE_LABEL, orientEvidence } from '../src/components/overlap/labels';
+import {
+  LIMITED_EVIDENCE_DETAIL,
+  LIMITED_EVIDENCE_LABEL,
+  UNCORROBORATED_DETAIL,
+  UNCORROBORATED_LABEL,
+  isLimitedEvidence,
+  isUncorroborated,
+  isUncorroboratedCell,
+  orientEvidence,
+} from '../src/components/overlap/labels';
+import { EvidenceQualityNote, OverlapLayerBar } from '../src/components/overlap/pair-evidence';
 
 const read = (p: string) => readFileSync(path.join(__dirname, '..', p), 'utf8');
 
@@ -200,7 +210,8 @@ describe('rendering', () => {
       React.createElement(SiblingDetail, { s: limited, programId: 'me', programCode: 'KKU-SEQ-0001' }),
     );
     expect(detail).toContain(LIMITED_EVIDENCE_LABEL);
-    expect(detail).toContain('The band is capped at moderate');
+    expect(detail).toContain('the band is capped at moderate');
+    expect(detail).not.toContain(UNCORROBORATED_LABEL);
   });
 
   it('renders the recommendation with confidence and reasoning in the expanded row', () => {
@@ -232,5 +243,49 @@ describe('rendering', () => {
     expect(o.unmatchedPlosA).toEqual(['only B 1', 'only B 2']);
     expect(o.coverage.plosA).toBe(7);
     expect(o.matchedPlos[0]).toMatchObject({ ordinalA: 2, textA: 'PLO of B' });
+  });
+});
+
+describe('corroboration (D8)', () => {
+  const uncorroborated = evidence({ layerCount: 1, limitedEvidence: true, uncorroborated: true });
+
+  it('flags uncorroborated evidence; null evidence is unknown, not flagged', () => {
+    expect(isUncorroborated(uncorroborated)).toBe(true);
+    expect(isUncorroborated(evidence({ limitedEvidence: true }))).toBe(false);
+    expect(isUncorroborated(null)).toBe(false);
+    expect(isLimitedEvidence(uncorroborated)).toBe(true);
+  });
+
+  it('identifies an uncorroborated matrix cell by a null index beside measured layers', () => {
+    expect(isUncorroboratedCell({ overlapIndex: null, structure: null, content: null, outcome: 88 })).toBe(true);
+    expect(isUncorroboratedCell({ overlapIndex: null, structure: null, content: null, outcome: null })).toBe(false);
+    expect(isUncorroboratedCell({ overlapIndex: 60, structure: null, content: null, outcome: 60 })).toBe(false);
+  });
+
+  it('says the moderate cap applies only to corroborated limited pairs', () => {
+    expect(LIMITED_EVIDENCE_DETAIL).toMatch(/corroborates it; when it is, the band is capped at moderate/);
+    expect(UNCORROBORATED_LABEL).toBe('Not scored — PLO match only, no corroborating signal');
+    expect(UNCORROBORATED_DETAIL).toBe(
+      'PLO wording matched, but no shared staff and low market similarity; treated as no overlap.',
+    );
+  });
+
+  it('renders the uncorroborated note in place of the limited-evidence note', () => {
+    const html = renderToStaticMarkup(React.createElement(EvidenceQualityNote, { evidence: uncorroborated }));
+    expect(html).toContain(UNCORROBORATED_LABEL);
+    expect(html).toContain('treated as no overlap');
+    expect(html).not.toContain(LIMITED_EVIDENCE_LABEL);
+    expect(renderToStaticMarkup(React.createElement(EvidenceQualityNote, { evidence: evidence() }))).toBe('');
+  });
+
+  it('shows "Not scored" instead of an index when asked', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(OverlapLayerBar, { label: 'Overlap index', value: null, nullText: 'Not scored' }),
+    );
+    expect(html).toContain('Not scored');
+    expect(html).not.toContain('—');
+    expect(
+      renderToStaticMarkup(React.createElement(OverlapLayerBar, { label: 'Outcome', value: null })),
+    ).toContain('—');
   });
 });

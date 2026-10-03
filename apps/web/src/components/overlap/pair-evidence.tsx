@@ -19,6 +19,10 @@ import {
   LIMITED_EVIDENCE_DETAIL,
   LIMITED_EVIDENCE_LABEL,
   OVERLAP_ACTION_LABEL,
+  UNCORROBORATED_DETAIL,
+  UNCORROBORATED_LABEL,
+  isLimitedEvidence,
+  isUncorroborated,
   pct,
   type OverlapActionKey,
 } from './labels';
@@ -36,17 +40,22 @@ export function OverlapLayerBar({
   label,
   value,
   strong,
+  nullText,
 }: {
   label: string;
   value: number | null;
   strong?: boolean;
+  /** Shown instead of "—" when the value is null, e.g. "Not scored". */
+  nullText?: string;
 }) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_120px_36px] items-center gap-[12px]">
+    <div className="grid grid-cols-[minmax(0,1fr)_120px_auto] items-center gap-[12px]">
       <span className={strong ? 'font-medium text-text-primary' : 'text-text-secondary'}>{label}</span>
       <OverlapMiniBar value={value} strong={strong} />
-      <span className={`text-right tabular-nums ${value === null ? 'text-text-tertiary' : 'text-text-primary'}`}>
-        {pct(value)}
+      <span
+        className={`min-w-[36px] text-right tabular-nums ${value === null ? 'text-text-tertiary' : 'text-text-primary'}`}
+      >
+        {value === null && nullText ? nullText : pct(value)}
       </span>
     </div>
   );
@@ -82,6 +91,32 @@ export function LimitedEvidenceNote({ compact }: { compact?: boolean }) {
       {compact ? null : <> {LIMITED_EVIDENCE_DETAIL}</>}
     </p>
   );
+}
+
+/** D8: PLO wording matched but nothing corroborates it — not scored. */
+export function UncorroboratedNote({ compact }: { compact?: boolean }) {
+  return (
+    <p className="text-xs text-text-tertiary" title={compact ? UNCORROBORATED_DETAIL : undefined}>
+      <span className="font-medium text-text-secondary">{UNCORROBORATED_LABEL}.</span>
+      {compact ? null : <> {UNCORROBORATED_DETAIL}</>}
+    </p>
+  );
+}
+
+/**
+ * The one evidence note a pair needs: uncorroborated (not scored) wins over
+ * limited evidence, since every uncorroborated pair is also limited.
+ */
+export function EvidenceQualityNote({
+  evidence,
+  compact,
+}: {
+  evidence: PairEvidence | null | undefined;
+  compact?: boolean;
+}) {
+  if (isUncorroborated(evidence)) return <UncorroboratedNote compact={compact} />;
+  if (isLimitedEvidence(evidence)) return <LimitedEvidenceNote compact={compact} />;
+  return null;
 }
 
 export function SharedCoursesTable({ evidence }: { evidence: PairEvidence | null }) {

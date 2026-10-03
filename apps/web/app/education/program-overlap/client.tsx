@@ -26,7 +26,7 @@ import { FilterField, FilterRail, FilterSelect } from '@/components/filter-rail'
 import { startRouteProgress } from '@/components/route-progress';
 import {
   EquivalentCoursesList,
-  LimitedEvidenceNote,
+  EvidenceQualityNote,
   OverlapLayerBar as LayerBar,
   OverlapPanelSection as PanelSection,
   OverlapRecommendation,
@@ -42,7 +42,7 @@ import {
   layerValue,
   matrixTitle,
   overlapQueryString,
-  isLimitedEvidence,
+  isUncorroborated,
   pct,
   programmeLabel,
   sortActionsStrongestFirst,
@@ -411,7 +411,7 @@ function PairDetailView({ d }: { d: OverlapPairDetail }) {
           {d.languageVariant ? <Badge tone="info">{LANGUAGE_VARIANT_LABEL}</Badge> : null}
           {!d.isCurrent ? <Badge tone="outline">Superseded by a newer run</Badge> : null}
         </div>
-        {isLimitedEvidence(ev) ? <LimitedEvidenceNote /> : null}
+        <EvidenceQualityNote evidence={ev} />
         {d.languageVariant ? (
           <p className="text-xs text-text-tertiary">
             These are the Thai and international versions of one programme. They overlap by design, are
@@ -422,7 +422,12 @@ function PairDetailView({ d }: { d: OverlapPairDetail }) {
 
       <PanelSection title="Layers">
         <div className="flex flex-col gap-[8px]">
-          <LayerBar label="Overlap index" value={d.overlapIndex} strong />
+          <LayerBar
+            label="Overlap index"
+            value={d.overlapIndex}
+            strong
+            nullText={isUncorroborated(ev) ? 'Not scored' : undefined}
+          />
           <LayerBar label="Structure — shared courses" value={d.structure} />
           <LayerBar label="Content — equivalent courses" value={d.content} />
           <LayerBar label="Outcome — PLO alignment" value={d.outcome} />

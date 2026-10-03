@@ -8,7 +8,7 @@ import type {
   OverlapMatrixResponse,
   OverlapPairDetail,
 } from '@kku/db';
-import { LANGUAGE_VARIANT_LABEL, OVERLAP_ACTION_LABEL } from '@/components/overlap/labels';
+import { LANGUAGE_VARIANT_LABEL, OVERLAP_ACTION_LABEL, isUncorroboratedCell } from '@/components/overlap/labels';
 
 export type { OverlapMatrixLayer, OverlapMatrixResponse, OverlapPairDetail };
 export type OverlapCell = ApiOverlapMatrixCell;
@@ -23,6 +23,8 @@ export {
   OVERLAP_ACTION_ORDER,
   actionBadgeLabel,
   isLimitedEvidence,
+  isUncorroborated,
+  isUncorroboratedCell,
   pct,
   programmeLabel,
   sortActionsStrongestFirst,
@@ -78,7 +80,10 @@ export function matrixTitle(
   const name = (id: string): string =>
     (names instanceof Map ? names.get(id) : (names as Readonly<Record<string, string>>)[id]) ?? id;
   const parts: string[] = [`${name(cell.a)} ↔ ${name(cell.b)}`];
-  if (cell.overlapIndex !== null) {
+  if (isUncorroboratedCell(cell)) {
+    // D8: layers were measured but nothing corroborates the PLO match.
+    parts.push('not scored (uncorroborated PLO match)');
+  } else if (cell.overlapIndex !== null) {
     const layers: string[] = [];
     if (cell.structure !== null) layers.push(`structure ${round(cell.structure)}`);
     if (cell.content !== null) layers.push(`content ${round(cell.content)}`);

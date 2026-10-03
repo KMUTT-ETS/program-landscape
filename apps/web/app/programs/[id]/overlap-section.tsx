@@ -15,7 +15,7 @@ import type { ApiMeta } from '@kku/shared';
 import { Badge, Card, FreshnessBadge, ProvenanceButton, Section } from '@kku/ui';
 import {
   EquivalentCoursesList,
-  LimitedEvidenceNote,
+  EvidenceQualityNote,
   OverlapMiniBar,
   OverlapPanelSection,
   OverlapRecommendation,
@@ -189,7 +189,7 @@ function SiblingRows({
           ) : null}
           {limited ? (
             <div className="mt-[4px]">
-              <LimitedEvidenceNote compact />
+              <EvidenceQualityNote evidence={s.evidence} compact />
             </div>
           ) : null}
         </td>
@@ -281,7 +281,7 @@ export function SiblingDetail({
   return (
     <div className="grid grid-cols-1 gap-[20px] text-sm lg:grid-cols-2">
       <div className="flex flex-col gap-[20px]">
-        {isLimitedEvidence(s.evidence) ? <LimitedEvidenceNote /> : null}
+        <EvidenceQualityNote evidence={s.evidence} />
         {s.languageVariant ? (
           <p className="text-xs text-text-tertiary">
             These are the Thai and international versions of one programme. They overlap by design, are never

@@ -65,8 +65,9 @@ describe('program overlap dashboard wiring', () => {
     expect(sharedPair).toContain('submitDisagreementAction');
   });
 
-  it('notes limited evidence on the pair panel', () => {
-    expect(client).toContain('isLimitedEvidence(ev) ? <LimitedEvidenceNote />');
+  it('notes limited evidence and uncorroborated pairs on the pair panel', () => {
+    expect(client).toContain('<EvidenceQualityNote evidence={ev} />');
+    expect(client).toContain("nullText={isUncorroborated(ev) ? 'Not scored' : undefined}");
   });
 
   it('renders an explicit empty state when no run exists', () => {
@@ -122,6 +123,15 @@ describe('matrixTitle', () => {
         names,
       ),
     ).toBe('A ↔ B · no curriculum index · market similarity 77');
+  });
+
+  it('says "not scored" for an uncorroborated PLO match (D8)', () => {
+    expect(
+      matrixTitle(
+        cell({ overlapIndex: null, structure: null, content: null, outcome: 100, marketSimilarity: 12, primaryAction: null }),
+        names,
+      ),
+    ).toBe('A ↔ B · not scored (uncorroborated PLO match) · market similarity 12');
   });
 
   it('falls back to the id for an unknown programme', () => {
