@@ -1,7 +1,6 @@
 import { Controller, ForbiddenException, Get, NotFoundException, Param, Query } from '@nestjs/common';
 import { z } from 'zod';
 import {
-  OVERLAP_MATRIX_LAYERS,
   overlapMatrix,
   overlapPairDetail,
   prisma,
@@ -22,7 +21,6 @@ import { PROGRAM_OVERLAP_PROVENANCE } from './program-overlap.provenance';
 
 export const OverlapMatrixQuery = z.object({
   level: z.enum(['BACHELOR', 'MASTER', 'DOCTORAL', 'HIGHER_GRAD_DIPLOMA']).default('BACHELOR'),
-  layer: z.enum(OVERLAP_MATRIX_LAYERS).default('index'),
   facultyId: z.string().min(1).optional(),
 });
 export type OverlapMatrixQuery = z.infer<typeof OverlapMatrixQuery>;
@@ -63,7 +61,7 @@ export class ProgramOverlapController {
   ): Promise<WithMeta<OverlapMatrixResponse>> {
     await assertCanSeeFacultyDashboards(user);
     const clamped = await clampFacultyIdFilter({ facultyId: q.facultyId ?? null }, user);
-    const data = await overlapMatrix({ level: q.level, layer: q.layer, facultyId: clamped.facultyId });
+    const data = await overlapMatrix({ level: q.level, facultyId: clamped.facultyId });
     return { data, meta: { freshnessDate: data.completedAt } };
   }
 

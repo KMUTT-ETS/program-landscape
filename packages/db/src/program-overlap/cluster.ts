@@ -1,35 +1,6 @@
-// program-overlap.v1 — ordering for the heatmap and the outlined groups.
-// Pure. Average-linkage agglomerative clustering on distance = 100 − similarity;
-// the leaf order of the merge tree puts overlapping programmes side by side.
-//
-// Naive average linkage is O(n³) (n merges, each scanning every cluster pair
-// and every member pair). At about 110 programmes per level that is a few
-// million similarity lookups — well under a second — so no priority queue or
-// nearest-neighbour chain is worth its complexity here.
-
-type Cluster = { ids: string[] };
-
-export function averageLinkageOrder(ids: readonly string[], similarity: (a: string, b: string) => number): string[] {
-  let clusters: Cluster[] = [...ids].sort().map((id) => ({ ids: [id] }));
-  const dist = (x: Cluster, y: Cluster): number => {
-    let s = 0;
-    for (const a of x.ids) for (const b of y.ids) s += 100 - similarity(a, b);
-    return s / (x.ids.length * y.ids.length);
-  };
-  while (clusters.length > 1) {
-    let bi = 0, bj = 1, bd = Infinity;
-    for (let i = 0; i < clusters.length; i++) {
-      for (let j = i + 1; j < clusters.length; j++) {
-        const d = dist(clusters[i]!, clusters[j]!);
-        if (d < bd) { bd = d; bi = i; bj = j; }
-      }
-    }
-    const merged: Cluster = { ids: [...clusters[bi]!.ids, ...clusters[bj]!.ids] };
-    clusters = clusters.filter((_, k) => k !== bi && k !== bj);
-    clusters.splice(bi, 0, merged);
-  }
-  return clusters[0]?.ids ?? [];
-}
+// program-overlap.v1 — overlap groups: the connected components of the pairs
+// whose overlap index reaches a threshold (the dashboard KPI "programmes in
+// groups"). Pure, union-find.
 
 export interface OverlapGroup { members: string[]; peakIndex: number }
 

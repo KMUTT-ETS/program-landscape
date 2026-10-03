@@ -1,29 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { averageLinkageOrder, overlapGroups } from '../src/program-overlap/cluster';
-
-const sim = (pairs: Array<[string, string, number]>) => {
-  const m = new Map<string, number>();
-  for (const [a, b, v] of pairs) { m.set(`${a}|${b}`, v); m.set(`${b}|${a}`, v); }
-  return (a: string, b: string) => (a === b ? 100 : m.get(`${a}|${b}`) ?? 0);
-};
-
-describe('averageLinkageOrder', () => {
-  it('places mutually similar programmes next to each other', () => {
-    const ids = ['a', 'x', 'b', 'y'];
-    const order = averageLinkageOrder(ids, sim([['a', 'b', 90], ['x', 'y', 80], ['a', 'x', 5]]));
-    const pos = (id: string) => order.indexOf(id);
-    expect(Math.abs(pos('a') - pos('b'))).toBe(1);
-    expect(Math.abs(pos('x') - pos('y'))).toBe(1);
-    expect(order).toHaveLength(4);
-  });
-  it('handles empty and single inputs', () => {
-    expect(averageLinkageOrder([], () => 0)).toEqual([]);
-    expect(averageLinkageOrder(['a'], () => 0)).toEqual(['a']);
-  });
-  it('is deterministic for ties (sorted by id)', () => {
-    expect(averageLinkageOrder(['c', 'a', 'b'], () => 0)).toEqual(averageLinkageOrder(['b', 'c', 'a'], () => 0));
-  });
-});
+import { overlapGroups } from '../src/program-overlap/cluster';
 
 describe('overlapGroups', () => {
   it('builds connected components of edges at or above the threshold', () => {

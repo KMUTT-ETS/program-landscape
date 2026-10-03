@@ -99,7 +99,8 @@ describe('overlapMatrix', () => {
     expect(m.completedAt).toBe(run('s', 2).completedAt.toISOString());
     expect(m.cells.map((c) => c.pairId).sort()).toEqual(['f:b-c', 's:a-c']);
     expect(m.methodologyVersion).toBe(PROGRAM_OVERLAP_VERSION);
-    expect([...m.order].sort()).toEqual(['a', 'b', 'c']);
+    expect(m).not.toHaveProperty('order');
+    expect(m).not.toHaveProperty('layer');
     // Only canonical ACTIVE programmes are compared (D5).
     expect(mocks.programFindMany.mock.calls[0]![0].where).toMatchObject({ status: 'ACTIVE', level: 'BACHELOR' });
   });
@@ -152,24 +153,6 @@ describe('overlapMatrix', () => {
     expect(m.programmes.map((p) => p.id).sort()).toEqual(['a', 'b', 'x']);
     expect(m.cells.map((c) => c.pairId)).toEqual(['f:a-x']);
     expect(m.programmes.find((p) => p.id === 'x')).toMatchObject({ facultyCode: 'F2', facultyNameEn: 'f2' });
-  });
-
-  it('orders by the selected layer', async () => {
-    mocks.runFindFirst.mockResolvedValue({ completedAt: run('f', 1).completedAt });
-    mocks.runFindMany.mockResolvedValue([run('f', 1)]);
-    // Market puts a next to d; the index puts a next to b.
-    mocks.pairFindMany.mockResolvedValue([
-      pair('f', 'a', 'b', { index: 90, market: 0 }),
-      pair('f', 'a', 'd', { index: 0, market: 95 }),
-      pair('f', 'b', 'c', { index: 80, market: 0 }),
-    ]);
-    mocks.programFindMany.mockResolvedValue([prog('a'), prog('b'), prog('c'), prog('d')]);
-    const byIndex = await overlapMatrix({ level: 'BACHELOR', layer: 'index' });
-    const byMarket = await overlapMatrix({ level: 'BACHELOR', layer: 'market' });
-    const adj = (o: string[], x: string, y: string) => Math.abs(o.indexOf(x) - o.indexOf(y)) === 1;
-    expect(adj(byIndex.order, 'a', 'b')).toBe(true);
-    expect(adj(byMarket.order, 'a', 'd')).toBe(true);
-    expect(byMarket.layer).toBe('market');
   });
 
   it('computes the KPIs', () => {

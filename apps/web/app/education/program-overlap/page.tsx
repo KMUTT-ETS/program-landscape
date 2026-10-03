@@ -73,7 +73,7 @@ export default async function ProgramOverlapPage({ searchParams }: { searchParam
   };
 
   // The measure (layer) is applied client-side: every cell carries all of
-  // them, and the network does not use the server's clustered order.
+  // them, so the API takes no layer.
   const qs = new URLSearchParams({ level: filters.level });
   if (filters.facultyId) qs.set('facultyId', filters.facultyId);
 

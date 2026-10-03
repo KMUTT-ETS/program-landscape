@@ -65,10 +65,10 @@ beforeEach(() => {
 
 describe('OverlapMatrixQuery', () => {
   const parse = (q: Record<string, unknown>) => new ZodValidationPipe(OverlapMatrixQuery).transform(q, {} as never);
-  it('defaults to bachelor and the index layer, and rejects an unknown layer', () => {
-    expect(parse({})).toEqual({ level: 'BACHELOR', layer: 'index' });
-    expect(parse({ level: 'MASTER', layer: 'market', facultyId: 'f1' })).toEqual({ level: 'MASTER', layer: 'market', facultyId: 'f1' });
-    expect(() => parse({ layer: 'skills' })).toThrow();
+  it('defaults to bachelor; the measure is chosen client-side, so no layer is passed through', () => {
+    expect(parse({})).toEqual({ level: 'BACHELOR' });
+    expect(parse({ level: 'MASTER', layer: 'market', facultyId: 'f1' })).toEqual({ level: 'MASTER', facultyId: 'f1' });
+    expect(() => parse({ level: 'POSTDOC' })).toThrow();
   });
 });
 
@@ -88,16 +88,16 @@ describe('ProgramOverlapController', () => {
   it('clamps the faculty filter and returns the run time as freshness', async () => {
     mocks.clampFacultyIdFilter.mockResolvedValue({ facultyId: 'own' });
     mocks.overlapMatrix.mockResolvedValue({ completedAt: '2026-10-01T00:00:00.000Z' });
-    const r = await c.matrix(user('FACULTY_USER', 'own'), { level: 'BACHELOR', layer: 'content', facultyId: 'other' });
+    const r = await c.matrix(user('FACULTY_USER', 'own'), { level: 'BACHELOR', facultyId: 'other' });
     expect(mocks.assertCanSeeFacultyDashboards).toHaveBeenCalled();
     expect(mocks.clampFacultyIdFilter).toHaveBeenCalledWith({ facultyId: 'other' }, expect.anything());
-    expect(mocks.overlapMatrix).toHaveBeenCalledWith({ level: 'BACHELOR', layer: 'content', facultyId: 'own' });
+    expect(mocks.overlapMatrix).toHaveBeenCalledWith({ level: 'BACHELOR', facultyId: 'own' });
     expect(r.meta.freshnessDate).toBe('2026-10-01T00:00:00.000Z');
   });
 
   it('propagates the dashboard guard', async () => {
     mocks.assertCanSeeFacultyDashboards.mockRejectedValue(new ForbiddenException());
-    await expect(c.matrix(user('FACULTY_USER'), { level: 'BACHELOR', layer: 'index' })).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(c.matrix(user('FACULTY_USER'), { level: 'BACHELOR' })).rejects.toBeInstanceOf(ForbiddenException);
     expect(mocks.overlapMatrix).not.toHaveBeenCalled();
   });
 

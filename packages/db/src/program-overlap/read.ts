@@ -22,7 +22,7 @@ import { IS_CANONICAL_PROGRAM } from '../canonical-programs';
 import { academicYearContextSync } from '../academic-year';
 import { programFunnelRoundRows } from '../program-funnel';
 import { byCodeUnits } from './load';
-import { averageLinkageOrder, overlapGroups, type OverlapGroup } from './cluster';
+import { overlapGroups, type OverlapGroup } from './cluster';
 import {
   coveringOverlapRun,
   latestOverlapPairs,
@@ -35,6 +35,8 @@ import { OVERLAP_THRESHOLDS, PROGRAM_OVERLAP_VERSION, type PairEvidence } from '
 
 // ─── Shared shapes ──────────────────────────────────────────────────────
 
+/** The per-cell measures. The web ranks and filters by them client-side;
+ *  the API returns every measure on every cell and takes no layer. */
 export const OVERLAP_MATRIX_LAYERS = ['index', 'structure', 'content', 'outcome', 'market'] as const;
 export type OverlapMatrixLayer = (typeof OVERLAP_MATRIX_LAYERS)[number];
 
@@ -110,12 +112,9 @@ export interface OverlapMatrixResponse {
   /** completedAt of the newest run the answer rests on (ISO). */
   completedAt: string | null;
   level: ProgramLevel;
-  layer: OverlapMatrixLayer;
   /** The faculty filter in force, or null for the whole level. */
   facultyId: string | null;
   programmes: OverlapProgrammeRef[];
-  /** Average-linkage leaf order over the selected layer. */
-  order: string[];
   cells: OverlapMatrixCell[];
   /** Connected components at overlapIndex ≥ bandModerate. */
   groups: OverlapGroup[];
@@ -336,18 +335,6 @@ function coveringCompletedAt(selection: OverlapRunSelection<OverlapRunRow>, prog
   return coveringOverlapRun(selection, programId)?.completedAt?.toISOString() ?? null;
 }
 
-function layerValue(p: ProgramOverlapPair, layer: OverlapMatrixLayer): number | null {
-  switch (layer) {
-    case 'index': return p.overlapIndex;
-    case 'structure': return p.structure;
-    case 'content': return p.content;
-    case 'outcome': return p.outcome;
-    case 'market': return p.marketSimilarity;
-  }
-}
-
-const unorderedKey = (a: string, b: string): string => (byCodeUnits(a, b) <= 0 ? `${a}|${b}` : `${b}|${a}`);
-
 /** Pure: KPIs over the displayed pairs and groups. */
 export function overlapMatrixKpis(
   pairs: ReadonlyArray<Pick<ProgramOverlapPair, 'band' | 'languageVariant' | 'actions' | 'equivCredits'>>,
@@ -378,15 +365,12 @@ export function overlapMatrixKpis(
  */
 export async function overlapMatrix(opts: {
   level: ProgramLevel;
-  layer?: OverlapMatrixLayer;
   facultyId?: string | null;
 }): Promise<OverlapMatrixResponse> {
-  const layer = opts.layer ?? 'index';
   const facultyId = opts.facultyId ?? null;
   const base = {
     methodologyVersion: PROGRAM_OVERLAP_VERSION,
     level: opts.level,
-    layer,
     facultyId,
   };
 
@@ -394,7 +378,7 @@ export async function overlapMatrix(opts: {
   const runId = selection.fullRun?.id ?? selection.scopedRuns[selection.scopedRuns.length - 1]?.id ?? null;
   if (runId === null) {
     return {
-      ...base, runId: null, completedAt: null, programmes: [], order: [], cells: [], groups: [],
+      ...base, runId: null, completedAt: null, programmes: [], cells: [], groups: [],
       kpis: overlapMatrixKpis([], []),
     };
   }
@@ -422,12 +406,6 @@ export async function overlapMatrix(opts: {
   const programmes = [...shown].map((id) => programmeRef(byId.get(id)!)).sort(byCode);
   const ids = programmes.map((p) => p.id);
 
-  const values = new Map<string, number>();
-  for (const p of pairs) {
-    const v = layerValue(p, layer);
-    if (v !== null) values.set(unorderedKey(p.programAId, p.programBId), v);
-  }
-  const order = averageLinkageOrder(ids, (a, b) => (a === b ? 100 : values.get(unorderedKey(a, b)) ?? 0));
   const groups = overlapGroups(
     ids,
     pairs.map((p) => ({ a: p.programAId, b: p.programBId, index: p.overlapIndex })),
@@ -458,7 +436,6 @@ export async function overlapMatrix(opts: {
     runId,
     completedAt: newestCompletedAt(selection),
     programmes,
-    order,
     cells,
     groups,
     kpis: overlapMatrixKpis(pairs, groups),
