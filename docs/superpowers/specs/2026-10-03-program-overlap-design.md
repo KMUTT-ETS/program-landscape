@@ -133,8 +133,10 @@ Actions are chosen by rules. A pair may receive several; the strongest becomes `
 | `CONSOLIDATE_EQUIVALENT_COURSES` | `equivCredits ≥ 6` |
 | `COORDINATE_SHARED_COURSES` | `sharedCredits ≥ 6` |
 | `SHARE_STAFF_RESOURCES` | index ≥ 50 |
-| `DIFFERENTIATE` | index ≥ 50 **and** market similarity ≥ the market-confusion critical value (75) |
+| `DIFFERENTIATE` | index ≥ 50 **and** market similarity ≥ the market-confusion critical value (75) **and** not a language variant |
 | `CONSIDER_MERGE_OR_TRACK` | index ≥ 70 **and** max containment ≥ 80 **and** not a language variant |
+
+**Language variants** overlap by design (§5.3): they never receive `DIFFERENTIATE` or `CONSIDER_MERGE_OR_TRACK` (the D9 re-run had given `DIFFERENTIATE` to the Thai / international Pharmacology MSc, DrPH and PharmD).
 
 **Course-based (D9):** the index and containment are course-only, so every action rests on course evidence. A pair with no course comparison gets no action. The limited-evidence cap and the corroboration rule (D8) are gone.
 

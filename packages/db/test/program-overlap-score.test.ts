@@ -279,6 +279,19 @@ describe('bands and actions', () => {
     expect(mid.actions).not.toContain('DIFFERENTIATE');
   });
 
+  it('a language variant is never told to differentiate (overlap by design)', () => {
+    const same = [course('C1', 3), course('C2', 3), course('C3', 3)];
+    const a = prog('a', { courses: same, nameTh: 'เภสัชวิทยา', language: 'TH', marketVector: v(0) });
+    const b = prog('b', { courses: same, nameTh: 'เภสัชวิทยา (หลักสูตรนานาชาติ)', language: 'EN', marketVector: v(0) });
+    const s = scorePair(a, b, { serviceCodes: new Set(), thresholds: T });
+    expect(s.languageVariant).toBe(true);
+    expect(s.overlapIndex).toBe(100);
+    expect(s.marketSimilarity).toBe(100);
+    expect(s.actions).not.toContain('DIFFERENTIATE');
+    expect(s.actions).not.toContain('CONSIDER_MERGE_OR_TRACK');
+    expect(s.primaryAction).toBe('SHARE_STAFF_RESOURCES');
+  });
+
   it('shouldStorePair: index ≥ 30, a shared major course, or shared staff', () => {
     const ctx = { serviceCodes: new Set<string>(), thresholds: T };
     // index only, nothing shared by code: content 2×6/(9+9) ≈ 66.7 via two

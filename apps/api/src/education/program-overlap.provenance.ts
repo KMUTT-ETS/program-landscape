@@ -13,7 +13,7 @@ export const PROGRAM_OVERLAP_PROVENANCE: Partial<ApiMeta> = {
   methodologyVersion: PROGRAM_OVERLAP_VERSION,
   caveats: [
     'Curriculum overlap is not market cannibalisation: two programmes can share courses and still recruit different students.',
-    'Course descriptions are capped at 80 courses per programme; courses beyond the cap are matched on their names only.',
+    'About a quarter of major-course credits carry a description; most course matching is by course name.',
     'Every action is a prompt for review by the faculty and Council, not a decision.',
   ],
 };

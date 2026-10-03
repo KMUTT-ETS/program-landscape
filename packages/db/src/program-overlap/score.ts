@@ -396,7 +396,7 @@ export function scorePair(
   if (sharedCredits >= t.courseActionCredits) actions.push('COORDINATE_SHARED_COURSES');
   if (equivCredits >= t.courseActionCredits) actions.push('CONSOLIDATE_EQUIVALENT_COURSES');
   if (overlapIndex !== null && overlapIndex >= t.actionIndex) actions.push('SHARE_STAFF_RESOURCES');
-  if (overlapIndex !== null && overlapIndex >= t.actionIndex && marketSimilarity !== null && marketSimilarity >= t.marketConfusion) actions.push('DIFFERENTIATE');
+  if (overlapIndex !== null && overlapIndex >= t.actionIndex && marketSimilarity !== null && marketSimilarity >= t.marketConfusion && !languageVariant) actions.push('DIFFERENTIATE');
   const maxContainment = Math.max(containmentAInB ?? 0, containmentBInA ?? 0);
   if (overlapIndex !== null && overlapIndex >= t.mergeIndex && maxContainment >= t.mergeContainment && !languageVariant) actions.push('CONSIDER_MERGE_OR_TRACK');
   const primaryAction = [...ACTION_STRENGTH].reverse().find((x) => actions.includes(x)) ?? null;
