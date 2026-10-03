@@ -35,8 +35,7 @@ const cell = (over: Partial<OverlapCell> = {}): OverlapCell => ({
   band: 'HIGH',
   primaryAction: 'CONSIDER_MERGE_OR_TRACK',
   languageVariant: false,
-  limitedEvidence: false,
-  uncorroborated: false,
+  courseLayers: 2,
   ...over,
 });
 
@@ -67,9 +66,10 @@ describe('program overlap dashboard wiring', () => {
     expect(sharedPair).toContain('submitDisagreementAction');
   });
 
-  it('notes limited evidence and uncorroborated pairs on the pair panel', () => {
+  it('notes pairs with no course comparison on the pair panel (D9)', () => {
     expect(client).toContain('<EvidenceQualityNote evidence={ev} />');
-    expect(client).toContain("nullText={isUncorroborated(ev) ? 'Not scored' : undefined}");
+    expect(client).toContain("nullText={hasNoCourseData(ev) ? 'Not scored' : undefined}");
+    expect(client).toContain('Outcome — PLO alignment (context, not in the index)');
   });
 
   it('renders an explicit empty state when no run exists', () => {
@@ -99,41 +99,41 @@ describe('program overlap dashboard wiring', () => {
 describe('matrixTitle', () => {
   it('formats the index, its layers and the primary action', () => {
     expect(matrixTitle(cell(), names)).toBe(
-      'A ↔ B · index 72 (structure 60 · content 75 · outcome 81) · Consider merge or track',
+      'A ↔ B · index 72 (structure 60 · content 75) · PLO alignment 81 (context) · Consider merge or track',
     );
   });
 
   it('skips null layers instead of showing them as 0', () => {
     expect(matrixTitle(cell({ content: null, primaryAction: null }), names)).toBe(
-      'A ↔ B · index 72 (structure 60 · outcome 81)',
+      'A ↔ B · index 72 (structure 60) · PLO alignment 81 (context)',
     );
   });
 
   it('rounds, adds market similarity and labels language variants', () => {
     expect(
       matrixTitle(
-        cell({ overlapIndex: 88.6, structure: null, content: null, outcome: 88.6, marketSimilarity: 91.2, primaryAction: 'SHARE_STAFF_RESOURCES', languageVariant: true }),
+        cell({ overlapIndex: 88.6, structure: 88.6, content: null, outcome: 70.2, marketSimilarity: 91.2, primaryAction: 'SHARE_STAFF_RESOURCES', languageVariant: true }),
         { a: 'ไทย', b: 'Intl' },
       ),
-    ).toBe(`ไทย ↔ Intl · index 89 (outcome 89) · market similarity 91 · Share staff & resources · ${LANGUAGE_VARIANT_LABEL}`);
+    ).toBe(`ไทย ↔ Intl · index 89 (structure 89) · PLO alignment 70 (context) · market similarity 91 · Share staff & resources · ${LANGUAGE_VARIANT_LABEL}`);
   });
 
-  it('says when a pair has no curriculum index (stored for market similarity only)', () => {
+  it('says "not scored" when there is no course comparison (stored for market similarity only)', () => {
     expect(
       matrixTitle(
-        cell({ overlapIndex: null, structure: null, content: null, outcome: null, marketSimilarity: 77, primaryAction: null }),
+        cell({ overlapIndex: null, structure: null, content: null, outcome: null, marketSimilarity: 77, primaryAction: null, courseLayers: 0 }),
         names,
       ),
-    ).toBe('A ↔ B · no curriculum index · market similarity 77');
+    ).toBe('A ↔ B · not scored (no course comparison) · market similarity 77');
   });
 
-  it('says "not scored" for an uncorroborated PLO match (D8)', () => {
+  it('a PLO-only pair is not scored; its PLO alignment is context (D9)', () => {
     expect(
       matrixTitle(
-        cell({ overlapIndex: null, structure: null, content: null, outcome: 100, marketSimilarity: 12, primaryAction: null, band: 'NONE', limitedEvidence: true, uncorroborated: true }),
+        cell({ overlapIndex: null, structure: null, content: null, outcome: 100, marketSimilarity: 12, primaryAction: null, band: 'NONE', courseLayers: 0 }),
         names,
       ),
-    ).toBe('A ↔ B · not scored (uncorroborated PLO match) · market similarity 12');
+    ).toBe('A ↔ B · not scored (no course comparison) · PLO alignment 100 (context) · market similarity 12');
   });
 
   it('falls back to the id for an unknown programme', () => {

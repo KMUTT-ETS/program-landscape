@@ -30,11 +30,12 @@ It feeds three surfaces:
 | D1 | **Prepare the data first.** Re-run courses-extract v4 for course categories, load course descriptions and CLOs, create a PLO table, and embed all three. Overlap is not computed on the incomplete data held today. |
 | D2 | **Graded actions with evidence, always labelled "for review".** Rules pick the actions; the AI only writes the reasoning and may record that it disagrees. "Consider merging" needs both high overlap and high containment. |
 | D3 | **Self-competition enters Risk Management as two new KRIs.** Risk tiers do not change. |
-| D4 | **A deterministic, three-layer index.** The layers are structure, content and outcome, weighted equally, with containment measured in both directions. The AI drafts wording only for flagged pairs. This was chosen over AI judging every pair (≈ $140 a run and not reproducible) and over keyword similarity (weak on Thai). |
+| D4 | *Superseded by D9 (equal weighting of three layers).* **A deterministic, three-layer index.** The layers are structure, content and outcome, weighted equally, with containment measured in both directions. The AI drafts wording only for flagged pairs. This was chosen over AI judging every pair (≈ $140 a run and not reproducible) and over keyword similarity (weak on Thai). |
 | D5 | **Same degree level, all faculties.** Only canonical ACTIVE programmes (`IS_CANONICAL_PROGRAM` + `status = 'ACTIVE'`) are compared. Bachelor is never compared with master. |
 | D6 | **The Deep-Dive Overlap section is hidden** when the programme has no sibling scoring 30 or more, or when no overlap run exists. |
 | D7 | **The content layer is based on course names, with descriptions added where available** (decided 2026-10-03, after the prep dry run measured description coverage at about 21 %). Name-only matches need a stricter threshold. Extracting full descriptions from every PDF was rejected for cost and delay; it could be added later as v2. |
-| D8 | **PLO-only overlap needs corroboration (shared staff or market similarity ≥ 30)** (decided 2026-10-03, after the first real run). A limited-evidence pair (§6.1) with no shared active staff member and market similarity below 30 gets no index, band or action; its layers stay visible as evidence. See §12.5. |
+| D8 | *Superseded by D9.* **PLO-only overlap needs corroboration (shared staff or market similarity ≥ 30)** (decided 2026-10-03, after the first real run). A limited-evidence pair (§12.4) with no shared active staff member and market similarity below 30 gets no index, band or action; its layers stay visible as evidence. See §12.5. |
+| D9 | **The overlap index is course-based (structure + content); PLO alignment is supporting context only.** PLOs are broad by design. Measured on the first real run: at master's level 27 of the 29 pairs ≥ 50 were PLO-only, and the AI disagreed with the rule-chosen action on 15 of 74 recommendations. Course codes starting GE, LI or 00 are always general education. User decision, 2026-10-03. Supersedes D4's equal three-layer weighting and D8. See §12.6–§12.7. |
 
 ## 3. Practice this is modelled on
 
@@ -81,6 +82,7 @@ It feeds three surfaces:
 ### 4.5 Which courses count as "major"
 - **Included:** `CORE`, `MAJOR_REQUIRED`, `MAJOR_ELECTIVE`, `UNKNOWN`, and courses with no category.
 - **Excluded:** `GENERAL_EDUCATION`, `FREE_ELECTIVE`, `THESIS_PROJECT`.
+- **General-education prefixes (D9):** a course whose normalised code starts with **GE**, **LI** or **00** is always excluded, whatever its category (`GENERAL_EDUCATION_CODE_PREFIXES`). See §12.7 for the evidence.
 - **Service-course safety rule:** a course code used by more than **25 %** of the canonical programmes at the same level is treated as a service course and excluded, even when its category says otherwise or is missing. Examples are GE341511 (49 programmes) and LI101001.
 
 ## 5. Scoring (`program-overlap.v1`)
@@ -101,18 +103,16 @@ Every unordered pair (A, B) of canonical ACTIVE programmes **at the same level**
     - Both thresholds were confirmed at calibration (§12). Each match records its basis (`description` or `name`).
   - `C = 2 × (sharedEmbeddedCredits + equivCredits) / (embeddedMajorCredits_A + embeddedMajorCredits_B) × 100`, where `sharedEmbeddedCredits` covers embedded courses both programmes share by code. They are trivially equivalent; leaving them out would score two identical programmes 0 on content. `equivCredits` alone (different codes only) drives the "consolidate equivalent courses" action.
   - **Null** when either programme has fewer than 3 embedded major courses.
-- **Outcome: PLO alignment.**
+- **Outcome: PLO alignment — supporting context only (D9).** Computed, stored and shown with its matched and unmatched PLOs, but it never enters the index, band, actions, containment, storage or the KRIs.
   - A PLO is **covered** when its best cosine against the other programme's PLOs is ≥ `PLO_MATCH_THRESHOLD` = 0.85 (calibrated, §12; raised from the provisional 0.80).
   - `O = (covered_A + covered_B) / (n_A + n_B) × 100`
   - **Null** when either programme has no PLOs.
 
 ### 5.2 Index and containment
-- **Overlap index** = the mean of the non-null layers, equal-weighted. If every layer is null, the pair has no index (it is stored only through the market rule below).
-- **Corroboration (D8):** a limited-evidence pair (§6.1) must be corroborated by at least one shared active staff member **or** market similarity ≥ 30 (`corroborationMarket`). An **uncorroborated** pair has index null, band none and no actions. Its layer scores and both containment figures are kept as visible evidence, and `uncorroborated` is reported on the pair and in `evidence.coverage`. It is stored only through a shared major course (the staff and market storage arms cannot apply to it).
-- **Containment, A in B** = the mean of A's non-null one-directional figures:
-  - `(sharedCredits + equivCredits) / majorCredits_A`, where `equivCredits` counts only when the content layer is non-null;
-  - `covered_A / n_A`.
+- **Overlap index (D9)** = the mean of the non-null **course** layers (structure, content), equal-weighted. The outcome layer is not part of it. A pair with no course layer has no index, band none and no actions ("not scored — no course comparison"); it is stored only through the market rule below. `evidence.coverage.courseLayers` (0–2) records how many course layers were measured.
+- **Containment, A in B** (course side only, D9) = `(sharedCredits + equivCredits) / majorCredits_A`, where `equivCredits` counts only when the content layer is non-null. Null when the structure layer is null or A has 0 major credits.
 - **Containment, B in A** is computed the same way the other way round. Both are 0–100.
+- *Superseded:* the limited-evidence cap (§12.4) and the corroboration rule (D8, §12.5) were removed by D9 — once PLOs no longer enter the index, a PLO-only pair simply has no index.
 
 ### 5.3 Signals reported beside the index (not part of it)
 - **Shared active staff:** distinct `FacultyMember`s with `isActive` who are linked through `ProgramFaculty` to both programmes.
@@ -120,7 +120,7 @@ Every unordered pair (A, B) of canonical ACTIVE programmes **at the same level**
 - **Language variant:** set when the two programmes have the same normalised `nameTh` once "หลักสูตรนานาชาติ" / "(นานาชาติ)" / "International Program(me)" is stripped, **and** either their recorded `language` differs (both known) **or** exactly one of the two carries one of those international markers in its Thai or English name (case-insensitive). The marker arm exists because dev records both halves of some pairs as `MIXED` (for example the Thai and international MSc Pharmacology); two identical unmarked names in the same language are a true duplicate, not a variant. The degree name alone is *not* enough: generic degree names such as "วิศวกรรมศาสตรบัณฑิต" span unrelated programmes taught in both languages (checked on dev, 2026-10-03). These pairs overlap by design; they are labelled, are never recommended for merging, and are left out of both KRIs.
 
 ### 5.4 Bands and storage
-- **Bands:** high ≥ 70, moderate 50–69, low 30–49 (confirmed at calibration, §12). A **limited-evidence** pair (§6.1) is capped at moderate.
+- **Bands:** high ≥ 70, moderate 50–69, low 30–49 (confirmed at calibration, §12), on the course-based index (D9).
 - **What is stored:** a pair whose index is ≥ 30, **or** that shares at least one major course or one active staff member, **or** whose market similarity is at or above the market-confusion warn value (60) — so a confusable pair is stored even with low curriculum overlap.
 
 ## 6. Actions and AI recommendations
@@ -133,12 +133,10 @@ Actions are chosen by rules. A pair may receive several; the strongest becomes `
 | `CONSOLIDATE_EQUIVALENT_COURSES` | `equivCredits ≥ 6` |
 | `COORDINATE_SHARED_COURSES` | `sharedCredits ≥ 6` |
 | `SHARE_STAFF_RESOURCES` | index ≥ 50 |
-| `DIFFERENTIATE` | index ≥ 50 **and** market similarity ≥ the market-confusion critical value (75) **and** not limited evidence |
-| `CONSIDER_MERGE_OR_TRACK` | index ≥ 70 **and** max containment ≥ 80 **and** not a language variant **and** not limited evidence |
+| `DIFFERENTIATE` | index ≥ 50 **and** market similarity ≥ the market-confusion critical value (75) |
+| `CONSIDER_MERGE_OR_TRACK` | index ≥ 70 **and** max containment ≥ 80 **and** not a language variant |
 
-**Limited evidence:** a pair with fewer than 2 non-null layers, or with neither course layer (structure, content) non-null. Its band is capped at moderate and it never receives `DIFFERENTIATE` or `CONSIDER_MERGE_OR_TRACK`; the weaker actions still apply. `layerCount` and `limitedEvidence` are reported on the pair and in `evidence.coverage` (no schema change). See §12 for why.
-
-**Corroboration (D8, §5.2):** the limited-evidence treatment above applies only to a **corroborated** pair (a shared active staff member, or market similarity ≥ 30). An uncorroborated limited-evidence pair receives **no** actions at all, not even the weaker ones.
+**Course-based (D9):** the index and containment are course-only, so every action rests on course evidence. A pair with no course comparison gets no action. The limited-evidence cap and the corroboration rule (D8) are gone.
 
 Market confusion: warn 60 / critical 75 (≈ cosine 0.89 / 0.91 under the 0.80 floor), confirmed at calibration; `DIFFERENTIATE` uses the critical value; pairs at or above warn are stored even with low curriculum overlap. Both live in `OVERLAP_THRESHOLDS` (`marketConfusionWarn`, `marketConfusion`).
 
@@ -165,7 +163,7 @@ Strength order, weakest to strongest: coordinate shared courses < consolidate eq
 ## 7. Risk Management (D3)
 
 - **Two entries are added to `RISK_INDICATOR_CATALOG`** (`packages/db/src/risk-scoring.ts`). Both use `alarmDirection: high`.
-  - **`curriculum_overlap_max`:** the programme's highest overlap index against any same-level sibling, excluding language variants. Warning at 50, breach at 70.
+  - **`curriculum_overlap_max`:** the programme's highest overlap index (course-based, D9) against any same-level sibling, excluding language variants. Warning at 50, breach at 70. A pair with no course comparison has no index and never reaches it; there is no evidence cap.
   - **`market_confusion_max`:** the programme's highest market similarity against any same-level sibling, excluding language variants. Market confusion: warn 60 / critical 75, calibrated 2026-10-03 (`OVERLAP_THRESHOLDS.marketConfusionWarn` / `marketConfusion`); `DIFFERENTIATE` uses the critical value; pairs at or above warn are stored even with low curriculum overlap.
 - **Evaluation:** both are evaluated in phase 8 from the latest SUCCEEDED `ProgramOverlapRun`. Without one, they are null ("no overlap analysis yet"), never 0.
 - **Measures** (in `packages/db/src/risk-measure-rules.ts`):
@@ -325,10 +323,10 @@ Pairs with outcome ≥ 50 by PLO threshold:
 
 0.85 is chosen: it removes the template matches above. A generic-PLO filter is **unnecessary at 0.85**: no PLO matches more than 25 % of programmes at its level.
 
-### 12.4 Limited-evidence rule
+### 12.4 Limited-evidence rule (superseded by D9)
 A PLO-only pair could reach index 100 and be recommended for a merge on outcome text alone. Agriculture vs Animal Science did exactly that: outcome 100, no course layer, `CONSIDER_MERGE_OR_TRACK`. Strong conclusions now need course evidence (§6.1): a pair with fewer than 2 non-null layers, or no course layer, is **limited evidence** — band capped at moderate, no `DIFFERENTIATE`, no `CONSIDER_MERGE_OR_TRACK`. It is still stored and still gets the weaker actions.
 
-### 12.5 Corroboration rule (D8)
+### 12.5 Corroboration rule (D8, superseded by D9)
 The first real run showed the limited-evidence cap was not enough:
 - **Master's:** 27 of the 29 pairs with index ≥ 50 were limited evidence; 22 of those had no shared staff and market similarity below 20. They were unrelated programmes matching on generic graduate PLOs, e.g. **Dentistry vs Architecture** and **Geo-Informatics vs Applied Mathematics**.
 - **Bachelor:** 5 such pairs; **doctoral:** 1.
@@ -336,7 +334,21 @@ The first real run showed the limited-evidence cap was not enough:
 
 A limited-evidence pair now needs corroboration: a shared active staff member, or market similarity ≥ 30 (≈ raw cosine 0.845, about the top 10 % of same-level pairs). Without it the pair has no index, band or action (§5.2).
 
-### 12.6 Chosen values
+### 12.6 Course-based index (D9)
+The cap (§12.4) and corroboration (§12.5) were patches on a measure that let broad PLO wording drive the index. The evidence in §12.5 (master's 27 of 29 pairs ≥ 50 PLO-only; AI disagreement on 15 of 74) shows PLO alignment is not discriminating enough to drive the index: PLOs are broad by design. D9 therefore makes the index course-based (structure + content) and keeps PLO alignment as supporting context, shown beside the index with its matched and unmatched PLOs. Containment is course-side only. The limited-evidence cap and corroboration rule are removed.
+
+### 12.7 General-education code prefixes (D9)
+Measured on dev, 2026-10-03, by course-code prefix:
+
+| Prefix | Categorised general education | Categorised major |
+|---|---|---|
+| GE | 195 | 0 |
+| LI | 166 | 1 |
+| 00 | 15 | 0 |
+
+158 courses with these prefixes had a null or `UNKNOWN` category and were leaking into the major set, where shared general-education courses inflated the structure layer. A code starting GE, LI or 00 is now always general education (§4.5), whatever its category.
+
+### 12.8 Chosen values
 
 | Threshold | Value | Change from provisional |
 |---|---|---|
@@ -346,9 +358,11 @@ A limited-evidence pair now needs corroboration: a shared active staff member, o
 | `marketFloor` / `marketCeiling` | **0.80** / 0.95 | floor 0.60 → 0.80 |
 | `marketConfusionWarn` / `marketConfusion` | 60 / 75 (≈ cosine 0.89 / 0.91) | unchanged on the 0–100 scale |
 | Bands low / moderate / high | 30 / 50 / 70 | unchanged |
-| Merge rule | index ≥ 70, containment ≥ 80, not a language variant | unchanged, plus not limited evidence |
-| Limited evidence | < 2 layers or no course layer | **new** |
-| `corroborationMarket` (D8) | 30 (≈ cosine 0.845) | **new**: limited evidence also needs shared staff or market ≥ 30 |
+| Overlap index | mean of the course layers (structure, content) | **D9**: was the mean of all three layers; outcome is context only |
+| Containment | course side only | **D9**: PLO share removed |
+| Merge rule | index ≥ 70, containment ≥ 80, not a language variant | unchanged (course-based index) |
+| General-education prefixes | GE, LI, 00 | **new (D9)** |
+| Limited evidence cap; `corroborationMarket` (D8) | — | added during calibration, **removed by D9** |
 
 ## 13. Rollout order
 

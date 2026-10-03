@@ -419,7 +419,6 @@ async function buildOverlapContext(
             overlapIndex: overlap.curriculumOverlapMax,
             containmentMax: overlap.curriculumContainmentMax,
             actions: [...overlap.curriculumActions],
-            limitedEvidence: overlap.curriculumLimitedEvidence,
           }
         : null,
     market: ms && overlap.marketConfusionMax !== null ? { ...ms, marketSimilarity: overlap.marketConfusionMax } : null,

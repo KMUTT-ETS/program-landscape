@@ -23,13 +23,12 @@ const pair = (
   runId: string, a: string, b: string,
   o: {
     overlapIndex?: number | null; marketSimilarity?: number | null; languageVariant?: boolean; actions?: OverlapAction[];
-    containmentAInB?: number | null; containmentBInA?: number | null; evidenceJson?: unknown;
+    containmentAInB?: number | null; containmentBInA?: number | null;
   } = {},
 ) => ({
   id: `pair${++n}`, runId, programAId: a, programBId: b,
   overlapIndex: o.overlapIndex ?? null, marketSimilarity: o.marketSimilarity ?? null,
   containmentAInB: o.containmentAInB ?? null, containmentBInA: o.containmentBInA ?? null,
-  evidenceJson: 'evidenceJson' in o ? o.evidenceJson : { coverage: { layerCount: 3, limitedEvidence: false } },
   languageVariant: o.languageVariant ?? false, actions: o.actions ?? [],
 });
 
@@ -133,7 +132,7 @@ describe('overlapRiskSignalFromPairs', () => {
     const s = overlapRiskSignalFromPairs('a', sel, pairs)!;
     expect(s).toMatchObject({
       curriculumOverlapMax: 72, curriculumSiblingId: 'b', curriculumRunId: 's', mergeCandidate: true,
-      curriculumContainmentMax: 85, curriculumActions: ['CONSIDER_MERGE_OR_TRACK'], curriculumLimitedEvidence: false,
+      curriculumContainmentMax: 85, curriculumActions: ['CONSIDER_MERGE_OR_TRACK'],
       marketConfusionMax: 88, marketSiblingId: 'c', marketRunId: 's', runId: 's',
     });
     expect(s.curriculumPairId).toBe(pairs[0]!.id);
@@ -150,22 +149,20 @@ describe('overlapRiskSignalFromPairs', () => {
   });
 });
 
-describe('limited evidence', () => {
-  const sel = selectOverlapRuns([run('f', 1)]);
-  const merge = (evidenceJson: unknown) => overlapRiskSignalFromPairs('a', sel, [
-    pair('f', 'a', 'b', { overlapIndex: 100, actions: ['CONSIDER_MERGE_OR_TRACK'], containmentAInB: 95, evidenceJson }),
-  ])!;
-  it('a limited-evidence max pair is flagged and never a merge candidate', () => {
-    const s = merge({ coverage: { layerCount: 1, limitedEvidence: true } });
-    expect(s).toMatchObject({ curriculumOverlapMax: 100, curriculumLimitedEvidence: true, mergeCandidate: false });
+describe('course-based index (D9)', () => {
+  it('a max pair carrying the merge action is a merge candidate; no evidence is read', () => {
+    const sel = selectOverlapRuns([run('f', 1)]);
+    const s = overlapRiskSignalFromPairs('a', sel, [
+      pair('f', 'a', 'b', { overlapIndex: 100, actions: ['CONSIDER_MERGE_OR_TRACK'], containmentAInB: 95 }),
+    ])!;
+    expect(s).toMatchObject({ curriculumOverlapMax: 100, mergeCandidate: true });
+    expect(s).not.toHaveProperty('curriculumLimitedEvidence');
   });
-  it('unparseable evidence is treated as limited (conservative)', () => {
-    for (const ev of [null, 'x', {}, { coverage: null }, { coverage: { limitedEvidence: 'no' } }]) {
-      expect(merge(ev).curriculumLimitedEvidence).toBe(true);
-    }
-  });
-  it('full evidence keeps the merge flag', () => {
-    expect(merge({ coverage: { layerCount: 3, limitedEvidence: false } })).toMatchObject({ curriculumLimitedEvidence: false, mergeCandidate: true });
+  it('a pair with no index (no course layer) never sets the curriculum signal', () => {
+    const sel = selectOverlapRuns([run('f', 1)]);
+    const s = overlapRiskSignalFromPairs('a', sel, [pair('f', 'a', 'b', { overlapIndex: null, marketSimilarity: 20 })])!;
+    expect(s.curriculumOverlapMax).toBeNull();
+    expect(s.mergeCandidate).toBe(false);
   });
 });
 

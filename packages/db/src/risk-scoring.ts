@@ -1520,9 +1520,8 @@ export function evaluateKris(inputs: ProgramRiskInputs, freshnessDate: Date): Kr
       programId: inputs.programId,
       indicatorSlug: 'curriculum_overlap_max',
       value: c,
-      // A limited-evidence max pair (PLO-only / no course comparison) is a
-      // lead, not a finding: capped at WARN, value unchanged.
-      severity: raw === 'CRITICAL' && inputs.overlap.curriculumLimitedEvidence ? 'WARN' : raw,
+      // The index is course-based (program-overlap D9), so no evidence cap.
+      severity: raw,
       freshnessDate,
     });
     const m = inputs.overlap.marketConfusionMax;

@@ -29,13 +29,10 @@ import {
 } from '../app/programs/[id]/overlap-section';
 import type { OverlapSibling, ProgramOverlapSection } from '../app/programs/[id]/types';
 import {
-  LIMITED_EVIDENCE_DETAIL,
-  LIMITED_EVIDENCE_LABEL,
-  UNCORROBORATED_DETAIL,
-  UNCORROBORATED_LABEL,
-  isLimitedEvidence,
-  isUncorroborated,
-  isUncorroboratedCell,
+  NO_COURSE_DATA_DETAIL,
+  NO_COURSE_DATA_LABEL,
+  hasNoCourseData,
+  hasNoCourseDataCell,
   orientEvidence,
 } from '../src/components/overlap/labels';
 import { EvidenceQualityNote, OverlapLayerBar } from '../src/components/overlap/pair-evidence';
@@ -61,9 +58,7 @@ const evidence = (over: Partial<PairEvidence['coverage']> = {}): PairEvidence =>
     plosA: 5,
     plosB: 7,
     defaultedCredits: 0,
-    layerCount: 3,
-    limitedEvidence: false,
-    uncorroborated: false,
+    courseLayers: 2,
     ...over,
   },
 });
@@ -197,21 +192,20 @@ describe('rendering', () => {
     expect(html).toContain('this ⊂ sibling');
     expect(html).toContain('84 %');
     expect(html).toContain('Coordinate shared courses — for review');
-    expect(html).not.toContain(LIMITED_EVIDENCE_LABEL);
+    expect(html).not.toContain(NO_COURSE_DATA_LABEL);
   });
 
-  it('shows the muted limited-evidence note on a limited sibling', () => {
-    const limited = sibling({ evidence: evidence({ layerCount: 1, limitedEvidence: true }) });
+  it('shows the muted no-course-data note on a sibling with no course comparison (D9)', () => {
+    const none = sibling({ evidence: evidence({ courseLayers: 0 }) });
     const row = render(
-      React.createElement(OverlapSection, { data: section([limited]), meta: null, programCode: 'KKU-SEQ-0001' }),
+      React.createElement(OverlapSection, { data: section([none]), meta: null, programCode: 'KKU-SEQ-0001' }),
     );
-    expect(row).toContain(LIMITED_EVIDENCE_LABEL);
+    expect(row).toContain(NO_COURSE_DATA_LABEL);
     const detail = render(
-      React.createElement(SiblingDetail, { s: limited, programId: 'me', programCode: 'KKU-SEQ-0001' }),
+      React.createElement(SiblingDetail, { s: none, programId: 'me', programCode: 'KKU-SEQ-0001' }),
     );
-    expect(detail).toContain(LIMITED_EVIDENCE_LABEL);
-    expect(detail).toContain('the band is capped at moderate');
-    expect(detail).not.toContain(UNCORROBORATED_LABEL);
+    expect(detail).toContain(NO_COURSE_DATA_LABEL);
+    expect(detail).toContain('PLO alignment is shown as context only');
   });
 
   it('renders the recommendation with confidence and reasoning in the expanded row', () => {
@@ -246,34 +240,28 @@ describe('rendering', () => {
   });
 });
 
-describe('corroboration (D8)', () => {
-  const uncorroborated = evidence({ layerCount: 1, limitedEvidence: true, uncorroborated: true });
+describe('no course data (D9)', () => {
+  const none = evidence({ courseLayers: 0 });
 
-  it('flags uncorroborated evidence; null evidence is unknown, not flagged', () => {
-    expect(isUncorroborated(uncorroborated)).toBe(true);
-    expect(isUncorroborated(evidence({ limitedEvidence: true }))).toBe(false);
-    expect(isUncorroborated(null)).toBe(false);
-    expect(isLimitedEvidence(uncorroborated)).toBe(true);
+  it('flags evidence with no course layer; null evidence is unknown, not flagged', () => {
+    expect(hasNoCourseData(none)).toBe(true);
+    expect(hasNoCourseData(evidence({ courseLayers: 1 }))).toBe(false);
+    expect(hasNoCourseData(null)).toBe(false);
   });
 
-  it('reads the uncorroborated flag the matrix cell carries', () => {
-    expect(isUncorroboratedCell({ uncorroborated: true })).toBe(true);
-    expect(isUncorroboratedCell({ uncorroborated: false })).toBe(false);
+  it('reads the course-layer count the matrix cell carries', () => {
+    expect(hasNoCourseDataCell({ courseLayers: 0 })).toBe(true);
+    expect(hasNoCourseDataCell({ courseLayers: 2 })).toBe(false);
   });
 
-  it('says the moderate cap applies only to corroborated limited pairs', () => {
-    expect(LIMITED_EVIDENCE_DETAIL).toMatch(/corroborates it; when it is, the band is capped at moderate/);
-    expect(UNCORROBORATED_LABEL).toBe('Not scored — PLO match only, no corroborating signal');
-    expect(UNCORROBORATED_DETAIL).toBe(
-      'PLO wording matched, but no shared staff and low market similarity; treated as no overlap.',
-    );
+  it('labels', () => {
+    expect(NO_COURSE_DATA_LABEL).toBe('Not scored — no course comparison');
+    expect(NO_COURSE_DATA_DETAIL).toMatch(/PLO alignment is shown as context only; it never sets the index/);
   });
 
-  it('renders the uncorroborated note in place of the limited-evidence note', () => {
-    const html = renderToStaticMarkup(React.createElement(EvidenceQualityNote, { evidence: uncorroborated }));
-    expect(html).toContain(UNCORROBORATED_LABEL);
-    expect(html).toContain('treated as no overlap');
-    expect(html).not.toContain(LIMITED_EVIDENCE_LABEL);
+  it('renders the note only when there is no course comparison', () => {
+    const html = renderToStaticMarkup(React.createElement(EvidenceQualityNote, { evidence: none }));
+    expect(html).toContain(NO_COURSE_DATA_LABEL);
     expect(renderToStaticMarkup(React.createElement(EvidenceQualityNote, { evidence: evidence() }))).toBe('');
   });
 

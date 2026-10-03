@@ -75,12 +75,10 @@ export interface OverlapMatrixCell {
   band: OverlapBand;
   primaryAction: OverlapAction | null;
   languageVariant: boolean;
-  /** evidence.coverage.limitedEvidence (spec §12.4); false when the stored
-   *  evidence does not parse. */
-  limitedEvidence: boolean;
-  /** evidence.coverage.uncorroborated (D8): index null, band NONE, no
-   *  actions; false when the stored evidence does not parse. */
-  uncorroborated: boolean;
+  /** Non-null course layers (structure, content): 0–2. 0 = not scored —
+   *  no course comparison (D9). Read from the stored layer columns, so it
+   *  never depends on the evidence parsing. */
+  courseLayers: number;
 }
 
 export interface OverlapMatrixKpis {
@@ -247,11 +245,9 @@ const PairEvidenceSchema = z.object({
     plosA: z.number(),
     plosB: z.number(),
     defaultedCredits: z.number(),
-    // Added at calibration (2026-10-03): evidence stored by an earlier run
-    // lacks them and parses as null — re-run program-overlap.
-    layerCount: z.number(),
-    limitedEvidence: z.boolean(),
-    uncorroborated: z.boolean(),
+    // Added by D9 (2026-10-03): evidence stored by an earlier run lacks it and
+    // parses as null — re-run program-overlap.
+    courseLayers: z.number(),
   }),
 }) satisfies z.ZodType<PairEvidence>;
 
@@ -432,7 +428,6 @@ export async function overlapMatrix(opts: {
   );
 
   const cells: OverlapMatrixCell[] = pairs.map((p) => {
-    const coverage = parsePairEvidence(p.evidenceJson)?.coverage;
     return {
       a: p.programAId,
       b: p.programBId,
@@ -445,8 +440,7 @@ export async function overlapMatrix(opts: {
       band: p.band,
       primaryAction: p.primaryAction,
       languageVariant: p.languageVariant,
-      limitedEvidence: coverage?.limitedEvidence ?? false,
-      uncorroborated: coverage?.uncorroborated ?? false,
+      courseLayers: [p.structure, p.content].filter((x) => x !== null).length,
     };
   });
 

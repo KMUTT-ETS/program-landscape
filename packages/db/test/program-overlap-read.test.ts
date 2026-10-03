@@ -51,7 +51,7 @@ const evidence = {
   coverage: {
     majorCoursesA: 10, majorCoursesB: 10, embeddedA: 10, embeddedB: 10, describedA: 10, describedB: 10,
     descriptionMatches: 0, plosA: 5, plosB: 5, defaultedCredits: 0,
-    layerCount: 3, limitedEvidence: false, uncorroborated: false,
+    courseLayers: 2,
   },
 };
 
@@ -103,23 +103,22 @@ describe('overlapMatrix', () => {
     expect(mocks.programFindMany.mock.calls[0]![0].where).toMatchObject({ status: 'ACTIVE', level: 'BACHELOR' });
   });
 
-  it('carries the limited-evidence and uncorroborated flags from the parsed evidence', async () => {
+  it('carries the number of course layers from the stored layer columns (D9)', async () => {
     mocks.runFindFirst.mockResolvedValue({ completedAt: run('f', 1).completedAt });
     mocks.runFindMany.mockResolvedValue([run('f', 1)]);
-    const uncorroborated = { ...evidence, coverage: { ...evidence.coverage, layerCount: 1, limitedEvidence: true, uncorroborated: true } };
+    const base = pair('f', 'a', 'b');
     mocks.pairFindMany.mockResolvedValue([
-      pair('f', 'a', 'b'),
-      pair('f', 'a', 'c', { index: null, band: 'NONE', ev: uncorroborated }),
-      pair('f', 'b', 'c', { ev: { not: 'evidence' } }),
+      base,
+      { ...pair('f', 'a', 'c', { index: null, band: 'NONE' }), structure: null, content: null, outcome: 100 },
+      { ...pair('f', 'b', 'c', { ev: { not: 'evidence' } }), content: null },
     ]);
     mocks.programFindMany.mockResolvedValue([prog('a'), prog('b'), prog('c')]);
     const m = await overlapMatrix({ level: 'BACHELOR' });
-    const flags = Object.fromEntries(m.cells.map((c) => [c.pairId, [c.limitedEvidence, c.uncorroborated]]));
-    expect(flags).toEqual({
-      'f:a-b': [false, false],
-      'f:a-c': [true, true],
-      // Unparseable evidence reads as not flagged rather than throwing.
-      'f:b-c': [false, false],
+    expect(Object.fromEntries(m.cells.map((c) => [c.pairId, c.courseLayers]))).toEqual({
+      'f:a-b': 2,
+      'f:a-c': 0,
+      // Unparseable evidence does not matter: the layer columns decide.
+      'f:b-c': 1,
     });
   });
 

@@ -247,8 +247,6 @@ export interface RiskOverlapContext {
     overlapIndex: number;
     containmentMax: number | null;
     actions: string[];
-    /** PLO-only or no course comparison: the KRI is capped at WARN. */
-    limitedEvidence: boolean;
   }) | null;
   market: (RiskOverlapSibling & { marketSimilarity: number }) | null;
 }
@@ -314,7 +312,6 @@ export function buildRiskAssessmentMessages(input: RiskAssessmentInput): AiMessa
    - ทุกมาตรการที่มาจากความซ้ำซ้อนเป็น "ข้อเสนอเพื่อพิจารณา" (for review) ให้คณะและสภาพิจารณา ไม่ใช่การตัดสินใจ — ระบุเช่นนั้นใน rationale
    - **ห้ามเสนอปิดหลักสูตร** (ห้ามใช้ PROGRAM_PHASE_OUT) จากความซ้ำซ้อน — ทางเลือกคือปรับให้แตกต่าง ประสานรายวิชาร่วม หรือพิจารณาควบรวม/ปรับเป็นแขนงวิชา
    - ความซ้ำซ้อนของหลักสูตรไม่เท่ากับการแย่งผู้สมัครกัน อย่ากล่าวอ้างเช่นนั้นโดยไม่มีข้อมูลรับสมัคร
-   - limited evidence = PLO-only or no course comparison; treat as a lead to verify, not a finding (หลักฐานจำกัด: เป็นประเด็นที่ต้องตรวจสอบ ไม่ใช่ข้อสรุป)
 
 โครงสร้าง JSON ผลลัพธ์ (ห้ามมี markdown, ห้ามมีคำอธิบายล่วงหน้า, ออก JSON เดี่ยวเท่านั้น):
 {
@@ -477,8 +474,7 @@ ${fired.map((k) => `  ${k.slug}: ${k.severity} (value=${k.value?.toFixed(2) ?? '
       lines.push(
         `  curriculum_overlap_max: ${Math.round(c.overlapIndex)}/100 กับ ${name(c)}` +
           ` | containment สูงสุด ${c.containmentMax != null ? Math.round(c.containmentMax) + '%' : '-'}` +
-          ` | actions: ${c.actions.length > 0 ? c.actions.join(', ') : '-'}` +
-          (c.limitedEvidence ? ' | limited evidence (PLO-only or no course comparison) — a lead to verify, not a finding' : ''),
+          ` | actions: ${c.actions.length > 0 ? c.actions.join(', ') : '-'}`,
       );
     }
     if (ov.market) {

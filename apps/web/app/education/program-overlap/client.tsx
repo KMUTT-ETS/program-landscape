@@ -42,7 +42,7 @@ import {
   layerValue,
   matrixTitle,
   overlapQueryString,
-  isUncorroborated,
+  hasNoCourseData,
   pct,
   programmeLabel,
   sortActionsStrongestFirst,
@@ -426,11 +426,11 @@ function PairDetailView({ d }: { d: OverlapPairDetail }) {
             label="Overlap index"
             value={d.overlapIndex}
             strong
-            nullText={isUncorroborated(ev) ? 'Not scored' : undefined}
+            nullText={hasNoCourseData(ev) ? 'Not scored' : undefined}
           />
           <LayerBar label="Structure — shared courses" value={d.structure} />
           <LayerBar label="Content — equivalent courses" value={d.content} />
-          <LayerBar label="Outcome — PLO alignment" value={d.outcome} />
+          <LayerBar label="Outcome — PLO alignment (context, not in the index)" value={d.outcome} />
           <LayerBar label="Market similarity (not in the index)" value={d.marketSimilarity} />
         </div>
         <dl className="mt-[12px] grid grid-cols-[1fr_auto] gap-x-[16px] gap-y-[4px] text-xs">

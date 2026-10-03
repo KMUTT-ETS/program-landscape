@@ -25,7 +25,7 @@ import {
 import {
   LANGUAGE_VARIANT_LABEL,
   actionBadgeLabel,
-  isLimitedEvidence,
+  hasNoCourseData,
   orientEvidence,
   orientRecommendation,
   pct,
@@ -169,7 +169,7 @@ function SiblingRows({
   programId: string;
   programCode: string;
 }) {
-  const limited = isLimitedEvidence(s.evidence);
+  const noCourseData = hasNoCourseData(s.evidence);
   const name = programmeLabel(s.sibling);
   const detailId = `overlap-detail-${s.pairId}`;
   return (
@@ -187,7 +187,7 @@ function SiblingRows({
               {LANGUAGE_VARIANT_LABEL}
             </Badge>
           ) : null}
-          {limited ? (
+          {noCourseData ? (
             <div className="mt-[4px]">
               <EvidenceQualityNote evidence={s.evidence} compact />
             </div>

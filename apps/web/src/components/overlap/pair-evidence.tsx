@@ -2,7 +2,7 @@
 
 // Building blocks for showing one programme pair's overlap evidence
 // (program-overlap.v1): layer bars, shared / equivalent course lists, the PLO
-// match table, the limited-evidence note and the AI recommendation with its
+// match table, the no-course-data note and the AI recommendation with its
 // Council-readiness elements (confidence, reasoning, sources, disagree).
 // Shared by the Education dashboard's pair panel and the Deep-Dive section.
 //
@@ -16,13 +16,10 @@ import type { OverlapRecommendationView, PairEvidence } from '@kku/db';
 import { Badge, Button, ConfidenceBadge } from '@kku/ui';
 import { submitDisagreementAction } from '@/lib/actions/program-deep-dive';
 import {
-  LIMITED_EVIDENCE_DETAIL,
-  LIMITED_EVIDENCE_LABEL,
+  NO_COURSE_DATA_DETAIL,
+  NO_COURSE_DATA_LABEL,
   OVERLAP_ACTION_LABEL,
-  UNCORROBORATED_DETAIL,
-  UNCORROBORATED_LABEL,
-  isLimitedEvidence,
-  isUncorroborated,
+  hasNoCourseData,
   pct,
   type OverlapActionKey,
 } from './labels';
@@ -83,30 +80,17 @@ export function OverlapMiniBar({
   );
 }
 
-/** Muted, never alarming: limited evidence is a coverage fact, not a finding. */
-export function LimitedEvidenceNote({ compact }: { compact?: boolean }) {
+/** Muted, never alarming: missing course data is a coverage fact, not a finding (D9). */
+export function NoCourseDataNote({ compact }: { compact?: boolean }) {
   return (
-    <p className="text-xs text-text-tertiary" title={compact ? LIMITED_EVIDENCE_DETAIL : undefined}>
-      <span className="font-medium text-text-secondary">{LIMITED_EVIDENCE_LABEL}.</span>
-      {compact ? null : <> {LIMITED_EVIDENCE_DETAIL}</>}
+    <p className="text-xs text-text-tertiary" title={compact ? NO_COURSE_DATA_DETAIL : undefined}>
+      <span className="font-medium text-text-secondary">{NO_COURSE_DATA_LABEL}.</span>
+      {compact ? null : <> {NO_COURSE_DATA_DETAIL}</>}
     </p>
   );
 }
 
-/** D8: PLO wording matched but nothing corroborates it — not scored. */
-export function UncorroboratedNote({ compact }: { compact?: boolean }) {
-  return (
-    <p className="text-xs text-text-tertiary" title={compact ? UNCORROBORATED_DETAIL : undefined}>
-      <span className="font-medium text-text-secondary">{UNCORROBORATED_LABEL}.</span>
-      {compact ? null : <> {UNCORROBORATED_DETAIL}</>}
-    </p>
-  );
-}
-
-/**
- * The one evidence note a pair needs: uncorroborated (not scored) wins over
- * limited evidence, since every uncorroborated pair is also limited.
- */
+/** The evidence note a pair needs, if any: today only "no course data". */
 export function EvidenceQualityNote({
   evidence,
   compact,
@@ -114,8 +98,7 @@ export function EvidenceQualityNote({
   evidence: PairEvidence | null | undefined;
   compact?: boolean;
 }) {
-  if (isUncorroborated(evidence)) return <UncorroboratedNote compact={compact} />;
-  if (isLimitedEvidence(evidence)) return <LimitedEvidenceNote compact={compact} />;
+  if (hasNoCourseData(evidence)) return <NoCourseDataNote compact={compact} />;
   return null;
 }
 

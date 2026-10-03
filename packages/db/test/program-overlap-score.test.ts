@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   OVERLAP_THRESHOLDS,
+  GENERAL_EDUCATION_CODE_PREFIXES,
   bandFor,
   computeEvidenceHash,
   cosine,
@@ -147,15 +148,44 @@ describe('scorePair', () => {
     expect(s.outcome).toBeCloseTo((2 / 3) * 100, 10);
   });
 
-  it('index is the mean of non-null layers and never treats a null as 0', () => {
-    // a shared staff member corroborates the PLO-only pair (D8)
-    const a = prog('a', { plos: [{ ordinal: 1, text: 'x', vector: v(0) }], staffIds: ['s1'] });
-    const b = prog('b', { plos: [{ ordinal: 1, text: 'z', vector: v(0) }], staffIds: ['s1'] });
+  it('index is the mean of the non-null course layers; a null is never 0', () => {
+    // structure 2×3/(6+6) = 50; content null (2 embedded courses < 3)
+    const a = prog('a', { courses: [course('C1', 3), course('A2', 3, { vector: v(90) })] });
+    const b = prog('b', { courses: [course('C1', 3), course('B2', 3, { vector: v(-90) })] });
     const s = scorePair(a, b, ctx);
-    expect(s.structure).toBeNull();
+    expect(s.structure).toBe(50);
     expect(s.content).toBeNull();
+    expect(s.overlapIndex).toBe(50);
+    expect(s.evidence.coverage.courseLayers).toBe(1);
+  });
+
+  it('the outcome layer never enters the index (D9)', () => {
+    // structure 50 as above, PLOs identical (outcome 100) → index still 50
+    const plo = [{ ordinal: 1, text: 'x', vector: v(0) }];
+    const a = prog('a', { courses: [course('C1', 3), course('A2', 3, { vector: v(90) })], plos: plo });
+    const b = prog('b', { courses: [course('C1', 3), course('B2', 3, { vector: v(-90) })], plos: plo });
+    const s = scorePair(a, b, ctx);
     expect(s.outcome).toBe(100);
-    expect(s.overlapIndex).toBe(100);
+    expect(s.overlapIndex).toBe(50);
+    expect(s.containmentAInB).toBe(50); // course-side only: 3 of 6 credits
+  });
+
+  it('a PLO-only pair is not scored: index null, band NONE, no actions; outcome kept as context (D9)', () => {
+    const plo = [{ ordinal: 1, text: 'x', vector: v(0) }];
+    const s = scorePair(
+      prog('a', { plos: plo, staffIds: ['s1'], marketVector: v(0) }),
+      prog('b', { plos: plo, staffIds: ['s1'], marketVector: v(0) }),
+      ctx,
+    );
+    expect(s.outcome).toBe(100);
+    expect(s.evidence.matchedPlos).toHaveLength(1);
+    expect(s.overlapIndex).toBeNull();
+    expect(s.containmentAInB).toBeNull();
+    expect(s.containmentBInA).toBeNull();
+    expect(s.band).toBe('NONE');
+    expect(s.actions).toEqual([]);
+    expect(s.primaryAction).toBeNull();
+    expect(s.evidence.coverage.courseLayers).toBe(0);
   });
 
   it('index is null when every layer is null', () => {
@@ -215,8 +245,8 @@ describe('bands and actions', () => {
 
   it('consider-merge needs index ≥ 70, containment ≥ 80 and no language variant', () => {
     const same = [course('C1', 3), course('C2', 3), course('C3', 3)];
-    const a = prog('a', { courses: same, plos: [{ ordinal: 1, text: 'x', vector: v(0) }] });
-    const b = prog('b', { courses: same, plos: [{ ordinal: 1, text: 'x', vector: v(0) }] });
+    const a = prog('a', { courses: same });
+    const b = prog('b', { courses: same });
     const s = scorePair(a, b, { serviceCodes: new Set(), thresholds: T });
     expect(s.actions).toContain('CONSIDER_MERGE_OR_TRACK');
     expect(s.actions).toContain('COORDINATE_SHARED_COURSES');
@@ -230,7 +260,6 @@ describe('bands and actions', () => {
   });
 
   it('differentiate needs index ≥ 50 and market similarity at the threshold', () => {
-    // Two course layers + outcome, so the pair is not limited evidence.
     const plo = [{ ordinal: 1, text: 'x', vector: v(0) }];
     const same = [course('C1', 3), course('C2', 3), course('C3', 3)];
     const s = scorePair(
@@ -252,20 +281,18 @@ describe('bands and actions', () => {
 
   it('shouldStorePair: index ≥ 30, a shared major course, or shared staff', () => {
     const ctx = { serviceCodes: new Set<string>(), thresholds: T };
-    const plo = [{ ordinal: 1, text: 'x', vector: v(0) }];
-    // index only (outcome 100), nothing shared; market cosine 0.8525 → 35:
-    // corroborates (≥ 30, D8) but is below the warn value that stores on its own
-    const m35 = v((Math.acos(0.8525) * 180) / Math.PI);
-    const idx = scorePair(prog('a', { plos: plo, marketVector: v(0) }), prog('b', { plos: plo, marketVector: m35 }), ctx);
-    expect(idx.marketSimilarity!).toBeLessThan(T.marketConfusionWarn);
-    expect(idx.overlapIndex).toBe(100);
+    // index only, nothing shared by code: content 2×6/(9+9) ≈ 66.7 via two
+    // equivalent courses, structure 0 → index ≈ 33.3 ≥ 30
+    const a = prog('a', { courses: [course('A1', 3, { vector: v(0) }), course('A2', 3, { vector: v(90) }), course('A3', 3, { vector: v(180) })] });
+    const b = prog('b', { courses: [course('B1', 3, { vector: v(0) }), course('B2', 3, { vector: v(90) }), course('B3', 3, { vector: v(-45) })] });
+    const idx = scorePair(a, b, ctx);
+    expect(idx.overlapIndex!).toBeCloseTo(100 / 3, 10);
+    expect(idx.evidence.sharedCourses).toEqual([]);
     expect(shouldStorePair(idx)).toBe(true);
-    // shared course, no index: 3 shared of 3 + 33 credits → structure 16.7, other
-    // layers null; structure-only and uncorroborated, so the index is null (D8)
+    // shared course with a low index: 3 shared of 3 + 33 credits → structure 16.7
     const big = Array.from({ length: 10 }, (_, i) => course(`B${i}`, 3, { vector: v(90) }));
     const shared = scorePair(prog('a', { courses: [course('C1', 3)] }), prog('b', { courses: [course('C1', 3), ...big] }), ctx);
-    expect(shared.structure!).toBeCloseTo(100 / 6, 10);
-    expect(shared.overlapIndex).toBeNull();
+    expect(shared.overlapIndex!).toBeCloseTo(100 / 6, 10);
     expect(shouldStorePair(shared)).toBe(true);
     // shared staff only
     const staff = scorePair(prog('a', { staffIds: ['s1'] }), prog('b', { staffIds: ['s1'] }), ctx);
@@ -357,8 +384,8 @@ describe('review fixes', () => {
     const b = prog('b', { courses: [zero('C1'), course('C2', 3, { vector: v(90) })], plos: plo });
     const s = scorePair(a, b, ctx);
     expect(s.structure).toBe(0); // 2 × 0 / (0 + 3)
-    expect(s.containmentAInB).toBe(100); // credit figure null → PLO share only
-    expect(s.containmentBInA).toBe(50); // mean(0 credits of 3, 100 PLO)
+    expect(s.containmentAInB).toBeNull(); // 0 major credits on A: no figure (PLOs never count, D9)
+    expect(s.containmentBInA).toBe(0); // 0 matched credits of 3
     expect(Number.isNaN(s.overlapIndex)).toBe(false);
   });
 
@@ -390,6 +417,7 @@ describe('calibration 2026-10-03 (spec §12)', () => {
   it('calibrated values', () => {
     expect([T.ploMatch, T.marketFloor, T.marketCeiling, T.courseEquiv, T.courseEquivName]).toEqual([0.85, 0.8, 0.95, 0.85, 0.9]);
     expect([T.bandLow, T.bandModerate, T.bandHigh]).toEqual([30, 50, 70]);
+    expect('corroborationMarket' in T).toBe(false); // D8 removed by D9
   });
 
   it('a PLO is covered at cosine 0.86 but not at 0.84', () => {
@@ -405,100 +433,46 @@ describe('calibration 2026-10-03 (spec §12)', () => {
     expect(m(0.7)).toBe(0);
   });
 
-  it('a PLO-only pair is limited evidence: band capped at MODERATE, no merge or differentiate', () => {
-    const plo = [{ ordinal: 1, text: 'x', vector: v(0) }];
-    const s = scorePair(prog('a', { plos: plo, marketVector: v(0) }), prog('b', { plos: plo, marketVector: v(0) }), ctx);
-    expect(s.overlapIndex).toBe(100);
-    expect(s.layerCount).toBe(1);
-    expect(s.limitedEvidence).toBe(true);
-    expect(s.evidence.coverage.limitedEvidence).toBe(true);
-    expect(s.evidence.coverage.layerCount).toBe(1);
-    expect(s.band).toBe('MODERATE');
-    expect(s.actions).not.toContain('CONSIDER_MERGE_OR_TRACK');
-    expect(s.actions).not.toContain('DIFFERENTIATE');
-    expect(s.actions).toContain('SHARE_STAFF_RESOURCES');
-    expect(s.primaryAction).toBe('SHARE_STAFF_RESOURCES');
-  });
-
-  it('two layers including a course layer keep HIGH and the merge action', () => {
-    // 2 courses → content null (needs 3 embedded); structure 100 + outcome 100.
-    const two = [course('C1', 3), course('C2', 3)];
-    const plo = [{ ordinal: 1, text: 'x', vector: v(0) }];
-    const s = scorePair(prog('a', { courses: two, plos: plo }), prog('b', { courses: two, plos: plo }), ctx);
+  it('a structure-only pair is scored on structure alone, HIGH and merge allowed (no limited-evidence cap, D9)', () => {
+    const one = [course('C1', 3)];
+    const s = scorePair(prog('a', { courses: one }), prog('b', { courses: one }), ctx);
+    expect(s.structure).toBe(100);
     expect(s.content).toBeNull();
-    expect(s.layerCount).toBe(2);
-    expect(s.limitedEvidence).toBe(false);
+    expect(s.overlapIndex).toBe(100);
     expect(s.band).toBe('HIGH');
     expect(s.actions).toContain('CONSIDER_MERGE_OR_TRACK');
-  });
-
-  it('a structure-only pair is limited evidence (fewer than 2 layers)', () => {
-    const one = [course('C1', 3)];
-    const s = scorePair(prog('a', { courses: one, staffIds: ['s1'] }), prog('b', { courses: one, staffIds: ['s1'] }), ctx);
-    expect(s.structure).toBe(100);
-    expect(s.limitedEvidence).toBe(true);
-    expect(s.band).toBe('MODERATE');
-    // without corroboration: no band, still stored for its shared course
-    const bare = scorePair(prog('a', { courses: one }), prog('b', { courses: one }), ctx);
-    expect(bare.uncorroborated).toBe(true);
-    expect(bare.structure).toBe(100);
-    expect(bare.band).toBe('NONE');
-    expect(shouldStorePair(bare)).toBe(true);
+    expect(s.evidence.coverage.courseLayers).toBe(1);
+    expect(s.evidence.coverage).not.toHaveProperty('limitedEvidence');
+    expect(s.evidence.coverage).not.toHaveProperty('uncorroborated');
   });
 });
 
-describe('limited evidence needs corroboration (D8)', () => {
+describe('general-education code prefixes (D9)', () => {
   const ctx = { serviceCodes: new Set<string>(), thresholds: T };
-  const at = (cos: number): number[] => v((Math.acos(cos) * 180) / Math.PI);
-  const plo = [{ ordinal: 1, text: 'x', vector: v(0) }];
-  // market similarity m (0–100) ↔ cosine 0.80 + 0.15 × m / 100
-  const market = (m: number) => at(T.marketFloor + ((T.marketCeiling - T.marketFloor) * m) / 100);
 
-  it('threshold: market 30', () => {
-    expect(T.corroborationMarket).toBe(30);
+  it('exports GE, LI and 00', () => {
+    expect(GENERAL_EDUCATION_CODE_PREFIXES).toEqual(['GE', 'LI', '00']);
   });
 
-  it('a PLO-only pair with no shared staff and market 20 is uncorroborated: no index, band, or actions', () => {
-    const s = scorePair(prog('a', { plos: plo, marketVector: v(0) }), prog('b', { plos: plo, marketVector: market(20) }), ctx);
-    expect(s.marketSimilarity!).toBeCloseTo(20, 6);
-    expect(s.outcome).toBe(100);
-    expect(s.containmentAInB).toBe(100);
-    expect(s.limitedEvidence).toBe(true);
-    expect(s.uncorroborated).toBe(true);
-    expect(s.evidence.coverage.uncorroborated).toBe(true);
-    expect(s.overlapIndex).toBeNull();
-    expect(s.band).toBe('NONE');
-    expect(s.actions).toEqual([]);
-    expect(s.primaryAction).toBeNull();
+  it('a GE / LI / 00 code is never a major course, whatever its category', () => {
+    const p = prog('p', {
+      courses: [
+        course('GE101', 3, { category: null }),
+        course('LI101', 3, { category: 'MAJOR_REQUIRED' }),
+        course('000101', 3, { category: 'UNKNOWN' }),
+        course('ge 102', 3, { category: null }),
+        course('EN101', 3, { category: null }),
+        course('CLI101', 3, { category: null }), // LI not at the start
+      ],
+    });
+    expect(majorCourses(p, new Set()).map((c) => c.code)).toEqual(['EN101', 'CLI101']);
+  });
+
+  it('a shared GE course alone gives no structure layer', () => {
+    const ge = [course('GE101', 3, { category: null })];
+    const s = scorePair(prog('a', { courses: ge }), prog('b', { courses: ge }), ctx);
+    expect(s.structure).toBeNull();
+    expect(s.evidence.sharedCourses).toEqual([]);
     expect(shouldStorePair(s)).toBe(false);
-  });
-
-  it('no market vector and no staff is uncorroborated too', () => {
-    const s = scorePair(prog('a', { plos: plo }), prog('b', { plos: plo }), ctx);
-    expect(s.uncorroborated).toBe(true);
-    expect(s.overlapIndex).toBeNull();
-  });
-
-  it('one shared staff member corroborates: index 100, band MODERATE', () => {
-    const s = scorePair(prog('a', { plos: plo, staffIds: ['s1'], marketVector: v(0) }), prog('b', { plos: plo, staffIds: ['s1'], marketVector: market(20) }), ctx);
-    expect(s.uncorroborated).toBe(false);
-    expect(s.overlapIndex).toBe(100);
-    expect(s.band).toBe('MODERATE');
-    expect(s.actions).toEqual(['SHARE_STAFF_RESOURCES']);
-  });
-
-  it('market 35 corroborates', () => {
-    const s = scorePair(prog('a', { plos: plo, marketVector: v(0) }), prog('b', { plos: plo, marketVector: market(35) }), ctx);
-    expect(s.uncorroborated).toBe(false);
-    expect(s.overlapIndex).toBe(100);
-    expect(s.band).toBe('MODERATE');
-  });
-
-  it('a pair with course evidence is never uncorroborated', () => {
-    const same = [course('C1', 3), course('C2', 3), course('C3', 3)];
-    const s = scorePair(prog('a', { courses: same, plos: plo }), prog('b', { courses: same, plos: plo }), ctx);
-    expect(s.limitedEvidence).toBe(false);
-    expect(s.uncorroborated).toBe(false);
-    expect(s.band).toBe('HIGH');
   });
 });

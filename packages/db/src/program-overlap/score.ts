@@ -31,8 +31,6 @@ export interface OverlapThresholds {
   mergeIndex: number;
   mergeContainment: number;
   storeIndex: number;
-  /** 0–100 market similarity that corroborates a limited-evidence pair (D8). */
-  corroborationMarket: number;
 }
 
 export const OVERLAP_THRESHOLDS: OverlapThresholds = {
@@ -59,14 +57,22 @@ export const OVERLAP_THRESHOLDS: OverlapThresholds = {
   mergeIndex: 70,
   mergeContainment: 80,
   storeIndex: 30,
-  // Calibrated 2026-10-03 (spec §12): market 30 ≈ raw cosine 0.845, about the
-  // top 10 % of same-level pairs.
-  corroborationMarket: 30,
 };
 
 /** A course with no recorded credits is weighted as a typical 3-credit course;
  *  how many were defaulted is reported in the evidence coverage. */
 export const DEFAULT_COURSE_CREDITS = 3;
+
+/** Course-code prefixes that are ALWAYS general education, whatever the
+ *  course's category (D9, 2026-10-03). Measured on dev: GE 195 courses
+ *  categorised gen-ed / 0 major; LI 166 / 1; 00 15 / 0 — and 158 such courses
+ *  were leaking into the major set with a null or UNKNOWN category. */
+export const GENERAL_EDUCATION_CODE_PREFIXES = ['GE', 'LI', '00'] as const;
+
+export function isGeneralEducationCode(code: string): boolean {
+  const norm = code.replace(/\s+/g, '').toUpperCase();
+  return GENERAL_EDUCATION_CODE_PREFIXES.some((p) => norm.startsWith(p));
+}
 
 const EXCLUDED_CATEGORIES: ReadonlySet<CourseCategory> = new Set(['GENERAL_EDUCATION', 'FREE_ELECTIVE', 'THESIS_PROJECT']);
 
@@ -115,14 +121,8 @@ export interface PairEvidence {
     descriptionMatches: number;
     plosA: number; plosB: number;
     defaultedCredits: number;
-    /** Non-null layers (0–3). */
-    layerCount: number;
-    /** Fewer than 2 layers, or no course layer at all: band capped at
-     *  MODERATE and no DIFFERENTIATE / CONSIDER_MERGE_OR_TRACK (spec §12). */
-    limitedEvidence: boolean;
-    /** Limited evidence with no shared staff and market similarity below
-     *  corroborationMarket: index null, band NONE, no actions (D8). */
-    uncorroborated: boolean;
+    /** Non-null COURSE layers (structure, content): 0–2. 0 = not scored (D9). */
+    courseLayers: number;
   };
 }
 
@@ -136,12 +136,6 @@ export interface PairScore {
   containmentAInB: number | null;
   containmentBInA: number | null;
   band: OverlapBand;
-  /** Non-null layers (0–3); mirrored in evidence.coverage. */
-  layerCount: number;
-  /** See PairEvidence.coverage.limitedEvidence. */
-  limitedEvidence: boolean;
-  /** See PairEvidence.coverage.uncorroborated. */
-  uncorroborated: boolean;
   sharedCredits: number;
   equivCredits: number;
   sharedStaff: number;
@@ -224,6 +218,7 @@ export function majorCourses(p: OverlapProgramme, serviceCodes: ReadonlySet<stri
   const byCode = new Map<string, OverlapCourse>();
   for (const c of p.courses) {
     if (c.category && EXCLUDED_CATEGORIES.has(c.category)) continue;
+    if (isGeneralEducationCode(c.code)) continue;
     if (serviceCodes.has(c.code)) continue;
     const prev = byCode.get(c.code);
     if (!prev) {
@@ -284,11 +279,6 @@ export function bandFor(index: number | null, t: OverlapThresholds = OVERLAP_THR
   if (index < t.bandModerate) return 'LOW';
   if (index < t.bandHigh) return 'MODERATE';
   return 'HIGH';
-}
-
-/** A limited-evidence pair never reads HIGH. */
-export function capBand(band: OverlapBand, limitedEvidence: boolean): OverlapBand {
-  return limitedEvidence && band === 'HIGH' ? 'MODERATE' : band;
 }
 
 /** Weakest → strongest; the last applicable one is the primary action. */
@@ -367,7 +357,6 @@ export function scorePair(
   let outcome: number | null = null;
   let matchedPlos: PairEvidence['matchedPlos'] = [];
   let unmatchedA: string[] = [], unmatchedB: string[] = [];
-  let ploShareA: number | null = null, ploShareB: number | null = null;
   if (a.plos.length && b.plos.length) {
     const bestFor = (p: OverlapPlo, others: OverlapPlo[]) =>
       others.reduce<{ o: OverlapPlo | null; s: number }>((best, o) => {
@@ -377,8 +366,6 @@ export function scorePair(
     const coveredA = a.plos.filter((p) => bestFor(p, b.plos).s >= t.ploMatch);
     const coveredB = b.plos.filter((p) => bestFor(p, a.plos).s >= t.ploMatch);
     outcome = clamp(((coveredA.length + coveredB.length) / (a.plos.length + b.plos.length)) * 100);
-    ploShareA = (coveredA.length / a.plos.length) * 100;
-    ploShareB = (coveredB.length / b.plos.length) * 100;
     matchedPlos = coveredA.map((p) => {
       const best = bestFor(p, b.plos);
       return { ordinalA: p.ordinal, ordinalB: best.o!.ordinal, textA: p.text, textB: best.o!.text, similarity: best.s };
@@ -387,14 +374,15 @@ export function scorePair(
     unmatchedB = b.plos.filter((p) => !coveredB.includes(p)).map((p) => p.text);
   }
 
-  // Strong conclusions need course evidence: a PLO-only index of 100 (e.g.
-  // Agriculture vs Animal Science, template-worded PLOs) would otherwise
-  // recommend a merge.
-  const layerCount = [structure, content, outcome].filter((x) => x !== null).length;
-  const limitedEvidence = layerCount < 2 || (structure === null && content === null);
+  // D9: the index is course-based. PLOs are broad by design (generic graduate
+  // outcomes matched unrelated programmes, e.g. Dentistry vs Architecture), so
+  // the outcome layer above is supporting context only: it never enters the
+  // index, band, actions, containment or storage.
+  const courseLayers = [structure, content].filter((x) => x !== null).length;
+  const overlapIndex = mean([structure, content]);
   const matchedCredits = sharedCredits + (content === null ? 0 : equivCredits);
-  const containmentAInB = mean([majA.length && majB.length ? pct(matchedCredits, creditsA) : null, ploShareA]);
-  const containmentBInA = mean([majA.length && majB.length ? pct(matchedCredits, creditsB) : null, ploShareB]);
+  const containmentAInB = structure === null ? null : pct(matchedCredits, creditsA);
+  const containmentBInA = structure === null ? null : pct(matchedCredits, creditsB);
 
   const staffB = new Set(b.staffIds);
   const sharedStaff = new Set(a.staffIds.filter((s) => staffB.has(s))).size;
@@ -404,23 +392,13 @@ export function scorePair(
       : null;
   const languageVariant = isLanguageVariant(a, b);
 
-  // D8: limited evidence (PLO-only or no course layer) must be corroborated
-  // by a shared active staff member or market similarity ≥ corroborationMarket.
-  // On the first real run 22 of 29 master's pairs ≥ 50 were unrelated
-  // programmes matching on generic graduate PLOs (e.g. Dentistry vs
-  // Architecture). An uncorroborated pair keeps its layers and containment as
-  // visible evidence but gets no index, band or action.
-  const corroborated = sharedStaff >= 1 || (marketSimilarity !== null && marketSimilarity >= t.corroborationMarket);
-  const uncorroborated = limitedEvidence && !corroborated;
-  const overlapIndex = uncorroborated ? null : mean([structure, content, outcome]);
-
   const actions: OverlapAction[] = [];
-  if (!uncorroborated && sharedCredits >= t.courseActionCredits) actions.push('COORDINATE_SHARED_COURSES');
-  if (!uncorroborated && equivCredits >= t.courseActionCredits) actions.push('CONSOLIDATE_EQUIVALENT_COURSES');
+  if (sharedCredits >= t.courseActionCredits) actions.push('COORDINATE_SHARED_COURSES');
+  if (equivCredits >= t.courseActionCredits) actions.push('CONSOLIDATE_EQUIVALENT_COURSES');
   if (overlapIndex !== null && overlapIndex >= t.actionIndex) actions.push('SHARE_STAFF_RESOURCES');
-  if (!limitedEvidence && overlapIndex !== null && overlapIndex >= t.actionIndex && marketSimilarity !== null && marketSimilarity >= t.marketConfusion) actions.push('DIFFERENTIATE');
+  if (overlapIndex !== null && overlapIndex >= t.actionIndex && marketSimilarity !== null && marketSimilarity >= t.marketConfusion) actions.push('DIFFERENTIATE');
   const maxContainment = Math.max(containmentAInB ?? 0, containmentBInA ?? 0);
-  if (!limitedEvidence && overlapIndex !== null && overlapIndex >= t.mergeIndex && maxContainment >= t.mergeContainment && !languageVariant) actions.push('CONSIDER_MERGE_OR_TRACK');
+  if (overlapIndex !== null && overlapIndex >= t.mergeIndex && maxContainment >= t.mergeContainment && !languageVariant) actions.push('CONSIDER_MERGE_OR_TRACK');
   const primaryAction = [...ACTION_STRENGTH].reverse().find((x) => actions.includes(x)) ?? null;
 
   const evidence: PairEvidence = {
@@ -435,14 +413,13 @@ export function scorePair(
       describedA, describedB,
       descriptionMatches: equivalent.filter((e) => e.basis === 'description').length,
       plosA: a.plos.length, plosB: b.plos.length, defaultedCredits,
-      layerCount, limitedEvidence, uncorroborated,
+      courseLayers,
     },
   };
   return {
     programAId: a.id, programBId: b.id,
     structure, content, outcome, overlapIndex, containmentAInB, containmentBInA,
-    band: capBand(bandFor(overlapIndex, t), limitedEvidence),
-    layerCount, limitedEvidence, uncorroborated,
+    band: bandFor(overlapIndex, t),
     sharedCredits, equivCredits, sharedStaff, marketSimilarity, languageVariant,
     actions, primaryAction, evidence,
     evidenceHash: computeEvidenceHash({

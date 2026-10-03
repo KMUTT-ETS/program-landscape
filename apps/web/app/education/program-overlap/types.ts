@@ -8,7 +8,7 @@ import type {
   OverlapMatrixResponse,
   OverlapPairDetail,
 } from '@kku/db';
-import { LANGUAGE_VARIANT_LABEL, OVERLAP_ACTION_LABEL, isUncorroboratedCell } from '@/components/overlap/labels';
+import { LANGUAGE_VARIANT_LABEL, OVERLAP_ACTION_LABEL } from '@/components/overlap/labels';
 
 export type { OverlapMatrixLayer, OverlapMatrixResponse, OverlapPairDetail };
 export type OverlapCell = ApiOverlapMatrixCell;
@@ -22,9 +22,8 @@ export {
   OVERLAP_ACTION_LABEL,
   OVERLAP_ACTION_ORDER,
   actionBadgeLabel,
-  isLimitedEvidence,
-  isUncorroborated,
-  isUncorroboratedCell,
+  hasNoCourseData,
+  hasNoCourseDataCell,
   pct,
   programmeLabel,
   sortActionsStrongestFirst,
@@ -39,10 +38,10 @@ export const OVERLAP_LEVELS: ReadonlyArray<{ value: OverlapLevel; label: string 
 ];
 
 export const OVERLAP_LAYERS: ReadonlyArray<{ value: OverlapMatrixLayer; label: string; hint: string }> = [
-  { value: 'index', label: 'Overlap index', hint: 'Mean of the curriculum layers that could be measured' },
+  { value: 'index', label: 'Overlap index', hint: 'Mean of the course layers (structure, content) that could be measured' },
   { value: 'structure', label: 'Structure', hint: 'Major courses shared by code, by credits' },
   { value: 'content', label: 'Content', hint: 'Equivalent major courses, including those with different codes' },
-  { value: 'outcome', label: 'Outcome', hint: 'PLOs covered by the other programme' },
+  { value: 'outcome', label: 'Outcome', hint: 'PLOs covered by the other programme — context only, not in the index' },
   { value: 'market', label: 'Market similarity', hint: 'How alike the two programmes look to an applicant' },
 ];
 
@@ -66,7 +65,7 @@ const round = (n: number) => Math.round(n);
 
 /**
  * The hover title of one matrix cell, e.g.
- * "A ↔ B · index 72 (structure 60 · content 75 · outcome 81) · Consider merge or track".
+ * "A ↔ B · index 72 (structure 60 · content 75) · PLO alignment 81 (context) · Consider merge or track".
  * Null layers are skipped rather than shown as 0; a pair stored only for its
  * market similarity says so instead of inventing an index.
  */
@@ -82,25 +81,23 @@ export function matrixTitle(
     | 'marketSimilarity'
     | 'primaryAction'
     | 'languageVariant'
-    | 'uncorroborated'
   >,
   names: ReadonlyMap<string, string> | Readonly<Record<string, string>>,
 ): string {
   const name = (id: string): string =>
     (names instanceof Map ? names.get(id) : (names as Readonly<Record<string, string>>)[id]) ?? id;
   const parts: string[] = [`${name(cell.a)} ↔ ${name(cell.b)}`];
-  if (isUncorroboratedCell(cell)) {
-    // D8: a PLO-only match that nothing corroborates is not scored.
-    parts.push('not scored (uncorroborated PLO match)');
-  } else if (cell.overlapIndex !== null) {
+  if (cell.overlapIndex !== null) {
     const layers: string[] = [];
     if (cell.structure !== null) layers.push(`structure ${round(cell.structure)}`);
     if (cell.content !== null) layers.push(`content ${round(cell.content)}`);
-    if (cell.outcome !== null) layers.push(`outcome ${round(cell.outcome)}`);
     parts.push(`index ${round(cell.overlapIndex)}${layers.length ? ` (${layers.join(' · ')})` : ''}`);
   } else {
-    parts.push('no curriculum index');
+    // D9: the index is course-based — a null index means no course comparison.
+    parts.push('not scored (no course comparison)');
   }
+  // PLO alignment is context only (D9): shown, never part of the index.
+  if (cell.outcome !== null) parts.push(`PLO alignment ${round(cell.outcome)} (context)`);
   if (cell.marketSimilarity !== null) parts.push(`market similarity ${round(cell.marketSimilarity)}`);
   if (cell.primaryAction) parts.push(OVERLAP_ACTION_LABEL[cell.primaryAction]);
   if (cell.languageVariant) parts.push(LANGUAGE_VARIANT_LABEL);

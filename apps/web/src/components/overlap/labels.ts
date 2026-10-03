@@ -38,35 +38,23 @@ export function sortActionsStrongestFirst(actions: readonly OverlapActionKey[]):
 
 export const LANGUAGE_VARIANT_LABEL = 'Thai / international versions';
 
-export const LIMITED_EVIDENCE_LABEL = 'Limited evidence — PLO-only or no course comparison';
-export const LIMITED_EVIDENCE_DETAIL =
-  'Fewer than two curriculum layers could be measured, or none of them compares courses. Such a pair is scored only when shared staff or market similarity corroborates it; when it is, the band is capped at moderate and neither a merge nor differentiation is suggested.';
-
-/** D8: a limited-evidence pair with no corroborating signal is not scored. */
-export const UNCORROBORATED_LABEL = 'Not scored — PLO match only, no corroborating signal';
-export const UNCORROBORATED_DETAIL =
-  'PLO wording matched, but no shared staff and low market similarity; treated as no overlap.';
+/** D9: the overlap index is course-based; a pair with no course comparison
+ *  (structure and content both null) is not scored. */
+export const NO_COURSE_DATA_LABEL = 'Not scored — no course comparison';
+export const NO_COURSE_DATA_DETAIL =
+  'The two programmes have no comparable major-course data, so there is no overlap index. PLO alignment is shown as context only; it never sets the index.';
 
 /**
- * True when the stored evidence marks the pair as limited (spec §12.4).
- * Evidence written before calibration lacks the flag and parses as null, so
- * null evidence is "unknown", not "limited".
+ * True when the stored evidence has no course layer (D9): index null, band
+ * NONE, no actions. Null evidence (an older run) is "unknown", not flagged.
  */
-export function isLimitedEvidence(evidence: PairEvidence | null | undefined): boolean {
-  return evidence?.coverage.limitedEvidence === true;
+export function hasNoCourseData(evidence: PairEvidence | null | undefined): boolean {
+  return evidence?.coverage.courseLayers === 0;
 }
 
-/**
- * True when the stored evidence marks the pair as an uncorroborated
- * limited-evidence match (D8): overlap index null, band NONE, no actions.
- */
-export function isUncorroborated(evidence: PairEvidence | null | undefined): boolean {
-  return evidence?.coverage.uncorroborated === true;
-}
-
-/** The same test for a matrix cell, which carries the flag itself. */
-export function isUncorroboratedCell(cell: { uncorroborated: boolean }): boolean {
-  return cell.uncorroborated;
+/** The same test for a matrix cell, which carries the count itself. */
+export function hasNoCourseDataCell(cell: { courseLayers: number }): boolean {
+  return cell.courseLayers === 0;
 }
 
 /** "72" / "—" for a nullable 0–100 figure. */
