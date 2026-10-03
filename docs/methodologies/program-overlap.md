@@ -2,7 +2,7 @@
 
 | Version | Date | Change |
 |---|---|---|
-| `program-overlap.v1` | 2026-10-03 | First version. Thresholds calibrated on dev the same day (§11). After the first real run the index was made **course-based** (D9): the PLO layer is supporting context only, and the interim limited-evidence and corroboration rules (D8) were withdrawn. AI wording by `program-overlap-recommendation.v1`. Feeds `risk-scoring.v1.14` (two KRIs) and `risk-measure-rules.v2`. |
+| `program-overlap.v1` | 2026-10-03 | First version. Thresholds calibrated on dev the same day (§11). After the first real run the index was made **course-based** (D9): the PLO layer is supporting context only, and the interim limited-evidence and corroboration rules (D8) were withdrawn. AI wording by `program-overlap-recommendation.v2` (v1 was superseded before release when the index became course-only). Feeds `risk-scoring.v1.14` (two KRIs) and `risk-measure-rules.v2`. |
 
 **Authority.** The code is the authority for every formula and value on this
 page: `packages/db/src/program-overlap/score.ts` (`OVERLAP_THRESHOLDS`,
