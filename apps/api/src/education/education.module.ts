@@ -7,13 +7,14 @@ import { AdmissionCampaignsService } from './admission-campaigns.service';
 import { ClassOfferingsService } from './class-offerings.service';
 import { EvaluationsService } from './evaluations.service';
 import { StudentDqController } from './student-dq.controller';
+import { ProgramOverlapController } from './program-overlap.controller';
 import { StudentDqService } from './student-dq.service';
 import { DataSourcesModule } from '../data-sources/data-sources.module';
 import { AiJobsModule } from '../ai-jobs/ai-jobs.module';
 
 @Module({
   imports: [DataSourcesModule, AiJobsModule],
-  controllers: [EducationController, StudentDqController],
+  controllers: [EducationController, StudentDqController, ProgramOverlapController],
   providers: [
     EducationService,
     EducationRefreshService,

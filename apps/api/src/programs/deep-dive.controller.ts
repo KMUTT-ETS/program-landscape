@@ -43,6 +43,8 @@ import {
   programRevisionStaleness,
   programTrends,
   STUDENT_DQ_METHODOLOGY_VERSION,
+  programOverlapSection,
+  type ProgramOverlapSection,
 } from '@kku/db';
 import {
   AuditLog,
@@ -57,6 +59,7 @@ import { CockpitService } from '../cockpit/cockpit.service';
 import { CurriculumRevisionService } from './curriculum-revision.service';
 import { PdfService } from '../pdf/pdf.service';
 import { buildProgramDetailData } from './program-detail-data';
+import { PROGRAM_OVERLAP_PROVENANCE } from '../education/program-overlap.provenance';
 
 // Per-program deep-dive endpoints. Endpoint fan-out is explicit (one
 // per section) so the UI can parallelise and prioritise above-the-fold
@@ -265,6 +268,21 @@ export class DeepDiveController {
     ]);
     if (!readiness) throw new NotFoundException();
     return { result, readiness };
+  }
+
+  // program-overlap.v1 "Overlap" section (spec §10.3). null when no run
+  // covers the programme; siblings: [] when none reaches the low band — the
+  // page hides the section and its rail entry in both cases (D6).
+  @Get('overlap')
+  @Authorized('programs:read:all')
+  @Provenance(PROGRAM_OVERLAP_PROVENANCE)
+  async overlap(
+    @AuthSession() user: SessionUser,
+    @Param('programId') programId: string,
+  ): Promise<{ data: ProgramOverlapSection | null; meta: { freshnessDate: string | null } }> {
+    await assertProgramAccessible(programId, user);
+    const data = await programOverlapSection(programId);
+    return { data, meta: { freshnessDate: data?.completedAt ?? null } };
   }
 
   @Get('ai-readiness')

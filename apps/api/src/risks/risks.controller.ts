@@ -1,6 +1,6 @@
 import { Body, Controller, ForbiddenException, Get, NotFoundException, Param, Patch, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
-import { prisma } from '@kku/db';
+import { RISK_SCORING_VERSION, prisma, selfCompetitionRows, type SelfCompetitionRow } from '@kku/db';
 import type { SessionUser } from '@kku/shared';
 import {
   AuditLog,
@@ -12,6 +12,7 @@ import {
   resolveEffectiveScope,
 } from '../common';
 import { RisksService } from './risks.service';
+import { PROGRAM_OVERLAP_PROVENANCE } from '../education/program-overlap.provenance';
 
 // Risk reads are gated with `risks:read:all` (every role has it). The
 // scope clamp here is what stops a FACULTY_USER from seeing other
@@ -30,6 +31,13 @@ const PortfolioQuerySchema = z.object({
   tier: z.enum(['NEEDS_DATA', 'LOW', 'MODERATE', 'HIGH', 'CRITICAL']).optional(),
 });
 type PortfolioQuery = z.infer<typeof PortfolioQuerySchema>;
+
+export const SelfCompetitionQuerySchema = z.object({
+  // Optional: the panel may list every level at once.
+  level: z.enum(['BACHELOR', 'MASTER', 'DOCTORAL', 'HIGHER_GRAD_DIPLOMA']).optional(),
+  facultyId: z.string().optional(),
+});
+type SelfCompetitionQuery = z.infer<typeof SelfCompetitionQuerySchema>;
 
 const SetMeasureStatusSchema = z.object({
   status: z.enum(['PROPOSED', 'ACCEPTED', 'REJECTED', 'IN_PROGRESS', 'COMPLETED']),
@@ -86,6 +94,47 @@ export class RisksController {
       opts.facultyId = q.facultyId;
     }
     return this.risks.portfolio(opts);
+  }
+
+  // Self-competition panel (program-overlap spec §10.2): the pairs behind a
+  // WARN / CRITICAL reading of curriculum_overlap_max or market_confusion_max
+  // in the latest breach rows. Authorization mirrors @Get('portfolio').
+  @Get('self-competition')
+  @Authorized('risks:read:all')
+  @Provenance({
+    sources: [
+      { id: 'risk-scoring', name: `${RISK_SCORING_VERSION} KRI evaluator` },
+      ...(PROGRAM_OVERLAP_PROVENANCE.sources ?? []),
+      { id: 'kku-tcas-funnel', name: 'KKU Registry · POWERBI.ADMISSION_STAT_CURRID' },
+    ],
+    methodologyVersion: RISK_SCORING_VERSION,
+    caveats: PROGRAM_OVERLAP_PROVENANCE.caveats,
+  })
+  async selfCompetition(
+    @AuthSession() user: SessionUser,
+    @Query(new ZodValidationPipe(SelfCompetitionQuerySchema)) q: SelfCompetitionQuery,
+  ): Promise<SelfCompetitionRow[]> {
+    const scope = await resolveEffectiveScope(user);
+    if (scope.mode === 'none') {
+      throw new ForbiddenException(
+        'Your account has no faculty or program assignment. Contact an admin.',
+      );
+    }
+    const opts: { level?: SelfCompetitionQuery['level']; facultyIds?: string[]; programIds?: string[] } = {
+      level: q.level,
+    };
+    if (scope.mode === 'scoped') {
+      if (q.facultyId && !scope.facultyIds.includes(q.facultyId)) {
+        throw new ForbiddenException(
+          "You can only view risks for faculties / programs assigned to your account.",
+        );
+      }
+      opts.facultyIds = q.facultyId ? [q.facultyId] : scope.facultyIds;
+      opts.programIds = scope.programIds;
+    } else if (q.facultyId) {
+      opts.facultyIds = [q.facultyId];
+    }
+    return selfCompetitionRows(opts);
   }
 
   @Get('indicators')
