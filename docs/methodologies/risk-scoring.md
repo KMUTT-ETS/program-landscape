@@ -1,6 +1,6 @@
-# Risk Scoring Methodology — `risk-scoring.v1.13`
+# Risk Scoring Methodology — `risk-scoring.v1.14`
 
-> Current version: `risk-scoring.v1.13` · First shipped: 2026-05-08 · Maintainer: VP Education + Digital
+> Current version: `risk-scoring.v1.14` · First shipped: 2026-05-08 · Maintainer: VP Education + Digital
 > Locked reference: `packages/db/src/risk-scoring.ts`
 
 ## Purpose
@@ -299,6 +299,23 @@ L2 skills first."
 | `late_round_dependency` | round 3+ share of admits | > 0.5 | > 0.7 |
 | `skill_automation_index` | HIGH-tagged share of skills | > 0.3 | > 0.6 |
 | `bachelor_intake_floor` | regReported (latest year) | < 36 | < 30 |
+| `curriculum_overlap_max` | highest overlap index vs a same-level sibling (v1.14) | ≥ 50 | ≥ 70 |
+| `market_confusion_max` | highest market similarity vs a same-level sibling (v1.14) | ≥ 60 † | ≥ 75 † |
+
+The two overlap KRIs (v1.14) read the current `program-overlap.v1` pairs:
+the latest SUCCEEDED full run of the programme's level with newer SUCCEEDED
+scoped runs overlaid (`latestOverlapPairs`, `packages/db/src/program-overlap/merge.ts`),
+excluding language-variant pairs. With no covering run they are null — no
+breach row — never 0. A programme covered by a run but with no stored pair
+is below the storage floor and also gets no row. Market similarity exists
+only on stored pairs. † Provisional, set at calibration
+(`MARKET_CONFUSION_WARN` / `MARKET_CONFUSION_CRITICAL`). A CRITICAL
+`curriculum_overlap_max` fires `CURRICULUM_DIFFERENTIATE`, plus
+`PROGRAM_MERGE` when the max pair's actions include
+`CONSIDER_MERGE_OR_TRACK`; a CRITICAL `market_confusion_max` fires
+`CURRICULUM_DIFFERENTIATE` with recruitment wording
+(`risk-measure-rules.v2`). The measure's evidence names the sibling, the
+overlap run and the pair.
 
 KRI breaches are stored per `(program × indicator × evaluation moment)` so
 the UI can plot breach history as a series. The bachelor intake floor is
@@ -351,4 +368,5 @@ component.
 | v1.9 | 2026-05-08 | **L3 redesigned around entry competitiveness + trend.** The v1–v1.8 L3 fired a universal cohort-shrinkage baseline (~43) for every program with TCAS data, regardless of whether they had real demographic exposure. A program with 8:1 applicants/seat is genuinely insulated from cohort decline; only programs near the 1:1 cliff face real risk. New L3 = 0.75×buffer + 0.25×trend, where `buffer` is a piecewise function of apps/seat (Council critical threshold: <1.5) and `trend` is the 5y applicant CAGR. Universal-cohort and peer-percentile components removed. Result: 78 of 89 BACHELOR programs (88%) drop from L3≈43 to L3≈0, correctly reflecting that strong applicant pools insulate them from cohort decline. |
 | v1.11 | 2026-05-20 | **L3 gains a forward demographic-projection component.** L3 v1.9 was present + past only (current applicants/seat buffer + 5y CAGR). v1.11 adds a third component — weight 0.30, with buffer 0.75→0.50 and trend 0.25→0.20: `programDemographicOutlook` scales the program's applicants by the NESDC national-cohort decline and reports `superCriticalYear`, the horizon at which the pool drops below 1.5 applicants/seat. Score: already super-critical→100, +5y→77, +10y→53, +15y→30, never within +15y→0. The component is discriminating (gated by each program's current ratio), so it does not reintroduce the v1.8 universal baseline. `programDemographicOutlook` becomes an input to `ProgramRiskInputs`. |
 | v1.13 | 2026-06-28 | **Recruitment completeness follows the configurable academic-year boundary.** The complete-vs-in-progress entry-year test previously used a hardcoded 1 January cut, which left BE 2569 reading as in-progress after its academic year had already started. It now derives from the `academic_year.next_start_date` system setting (`packages/db/src/academic-year.ts`, seeded 2026-06-16, editable at `/admin/app/academic-year`), the same source the admission dropdown, recruitment, funnel and deep-dive now share. No change to the composite formula, driver weights, or the L3 projection — only to which entry years count as complete. Shipped in `1217361`; **this row was written on 2026-09-22, when the doc was found still declaring v1.12 while the code had read v1.13 since June.** |
+| v1.14 | 2026-10-03 | **Two programme-overlap KRIs** from `program-overlap.v1`: `curriculum_overlap_max` (WARN 50 / CRITICAL 70, the overlap bands) and `market_confusion_max` (provisional 60 / 75 until calibration). Measure rules move to `risk-measure-rules.v2` (three new rules; flag-gated `PROGRAM_MERGE`). Drivers, composite, tiers and the 5×5 matrix are unchanged. |
 | v1.12 | 2026-06-01 | **Recruitment inputs re-sourced from `POWERBI.ADMISSION_STAT`.** L1 recruitment-decay and the cross-program competitiveness percentile now read the campaign-grain `admission_campaign_stats` feed (via the `kku-admission-campaigns` connector) through the `programFunnelRoundRows` / `programFunnelYears` adapters (`packages/db/src/program-funnel.ts`), replacing the curriculum-grain `ADMISSION_STAT_CURRID` / `tcas_admission_funnels`. The new feed carries correct per-intake plan quotas (Σ over each recruitment program of its annual plan) and finer track-level grain. No change to the composite formula, driver weights, or the L3 projection. |

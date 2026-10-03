@@ -60,7 +60,10 @@ import {
   RISK_INDICATOR_CATALOG,
   RISK_SCORING_VERSION,
   deriveRuleMeasures,
+  overlapBreachFlags,
+  overlapMeasureEvidence,
   Prisma,
+  type OverlapRiskSignal,
   type ProgramRiskInputs,
   type ProgramRiskResult,
 } from '@kku/db';
@@ -165,6 +168,7 @@ async function resolveTargets(): Promise<Array<{ id: string; code: string; nameT
 async function buildAiInput(
   programId: string,
   scores: ProgramRiskResult,
+  overlap: OverlapRiskSignal | null,
 ): Promise<RiskAssessmentInput | null> {
   const program = await prisma.program.findUnique({
     where: { id: programId },
@@ -264,6 +268,7 @@ async function buildAiInput(
       financial: [],
       competitivenessPercentile: null,
       demographicProjection: null, // KRI evaluator doesn't read it; only L3 does.
+      overlap, // overlap KRIs 6–7 (risk-scoring.v1.14)
     },
     new Date(),
   );
@@ -360,6 +365,7 @@ async function buildAiInput(
         indicatorSlug: k.indicatorSlug,
         severity: k.severity,
         value: k.value,
+        flags: overlapBreachFlags(k.indicatorSlug, overlap),
       })),
       Object.fromEntries(
         RISK_INDICATOR_CATALOG.map((c) => [
@@ -496,6 +502,7 @@ async function main(): Promise<void> {
             indicatorSlug: b.indicatorSlug,
             severity: b.severity,
             value: b.value,
+            flags: overlapBreachFlags(b.indicatorSlug, inputs.overlap),
           })),
           Object.fromEntries(
             RISK_INDICATOR_CATALOG.map((c) => [
@@ -531,7 +538,7 @@ async function main(): Promise<void> {
 
       if (ai && !insufficient && !dryRun) {
         try {
-          const aiInput = await buildAiInput(t.id, scores);
+          const aiInput = await buildAiInput(t.id, scores, inputs.overlap ?? null);
           if (aiInput) {
             const messages = buildRiskAssessmentMessages(aiInput);
             const response = await ai.extractStructured(
@@ -613,7 +620,12 @@ async function main(): Promise<void> {
               expectedDeltaThb:
                 m.expectedDeltaThb != null ? new Prisma.Decimal(m.expectedDeltaThb) : null,
               priority: m.priority,
-              evidenceJson: m.evidence as Prisma.InputJsonValue,
+              // Overlap-triggered measures also name the sibling programme,
+              // the overlap run and the pair (program-overlap spec §7).
+              evidenceJson: {
+                ...m.evidence,
+                ...(overlapMeasureEvidence(m.triggerIndicatorSlug, inputs.overlap) ?? {}),
+              } as Prisma.InputJsonValue,
               // risk-management.v2: provenance link from a fired KRI to the
               // measure the AI generated in response. Null when the AI
               // proposed a measure not tied to any specific breach.

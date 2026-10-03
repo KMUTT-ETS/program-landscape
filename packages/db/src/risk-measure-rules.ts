@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// risk-measure-rules.v1  —  automated breach → measure templates
+// risk-measure-rules.v2  —  automated breach → measure templates
 //
 // Deterministic rule engine that turns a list of triggered KRI breaches into
 // candidate RiskMeasure templates. Runs BEFORE the AI in the risk pipeline;
@@ -17,7 +17,7 @@
 //     slug + severity that triggered it (when rule-originated).
 //
 // Why this lives as a static TypeScript constant instead of a DB table:
-//   - 6 rules total. A DB-backed catalog with admin UI is v3 scope —
+//   - 9 rules total (v2 added three for the overlap KRIs). A DB-backed catalog with admin UI is v3 scope —
 //     same trajectory as the indicator catalog (v1 static → v2 tunable
 //     via /admin/risks/indicators/).
 //   - Keeps the engine a pure function: tests don't need a DB.
@@ -25,11 +25,15 @@
 // Versioning: bump `RISK_MEASURE_RULES_VERSION` when the rule set OR a
 // template body changes. The persisted RiskMeasure carries the active
 // version in evidence so an auditor can reproduce which template fired.
+//
+// v2 (2026-10-03): three rules for the programme-overlap KRIs
+// (risk-scoring.v1.14), and `requiresFlag` — a rule that fires only when the
+// breach carries that flag (PROGRAM_MERGE needs 'merge-candidate').
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { RiskIndicatorSeverity, RiskMeasureKind, RiskMeasureHorizon } from '@prisma/client';
 
-export const RISK_MEASURE_RULES_VERSION = 'risk-measure-rules.v1';
+export const RISK_MEASURE_RULES_VERSION = 'risk-measure-rules.v2';
 
 /** A single rule: when this indicator hits the trigger severity, surface
  *  the templated candidate measure. */
@@ -57,11 +61,15 @@ export interface RiskMeasureRule {
   /** 1 = highest priority in the assessment. The AI may reorder based on
    *  its own judgement but these defaults seed the priority field. */
   priority: number;
+  /** Fire only when the breach carries this flag (see DerivationBreach.flags).
+   *  The ruleKey then gains a `:<flag>` suffix so it stays unique. */
+  requiresFlag?: string;
 }
 
-/** v1 rule catalog. Six rules covering all five v1 KRIs (intake-floor
- *  fires two rules — WARN suggests outreach, CRITICAL suggests cohort
- *  reduction). */
+/** Rule catalog. Nine rules covering all seven KRIs: intake-floor fires two
+ *  rules (WARN suggests outreach, CRITICAL suggests cohort reduction), and a
+ *  CRITICAL curriculum overlap fires a differentiation rule plus, for a
+ *  merge candidate only, a merge-review rule. */
 export const RISK_MEASURE_RULES: readonly RiskMeasureRule[] = [
   {
     indicatorSlug: 'application_seat_ratio',
@@ -147,6 +155,49 @@ export const RISK_MEASURE_RULES: readonly RiskMeasureRule[] = [
     costClass: 'MEDIUM',
     priority: 1,
   },
+  {
+    indicatorSlug: 'curriculum_overlap_max',
+    triggerSeverity: 'CRITICAL',
+    measureKind: 'CURRICULUM_DIFFERENTIATE',
+    titleTh: 'ปรับหลักสูตรให้แตกต่างจากหลักสูตรพี่น้องที่ใกล้เคียงที่สุด',
+    titleEn: 'Differentiate the curriculum from its closest sibling programme',
+    rationaleTemplateTh:
+      'ความซ้ำซ้อนของหลักสูตรกับหลักสูตรอื่นระดับเดียวกันอยู่ที่ {value}/100 (วิกฤตที่ {threshold}) ควรทบทวนรายวิชาร่วมและรายวิชาเทียบเท่า และปรับผลลัพธ์การเรียนรู้ระดับหลักสูตรให้ชัดเจนขึ้น',
+    rationaleTemplateEn:
+      'Curriculum overlap with a same-level sibling is {value}/100 (critical at {threshold}). Review shared and equivalent courses and sharpen the programme learning outcomes.',
+    horizon: 'MEDIUM_TERM',
+    costClass: 'MEDIUM',
+    priority: 2,
+  },
+  {
+    indicatorSlug: 'curriculum_overlap_max',
+    triggerSeverity: 'CRITICAL',
+    requiresFlag: 'merge-candidate',
+    measureKind: 'PROGRAM_MERGE',
+    titleTh: 'พิจารณาควบรวม หรือปรับเป็นแขนงวิชาของหลักสูตรพี่น้อง',
+    titleEn: 'Review merging with, or folding in as a track of, the sibling programme',
+    rationaleTemplateTh:
+      'ความซ้ำซ้อน {value}/100 และหลักสูตรส่วนใหญ่อยู่ภายในหลักสูตรพี่น้อง เสนอเพื่อให้คณะและสภามหาวิทยาลัยพิจารณา ไม่ใช่การตัดสินใจ',
+    rationaleTemplateEn:
+      'Overlap {value}/100 with high containment — the programme sits largely inside a sibling. For review by the faculty and Council; not a decision.',
+    horizon: 'LONG_TERM',
+    costClass: 'HIGH',
+    priority: 1,
+  },
+  {
+    indicatorSlug: 'market_confusion_max',
+    triggerSeverity: 'CRITICAL',
+    measureKind: 'CURRICULUM_DIFFERENTIATE',
+    titleTh: 'ปรับข้อความประชาสัมพันธ์รับสมัครให้แตกต่างจากหลักสูตรพี่น้องที่คล้ายกัน',
+    titleEn: 'Differentiate the recruitment message from a similar sibling programme',
+    rationaleTemplateTh:
+      'ความคล้ายคลึงของข้อความประชาสัมพันธ์กับหลักสูตรอื่นระดับเดียวกันอยู่ที่ {value}/100 (วิกฤตที่ {threshold}) ผู้สมัครอาจแยกความแตกต่างของสองหลักสูตรไม่ออก',
+    rationaleTemplateEn:
+      'Market-facing similarity with a same-level sibling is {value}/100 (critical at {threshold}) — prospective students may not tell them apart.',
+    horizon: 'SHORT_TERM',
+    costClass: 'LOW',
+    priority: 3,
+  },
 ] as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -157,7 +208,8 @@ export const RISK_MEASURE_RULES: readonly RiskMeasureRule[] = [
  *  persistence (if `--no-ai`) or for inclusion in the AI prompt as a
  *  baseline. */
 export interface RuleDerivedMeasure {
-  /** Stable identifier — `<indicatorSlug>:<severity>` — used by the AI
+  /** Stable identifier — `<indicatorSlug>:<severity>`, plus `:<flag>` for a
+   *  flag-gated rule — used by the AI
    *  prompt and by the post-AI matcher to write back triggerIndicatorSlug. */
   ruleKey: string;
   indicatorSlug: string;
@@ -181,6 +233,9 @@ export interface DerivationBreach {
   indicatorSlug: string;
   severity: RiskIndicatorSeverity;
   value: number | null;
+  /** Qualifiers a rule may require (RiskMeasureRule.requiresFlag), e.g.
+   *  'merge-candidate' on a curriculum_overlap_max breach. */
+  flags?: string[];
 }
 
 /**
@@ -215,6 +270,7 @@ export function deriveRuleMeasures(
     for (const rule of RISK_MEASURE_RULES) {
       if (rule.indicatorSlug !== breach.indicatorSlug) continue;
       if (rule.triggerSeverity !== breach.severity) continue;
+      if (rule.requiresFlag !== undefined && !(breach.flags ?? []).includes(rule.requiresFlag)) continue;
       const thresholds = thresholdLookup[rule.indicatorSlug];
       if (!thresholds) continue;
       const threshold =
@@ -225,7 +281,7 @@ export function deriveRuleMeasures(
         breach.value === null ? '—' : formatValue(breach.value, rule.indicatorSlug);
       const thresholdStr = formatValue(threshold, rule.indicatorSlug);
       out.push({
-        ruleKey: `${rule.indicatorSlug}:${rule.triggerSeverity}`,
+        ruleKey: `${rule.indicatorSlug}:${rule.triggerSeverity}${rule.requiresFlag ? `:${rule.requiresFlag}` : ''}`,
         indicatorSlug: rule.indicatorSlug,
         triggerSeverity: rule.triggerSeverity,
         observedValue: breach.value,
@@ -255,7 +311,13 @@ export function deriveRuleMeasures(
  *  style indicators get one decimal. The indicator-aware formatting keeps
  *  the rendered rationale readable to a non-technical Council audience. */
 function formatValue(n: number, indicatorSlug: string): string {
-  if (indicatorSlug === 'bachelor_intake_floor') return String(Math.round(n));
+  if (
+    indicatorSlug === 'bachelor_intake_floor' ||
+    indicatorSlug === 'curriculum_overlap_max' ||
+    indicatorSlug === 'market_confusion_max'
+  ) {
+    return String(Math.round(n));
+  }
   // ratios + percentages — 0..3 typical range; 2 decimals is plenty
   return n.toFixed(2);
 }

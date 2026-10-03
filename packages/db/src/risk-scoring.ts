@@ -26,8 +26,16 @@ import { programDemographicOutlook } from './program-deep-dive';
 import { programFunnelRoundRows } from './program-funnel';
 import { realDataSql } from './data-quality';
 import { academicYearContextSync } from './academic-year';
+import { OVERLAP_THRESHOLDS } from './program-overlap/score';
+import { loadOverlapRiskSignal, type OverlapRiskSignal } from './program-overlap/risk';
 
-export const RISK_SCORING_VERSION = 'risk-scoring.v1.13';
+// Version history (latest entries; full history in
+// docs/methodologies/risk-scoring.md):
+//   v1.14 (2026-10-03): two KRIs from programme overlap (program-overlap.v1)
+//     — curriculum_overlap_max (WARN 50 / CRITICAL 70) and
+//     market_confusion_max (provisional thresholds until calibration).
+//     Drivers, tiers and composites are unchanged.
+export const RISK_SCORING_VERSION = 'risk-scoring.v1.14';
 
 // L2 (AI-disruption) is intentionally discounted in the COMPOSITE only.
 // Rationale: AI mitigation typically requires large multi-year investment
@@ -302,6 +310,10 @@ export interface ProgramRiskInputs {
     /** Years from now to that year; null when superCriticalYear is null. */
     yearsToSuperCritical: number | null;
   } | null;
+  // Programme overlap (program-overlap.v1) from the latest SUCCEEDED run
+  // with newer scoped runs overlaid. Null/absent = no overlap analysis yet;
+  // the two overlap KRIs then emit no row. Only evaluateKris reads it.
+  overlap?: OverlapRiskSignal | null;
 }
 
 export interface ProgramRiskResult {
@@ -949,6 +961,9 @@ export async function loadProgramRiskInputs(programId: string): Promise<ProgramR
 
   const competitivenessPercentile = await computeCompetitivenessPercentile(programId, program.level);
 
+  // Overlap KRIs 6–7 (risk-scoring.v1.14).
+  const overlap = await loadOverlapRiskSignal(programId, program.level);
+
   // Forward demographic projection — L3 v1.11's third component.
   const demoOutlook = await programDemographicOutlook(programId);
   let demographicProjection: ProgramRiskInputs['demographicProjection'] = null;
@@ -1023,6 +1038,7 @@ export async function loadProgramRiskInputs(programId: string): Promise<ProgramR
     })),
     competitivenessPercentile,
     demographicProjection,
+    overlap,
   };
 }
 
@@ -1491,10 +1507,42 @@ export function evaluateKris(inputs: ProgramRiskInputs, freshnessDate: Date): Kr
     });
   }
 
+  // KRIs 6–7: programme overlap (program-overlap.v1). Null — no breach row —
+  // until an overlap run exists.
+  if (inputs.overlap?.curriculumOverlapMax != null) {
+    const v = inputs.overlap.curriculumOverlapMax;
+    out.push({
+      programId: inputs.programId,
+      indicatorSlug: 'curriculum_overlap_max',
+      value: v,
+      severity: v >= CURRICULUM_OVERLAP_CRITICAL ? 'CRITICAL' : v >= CURRICULUM_OVERLAP_WARN ? 'WARN' : 'OK',
+      freshnessDate,
+    });
+  }
+  if (inputs.overlap?.marketConfusionMax != null) {
+    const v = inputs.overlap.marketConfusionMax;
+    out.push({
+      programId: inputs.programId,
+      indicatorSlug: 'market_confusion_max',
+      value: v,
+      severity: v >= MARKET_CONFUSION_CRITICAL ? 'CRITICAL' : v >= MARKET_CONFUSION_WARN ? 'WARN' : 'OK',
+      freshnessDate,
+    });
+  }
+
   return out;
 }
 
 // ── Indicator catalog (seeded by the pipeline on first run) ────────────────
+
+// Overlap KRI thresholds (0–100 scale). Curriculum overlap reuses the
+// overlap bands so the KRI and the Education heatmap agree.
+export const CURRICULUM_OVERLAP_WARN = OVERLAP_THRESHOLDS.bandModerate; // 50
+export const CURRICULUM_OVERLAP_CRITICAL = OVERLAP_THRESHOLDS.bandHigh; // 70
+// PROVISIONAL — set at calibration, Task 11 (program-overlap spec §9).
+// Changing these after release bumps RISK_SCORING_VERSION.
+export const MARKET_CONFUSION_WARN = 60;
+export const MARKET_CONFUSION_CRITICAL = 75;
 
 export const RISK_INDICATOR_CATALOG = [
   {
@@ -1552,5 +1600,31 @@ export const RISK_INDICATOR_CATALOG = [
     warnThreshold: 36,
     criticalThreshold: 30,
     alarmDirection: 'low',
+  },
+  {
+    slug: 'curriculum_overlap_max',
+    labelTh: 'ความซ้ำซ้อนของหลักสูตรกับหลักสูตรอื่นระดับเดียวกัน',
+    labelEn: 'Curriculum overlap with a sibling programme',
+    descriptionTh:
+      'ดัชนีความซ้ำซ้อนของหลักสูตรสูงสุดเมื่อเทียบกับหลักสูตรอื่นของ มข. ในระดับเดียวกัน (รายวิชาร่วม รายวิชาเทียบเท่า และผลลัพธ์การเรียนรู้ระดับหลักสูตร) ไม่รวมหลักสูตรคู่ภาษา',
+    descriptionEn:
+      'Highest curriculum overlap index (shared courses, equivalent courses, PLO alignment) against any same-level KKU programme, excluding language variants',
+    formula: 'MAX(overlap_index) over the programme\'s current same-level overlap pairs (program-overlap.v1), language_variant = false',
+    warnThreshold: CURRICULUM_OVERLAP_WARN,
+    criticalThreshold: CURRICULUM_OVERLAP_CRITICAL,
+    alarmDirection: 'high',
+  },
+  {
+    slug: 'market_confusion_max',
+    labelTh: 'ความสับสนทางการตลาดกับหลักสูตรอื่นระดับเดียวกัน',
+    labelEn: 'Market confusion with a sibling programme',
+    descriptionTh:
+      'ความคล้ายคลึงสูงสุดของข้อความประชาสัมพันธ์หลักสูตร (ชื่อปริญญา คำอธิบายรับสมัคร อาชีพ) เมื่อเทียบกับหลักสูตรอื่นของ มข. ในระดับเดียวกัน ไม่รวมหลักสูตรคู่ภาษา',
+    descriptionEn:
+      'Highest market-facing similarity (degree names, recruitment summary, careers) against any same-level KKU programme, excluding language variants',
+    formula: 'MAX(market_similarity) over the programme\'s current same-level overlap pairs (program-overlap.v1), language_variant = false',
+    warnThreshold: MARKET_CONFUSION_WARN,
+    criticalThreshold: MARKET_CONFUSION_CRITICAL,
+    alarmDirection: 'high',
   },
 ] as const;
