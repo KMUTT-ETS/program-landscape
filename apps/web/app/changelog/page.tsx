@@ -26,6 +26,19 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-10-03',
+    version: 'v2.0.2 · External grants become an award on the Financial score',
+    title:
+      'External research and academic-service grants now add up to +10 points to a programme’s Financial score instead of being a Capability measure — an award for bringing in money beyond tuition and public funding, never a penalty',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'New “External-grant award” on the Financial dimension: grant baht per active teaching staff member per year over the last three complete fiscal years. ฿100k or less adds nothing; ฿3 M or more adds the full +10; in between it rises on a log curve, so a programme’s first million counts for more than its fiftieth. Each project counts once per programme, at its whole budget.',
+      'It can only raise a score: a programme with no grant loses nothing, data completeness is unchanged, and a programme with no Financial score gets no award. The Program Deep-Dive, its print view, the Program Detail PDF and the Cockpit heatmap tooltip show the award beside the base score, with the lower-bound caveat (about 30% of co-investigators cannot yet be matched to an HR record).',
+      'The v2.0.1 Capability measure “External grant engagement” and its 30-day sync-history wait are removed: the grants source is the Research Office’s own cumulative record. Capability is back to four measures at 25% each, so its data completeness returns to 100%.',
+      'Methodology: Program Health Score v5.4 (was v5.3). The methodology paper (revision 1.10), the Cockpit provenance drawer — which had still cited v2.1 — and the application data-flow map are updated.',
+    ],
+  },
+  {
     date: '2026-10-02',
     version: 'v2.0.1 · External grants in the Program Health Score',
     title:
