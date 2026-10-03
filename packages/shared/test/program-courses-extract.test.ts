@@ -167,3 +167,48 @@ describe('program-courses-extract v4 — prompt/schema agreement', () => {
     }
   });
 });
+
+// The model sometimes emits JSON null for a field it has no value for —
+// most often nameEn on a Thai-only course. `.default()` only covers a
+// MISSING key, so a null failed the whole response and sent the programme
+// to the regex fallback (measured on dev 2026-10-03: 10 of 89 programmes in
+// the v4 backfill, every one losing its course categories). A null must mean
+// exactly what an absent key means.
+describe('program-courses-extract v4 — null fields from the model', () => {
+  it('treats a null nameEn / nameTh as an empty name', () => {
+    const parsed = ProgramCoursesExtractSchema.parse({
+      courses: [
+        { code: 'EN241100', nameTh: 'กลศาสตร์', nameEn: null, credits: 3, category: 'CORE' },
+        { code: 'EN241101', nameTh: null, nameEn: 'Statics', credits: 3, category: 'CORE' },
+      ],
+      caveats: [],
+      confidence: 0.9,
+    });
+    expect(parsed.courses[0]!.nameEn).toBe('');
+    expect(parsed.courses[1]!.nameTh).toBe('');
+    expect(parsed.courses[0]!.category).toBe('CORE');
+  });
+
+  it('treats a null category as UNKNOWN and null caveats as none', () => {
+    const parsed = ProgramCoursesExtractSchema.parse({
+      courses: [{ code: 'EN241100', nameTh: 'x', nameEn: 'x', credits: 3, category: null }],
+      caveats: null,
+      confidence: 0.9,
+    });
+    expect(parsed.courses[0]!.category).toBe('UNKNOWN');
+    expect(parsed.caveats).toEqual([]);
+  });
+
+  it('still rejects a missing code and an out-of-enum category', () => {
+    expect(() =>
+      ProgramCoursesExtractSchema.parse({ courses: [{ code: null, nameTh: 'x' }], caveats: [], confidence: 0.9 }),
+    ).toThrow();
+    expect(() =>
+      ProgramCoursesExtractSchema.parse({
+        courses: [{ code: 'EN241100', category: 'ELECTIVE' }],
+        caveats: [],
+        confidence: 0.9,
+      }),
+    ).toThrow();
+  });
+});

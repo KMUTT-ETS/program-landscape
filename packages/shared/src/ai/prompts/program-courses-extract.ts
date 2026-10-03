@@ -114,14 +114,21 @@ const CourseSchema = z.object({
   /** Whitespace-stripped, upper-cased code as it appears in the PDF.
    *  Materialiser normalises again before insert so EN241100 == "EN 241 100". */
   code: z.string().min(2),
-  nameTh: z.string().default(''),
-  nameEn: z.string().default(''),
+  /** `.nullish()`, not `.default()` alone: the model sometimes emits JSON
+   *  null for a name it has no value for (usually nameEn on a Thai-only
+   *  course), and a bare `.default()` only covers a MISSING key — the null
+   *  failed the whole response and sent the programme to the regex fallback,
+   *  losing every course category (10 of 89 programmes in the 2026-10-03 v4
+   *  backfill). Parser leniency only: a response that validated before parses
+   *  identically, so the prompt version does not change. */
+  nameTh: z.string().nullish().transform((v) => v ?? ''),
+  nameEn: z.string().nullish().transform((v) => v ?? ''),
   credits: z.number().int().min(0).max(60).nullable().default(null),
   /** Defaults to UNKNOWN so a v3-era payload re-parses without inventing a
    *  หมวด. The regex fallback path never reaches this schema — it builds
    *  rows directly and carries its own explicit UNKNOWN; see
    *  FallbackCourseExtraction.category below. */
-  category: CourseCategorySchema.default('UNKNOWN'),
+  category: CourseCategorySchema.nullish().transform((v) => v ?? 'UNKNOWN'),
 });
 export type ProgramCoursesExtractCourse = z.infer<typeof CourseSchema>;
 
@@ -131,7 +138,7 @@ export const ProgramCoursesExtractSchema = z.object({
    *  missing sections, ambiguous course-list formatting. English —
    *  analysis prose, not a data label, so it is NOT on the Thai
    *  exemption list (docs/prompt-standard.md). */
-  caveats: z.array(z.string()).default([]),
+  caveats: z.array(z.string()).nullish().transform((v) => v ?? []),
   confidence: z.number().min(0).max(1),
 });
 export type ProgramCoursesExtractPayload = z.infer<typeof ProgramCoursesExtractSchema>;
