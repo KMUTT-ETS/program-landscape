@@ -1020,7 +1020,7 @@ const connectorNodes: TopologyNode[] = [
     lane: 'ai',
     kind: 'ai-task',
     label: 'Overlap recommendation',
-    subtitle: 'Phase OV · program-overlap-recommendation.v1',
+    subtitle: 'Phase OV · program-overlap-recommendation.v2',
     details: {
       description:
         'English reasoning for a flagged overlap pair (at least one action and index ≥ 50): rationale, what is distinctive on each side, 2–4 next steps, confidence, and an optional disagreement with the rule-chosen action. Never changes the action. Reused across runs while the pair evidence hash and prompt version are unchanged.',

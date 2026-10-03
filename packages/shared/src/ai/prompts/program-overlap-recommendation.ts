@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { AiMessage } from '../types';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// program-overlap-recommendation.v1
+// program-overlap-recommendation.v2
 //
 // Drafts the reasoning behind the RULE-CHOSEN actions for one pair of
 // same-level KKU programmes whose curricula overlap (program-overlap.v1,
@@ -17,9 +17,20 @@ import type { AiMessage } from '../types';
 // Category: verdict / assessment — every claim names its input field, a
 // data-gaps note is required on thin coverage, and the rationale ends with
 // what would change the assessment.
+//
+// History:
+//   v1 (2026-10-03) — first release. Described overlapIndex as combining the
+//       structure, content and outcome layers and counted the outcome (PLO)
+//       layer as a material channel in the confidence rubric and ceiling.
+//   v2 (2026-10-03) — D9 of the spec: the index is course-based. overlapIndex
+//       is the mean of structure and content ONLY; PLO alignment (`outcome`)
+//       is supporting context and never part of the index. The outcome layer
+//       is no longer a material channel, so a missing PLO set no longer
+//       lowers the confidence ceiling. Stored v1 recommendations are
+//       regenerated (the runner's reuse rule keys on promptVersion).
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PROGRAM_OVERLAP_RECOMMENDATION_VERSION = 'program-overlap-recommendation.v1';
+export const PROGRAM_OVERLAP_RECOMMENDATION_VERSION = 'program-overlap-recommendation.v2';
 
 export const ProgramOverlapRecommendationSchema = z
   .object({
@@ -65,7 +76,9 @@ export interface ProgramOverlapRecommendationInput {
   programA: OverlapRecommendationProgramme;
   programB: OverlapRecommendationProgramme;
   level: string;
-  /** All 0–100, rounded to integers. Null = layer not computable (data not available). */
+  /** All 0–100, rounded to integers. Null = layer not computable (data not
+   *  available). overlapIndex = mean of structure and content only; outcome
+   *  (PLO alignment) is context and never part of the index (D9). */
   scores: {
     structure: number | null;
     content: number | null;
@@ -120,16 +133,16 @@ export interface ProgramOverlapRecommendationInput {
  * Deterministic ceiling on self-reported confidence (docs/prompt-standard.md
  * `## Confidence rubric`), enforced by the runner. Counts the material
  * channels that are missing, matching the rubric text in the system prompt:
- * the content layer, the outcome layer, the market channel (ONE channel:
+ * the content layer, the market channel (ONE channel:
  * missing when market similarity is null or either market text is absent),
  * and description-backed course evidence (missing when every equivalent
- * course rests on names alone).
+ * course rests on names alone). The outcome (PLO) layer is context, not part
+ * of the index (D9), so its absence does not lower the ceiling.
  *   0 missing → 1.00 · 1 → 0.89 · 2 → 0.69 · 3+ → 0.49
  */
 export function overlapRecommendationConfidenceCeiling(input: ProgramOverlapRecommendationInput): number {
   let missing = 0;
   if (input.scores.content === null) missing++;
-  if (input.scores.outcome === null) missing++;
   if (input.scores.marketSimilarity === null || !input.marketTextA || !input.marketTextB) missing++;
   const eq = input.evidence.equivalentCourses.items;
   if (eq.length > 0 && eq.every((e) => e.basis === 'name')) missing++;
@@ -145,7 +158,7 @@ CHANNEL MANIFEST (each input channel is a JSON field in the user message; null o
 - programA / programB: code, Thai name (nameTh), English name (nameEn), faculty, latestEnrolled (newest TOTAL enrolled headcount across all years of study, not a first-year intake; null = not available).
 - level: the shared degree level.
 - Scale: scores are 0–100 (integers); similarities are 0–1 (2 decimals).
-- scores (0–100): structure (credit-weighted shared courses), content (equivalent courses by embedding similarity), outcome (PLO alignment), overlapIndex (the combined index), containmentAInB / containmentBInA (how much of one programme's major sits inside the other), marketSimilarity (how alike the two market-facing profiles read). A null layer was not computable.
+- scores (0–100): structure (credit-weighted shared courses), content (equivalent courses by embedding similarity), overlapIndex (the mean of structure and content ONLY — the index is course-based), outcome (PLO alignment — supporting context, NOT part of overlapIndex and never a reason for an action on its own; PLOs are often worded from a common template, so a high outcome score with low course overlap is weak evidence), containmentAInB / containmentBInA (how much of one programme's major sits inside the other), marketSimilarity (how alike the two market-facing profiles read). A null layer was not computable.
 - sharedCredits, equivCredits: credits in shared-code courses and in equivalent-course pairs.
 - sharedStaff: number of teaching staff on both rosters.
 - languageVariant: true when the pair is the Thai and the international (English-taught) version of the same programme.
@@ -153,7 +166,7 @@ CHANNEL MANIFEST (each input channel is a JSON field in the user message; null o
 - Each evidence list is an object { items, omitted }: items holds at most 25 entries (the strongest first) and omitted counts the entries left out. A non-zero omitted means the list is longer than shown; do not count items as if they were the whole list.
 - evidence.sharedCourses: courses with the same code in both programmes (largest credits first).
 - evidence.equivalentCourses: course pairs judged equivalent, each with a similarity and a basis. basis "description" means both courses have catalogue descriptions and the match rests on content. basis "name" means at least one course was embedded on its name alone; treat these as weaker evidence and say so when they carry the case.
-- evidence.matchedPlos, unmatchedPlosA, unmatchedPlosB: programme learning outcomes that align, and those unique to each side. The unmatched PLOs are the main evidence for what is distinctive.
+- evidence.matchedPlos, unmatchedPlosA, unmatchedPlosB: programme learning outcomes that align, and those unique to each side. Context only: they never raise or lower the overlap, but the unmatched PLOs are useful evidence for what is distinctive.
 - evidence.coverage: how many major courses, described courses and PLOs each side has — the size of the evidence base.
 - marketTextA / marketTextB: each programme's market-facing text.
 
@@ -186,7 +199,7 @@ CONFIDENCE RUBRIC (report one number):
   0.50-0.69  verdict rests on a single channel, or inputs conflict materially
   below 0.50 best effort over sparse input — flag for human review
 Grade against the bands. Do not default to 0.95.
-For this prompt the material channels are: the content layer, the outcome layer, market similarity with both market texts, and description-backed (not name-only) course equivalence.
+For this prompt the material channels are: the content layer, market similarity with both market texts, and description-backed (not name-only) course equivalence. The outcome (PLO) layer is context, not a material channel; its absence alone does not lower confidence.
 
 BANNED PHRASES (do not use these words/phrases or their close paraphrases):
 - "delve"

@@ -44,8 +44,15 @@ const input: ProgramOverlapRecommendationInput = {
 };
 
 describe('program-overlap-recommendation prompt', () => {
-  it('has the v1 version string', () => {
-    expect(PROGRAM_OVERLAP_RECOMMENDATION_VERSION).toBe('program-overlap-recommendation.v1');
+  it('has the v2 version string (D9: course-based index)', () => {
+    expect(PROGRAM_OVERLAP_RECOMMENDATION_VERSION).toBe('program-overlap-recommendation.v2');
+  });
+
+  it('describes the index as structure + content only, with PLO alignment as context (D9)', () => {
+    const system = buildProgramOverlapRecommendationMessages(input)[0]!.content;
+    expect(system).toMatch(/overlapIndex \(the mean of structure and content ONLY/);
+    expect(system).toMatch(/NOT part of overlapIndex/);
+    expect(system).not.toMatch(/material channels are:[^\n]*outcome layer,/);
   });
 
   it('accepts a valid object', () => {
@@ -107,6 +114,8 @@ describe('program-overlap-recommendation prompt', () => {
         scores: { ...input.scores, content: null, outcome: null, marketSimilarity: null },
       }),
     ).toBe(0.49);
+    // the outcome (PLO) layer is context, not a material channel (D9)
+    expect(overlapRecommendationConfidenceCeiling({ ...input, scores: { ...input.scores, outcome: null } })).toBe(0.89);
     // market is ONE channel: null similarity and a missing text count once
     expect(
       overlapRecommendationConfidenceCeiling({

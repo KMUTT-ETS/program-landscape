@@ -166,7 +166,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'program-overlap-recommendation',
-    currentVersion: 'program-overlap-recommendation.v1',
+    currentVersion: 'program-overlap-recommendation.v2',
     label: 'Programme overlap recommendation',
     description:
       'Drafts the reasoning, distinctive features and next steps behind the rule-chosen actions for an overlapping pair of same-level programmes (program-overlap.v1). Phase OV of the programme pipeline and pnpm programs:overlap; never changes the action, may record a disagreement.',
