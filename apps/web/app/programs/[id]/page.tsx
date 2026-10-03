@@ -8,7 +8,7 @@ import { notFound, redirect } from 'next/navigation';
 import { DQ_MODULES, DQ_PASS_MARK, type SessionUser } from '@kku/shared';
 import { DQ_MIN_CELL_STUDENTS, OVERALL_MEAN_MAX_MODULE_NO } from '@kku/db';
 import { auth } from '@/lib/auth';
-import { apiFetch, apiFetchSafe } from '@/lib/api-client';
+import { apiFetch, apiFetchEnvelope, apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { Button, Card, PageHeader } from '@kku/ui';
@@ -35,6 +35,7 @@ import type {
   DeepDiveCurriculumRevision,
   DeepDiveTrends,
   DeepDiveHealthBenchmarks,
+  ProgramOverlapSection,
 } from './types';
 
 export const dynamic = 'force-dynamic';
@@ -81,6 +82,7 @@ export default async function ProgramDeepDivePage({
     trends,
     healthBenchmarks,
     digitalCompetency,
+    overlapEnvelope,
   ] = await Promise.all([
     apiFetch<DeepDiveDemandFunnel>(`/programs/${id}/demand-funnel`).catch(() => null),
     apiFetch<DeepDiveStudentCohorts>(`/programs/${id}/student-cohorts`).catch(() => null),
@@ -104,6 +106,10 @@ export default async function ProgramDeepDivePage({
     // Answers for every programme — a non-bachelor one comes back
     // `not-applicable`, which the client renders as nothing at all.
     apiFetch<DeepDiveDigitalCompetency>(`/programs/${id}/dq`).catch(() => null),
+    // program-overlap.v1. The envelope, not just the data, so the section's
+    // provenance drawer shows the endpoint's own sources and caveats. null
+    // (no run) and an empty sibling list both hide the section (D6).
+    apiFetchEnvelope<ProgramOverlapSection | null>(`/programs/${id}/overlap`).catch(() => null),
   ]);
 
   if (!overview) {
@@ -230,6 +236,8 @@ export default async function ProgramDeepDivePage({
         trends={trends}
         healthBenchmarks={healthBenchmarks}
         digitalCompetency={digitalCompetency}
+        overlap={overlapEnvelope?.data ?? null}
+        overlapMeta={overlapEnvelope?.meta ?? null}
         dqModules={DQ_MODULES.filter((m) => m.kind === 'THEORY')}
         dqMinCellStudents={DQ_MIN_CELL_STUDENTS}
         dqPassMark={DQ_PASS_MARK}

@@ -27,7 +27,7 @@ import {
 // (`DQ_MODULES`, plain data) is read by the SERVER page and handed down
 // as the `dqModules` prop. Nothing here reaches into `@kku/shared` or
 // `@kku/db` at runtime.
-import type { DqModule, SessionUser } from '@kku/shared';
+import type { ApiMeta, DqModule, SessionUser } from '@kku/shared';
 import {
   regenerateNarrativeAction,
   submitDisagreementAction,
@@ -71,7 +71,15 @@ import type {
   DeepDiveRecruitment,
   DeepDiveTrends,
   DeepDiveHealthBenchmarks,
+  ProgramOverlapSection,
 } from './types';
+import {
+  OVERLAP_RAIL_SECTION,
+  OverlapSection,
+  overlapHeadline,
+  shouldShowOverlapSection,
+  withOverlapSection,
+} from './overlap-section';
 
 // Anchored-nav deep-dive page. Left rail has section anchors; main
 // column scrolls. IntersectionObserver highlights the current section
@@ -134,6 +142,10 @@ interface Props {
   trends: DeepDiveTrends | null;
   healthBenchmarks: DeepDiveHealthBenchmarks | null;
   digitalCompetency: DeepDiveDigitalCompetency | null;
+  /** program-overlap.v1 siblings; null when no run covers the programme. */
+  overlap: ProgramOverlapSection | null;
+  /** Envelope meta of GET /programs/:id/overlap, for the provenance drawer. */
+  overlapMeta: ApiMeta | null;
   /** DQ theory modules 1–13, for the radar's axis labels and the names
    *  of the weakest modules. Server-supplied — see the import note. */
   dqModules: DqModule[];
@@ -278,6 +290,10 @@ export function DeepDiveClient(props: Props) {
   // derivations of "the headline number" would eventually disagree, and a
   // band contradicting its own rail entry is worse than neither having one.
   const railMeta = React.useRef<Record<string, string | undefined>>({});
+  // D6: the Overlap section and its rail entry exist only when a run covers
+  // this programme and at least one sibling reaches an index of 30.
+  const showOverlap = shouldShowOverlapSection(props.overlap);
+  const overlapStat = React.useMemo(() => overlapHeadline(props.overlap), [props.overlap]);
   const railItems: RailItem[] = React.useMemo(() => {
     const round = (n: number | null | undefined) =>
       n === null || n === undefined ? undefined : String(Math.round(n));
@@ -299,9 +315,10 @@ export function DeepDiveClient(props: Props) {
           ? undefined
           : `${(employment * 100).toFixed(1)}%`,
       curriculum: round(props.courses?.extractedCount),
+      overlap: overlapStat ? `${overlapStat.count} ${overlapStat.label}` : undefined,
     };
     railMeta.current = meta;
-    return SECTIONS.map((s) => ({
+    return withOverlapSection(SECTIONS, OVERLAP_RAIL_SECTION, showOverlap).map((s) => ({
       href: `#${s.id}`,
       label: s.label,
       meta: meta[s.id],
@@ -313,6 +330,8 @@ export function DeepDiveClient(props: Props) {
     props.courses,
     props.studentCohorts,
     props.recruitment,
+    overlapStat,
+    showOverlap,
   ]);
 
   const onRegenerateNarrative = async () => {
@@ -447,6 +466,22 @@ export function DeepDiveClient(props: Props) {
             composition={props.faculty?.researchSourceComposition ?? null}
           />
         </MacroGroup>
+
+        {showOverlap && props.overlap ? (
+          <MacroGroup
+            id="overlap"
+            title="Overlap"
+            subtitle="Same-level KKU programmes that share courses, equivalent courses or learning outcomes with this one — for review, not decisions."
+            stat={overlapStat?.count}
+            statLabel={overlapStat?.label}
+          >
+            <OverlapSection
+              data={props.overlap}
+              meta={props.overlapMeta}
+              programCode={props.overview.program.code}
+            />
+          </MacroGroup>
+        ) : null}
 
         <MacroGroup
           id="financials"

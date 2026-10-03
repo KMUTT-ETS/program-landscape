@@ -817,3 +817,9 @@ export interface DeepDiveCurriculumRevision {
     distinctPaperCount: number;
   };
 }
+
+// ─── Overlap (program-overlap.v1, spec §10.3) ───────────────────────────
+// Type-only re-export: erased at compile time, so no Prisma reaches the
+// client bundle. GET /programs/:id/overlap returns ProgramOverlapSection or
+// null (no run covers the programme).
+export type { OverlapSibling, ProgramOverlapSection } from '@kku/db';
