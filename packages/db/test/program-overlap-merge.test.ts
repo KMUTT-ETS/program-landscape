@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OverlapAction, OverlapRunStatus } from '@prisma/client';
 
-const mocks = vi.hoisted(() => ({ runFindMany: vi.fn(), pairFindMany: vi.fn() }));
+const mocks = vi.hoisted(() => ({ runFindFirst: vi.fn(), runFindMany: vi.fn(), pairFindMany: vi.fn() }));
 
 // No real client: nothing here can reach the dev database.
 vi.mock('../src/index', () => ({
   prisma: {
-    programOverlapRun: { findMany: mocks.runFindMany },
+    programOverlapRun: { findFirst: mocks.runFindFirst, findMany: mocks.runFindMany },
     programOverlapPair: { findMany: mocks.pairFindMany },
   },
 }));
@@ -21,10 +21,14 @@ const run = (id: string, minute: number | null, scope: string[] = [], status: Ov
 let n = 0;
 const pair = (
   runId: string, a: string, b: string,
-  o: { overlapIndex?: number | null; marketSimilarity?: number | null; languageVariant?: boolean; actions?: OverlapAction[] } = {},
+  o: {
+    overlapIndex?: number | null; marketSimilarity?: number | null; languageVariant?: boolean; actions?: OverlapAction[];
+    containmentAInB?: number | null; containmentBInA?: number | null;
+  } = {},
 ) => ({
   id: `pair${++n}`, runId, programAId: a, programBId: b,
   overlapIndex: o.overlapIndex ?? null, marketSimilarity: o.marketSimilarity ?? null,
+  containmentAInB: o.containmentAInB ?? null, containmentBInA: o.containmentBInA ?? null,
   languageVariant: o.languageVariant ?? false, actions: o.actions ?? [],
 });
 
@@ -37,6 +41,18 @@ describe('selectOverlapRuns', () => {
     ]);
     expect(sel.fullRun?.id).toBe('full');
     expect(sel.scopedRuns.map((r) => r.id)).toEqual(['scoped-1', 'scoped-2']);
+  });
+  it('tie rule: a scoped run completed at the same instant as the full run is applied over it', () => {
+    const sel = selectOverlapRuns([run('zz-full', 10), run('aa-scoped', 10, ['a'])]);
+    expect(sel.fullRun?.id).toBe('zz-full');
+    expect(sel.scopedRuns.map((r) => r.id)).toEqual(['aa-scoped']);
+    const merged = mergeOverlapRuns(sel, [pair('zz-full', 'a', 'b', { overlapIndex: 90 })]);
+    expect(merged).toEqual([]);
+  });
+  it('tie rule: equal-time full runs resolve on id; equal-time scoped runs apply in id order', () => {
+    const sel = selectOverlapRuns([run('f-b', 10), run('f-a', 10), run('s-b', 20, ['a']), run('s-a', 20, ['a'])]);
+    expect(sel.fullRun?.id).toBe('f-b');
+    expect(sel.scopedRuns.map((r) => r.id)).toEqual(['s-a', 's-b']);
   });
   it('without a full run every SUCCEEDED scoped run applies', () => {
     const sel = selectOverlapRuns([run('s2', 20, ['b']), run('s1', 10, ['a'])]);
@@ -108,7 +124,7 @@ describe('overlapRiskSignalFromPairs', () => {
   it('max overlap and max market from different siblings; language variants and foreign pairs excluded', () => {
     const sel = selectOverlapRuns([run('f', 1), run('s', 2, ['a'])]);
     const pairs = [
-      pair('s', 'a', 'b', { overlapIndex: 72, marketSimilarity: 40, actions: ['CONSIDER_MERGE_OR_TRACK'] }),
+      pair('s', 'a', 'b', { overlapIndex: 72, marketSimilarity: 40, actions: ['CONSIDER_MERGE_OR_TRACK'], containmentAInB: 85, containmentBInA: 40 }),
       pair('s', 'c', 'a', { overlapIndex: 55, marketSimilarity: 88 }),
       pair('s', 'a', 'v', { overlapIndex: 99, marketSimilarity: 99, languageVariant: true }),
       pair('f', 'x', 'y', { overlapIndex: 100, marketSimilarity: 100 }),
@@ -116,6 +132,7 @@ describe('overlapRiskSignalFromPairs', () => {
     const s = overlapRiskSignalFromPairs('a', sel, pairs)!;
     expect(s).toMatchObject({
       curriculumOverlapMax: 72, curriculumSiblingId: 'b', curriculumRunId: 's', mergeCandidate: true,
+      curriculumContainmentMax: 85, curriculumActions: ['CONSIDER_MERGE_OR_TRACK'],
       marketConfusionMax: 88, marketSiblingId: 'c', marketRunId: 's', runId: 's',
     });
     expect(s.curriculumPairId).toBe(pairs[0]!.id);
@@ -134,21 +151,38 @@ describe('overlapRiskSignalFromPairs', () => {
 
 describe('loaders', () => {
   beforeEach(() => {
+    mocks.runFindFirst.mockReset();
     mocks.runFindMany.mockReset();
     mocks.pairFindMany.mockReset();
   });
-  it('latestOverlapPairs asks for SUCCEEDED runs of the level and the selected runs\' pairs', async () => {
+  it('latestOverlapPairs fetches runs from the latest full run on, and only the selected runs\' pairs', async () => {
+    mocks.runFindFirst.mockResolvedValue({ completedAt: run('f', 1).completedAt });
     mocks.runFindMany.mockResolvedValue([run('f', 1), run('s', 2, ['a'])]);
     mocks.pairFindMany.mockResolvedValue([pair('f', 'a', 'b'), pair('f', 'b', 'c'), pair('s', 'a', 'd')]);
     const out = await latestOverlapPairs('BACHELOR', { programIds: ['a'] });
-    expect(mocks.runFindMany.mock.calls[0]![0].where).toEqual({ level: 'BACHELOR', status: 'SUCCEEDED' });
+    expect(mocks.runFindFirst.mock.calls[0]![0].where).toEqual({
+      level: 'BACHELOR', status: 'SUCCEEDED', scopeProgramIds: { isEmpty: true }, completedAt: { not: null },
+    });
+    expect(mocks.runFindMany.mock.calls[0]![0].where).toEqual({
+      level: 'BACHELOR', status: 'SUCCEEDED', completedAt: { gte: run('f', 1).completedAt },
+    });
     expect(mocks.pairFindMany.mock.calls[0]![0].where).toEqual({
       runId: { in: ['f', 's'] },
       OR: [{ programAId: { in: ['a'] } }, { programBId: { in: ['a'] } }],
     });
     expect(out.pairs.map((p) => p.runId + p.programAId + p.programBId)).toEqual(['sad', 'fbc']);
   });
+  it('without a full run every SUCCEEDED run of the level is fetched', async () => {
+    mocks.runFindFirst.mockResolvedValue(null);
+    mocks.runFindMany.mockResolvedValue([run('s', 2, ['a'])]);
+    mocks.pairFindMany.mockResolvedValue([pair('s', 'a', 'd')]);
+    const out = await latestOverlapPairs('BACHELOR');
+    expect(mocks.runFindMany.mock.calls[0]![0].where).toEqual({ level: 'BACHELOR', status: 'SUCCEEDED' });
+    expect(mocks.pairFindMany.mock.calls[0]![0].where).toEqual({ runId: { in: ['s'] } });
+    expect(out.pairs).toHaveLength(1);
+  });
   it('no pair query when there is no run', async () => {
+    mocks.runFindFirst.mockResolvedValue(null);
     mocks.runFindMany.mockResolvedValue([]);
     const out = await latestOverlapPairs('MASTER');
     expect(out.pairs).toEqual([]);

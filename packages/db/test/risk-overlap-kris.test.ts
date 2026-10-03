@@ -18,6 +18,7 @@ const withOverlap = (o: object) => ({ ...(base as object), overlap: o }) as neve
 const thresholds = Object.fromEntries(RISK_INDICATOR_CATALOG.map((c) => [c.slug, c]));
 const signal = (o: object = {}) => ({
   curriculumOverlapMax: null, curriculumSiblingId: null, curriculumPairId: null, curriculumRunId: null,
+  curriculumContainmentMax: null, curriculumActions: [],
   mergeCandidate: false, marketConfusionMax: null, marketSiblingId: null, marketPairId: null, marketRunId: null,
   runId: 'r', ...o,
 });
@@ -39,9 +40,26 @@ describe('overlap KRIs', () => {
     expect(out.find((b) => b.indicatorSlug === 'curriculum_overlap_max')).toBeUndefined();
     expect(out.find((b) => b.indicatorSlug === 'market_confusion_max')).toBeUndefined();
   });
-  it('no row when the run holds no value for the programme', () => {
-    const out = evaluateKris(withOverlap(signal()), new Date('2026-10-03'));
-    expect(out.filter((b) => b.indicatorSlug.endsWith('_max'))).toEqual([]);
+  it('overlap undefined and overlap null both emit no overlap rows', () => {
+    for (const o of [undefined, null]) {
+      const out = evaluateKris({ ...(base as object), overlap: o } as never, new Date('2026-10-03'));
+      expect(out.filter((b) => b.indicatorSlug.endsWith('_max'))).toEqual([]);
+    }
+  });
+  it('a covering run with no stored value emits OK rows with a null value, each KRI independently', () => {
+    const none = evaluateKris(withOverlap(signal()), new Date('2026-10-03')).filter((b) => b.indicatorSlug.endsWith('_max'));
+    expect(none.map((b) => [b.indicatorSlug, b.severity, b.value])).toEqual([
+      ['curriculum_overlap_max', 'OK', null],
+      ['market_confusion_max', 'OK', null],
+    ]);
+    const onlyMarket = evaluateKris(withOverlap(signal({ marketConfusionMax: 80 })), new Date('2026-10-03'))
+      .filter((b) => b.indicatorSlug.endsWith('_max'));
+    expect(onlyMarket.map((b) => [b.indicatorSlug, b.severity, b.value])).toEqual([
+      ['curriculum_overlap_max', 'OK', null],
+      ['market_confusion_max', 'CRITICAL', 80],
+    ]);
+    // an OK/null row fires no rule
+    expect(deriveRuleMeasures(none, thresholds)).toEqual([]);
   });
   it('WARN at 50, CRITICAL at 70', () => {
     const at = (v: number) => evaluateKris(withOverlap({ curriculumOverlapMax: v, marketConfusionMax: null, mergeCandidate: false, curriculumSiblingId: 'q', marketSiblingId: null }), new Date('2026-10-03'))

@@ -388,6 +388,40 @@ async function buildAiInput(
       },
     })),
     dataGaps,
+    overlapContext: await buildOverlapContext(overlap),
+  };
+}
+
+/** The named same-level siblings behind the two overlap KRIs, for the AI
+ *  prompt (risk-assessment.v4). One query for both siblings' names. */
+async function buildOverlapContext(
+  overlap: OverlapRiskSignal | null,
+): Promise<RiskAssessmentInput['overlapContext']> {
+  if (!overlap) return null;
+  const ids = [overlap.curriculumSiblingId, overlap.marketSiblingId].filter((x): x is string => x !== null);
+  if (ids.length === 0) return null;
+  const rows = await prisma.program.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, code: true, nameTh: true, nameEn: true },
+  });
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const sibling = (id: string | null) => {
+    const r = id ? byId.get(id) : undefined;
+    return r ? { siblingCode: r.code, siblingNameTh: r.nameTh, siblingNameEn: r.nameEn } : null;
+  };
+  const cs = sibling(overlap.curriculumSiblingId);
+  const ms = sibling(overlap.marketSiblingId);
+  return {
+    curriculum:
+      cs && overlap.curriculumOverlapMax !== null
+        ? {
+            ...cs,
+            overlapIndex: overlap.curriculumOverlapMax,
+            containmentMax: overlap.curriculumContainmentMax,
+            actions: [...overlap.curriculumActions],
+          }
+        : null,
+    market: ms && overlap.marketConfusionMax !== null ? { ...ms, marketSimilarity: overlap.marketConfusionMax } : null,
   };
 }
 

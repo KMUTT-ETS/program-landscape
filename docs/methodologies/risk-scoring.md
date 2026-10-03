@@ -305,11 +305,21 @@ L2 skills first."
 The two overlap KRIs (v1.14) read the current `program-overlap.v1` pairs:
 the latest SUCCEEDED full run of the programme's level with newer SUCCEEDED
 scoped runs overlaid (`latestOverlapPairs`, `packages/db/src/program-overlap/merge.ts`),
-excluding language-variant pairs. With no covering run they are null — no
-breach row — never 0. A programme covered by a run but with no stored pair
-is below the storage floor and also gets no row. A pair whose market
-similarity reaches the warn value is always stored, so the market KRI sees
-confusable pairs with low curriculum overlap. † Provisional, set at
+excluding language-variant pairs. With no covering run there is no breach
+row — never 0. Once a run covers the programme, each of the two KRIs always
+emits a row, so an earlier breach is superseded: with no stored value for a
+KRI the row reads OK with a null value (shown as "—"), because every pair is
+below the storage floor and both floors (index 30, market 60) sit at or below
+WARN. Each value is the max over **stored** pairs, so the severity is never
+wrong; only the exact value of an OK reading can be unknown. A pair whose
+market similarity reaches the warn value is always stored, so the market KRI
+sees confusable pairs with low curriculum overlap. The merge-candidate flag
+(and the containment and actions handed to the AI) come from the
+**max-overlap pair only** — deliberately: the merge rule reviews the closest
+sibling, not any sibling carrying the action. Ties between a full and a scoped
+run completed at the same instant apply the scoped run. The AI prompt
+(`risk-assessment.v4`) receives the named sibling(s) and is told every
+overlap measure is for review and never to propose closure. † Provisional, set at
 calibration; defined once in `OVERLAP_THRESHOLDS`
 (`marketConfusionWarn` / `marketConfusion`, which `DIFFERENTIATE` also uses). A CRITICAL
 `curriculum_overlap_max` fires `CURRICULUM_DIFFERENTIATE`, plus

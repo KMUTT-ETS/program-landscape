@@ -961,7 +961,7 @@ const connectorNodes: TopologyNode[] = [
     lane: 'ai',
     kind: 'ai-task',
     label: 'Risk assessment',
-    subtitle: 'Phase 8 · risk-assessment.v3',
+    subtitle: 'Phase 8 · risk-assessment.v4',
     details: {
       description:
         'Combines deterministic L1/L2/L3 scores (risk-scoring.v1) with AI narrative + 2-4 specific RiskMeasure recommendations per program. Writes RiskAssessment + RiskMeasure + KRI breach evaluations.',

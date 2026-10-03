@@ -1507,25 +1507,27 @@ export function evaluateKris(inputs: ProgramRiskInputs, freshnessDate: Date): Kr
     });
   }
 
-  // KRIs 6–7: programme overlap (program-overlap.v1). Null — no breach row —
-  // until an overlap run exists.
-  if (inputs.overlap?.curriculumOverlapMax != null) {
-    const v = inputs.overlap.curriculumOverlapMax;
+  // KRIs 6–7: programme overlap (program-overlap.v1). No row until a run
+  // covers the programme. Once one does, each KRI always emits a row so a
+  // stale breach is superseded: a programme with no stored value reads OK
+  // with a null value (every pair is below the storage floor, which sits
+  // below WARN). Values are maxima over stored pairs — see
+  // program-overlap/risk.ts.
+  if (inputs.overlap) {
+    const c = inputs.overlap.curriculumOverlapMax;
     out.push({
       programId: inputs.programId,
       indicatorSlug: 'curriculum_overlap_max',
-      value: v,
-      severity: v >= CURRICULUM_OVERLAP_CRITICAL ? 'CRITICAL' : v >= CURRICULUM_OVERLAP_WARN ? 'WARN' : 'OK',
+      value: c,
+      severity: c == null ? 'OK' : c >= CURRICULUM_OVERLAP_CRITICAL ? 'CRITICAL' : c >= CURRICULUM_OVERLAP_WARN ? 'WARN' : 'OK',
       freshnessDate,
     });
-  }
-  if (inputs.overlap?.marketConfusionMax != null) {
-    const v = inputs.overlap.marketConfusionMax;
+    const m = inputs.overlap.marketConfusionMax;
     out.push({
       programId: inputs.programId,
       indicatorSlug: 'market_confusion_max',
-      value: v,
-      severity: v >= MARKET_CONFUSION_CRITICAL ? 'CRITICAL' : v >= MARKET_CONFUSION_WARN ? 'WARN' : 'OK',
+      value: m,
+      severity: m == null ? 'OK' : m >= MARKET_CONFUSION_CRITICAL ? 'CRITICAL' : m >= MARKET_CONFUSION_WARN ? 'WARN' : 'OK',
       freshnessDate,
     });
   }

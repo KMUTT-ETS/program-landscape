@@ -32,7 +32,14 @@ import type { AiMessage } from '../types';
 // the AI sees the candidates and is instructed to keep/refine/replace each
 // while preserving the trigger linkage via the new `triggerIndicatorSlug`
 // + `triggerSeverity` fields on each measure. Companion to risk-management.v2.
-export const RISK_ASSESSMENT_VERSION = 'risk-assessment.v3';
+//
+// v4 (2026-10-03): adds the optional `overlapContext` channel for the two
+// programme-overlap KRIs (risk-scoring.v1.14): the named same-level sibling
+// behind `curriculum_overlap_max` (index, max containment, actions) and
+// `market_confusion_max` (market similarity), plus instruction 11 — cite the
+// sibling by code and name, every overlap measure is "for review", never
+// propose closure.
+export const RISK_ASSESSMENT_VERSION = 'risk-assessment.v4';
 
 const RiskMeasureKindSchema = z.enum([
   'CURRICULUM_MODERNIZE',
@@ -223,6 +230,25 @@ export interface RiskAssessmentInput {
   }>;
   // Data gaps surfaced by the loader.
   dataGaps: Array<{ field: string; reason: string }>;
+  // Programme overlap (program-overlap.v1, v4+): the named same-level sibling
+  // behind each overlap KRI. Absent/null when no overlap run covers the
+  // programme; each side null when the programme has no stored pair for it.
+  overlapContext?: RiskOverlapContext | null;
+}
+
+export interface RiskOverlapSibling {
+  siblingCode: string;
+  siblingNameTh: string;
+  siblingNameEn: string | null;
+}
+
+export interface RiskOverlapContext {
+  curriculum: (RiskOverlapSibling & {
+    overlapIndex: number;
+    containmentMax: number | null;
+    actions: string[];
+  }) | null;
+  market: (RiskOverlapSibling & { marketSimilarity: number }) | null;
 }
 
 // ── Prompt builder ──────────────────────────────────────────────────────
@@ -280,6 +306,12 @@ export function buildRiskAssessmentMessages(input: RiskAssessmentInput): AiMessa
    - **ต้อง echo back \`triggerIndicatorSlug\` และ \`triggerSeverity\`** บนทุกมาตรการที่มาจาก candidate (เพื่อ UI จะแสดง provenance badge)
    - **เพิ่มมาตรการของคุณเอง 1-3 ข้อ** นอกเหนือจาก candidates เพื่อครอบคลุมมิติที่ rule engine ยังไม่จับ (เช่น peer white-spaces, sector outlook, qualitative caveats) — มาตรการเหล่านี้ set triggerIndicatorSlug = null
    - ถ้าไม่มี KRI ติดธงเลย ก็ไม่มี candidate ก็เสนอ measures จาก L1/L2/L3 ตามปกติ
+
+11. **KRI ความซ้ำซ้อนของหลักสูตร** (\`curriculum_overlap_max\`, \`market_confusion_max\`) — วัดความซ้ำซ้อนของหลักสูตร (หรือความคล้ายของข้อความประชาสัมพันธ์) กับหลักสูตรพี่น้องของ มข. ในระดับเดียวกันที่ระบุชื่อไว้ในบล็อก [ความซ้ำซ้อนกับหลักสูตรพี่น้อง]:
+   - อ้างหลักสูตรพี่น้องด้วยรหัสและชื่อเสมอ ห้ามกล่าวลอย ๆ ว่า "หลักสูตรอื่น"
+   - ทุกมาตรการที่มาจากความซ้ำซ้อนเป็น "ข้อเสนอเพื่อพิจารณา" (for review) ให้คณะและสภาพิจารณา ไม่ใช่การตัดสินใจ — ระบุเช่นนั้นใน rationale
+   - **ห้ามเสนอปิดหลักสูตร** (ห้ามใช้ PROGRAM_PHASE_OUT) จากความซ้ำซ้อน — ทางเลือกคือปรับให้แตกต่าง ประสานรายวิชาร่วม หรือพิจารณาควบรวม/ปรับเป็นแขนงวิชา
+   - ความซ้ำซ้อนของหลักสูตรไม่เท่ากับการแย่งผู้สมัครกัน อย่ากล่าวอ้างเช่นนั้นโดยไม่มีข้อมูลรับสมัคร
 
 โครงสร้าง JSON ผลลัพธ์ (ห้ามมี markdown, ห้ามมีคำอธิบายล่วงหน้า, ออก JSON เดี่ยวเท่านั้น):
 {
@@ -432,8 +464,29 @@ ${fired.map((k) => `  ${k.slug}: ${k.severity} (value=${k.value?.toFixed(2) ?? '
     }
   }
 
+  const ov = input.overlapContext;
+  if (ov && (ov.curriculum || ov.market)) {
+    const name = (x: RiskOverlapSibling): string =>
+      `${x.siblingCode} ${x.siblingNameTh}${x.siblingNameEn ? ` (${x.siblingNameEn})` : ''}`;
+    const lines: string[] = [];
+    if (ov.curriculum) {
+      const c = ov.curriculum;
+      lines.push(
+        `  curriculum_overlap_max: ${Math.round(c.overlapIndex)}/100 กับ ${name(c)}` +
+          ` | containment สูงสุด ${c.containmentMax != null ? Math.round(c.containmentMax) + '%' : '-'}` +
+          ` | actions: ${c.actions.length > 0 ? c.actions.join(', ') : '-'}`,
+      );
+    }
+    if (ov.market) {
+      lines.push(`  market_confusion_max: ${Math.round(ov.market.marketSimilarity)}/100 กับ ${name(ov.market)}`);
+    }
+    userBlocks.push(`[ความซ้ำซ้อนกับหลักสูตรพี่น้อง — program-overlap.v1]
+${lines.join('\n')}
+** อ้างหลักสูตรพี่น้องด้วยรหัสและชื่อ ทุกข้อเสนอเป็น "เพื่อพิจารณา" ห้ามเสนอปิดหลักสูตร **`);
+  }
+
   if (input.ruleDerivedMeasures.length > 0) {
-    userBlocks.push(`[มาตรการตั้งต้นจาก rule engine — risk-measure-rules.v1]
+    userBlocks.push(`[มาตรการตั้งต้นจาก rule engine — risk-measure-rules.v2]
 มี ${input.ruleDerivedMeasures.length} candidates ตั้งต้น แต่ละข้อมาจาก KRI ที่ติดธง (ดูบล็อก KRI ข้างบน)
 คุณต้องเก็บ candidate ทุกตัวไว้ในผลลัพธ์ (สามารถปรับให้เฉพาะเจาะจงขึ้น ไม่ใช่ลบทิ้ง)
 และต้อง echo back triggerIndicatorSlug + triggerSeverity บนทุก candidate ที่เก็บไว้

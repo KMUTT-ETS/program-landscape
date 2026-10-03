@@ -1,5 +1,14 @@
 // program-overlap.v1 → risk-scoring.v1.14: the overlap signal behind the
 // `curriculum_overlap_max` and `market_confusion_max` KRIs (spec §7).
+//
+// Two deliberate readings:
+//  - Each value is the max over STORED pairs. Unstored pairs sit below the
+//    storage floors (index < storeIndex 30, market < marketConfusionWarn 60),
+//    and both floors are at or below the KRIs' WARN values, so the severity is
+//    never wrong — only the exact value of an OK reading may be unknown.
+//  - mergeCandidate (and the containment / actions reported to the AI) come
+//    from the max-overlap pair only: the merge rule reviews the closest
+//    sibling, not any sibling that happens to carry the action.
 import type { OverlapAction, ProgramLevel } from '@prisma/client';
 import { byCodeUnits } from './load';
 import {
@@ -18,6 +27,10 @@ export interface OverlapRiskSignal {
   curriculumSiblingId: string | null;
   curriculumPairId: string | null;
   curriculumRunId: string | null;
+  /** max(containmentAInB, containmentBInA) of the max-overlap pair. */
+  curriculumContainmentMax: number | null;
+  /** The max-overlap pair's actions. */
+  curriculumActions: OverlapAction[];
   /** The max-overlap pair's actions include CONSIDER_MERGE_OR_TRACK. */
   mergeCandidate: boolean;
   /** Highest market similarity against a same-level sibling (language
@@ -35,8 +48,15 @@ export interface OverlapRiskPair extends OverlapPairRef {
   id: string;
   overlapIndex: number | null;
   marketSimilarity: number | null;
+  containmentAInB: number | null;
+  containmentBInA: number | null;
   languageVariant: boolean;
   actions: readonly OverlapAction[];
+}
+
+function containmentMax(p: OverlapRiskPair): number | null {
+  const xs = [p.containmentAInB, p.containmentBInA].filter((x): x is number => x !== null);
+  return xs.length > 0 ? Math.max(...xs) : null;
 }
 
 interface Best { value: number; siblingId: string; pair: OverlapRiskPair }
@@ -78,6 +98,8 @@ export function overlapRiskSignalFromPairs(
     curriculumSiblingId: curriculum?.siblingId ?? null,
     curriculumPairId: curriculum?.pair.id ?? null,
     curriculumRunId: curriculum?.pair.runId ?? null,
+    curriculumContainmentMax: curriculum ? containmentMax(curriculum.pair) : null,
+    curriculumActions: curriculum ? [...curriculum.pair.actions] : [],
     mergeCandidate: curriculum?.pair.actions.includes('CONSIDER_MERGE_OR_TRACK') ?? false,
     marketConfusionMax: market?.value ?? null,
     marketSiblingId: market?.siblingId ?? null,

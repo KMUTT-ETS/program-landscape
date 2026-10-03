@@ -6,8 +6,10 @@
 //    still exist as provenance.
 //  - The base is the latest SUCCEEDED full run of the level
 //    (scopeProgramIds = []).
-//  - SUCCEEDED scoped runs completed after that base are applied oldest
-//    first. A scoped run covers EVERY pair touching its scopeProgramIds: the
+//  - SUCCEEDED scoped runs completed at or after that base are applied
+//    oldest first. Tie rule: a scoped run completed at the same instant as the
+//    base IS applied (its rows are no older than the base's); equal-time full
+//    runs resolve to the larger id, equal-time scoped runs apply in id order. A scoped run covers EVERY pair touching its scopeProgramIds: the
 //    rows held so far for those pairs are dropped — even when the scoped run
 //    has no row for the pair, which means the pair no longer meets the storage
 //    rule — and the scoped run's own rows are added.
@@ -36,15 +38,15 @@ export interface OverlapPairRef {
 export interface OverlapRunSelection<R extends OverlapRunRef> {
   /** Latest SUCCEEDED full run, or null when none exists. */
   fullRun: R | null;
-  /** SUCCEEDED scoped runs completed after `fullRun` (all of them when there
-   *  is no full run), oldest first — the order they are applied in. */
+  /** SUCCEEDED scoped runs completed at or after `fullRun` (all of them when
+   *  there is no full run), oldest first — the order they are applied in. */
   scopedRuns: R[];
 }
 
+const completedMs = (r: OverlapRunRef): number => r.completedAt?.getTime() ?? 0;
+
 function byCompletion(a: OverlapRunRef, b: OverlapRunRef): number {
-  const ta = a.completedAt?.getTime() ?? 0;
-  const tb = b.completedAt?.getTime() ?? 0;
-  return ta - tb || byCodeUnits(a.id, b.id);
+  return completedMs(a) - completedMs(b) || byCodeUnits(a.id, b.id);
 }
 
 /** Pure: pick the base full run and the scoped runs to overlay on it. Runs
@@ -55,7 +57,7 @@ export function selectOverlapRuns<R extends OverlapRunRef>(runs: readonly R[]): 
   const fulls = usable.filter((r) => r.scopeProgramIds.length === 0);
   const fullRun = fulls.length > 0 ? fulls[fulls.length - 1]! : null;
   const scopedRuns = usable.filter(
-    (r) => r.scopeProgramIds.length > 0 && (fullRun === null || byCompletion(r, fullRun) > 0),
+    (r) => r.scopeProgramIds.length > 0 && (fullRun === null || completedMs(r) >= completedMs(fullRun)),
   );
   return { fullRun, scopedRuns };
 }
@@ -121,8 +123,18 @@ export async function latestOverlapPairs(
   level: ProgramLevel,
   opts: { programIds?: readonly string[] } = {},
 ): Promise<LatestOverlapPairs> {
+  // Older runs can never be selected: fetch from the latest full run on.
+  const latestFull = await prisma.programOverlapRun.findFirst({
+    where: { level, status: 'SUCCEEDED', scopeProgramIds: { isEmpty: true }, completedAt: { not: null } },
+    orderBy: { completedAt: 'desc' },
+    select: { completedAt: true },
+  });
   const runs = await prisma.programOverlapRun.findMany({
-    where: { level, status: 'SUCCEEDED' },
+    where: {
+      level,
+      status: 'SUCCEEDED',
+      ...(latestFull?.completedAt ? { completedAt: { gte: latestFull.completedAt } } : {}),
+    },
     select: {
       id: true, status: true, scopeProgramIds: true, completedAt: true,
       level: true, methodologyVersion: true, startedAt: true,
