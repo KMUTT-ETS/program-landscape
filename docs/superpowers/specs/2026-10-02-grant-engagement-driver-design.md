@@ -1,4 +1,5 @@
 # External grant engagement — a Program Health Score driver (Spec 2 of 2)
+> **Superseded by** `docs/superpowers/specs/2026-10-03-external-grant-financial-award-design.md` (health-score.v5.4, 2026-10-03).
 
 **Date:** 2026-10-02 · **Status:** approved in brainstorming, awaiting spec review
 **Builds on:** Spec 1, `docs/superpowers/specs/2026-10-02-research-service-grants-design.md`

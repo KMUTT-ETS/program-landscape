@@ -178,10 +178,11 @@ has:
 - a monitoring entry in `/admin/data-sources/<slug>/stats` that the
   analyst-on-duty reviews weekly
 
-**Enforced in code for `kku-research-services`** (health-score.v5.3,
-`packages/db/src/grant-engagement.ts` `greenHistoryGate`): the
-`external_grant_engagement` driver stays null until the source has ≥ 30 days of
-history, ≥ 25 of the last 30 days green, and a success within 72 h.
+**Owner-approved exception — `kku-research-services` (2026-10-03).** The
+source is the Research Office's own system of record and keeps a cumulative
+history, so the length of our sync history says nothing about its reliability.
+From `health-score.v5.4` the external-grant award on Financial needs only one
+successful sync on the server; there is no 30-day green-history condition.
 
 **Audit.** `docs/data-sources/README.md` lists every connector's mode
 and last successful run.

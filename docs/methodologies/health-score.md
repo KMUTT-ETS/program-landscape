@@ -1,8 +1,42 @@
 # Health score methodology
 
-**Version:** `health-score.v5.3`
-**Reviewed:** 2026-10-02
+**Version:** `health-score.v5.4`
+**Reviewed:** 2026-10-03
 **Owner:** KKU Data Office
+
+**v5.4 (2026-10-03): external grants become an award on Financial.** The
+`external_grant_engagement` driver and its 30-day gate are removed, so
+Capability is back to four drivers at 25 % each. Financial gains an award of up
+to +10 points, added after the Financial drivers are averaged. The measure is
+grant baht per active teaching staff member per year over the last three
+complete Thai fiscal years (1 Oct start, `[currentFy - 3, currentFy - 1]` in BE,
+Bangkok time): `0` at or below baht 100,000, and
+`min(10, 10 * ln(x / 100,000) / ln(30))` above it, so baht 3 M or more earns the
+full +10 (baht 300k gives +3.2, baht 1 M gives +6.8). The rationale is revenue
+diversification: external money means a programme relies less on tuition fees
+and public funding. It is an award, not a penalty: it can only raise a score,
+and grants do not measure the quality of teaching, so a programme without one
+loses nothing. A project counts once per programme (or once per scope), however
+many of its staff are on it, and a project's budget is a whole-project figure
+that is never split across members. Completeness is unchanged (the award is not
+a driver), a programme whose base Financial score is null earns no award, and
+the award never creates a Financial score on its own. The only source check
+left is that `kku-research-services` has synced successfully at least once on
+the server; there is no history gate, by owner decision on 2026-10-03 (see
+`docs/readiness-checklist.md`, gate 11). **Disclosed undercount:** about 30 % of
+co-investigator identifiers match no HR record, so some programmes' figures are
+understated and every figure is a lower bound; for an award that error can only
+withhold points. Spec
+`docs/superpowers/specs/2026-10-03-external-grant-financial-award-design.md`.
+
+**Measured basis (development, 2026-10-03, window FY 2567-2569).** 253
+programmes have a Financial score. Their award has p25 +2.0, median +6.2,
+p75 +8.3 and p90 +10.0; 26 programmes (10 %) sit at the +10 cap and 23 have no
+project in the window, so their award is +0. Grant baht per active teaching staff
+member per year: p25 0.36 M, median 0.93 M, p75 1.94 M, p90 3.74 M.
+
+> **Superseded by v5.4 (2026-10-03).** The v5.3 paragraphs below describe a
+> Capability driver that no longer exists.
 
 **v5.3 (2026-10-02): external grant engagement joins the Capability
 dimension.** A fifth driver, `external_grant_engagement`, is the share of a
@@ -425,8 +459,8 @@ the Outcomes table below.
 > | Dimension | Council question | Drivers | Source tables (status) |
 > |---|---|---|---|
 > | **Attractiveness** | Q1: Do students choose this program? | tcas_competition_vs_peers · tcas_fill_rate · enrollment_trend_slope | `admission_campaign_stats` (REAL, KKU funnel via kku-admission-campaigns) · `tcas_admission_stats` (REAL, peer rows) · `enrollment_metrics` (REAL via kku-registry) |
-> | **Financial** | Q2: Does it pay for itself? | net_contribution_per_student · revenue_coverage_program_direct · tuition_trend_slope | `financial_metrics` (REAL via link-financials) · `enrollment_metrics` (REAL) |
-> | **Capability** | Q6: Is the teaching team strong + sustainable? | senior_rank_share · publications_per_faculty · retirement_horizon_5y · student_faculty_ratio · external_grant_engagement | `program_faculties` × `faculty_members` (REAL via kku-hr) · `research_outputs` (REAL via kku-research) · `research_service_project_members` (REAL via kku-research-services, gated) |
+> | **Financial** | Q2: Does it pay for itself? | net_contribution_per_student · revenue_coverage_program_direct · tuition_trend_slope + external-grant award (≤ +10) | `financial_metrics` (REAL via link-financials) · `enrollment_metrics` (REAL) |
+> | **Capability** | Q6: Is the teaching team strong + sustainable? | senior_rank_share · publications_per_faculty · retirement_horizon_5y · student_faculty_ratio | `program_faculties` × `faculty_members` (REAL via kku-hr) · `research_outputs` (REAL via kku-research) |
 > | **Outcomes** | Q1+Q6: Do graduates thrive? | tcas_min_score_percentile · employment_rate · average_salary | `tcas_admission_stats` (REAL) · `graduate_outcomes` (PENDING kku-alumni) · `employer_feedback` (PENDING) |
 > | **Relevance** | Q1+Q3+Q7: 10y forward-looking strategic fit? | labour_market_alignment · demand_match_filled · demographic_resilience · strategic_sector_alignment | LinkedIn labour-market data (MHESI subscription, KMITL-hosted API; tables `kmitl_career_skill_demands` + `kmitl_careers` are technical handles) · `program_demand_matches` (REAL) · `demographic_projections` (REAL) |
 >
@@ -482,9 +516,12 @@ the Outcomes table below.
 | `senior_rank_share` | `(prof + assoc_prof) / total_active`. 50% → 100. Floor at 0 | `program_faculties` × `faculty_members.rank` |
 | `publications_per_faculty` | `total_research_outputs / total_active_faculty`. 5/year → 100 | `program_faculties` × `research_outputs` (year >= currentYear-3), `realDataWhere()`-filtered — see §"Mixed-source research data" |
 | `retirement_horizon_5y` | `100 - (retiring_5y / total × 100)`. Inverted: more retiring soon = lower score | `program_faculties` × `faculty_members.retirementDate` |
-| `external_grant_engagement` | `clamp(fundedStaff / activeStaff / 0.60 × 100)`. 60% → 100. Window: last 3 complete Thai FY (1 Oct start, `[currentFy − 3, currentFy − 1]` in BE, Bangkok time). Null when the gate is closed (not synced / stale > 72 h / < 30 days or < 25 of the last 30 days green) | `research_service_project_members` (`kku-research-services`), `realDataWhere()`-filtered |
 
 #### External grant engagement (`external_grant_engagement`, v5.3)
+
+> **Superseded by v5.4 (2026-10-03).** This driver and its gate were removed;
+> external grants are now an award on Financial (see the v5.4 paragraph at the
+> top). Kept for the audit trail.
 
 A staff member is *funded* when a `research_service_project_members` row (role
 LEAD or CO_INVESTIGATOR) carries their `facultyMemberId` on a project whose
@@ -844,6 +881,9 @@ with 0 or 50. Rationale:
   have none.
 - Excluding + flagging completeness lets the reader see the real signal
   and make their own judgement about how much to trust it.
+
+> **Superseded by v5.4 (2026-10-03).** The grant driver no longer exists; the
+> award never creates or lowers a score.
 
 **External grant engagement (v5.3) follows the same rule, with one distinction:**
 a staff team with no grant is a real 0 (the source view covers all external

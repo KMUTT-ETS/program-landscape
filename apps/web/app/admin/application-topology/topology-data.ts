@@ -515,7 +515,7 @@ const connectorNodes: TopologyNode[] = [
     subtitle: 'Daily 04:00 · external grants',
     details: {
       description:
-        'Reads both research-services views, matches leads to staff by citizen-id hash then KKU email and co-investigators by HR employee id, and replaces both grant tables in one transaction. Feeds /staff/grants, the owner-only /profile grants panel, the external Staff Profile API `grants` section, and the external_grant_engagement capability driver of health-score.v5.3.',
+        'Reads both research-services views, matches leads to staff by citizen-id hash then KKU email and co-investigators by HR employee id, and replaces both grant tables in one transaction. Feeds /staff/grants, the owner-only /profile grants panel, the external Staff Profile API `grants` section, and the external-grant award on the Financial dimension (health-score.v5.4).',
       cadence: '0 4 * * * (daily 04:00)',
       sourceSlug: 'kku-research-services',
       notes: [
