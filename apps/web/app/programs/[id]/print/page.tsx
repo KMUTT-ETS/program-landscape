@@ -30,6 +30,7 @@ import { formatCohortChangePct } from '@/lib/format-cohort';
 import { scholarDisclosureLine } from '@kku/shared/scholar/disclosure';
 import { PrintButton } from './print-button';
 import { DriverSourceMark } from '@/components/data-source-mark';
+import { grantAwardCaveat, grantAwardLine } from '@/lib/grant-award-note';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Program detail report — print' };
@@ -628,6 +629,15 @@ function HealthDimRow({
           ))}
         </ul>
       )}
+      {grantAwardLine(cell.award) && (
+        <p className="mt-2 flex items-center gap-1 text-[0.7rem] text-text-secondary">
+          <DriverSourceMark label="external_grant_award" size={11} />
+          <span>{grantAwardLine(cell.award)}</span>
+        </p>
+      )}
+      {grantAwardCaveat(cell.award) && (
+        <p className="mt-0.5 text-[0.65rem] text-text-tertiary">{grantAwardCaveat(cell.award)}</p>
+      )}
     </div>
   );
 }
@@ -644,7 +654,6 @@ const DRIVER_LABELS: Record<string, string> = {
   publications_per_faculty: 'Publications per faculty (3 yr)',
   retirement_horizon_5y: '5-yr retirement headroom',
   student_faculty_ratio: 'Student / faculty ratio',
-  external_grant_engagement: 'External grant engagement (3 FY)',
   employment_rate: 'Employment rate',
   job_relevance: 'Job relevance',
   average_salary: 'Average starting salary',

@@ -189,6 +189,13 @@ export interface DeepDiveOverview {
   methodologyVersion: string;
 }
 
+export interface HealthAward {
+  label: string;
+  points: number | null;
+  baseScore: number | null;
+  raw?: unknown;
+}
+
 export interface HealthCell {
   score: number | null;
   dataCompletenessPct: number;
@@ -196,6 +203,9 @@ export interface HealthCell {
    *  used to compute the driver's score — surfaced in the deep-dive
    *  Health Score Breakdown panel so Council can audit the calculation. */
   drivers: Array<{ label: string; value: number | null; raw?: unknown }>;
+  /** v5.4: Financial only — the external-grant award added after the
+   *  drivers are averaged. Optional: older cached responses lack it. */
+  award?: HealthAward | null;
 }
 
 /** Mean of program-level dimension scores (null dims excluded). */

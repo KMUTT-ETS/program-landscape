@@ -46,7 +46,7 @@ import {
 // thing by a floor of 60 — see the helper for why it is not 0.
 import { dqRadarDomain } from '@/lib/dq-radar-domain';
 import { DataSourceMark, DriverSourceMark, acknowledgementHref } from '@/components/data-source-mark';
-import { grantDriverCaveat, grantDriverNullNote } from '@/lib/grant-driver-note';
+import { grantAwardCaveat, grantAwardLine } from '@/lib/grant-award-note';
 import ReactMarkdown from 'react-markdown';
 import type {
   DeepDiveAiPeers,
@@ -4877,7 +4877,6 @@ const DRIVER_LABEL_LOOKUP: Record<string, string> = {
   publications_per_faculty: 'Publications per faculty (3 yr)',
   retirement_horizon_5y: '5-yr retirement headroom',
   student_faculty_ratio: 'Student / faculty ratio',
-  external_grant_engagement: 'External grant engagement (3 FY)',
   // Outcomes
   tcas_min_score_percentile: 'TCAS min-score percentile',
   employment_rate: 'Graduate employment rate',
@@ -4905,7 +4904,12 @@ function scoreToneClass(score: number | null): string {
 interface HealthBreakdownRow {
   key: 'attractiveness' | 'financial' | 'capability' | 'outcomes' | 'relevance';
   label: string;
-  cell: { score: number | null; dataCompletenessPct: number; drivers: Array<{ label: string; value: number | null; raw?: unknown }> };
+  cell: {
+    score: number | null;
+    dataCompletenessPct: number;
+    drivers: Array<{ label: string; value: number | null; raw?: unknown }>;
+    award?: { label: string; points: number | null; baseScore: number | null; raw?: unknown } | null;
+  };
 }
 
 function HealthScoreBreakdown({
@@ -4972,11 +4976,11 @@ function HealthScoreBreakdown({
                   {Math.round(row.cell.dataCompletenessPct ?? 0)}%.
                   {row.key === 'relevance' &&
                     ' JobThai (domestic) and LinkedIn (global) demand are weighted 75:25 within their share; when one has no data the other takes it all.'}
+                  {row.key === 'financial' &&
+                    ' An external-grant award of up to +10 is added after the average; it never lowers the score.'}
                 </p>
                 <ul className="flex flex-col gap-1.5">
                   {row.cell.drivers.map((d, i) => {
-                    const grantNote =
-                      d.label === 'external_grant_engagement' && d.value === null ? grantDriverNullNote(d.raw) : null;
                     return (
                     <li key={i} className="rounded bg-surface-2/50 p-2">
                       <div className="flex items-baseline justify-between gap-2">
@@ -4988,10 +4992,6 @@ function HealthScoreBreakdown({
                           {d.value === null ? 'no data' : Math.round(d.value)}
                         </span>
                       </div>
-                      {grantNote && <p className="mt-0.5 text-[11px] text-text-tertiary">{grantNote}</p>}
-                      {d.label === 'external_grant_engagement' && d.value !== null && grantDriverCaveat(d.raw) && (
-                        <p className="mt-0.5 text-[11px] text-text-tertiary">{grantDriverCaveat(d.raw)}</p>
-                      )}
                       {d.raw !== undefined && d.raw !== null && (
                         <RawPayload raw={d.raw} />
                       )}
@@ -4999,6 +4999,17 @@ function HealthScoreBreakdown({
                     );
                   })}
                 </ul>
+                {grantAwardLine(row.cell.award) && (
+                  <div className="mt-2 rounded border border-subtle bg-surface-2/50 p-2">
+                    <p className="flex items-center gap-1.5 font-medium text-text-primary">
+                      <DriverSourceMark label="external_grant_award" size={14} />
+                      {grantAwardLine(row.cell.award)}
+                    </p>
+                    {grantAwardCaveat(row.cell.award) && (
+                      <p className="mt-0.5 text-[11px] text-text-tertiary">{grantAwardCaveat(row.cell.award)}</p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
