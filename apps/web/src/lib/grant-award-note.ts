@@ -17,8 +17,11 @@ function windowText(raw: Record<string, unknown>): string {
 }
 
 function baht(v: number): string {
-  return v >= 1_000_000 ? `฿${(v / 1_000_000).toFixed(2).replace(/\.?0+$/, '')} M` : `฿${Math.round(v / 1000)}k`;
+  const k = Math.round(v / 1000);
+  return k >= 1000 ? `฿${(v / 1_000_000).toFixed(2).replace(/\.?0+$/, '')} M` : `฿${k}k`;
 }
+
+const round1 = (x: number): number => Math.round(x * 10) / 10;
 
 export function grantAwardLine(award: HealthAwardLike | null | undefined): string | null {
   if (!award) return null;
@@ -37,8 +40,9 @@ export function grantAwardLine(award: HealthAwardLike | null | undefined): strin
   const perStaff = num(raw.bahtPerStaffPerYear);
   const measure = perStaff === null ? windowText(raw) : `${baht(perStaff)} per teaching staff per year, ${windowText(raw)}`;
   const base = award.baseScore;
-  const tail = base === null ? '' : ` · base ${base.toFixed(1)} → ${Math.min(100, base + award.points).toFixed(1)}`;
-  return `External-grant award: +${award.points.toFixed(1)} (${measure})${tail}`;
+  const pts = round1(award.points);
+  const tail = base === null ? '' : ` · base ${round1(base).toFixed(1)} → ${Math.min(100, round1(base) + pts).toFixed(1)}`;
+  return `External-grant award: +${pts.toFixed(1)} (${measure})${tail}`;
 }
 
 /** The disclosed-undercount caveat, only for a computed award. */

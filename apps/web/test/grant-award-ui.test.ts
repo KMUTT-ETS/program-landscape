@@ -47,6 +47,27 @@ describe('external-grant award in the UI', () => {
     expect(grantAwardCaveat(null)).toBeNull();
   });
 
+  it('rounds the baht unit before choosing it', () => {
+    const line = (v: number) =>
+      grantAwardLine({ label: 'external_grant_award', points: 1, baseScore: 50, raw: { bahtPerStaffPerYear: v, windowFyBe: [2567, 2569] } });
+    expect(line(999_999)).toContain('฿1 M per');
+    expect(line(999_400)).toContain('฿999k per');
+    expect(line(250_000)).toContain('฿250k per');
+    expect(line(1_040_000)).toContain('฿1.04 M per');
+  });
+
+  it('shows arithmetic that adds up after rounding', () => {
+    expect(
+      grantAwardLine({ label: 'external_grant_award', points: 6.25, baseScore: 61.45, raw: { bahtPerStaffPerYear: 1_040_000, windowFyBe: [2567, 2569] } }),
+    ).toContain('+6.3 (');
+    expect(
+      grantAwardLine({ label: 'external_grant_award', points: 6.25, baseScore: 61.45, raw: { bahtPerStaffPerYear: 1_040_000, windowFyBe: [2567, 2569] } }),
+    ).toContain('· base 61.5 → 67.8');
+    expect(
+      grantAwardLine({ label: 'external_grant_award', points: 10, baseScore: 97.04, raw: { bahtPerStaffPerYear: 3_000_000, windowFyBe: [2567, 2569] } }),
+    ).toContain('· base 97.0 → 100.0');
+  });
+
   it('carries the grants source mark under the award label', () => {
     expect(DRIVER_SOURCE_MARK.external_grant_award).toBe('kku-research-services');
     expect(DRIVER_SOURCE_MARK.external_grant_engagement).toBeUndefined();
