@@ -31,6 +31,8 @@ export interface OverlapThresholds {
   mergeIndex: number;
   mergeContainment: number;
   storeIndex: number;
+  /** 0–100 market similarity that corroborates a limited-evidence pair (D8). */
+  corroborationMarket: number;
 }
 
 export const OVERLAP_THRESHOLDS: OverlapThresholds = {
@@ -57,6 +59,9 @@ export const OVERLAP_THRESHOLDS: OverlapThresholds = {
   mergeIndex: 70,
   mergeContainment: 80,
   storeIndex: 30,
+  // Calibrated 2026-10-03 (spec §12): market 30 ≈ raw cosine 0.845, about the
+  // top 10 % of same-level pairs.
+  corroborationMarket: 30,
 };
 
 /** A course with no recorded credits is weighted as a typical 3-credit course;
@@ -115,6 +120,9 @@ export interface PairEvidence {
     /** Fewer than 2 layers, or no course layer at all: band capped at
      *  MODERATE and no DIFFERENTIATE / CONSIDER_MERGE_OR_TRACK (spec §12). */
     limitedEvidence: boolean;
+    /** Limited evidence with no shared staff and market similarity below
+     *  corroborationMarket: index null, band NONE, no actions (D8). */
+    uncorroborated: boolean;
   };
 }
 
@@ -132,6 +140,8 @@ export interface PairScore {
   layerCount: number;
   /** See PairEvidence.coverage.limitedEvidence. */
   limitedEvidence: boolean;
+  /** See PairEvidence.coverage.uncorroborated. */
+  uncorroborated: boolean;
   sharedCredits: number;
   equivCredits: number;
   sharedStaff: number;
@@ -377,7 +387,6 @@ export function scorePair(
     unmatchedB = b.plos.filter((p) => !coveredB.includes(p)).map((p) => p.text);
   }
 
-  const overlapIndex = mean([structure, content, outcome]);
   // Strong conclusions need course evidence: a PLO-only index of 100 (e.g.
   // Agriculture vs Animal Science, template-worded PLOs) would otherwise
   // recommend a merge.
@@ -395,9 +404,19 @@ export function scorePair(
       : null;
   const languageVariant = isLanguageVariant(a, b);
 
+  // D8: limited evidence (PLO-only or no course layer) must be corroborated
+  // by a shared active staff member or market similarity ≥ corroborationMarket.
+  // On the first real run 22 of 29 master's pairs ≥ 50 were unrelated
+  // programmes matching on generic graduate PLOs (e.g. Dentistry vs
+  // Architecture). An uncorroborated pair keeps its layers and containment as
+  // visible evidence but gets no index, band or action.
+  const corroborated = sharedStaff >= 1 || (marketSimilarity !== null && marketSimilarity >= t.corroborationMarket);
+  const uncorroborated = limitedEvidence && !corroborated;
+  const overlapIndex = uncorroborated ? null : mean([structure, content, outcome]);
+
   const actions: OverlapAction[] = [];
-  if (sharedCredits >= t.courseActionCredits) actions.push('COORDINATE_SHARED_COURSES');
-  if (equivCredits >= t.courseActionCredits) actions.push('CONSOLIDATE_EQUIVALENT_COURSES');
+  if (!uncorroborated && sharedCredits >= t.courseActionCredits) actions.push('COORDINATE_SHARED_COURSES');
+  if (!uncorroborated && equivCredits >= t.courseActionCredits) actions.push('CONSOLIDATE_EQUIVALENT_COURSES');
   if (overlapIndex !== null && overlapIndex >= t.actionIndex) actions.push('SHARE_STAFF_RESOURCES');
   if (!limitedEvidence && overlapIndex !== null && overlapIndex >= t.actionIndex && marketSimilarity !== null && marketSimilarity >= t.marketConfusion) actions.push('DIFFERENTIATE');
   const maxContainment = Math.max(containmentAInB ?? 0, containmentBInA ?? 0);
@@ -416,14 +435,14 @@ export function scorePair(
       describedA, describedB,
       descriptionMatches: equivalent.filter((e) => e.basis === 'description').length,
       plosA: a.plos.length, plosB: b.plos.length, defaultedCredits,
-      layerCount, limitedEvidence,
+      layerCount, limitedEvidence, uncorroborated,
     },
   };
   return {
     programAId: a.id, programBId: b.id,
     structure, content, outcome, overlapIndex, containmentAInB, containmentBInA,
     band: capBand(bandFor(overlapIndex, t), limitedEvidence),
-    layerCount, limitedEvidence,
+    layerCount, limitedEvidence, uncorroborated,
     sharedCredits, equivCredits, sharedStaff, marketSimilarity, languageVariant,
     actions, primaryAction, evidence,
     evidenceHash: computeEvidenceHash({

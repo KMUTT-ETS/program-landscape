@@ -53,6 +53,7 @@ const evidence = (over: Partial<PairEvidence['coverage']> = {}): PairEvidence =>
     defaultedCredits: 0,
     layerCount: 3,
     limitedEvidence: false,
+    uncorroborated: false,
     ...over,
   },
 });

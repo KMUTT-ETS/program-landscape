@@ -34,6 +34,7 @@ It feeds three surfaces:
 | D5 | **Same degree level, all faculties.** Only canonical ACTIVE programmes (`IS_CANONICAL_PROGRAM` + `status = 'ACTIVE'`) are compared. Bachelor is never compared with master. |
 | D6 | **The Deep-Dive Overlap section is hidden** when the programme has no sibling scoring 30 or more, or when no overlap run exists. |
 | D7 | **The content layer is based on course names, with descriptions added where available** (decided 2026-10-03, after the prep dry run measured description coverage at about 21 %). Name-only matches need a stricter threshold. Extracting full descriptions from every PDF was rejected for cost and delay; it could be added later as v2. |
+| D8 | **PLO-only overlap needs corroboration (shared staff or market similarity ≥ 30)** (decided 2026-10-03, after the first real run). A limited-evidence pair (§6.1) with no shared active staff member and market similarity below 30 gets no index, band or action; its layers stay visible as evidence. See §12.5. |
 
 ## 3. Practice this is modelled on
 
@@ -107,6 +108,7 @@ Every unordered pair (A, B) of canonical ACTIVE programmes **at the same level**
 
 ### 5.2 Index and containment
 - **Overlap index** = the mean of the non-null layers, equal-weighted. If every layer is null, the pair has no index (it is stored only through the market rule below).
+- **Corroboration (D8):** a limited-evidence pair (§6.1) must be corroborated by at least one shared active staff member **or** market similarity ≥ 30 (`corroborationMarket`). An **uncorroborated** pair has index null, band none and no actions. Its layer scores and both containment figures are kept as visible evidence, and `uncorroborated` is reported on the pair and in `evidence.coverage`. It is stored only through a shared major course (the staff and market storage arms cannot apply to it).
 - **Containment, A in B** = the mean of A's non-null one-directional figures:
   - `(sharedCredits + equivCredits) / majorCredits_A`, where `equivCredits` counts only when the content layer is non-null;
   - `covered_A / n_A`.
@@ -135,6 +137,8 @@ Actions are chosen by rules. A pair may receive several; the strongest becomes `
 | `CONSIDER_MERGE_OR_TRACK` | index ≥ 70 **and** max containment ≥ 80 **and** not a language variant **and** not limited evidence |
 
 **Limited evidence:** a pair with fewer than 2 non-null layers, or with neither course layer (structure, content) non-null. Its band is capped at moderate and it never receives `DIFFERENTIATE` or `CONSIDER_MERGE_OR_TRACK`; the weaker actions still apply. `layerCount` and `limitedEvidence` are reported on the pair and in `evidence.coverage` (no schema change). See §12 for why.
+
+**Corroboration (D8, §5.2):** the limited-evidence treatment above applies only to a **corroborated** pair (a shared active staff member, or market similarity ≥ 30). An uncorroborated limited-evidence pair receives **no** actions at all, not even the weaker ones.
 
 Market confusion: warn 60 / critical 75 (≈ cosine 0.89 / 0.91 under the 0.80 floor), confirmed at calibration; `DIFFERENTIATE` uses the critical value; pairs at or above warn are stored even with low curriculum overlap. Both live in `OVERLAP_THRESHOLDS` (`marketConfusionWarn`, `marketConfusion`).
 
@@ -324,7 +328,15 @@ Pairs with outcome ≥ 50 by PLO threshold:
 ### 12.4 Limited-evidence rule
 A PLO-only pair could reach index 100 and be recommended for a merge on outcome text alone. Agriculture vs Animal Science did exactly that: outcome 100, no course layer, `CONSIDER_MERGE_OR_TRACK`. Strong conclusions now need course evidence (§6.1): a pair with fewer than 2 non-null layers, or no course layer, is **limited evidence** — band capped at moderate, no `DIFFERENTIATE`, no `CONSIDER_MERGE_OR_TRACK`. It is still stored and still gets the weaker actions.
 
-### 12.5 Chosen values
+### 12.5 Corroboration rule (D8)
+The first real run showed the limited-evidence cap was not enough:
+- **Master's:** 27 of the 29 pairs with index ≥ 50 were limited evidence; 22 of those had no shared staff and market similarity below 20. They were unrelated programmes matching on generic graduate PLOs, e.g. **Dentistry vs Architecture** and **Geo-Informatics vs Applied Mathematics**.
+- **Bachelor:** 5 such pairs; **doctoral:** 1.
+- The AI recommendations flagged 15 of 74 as disagreeing with the rule-chosen action, mostly these pairs.
+
+A limited-evidence pair now needs corroboration: a shared active staff member, or market similarity ≥ 30 (≈ raw cosine 0.845, about the top 10 % of same-level pairs). Without it the pair has no index, band or action (§5.2).
+
+### 12.6 Chosen values
 
 | Threshold | Value | Change from provisional |
 |---|---|---|
@@ -336,6 +348,7 @@ A PLO-only pair could reach index 100 and be recommended for a merge on outcome 
 | Bands low / moderate / high | 30 / 50 / 70 | unchanged |
 | Merge rule | index ≥ 70, containment ≥ 80, not a language variant | unchanged, plus not limited evidence |
 | Limited evidence | < 2 layers or no course layer | **new** |
+| `corroborationMarket` (D8) | 30 (≈ cosine 0.845) | **new**: limited evidence also needs shared staff or market ≥ 30 |
 
 ## 13. Rollout order
 

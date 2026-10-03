@@ -245,6 +245,7 @@ const PairEvidenceSchema = z.object({
     // lacks them and parses as null — re-run program-overlap.
     layerCount: z.number(),
     limitedEvidence: z.boolean(),
+    uncorroborated: z.boolean(),
   }),
 }) satisfies z.ZodType<PairEvidence>;
 
