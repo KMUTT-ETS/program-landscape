@@ -29,6 +29,16 @@ understated and every figure is a lower bound; for an award that error can only
 withhold points. Spec
 `docs/superpowers/specs/2026-10-03-external-grant-financial-award-design.md`.
 
+**Programme awards and scope awards count shared projects differently, by
+design.** A programme's award counts a project in *every* programme whose
+teaching staff are on its team, so one project shared by three programmes
+raises all three. A faculty, department or university award counts that project
+once, over the *distinct* active staff of the scope's programmes. Programme
+awards can therefore run above their faculty's award, and the
+faculty-vs-programme consistency check (see "Cross-scope consistency") will show
+a wider Financial gap than before v5.4. That gap is expected and is not a
+defect.
+
 **Measured basis (development, 2026-10-03, window FY 2567-2569).** 253
 programmes have a Financial score. Their award has p25 +2.0, median +6.2,
 p75 +8.3 and p90 +10.0; 26 programmes (10 %) sit at the +10 cap and 23 have no
