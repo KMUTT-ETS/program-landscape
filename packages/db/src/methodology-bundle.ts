@@ -162,7 +162,7 @@ export const METHODOLOGY_MANIFEST = {
   'program-faculty':           PROGRAM_FACULTY_VERSION,
   // Which fields of study each programme supplies — the map's supply side.
   'program-job-field':         PROGRAM_JOB_FIELD_VERSION,
-  // Same-level curriculum overlap: drives the Education overlap heatmap, the
+  // Same-level curriculum overlap: drives the Education overlap page, the
   // Deep-Dive overlap section and two risk KRIs (curriculum_overlap_max,
   // market_confusion_max), so a threshold change moves Council figures.
   'program-overlap':           PROGRAM_OVERLAP_VERSION,

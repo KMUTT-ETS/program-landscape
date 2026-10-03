@@ -1540,7 +1540,7 @@ export function evaluateKris(inputs: ProgramRiskInputs, freshnessDate: Date): Kr
 // ── Indicator catalog (seeded by the pipeline on first run) ────────────────
 
 // Overlap KRI thresholds (0–100 scale). Curriculum overlap reuses the
-// overlap bands so the KRI and the Education heatmap agree.
+// overlap bands so the KRI and the Education overlap page agree.
 export const CURRICULUM_OVERLAP_WARN = OVERLAP_THRESHOLDS.bandModerate; // 50
 export const CURRICULUM_OVERLAP_CRITICAL = OVERLAP_THRESHOLDS.bandHigh; // 70
 // Market confusion: calibrated 2026-10-03 (spec §12) — defined once in
@@ -1612,9 +1612,9 @@ export const RISK_INDICATOR_CATALOG = [
     labelTh: 'ความซ้ำซ้อนของหลักสูตรกับหลักสูตรอื่นระดับเดียวกัน',
     labelEn: 'Curriculum overlap with a sibling programme',
     descriptionTh:
-      'ดัชนีความซ้ำซ้อนของหลักสูตรสูงสุดเมื่อเทียบกับหลักสูตรอื่นของ มข. ในระดับเดียวกัน (รายวิชาร่วม รายวิชาเทียบเท่า และผลลัพธ์การเรียนรู้ระดับหลักสูตร) ไม่รวมหลักสูตรคู่ภาษา',
+      'ดัชนีความซ้ำซ้อนของหลักสูตรสูงสุดเมื่อเทียบกับหลักสูตรอื่นของ มข. ในระดับเดียวกัน (คิดจากรายวิชาเท่านั้น: รายวิชาเอกร่วมและรายวิชาเอกที่เทียบเท่ากัน) ไม่รวมหลักสูตรคู่ภาษา',
     descriptionEn:
-      'Highest curriculum overlap index (shared courses, equivalent courses, PLO alignment) against any same-level KKU programme, excluding language variants',
+      'Highest curriculum overlap index (courses only: shared and equivalent major courses) against any same-level KKU programme, excluding language variants',
     formula: 'MAX(overlap_index) over the programme\'s current same-level overlap pairs (program-overlap.v1), language_variant = false',
     warnThreshold: CURRICULUM_OVERLAP_WARN,
     criticalThreshold: CURRICULUM_OVERLAP_CRITICAL,

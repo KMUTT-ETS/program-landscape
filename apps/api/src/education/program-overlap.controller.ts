@@ -48,7 +48,7 @@ export async function canSeeAnyFacultyOnDashboard(user: SessionUser, facultyIds:
   return facultyIds.some((f) => granted.has(f));
 }
 
-// /education/program-overlap — program-overlap.v1 heatmap (spec §10.1).
+// /education/program-overlap — program-overlap.v1 network + ranked pair list (spec §10.1).
 // A faculty-grain, non-program-aware dashboard: guarded and clamped exactly
 // like /education/recruitment (assertCanSeeFacultyDashboards +
 // clampFacultyIdFilter).

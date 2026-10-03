@@ -35,6 +35,12 @@ describe('overlap KRIs', () => {
     const m = thresholds['market_confusion_max']!;
     expect([m.warnThreshold, m.criticalThreshold, m.alarmDirection]).toEqual([MARKET_CONFUSION_WARN, MARKET_CONFUSION_CRITICAL, 'high']);
   });
+  it('curriculum KRI description is course-only: no PLO alignment in the index (D9)', () => {
+    const c = thresholds['curriculum_overlap_max']!;
+    expect(c.descriptionEn).toMatch(/courses only/);
+    expect(c.descriptionEn).not.toMatch(/PLO/);
+    expect(c.descriptionTh).not.toMatch(/ผลลัพธ์การเรียนรู้/);
+  });
   it('null without an overlap run', () => {
     const out = evaluateKris(base, new Date('2026-10-03'));
     expect(out.find((b) => b.indicatorSlug === 'curriculum_overlap_max')).toBeUndefined();
