@@ -1,5 +1,5 @@
 import { prisma } from '@kku/db';
-import type { AiService } from '@kku/shared';
+import { embedWithRetry, type AiService } from '@kku/shared';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Phase 4 — embeddings.
@@ -122,7 +122,11 @@ export async function embedSkills(ai: AiService, apply: boolean): Promise<EmbedR
     // Both names in one string: the corpus mixes Thai and English freely, so a
     // bilingual vector matches either.
     const texts = batch.map((r) => `${r.name_en} / ${r.name_th}`);
-    const res = await ai.embed({ ctx: { module: 'jobthai', kind: 'embedding.skill' }, texts, dimensions: EMBED_DIMENSIONS });
+    const res = await embedWithRetry(
+      ai,
+      { ctx: { module: 'jobthai', kind: 'embedding.skill' }, texts, dimensions: EMBED_DIMENSIONS },
+      { onRetry: ({ attempt, delayMs, error }) => console.warn(`  embed skill ${i}/${rows.length}: attempt ${attempt} failed (${error}) — retrying in ${Math.round(delayMs / 1000)}s`) },
+    );
     costUsd += res.cost.usd;
     for (let j = 0; j < batch.length; j++) {
       const vec = res.vectors[j];
@@ -149,7 +153,11 @@ export async function embedOccupations(ai: AiService, apply: boolean): Promise<E
   for (let i = 0; i < rows.length; i += EMBED_BATCH) {
     const batch = rows.slice(i, i + EMBED_BATCH);
     const texts = batch.map((r) => `${r.category} / ${r.subcategory}${r.profile_th ? ` — ${r.profile_th}` : ''}`);
-    const res = await ai.embed({ ctx: { module: 'jobthai', kind: 'embedding.occupation' }, texts, dimensions: EMBED_DIMENSIONS });
+    const res = await embedWithRetry(
+      ai,
+      { ctx: { module: 'jobthai', kind: 'embedding.occupation' }, texts, dimensions: EMBED_DIMENSIONS },
+      { onRetry: ({ attempt, delayMs, error }) => console.warn(`  embed occupation ${i}/${rows.length}: attempt ${attempt} failed (${error}) — retrying in ${Math.round(delayMs / 1000)}s`) },
+    );
     costUsd += res.cost.usd;
     for (let j = 0; j < batch.length; j++) {
       const vec = res.vectors[j];

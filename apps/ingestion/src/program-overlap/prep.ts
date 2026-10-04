@@ -26,7 +26,7 @@ import {
   IS_CANONICAL_PROGRAM,
 } from '@kku/db';
 import type { VectorTable, CourseCategory, Prisma, ReviewStatus } from '@kku/db';
-import type { AiService } from '@kku/shared';
+import { embedWithRetry, type AiService } from '@kku/shared';
 
 // ── Pure planning ───────────────────────────────────────────────────────────
 
@@ -368,6 +368,13 @@ interface PendingText {
   text: string;
 }
 
+function logEmbedRetry(kind: string, offset: number, total: number) {
+  return ({ attempt, delayMs, error }: { attempt: number; delayMs: number; error: string }) =>
+    console.warn(
+      `  embed ${kind} ${offset}/${total}: attempt ${attempt} failed (${error}) — retrying in ${Math.round(delayMs / 1000)}s`,
+    );
+}
+
 async function embedBatches(
   ai: AiService,
   kind: string,
@@ -378,11 +385,17 @@ async function embedBatches(
   let costUsd = 0;
   for (let i = 0; i < items.length; i += EMBED_BATCH) {
     const batch = items.slice(i, i + EMBED_BATCH);
-    const res = await ai.embed({
-      ctx: { module: 'program-overlap', kind: `embedding.${kind}` },
-      texts: batch.map((b) => b.text),
-      dimensions: EMBED_DIMENSIONS,
-    });
+    // Waits out rate limits (prod's key throttles a back-to-back backfill);
+    // batches already written survive a final failure, so a re-run resumes.
+    const res = await embedWithRetry(
+      ai,
+      {
+        ctx: { module: 'program-overlap', kind: `embedding.${kind}` },
+        texts: batch.map((b) => b.text),
+        dimensions: EMBED_DIMENSIONS,
+      },
+      { onRetry: logEmbedRetry(kind, i, items.length) },
+    );
     costUsd += res.cost.usd;
     // Fail loud rather than skip: a missing or wrong-size vector would leave a
     // hole the scorer cannot tell from "no data". Batches already written stay.

@@ -9,3 +9,4 @@ export * from './scrub-messages';
 export * from './lint-tells';
 export * from './extract-with-retry';
 export * from './model-invalid';
+export * from './embed-with-retry';
