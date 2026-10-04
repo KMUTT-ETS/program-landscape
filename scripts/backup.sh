@@ -89,9 +89,11 @@ PG_DB="$(grep -E '^POSTGRES_DB=' "$DEPLOY_ROOT/.env.prod" | cut -d= -f2 | tr -d 
 PG_DB="${PG_DB:-program_landscape}"
 
 # nested-sudo dropped (we run as root via deploy.sh): 
+# </dev/null: `docker compose exec -T` waits for its stdin to close before it
+# exits, even after pg_dump has finished — a terminal stdin never closes.
 docker compose exec -T postgres \
   pg_dump --format=custom --compress=9 --no-owner --no-acl \
-    -U "$PG_USER" "$PG_DB" \
+    -U "$PG_USER" "$PG_DB" </dev/null \
   | gzip > "$DUMP.tmp"
 
 mv "$DUMP.tmp" "$DUMP"

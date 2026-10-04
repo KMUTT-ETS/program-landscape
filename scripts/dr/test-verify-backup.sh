@@ -39,7 +39,7 @@ EOF
 # zcat: emit nothing useful; the fake docker accepts any restore input.
 cat > "$WORK/bin/zcat" <<'EOF'
 #!/usr/bin/env bash
-cat >/dev/null 2>&1 || true
+cat "$@" >/dev/null 2>&1 || true
 EOF
 
 # docker: route by sub-command and by which SQL is asked.
@@ -51,6 +51,8 @@ case "$args" in
   *pg_isready*) exit 0 ;;
   *pg_restore*) cat >/dev/null; exit 0 ;;
   "compose exec"*)
+    # Like the real `docker compose exec -T`: does not exit until stdin closes.
+    cat >/dev/null
     [ "${FAKE_LIVE_DOWN:-0}" = "1" ] && exit 1
     echo "$FAKE_LIVE_AUDIT_MAX"; exit 0 ;;
 esac
@@ -71,7 +73,8 @@ run_case() {
   rm -f "$WORK/state/backup-verification.json"
   set +e
   env PATH="$WORK/bin:$PATH" DEPLOY_ROOT="$WORK/root" BACKUP_VERIFY_STATE_DIR="$WORK/state" \
-      PG_IMAGE="fake:1" "$@" bash "$SCRIPT" >"$WORK/out.log" 2>&1
+      PG_IMAGE="fake:1" "$@" timeout 30 bash "$SCRIPT" >"$WORK/out.log" 2>&1 \
+      < <(sleep 60)   # an open stdin, like an operator's terminal (prod 2026-10-04 hang)
   set -e
   local status detail
   status="$(python3 -c "import json;print(json.load(open('$WORK/state/backup-verification.json'))['status'])" 2>/dev/null || echo MISSING)"

@@ -207,9 +207,14 @@ live_q() {
   pg_db="$(sudo grep -E '^POSTGRES_DB=' "$DEPLOY_ROOT/.env.prod" 2>/dev/null | cut -d= -f2 | tr -d '[:space:]')"
   pg_db="${pg_db:-program_landscape}"
   [ -n "$pg_user" ] || return 1
+  # </dev/null is load-bearing: `docker compose exec -T` does not exit until
+  # its stdin closes, even after psql has. Under the systemd timer stdin is
+  # already /dev/null; run by hand from a terminal it is the tty, which never
+  # closes — prod 2026-10-04 hung here for 40 min after a 2-min restore.
+  # timeout is the backstop; a timed-out query reads as "unreachable" below.
   (cd "$current" && RELEASE_VERSION="$(tr -d '[:space:]' < VERSION)" \
-    sudo -E docker compose exec -T postgres \
-      psql -U "$pg_user" -d "$pg_db" -At -c "$1" 2>/dev/null)
+    sudo -E timeout 60 docker compose exec -T postgres \
+      psql -U "$pg_user" -d "$pg_db" -At -c "$1" 2>/dev/null </dev/null)
 }
 
 LIVE_AUDIT_MAX="$(live_q "
