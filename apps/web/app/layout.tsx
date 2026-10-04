@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter, Sarabun, JetBrains_Mono } from 'next/font/google';
+import localFont from 'next/font/local';
 import { Providers } from './providers';
 import './globals.css';
 
@@ -16,24 +16,35 @@ import './globals.css';
 //   tables, timestamps. Paired with font-variant-numeric: tabular-nums.
 //
 // All three with display: swap to prevent FOIT.
+//
+// Self-hosted from public/fonts (2026-10-04): next/font/google downloads the
+// files at BUILD time, and the v2.1.1 release build failed when DNS for
+// fonts.gstatic.com dropped inside the build container. Local files make the
+// build independent of Google. Same faces: Sarabun TTFs carry the full Thai
+// block + Latin; Inter and JetBrains Mono are Google's own latin-subset
+// variable woff2 files. All three are SIL OFL 1.1.
 
-const bodyLatin = Inter({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
+const bodyLatin = localFont({
+  src: '../public/fonts/inter/Inter-latin-variable.woff2',
+  weight: '400 700',
   variable: '--font-body-latin',
   display: 'swap',
 });
 
-const bodyThai = Sarabun({
-  subsets: ['thai', 'latin'],
-  weight: ['400', '500', '600', '700'],
+const bodyThai = localFont({
+  src: [
+    { path: '../public/fonts/sarabun/Sarabun-Regular.ttf', weight: '400', style: 'normal' },
+    { path: '../public/fonts/sarabun/Sarabun-Medium.ttf', weight: '500', style: 'normal' },
+    { path: '../public/fonts/sarabun/Sarabun-SemiBold.ttf', weight: '600', style: 'normal' },
+    { path: '../public/fonts/sarabun/Sarabun-Bold.ttf', weight: '700', style: 'normal' },
+  ],
   variable: '--font-body-thai',
   display: 'swap',
 });
 
-const mono = JetBrains_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
+const mono = localFont({
+  src: '../public/fonts/jetbrains-mono/JetBrainsMono-latin-variable.woff2',
+  weight: '400 600',
   variable: '--font-mono',
   display: 'swap',
 });
