@@ -26,6 +26,16 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-10-04',
+    version: 'v2.1.1 · Reliability fixes',
+    title: 'Two operational fixes: bulk AI embedding runs wait out rate limits, and the nightly backup check no longer fails on a quiet weekend',
+    audience: ['Admin'],
+    bullets: [
+      'Bulk embedding runs (program-overlap preparation and the JobThai skill and occupation embeddings) now pause and retry when the AI provider rate-limits or briefly fails, instead of stopping at the first throttled batch. Errors that waiting cannot fix, such as a wrong model name, still stop the run at once.',
+      'The backup verification check compares the backup’s audit log with the live database instead of with the clock, so a weekend with no audited activity no longer reads as a broken backup and no longer blocks a deploy.',
+    ],
+  },
+  {
     date: '2026-10-03',
     version: 'v2.1.0 · Program overlap',
     title:
