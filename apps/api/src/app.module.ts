@@ -42,6 +42,7 @@ import { CockpitModule } from './cockpit/cockpit.module';
 import { TrendsModule } from './trends/trends.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { GapModule } from './gap/gap.module';
+import { LandscapeModule } from './landscape/landscape.module';
 import { ScenariosModule } from './scenarios/scenarios.module';
 import { BenchmarkingModule } from './benchmarking/benchmarking.module';
 import { AnalystModule } from './analyst/analyst.module';
@@ -116,6 +117,7 @@ import {
     TrendsModule,
     NotificationsModule,
     GapModule,
+    LandscapeModule,
     ScenariosModule,
     BenchmarkingModule,
     AnalystModule,
