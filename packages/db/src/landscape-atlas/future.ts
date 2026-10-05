@@ -122,11 +122,11 @@ export function buildFuture(scorecard: readonly ScorecardInput[], coverage: Cove
     n === 0
       ? NO_ANSWER
       : {
-          figure: `${thin} of ${n}`,
+          figure: `${thin === 0 ? n : thin} of ${n}`,
           sentence:
             thin === 0
-              ? `All ${n} national strategic sectors are fed by ${SECTOR_THIN_PROGRAMMES} or more programmes.`
-              : `${thin} of ${n} national strategic sectors ${thin === 1 ? 'is' : 'are'} fed by fewer than ${SECTOR_THIN_PROGRAMMES} programmes` +
+              ? `national strategic sectors are fed by ${SECTOR_THIN_PROGRAMMES} or more programmes.`
+              : `national strategic ${thin === 1 ? 'sector is' : 'sectors are'} fed by fewer than ${SECTOR_THIN_PROGRAMMES} programmes` +
             (grid.unmappedSectors.length ? `; ${grid.unmappedSectors.join(', ')} by none we can map.` : '.'),
         };
   return { version: LANDSCAPE_ATLAS_VERSION, computedAt, scorecard: buildScorecard(scorecard), coverage: grid, answer };

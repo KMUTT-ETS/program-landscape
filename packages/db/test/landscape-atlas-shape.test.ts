@@ -58,7 +58,7 @@ describe('buildShape', () => {
     // total 400 + 5×100 + 10 = 910; top five = 400 + 4×100 = 800 → 88%
     expect(out.answer.figure).toBe('88%');
     expect(out.answer.sentence).toBe(
-      '88% of active students are in the 5 largest of 7 faculties; 1 programme has fewer than 15 active students.',
+      'of active students are in the 5 largest of 7 faculties; 1 programme has fewer than 15 active students.',
     );
     expect(out.smallProgrammes).toBe(1);
   });
@@ -67,7 +67,7 @@ describe('buildShape', () => {
     const out = buildShape([row({ programId: 'a', activeStudents: 1200 })], 'x');
     expect(out.answer.figure).toBe('1,200');
     expect(out.answer.sentence).toBe(
-      'All 1,200 active students are in the 1 faculty shown; 0 programmes have fewer than 15 active students.',
+      'active students, all in the 1 faculty shown; 0 programmes have fewer than 15 active students.',
     );
   });
 

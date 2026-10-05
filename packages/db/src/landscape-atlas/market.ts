@@ -87,10 +87,9 @@ function marketAnswer(total: number, c: Record<GapVerdict, number>): ChapterAnsw
   const under = c['under-served'];
   const ws = c['white-space'];
   const over = c['over-served'];
-  const fields = (n: number) => `${n} ${n === 1 ? 'field is' : 'fields are'}`;
-  const isAre = (n: number) => `${n} ${n === 1 ? 'is' : 'are'}`;
+  const attention = under + ws;
   return {
-    figure: String(under + ws),
-    sentence: `${fields(under)} under-served and ${isAre(ws)} white space (no KKU programme); ${isAre(over)} over-served.`,
+    figure: String(attention),
+    sentence: `${attention === 1 ? 'field needs' : 'fields need'} attention: ${under} under-served and ${ws} white space (no KKU programme); ${over} over-served.`,
   };
 }

@@ -8,6 +8,7 @@ import {
   type GrowthShareInput,
   type HealthRiskInput,
 } from '../src/landscape-atlas/position';
+import { linearPos } from '../src/landscape-atlas/scales';
 
 const gs = (over: Partial<GrowthShareInput>): GrowthShareInput => ({
   programId: 'p',
@@ -109,7 +110,25 @@ describe('buildHealthRisk', () => {
     ]);
     expect(out.counts).toEqual({ 'act-now': 1, watch: 0, 'fix-quietly': 0, protect: 1 });
     expect(out.points.map((p) => p.tone)).toEqual(['negative', 'positive']);
-    expect(out.frame.split).toEqual({ x: 65, y: 37.5 });
+    // lowest health 50 → xMin = min(55, 45) = 45
+    expect(out.frame.split).toEqual({ x: linearPos(65, 45, 100), y: 37.5 });
+  });
+
+  it('keeps every plotted x within 0–100 with the split between the extremes', () => {
+    const out = buildHealthRisk([
+      hr({ programId: 'a', health: 20, riskMatrixScore: 12, riskLevel: 'HIGH' }),
+      hr({ programId: 'b', health: 97, riskMatrixScore: 2, riskLevel: 'LOW' }),
+      hr({ programId: 'c', health: 71, riskMatrixScore: 6, riskLevel: 'MODERATE' }),
+    ]);
+    const xs = out.points.map((p) => p.x);
+    for (const x of xs) {
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(x).toBeLessThanOrEqual(100);
+    }
+    expect(out.frame.split!.x).toBeGreaterThan(Math.min(...xs));
+    expect(out.frame.split!.x).toBeLessThan(Math.max(...xs));
+    expect(out.frame.xTicks[0]!.at).toBe(0);
+    expect(out.frame.xTicks.at(-1)!.at).toBe(100);
   });
 });
 
@@ -123,7 +142,7 @@ describe('buildPosition answer', () => {
     expect(out.answer).toEqual({
       figure: '1',
       sentence:
-        '1 bachelor programme sits in "act now" (health below 65 and KKU risk score 10 or more); 1 is a Dog on the growth–share matrix.',
+        'bachelor programme sits in "act now" (health below 65 and KKU risk score 10 or more); 1 is a Dog on the growth–share matrix.',
     });
   });
 

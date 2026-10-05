@@ -4,6 +4,7 @@ import { linearPos, logPos, logTicks, round1 } from './scales';
 import {
   APPLICATIONS_PER_SEAT_SPLIT,
   ENROLMENT_CHANGE_SPLIT_PCT,
+  HEALTH_DANGER_BELOW,
   HEALTH_SPLIT,
   LANDSCAPE_ATLAS_VERSION,
   NO_ANSWER,
@@ -153,6 +154,7 @@ export function buildHealthRisk(rows: readonly HealthRiskInput[]): QuadrantChart
   const unplotted: Unplotted[] = [];
   const counts: Record<ActionQuadrant, number> = { 'act-now': 0, watch: 0, 'fix-quietly': 0, protect: 0 };
   const points: Array<AtlasPoint & { quadrant: ActionQuadrant }> = [];
+  const healths: number[] = [];
   for (const r of rows) {
     if (r.riskMatrixScore === null || r.riskLevel === 'NEEDS_DATA') {
       unplotted.push({ id: r.programId, label: r.nameTh, reason: 'Risk needs data' });
@@ -164,11 +166,12 @@ export function buildHealthRisk(rows: readonly HealthRiskInput[]): QuadrantChart
     }
     const quadrant = actionQuadrant(r.health, r.riskMatrixScore);
     counts[quadrant]++;
+    healths.push(r.health);
     points.push({
       id: r.programId,
       label: r.nameTh,
       sublabel: r.facultyCode,
-      x: linearPos(r.health, 0, 100),
+      x: r.health,
       y: riskPos(r.riskMatrixScore),
       size: r.activeStudents ?? 0,
       tone: RISK_TONE[r.riskLevel],
@@ -183,14 +186,19 @@ export function buildHealthRisk(rows: readonly HealthRiskInput[]): QuadrantChart
       },
     });
   }
+  const xMax = 100;
+  const lowest = healths.length ? Math.min(...healths) : null;
+  const xMin = lowest === null ? 0 : Math.max(0, Math.min(HEALTH_SPLIT - 10, Math.floor((lowest - 5) / 5) * 5));
+  for (const p of points) p.x = linearPos(p.x, xMin, xMax);
+  const tickValues = [...new Set([xMin, ...(HEALTH_DANGER_BELOW >= xMin ? [HEALTH_DANGER_BELOW] : []), HEALTH_SPLIT, xMax])].sort((a, b) => a - b);
   return {
     points,
     unplotted,
     counts,
     frame: {
-      split: { x: HEALTH_SPLIT, y: riskPos(RISK_MATRIX_SPLIT) },
+      split: { x: linearPos(HEALTH_SPLIT, xMin, xMax), y: riskPos(RISK_MATRIX_SPLIT) },
       diagonal: false,
-      xTicks: [0, 40, 65, 100].map((v) => ({ at: v, label: String(v) })),
+      xTicks: tickValues.map((v) => ({ at: linearPos(v, xMin, xMax), label: String(v) })),
       yTicks: [1, 5, 10, 16, 25].map((v) => ({ at: riskPos(v), label: String(v) })),
     },
   };
@@ -225,13 +233,13 @@ function positionAnswer(gs: QuadrantChart<GrowthQuadrant>, hr: QuadrantChart<Act
   const dogText = `${dogs} ${dogs === 1 ? 'is a Dog' : 'are Dogs'} on the growth–share matrix.`;
   if (hr.points.length > 0) {
     const n = hr.counts['act-now'];
-    const head = `${n} bachelor ${n === 1 ? 'programme sits' : 'programmes sit'} in "act now" (health below 65 and KKU risk score 10 or more)`;
+    const head = `bachelor ${n === 1 ? 'programme sits' : 'programmes sit'} in "act now" (health below 65 and KKU risk score 10 or more)`;
     return { figure: String(n), sentence: gs.points.length > 0 ? `${head}; ${dogText}` : `${head}.` };
   }
   if (gs.points.length > 0) {
     return {
       figure: String(dogs),
-      sentence: `${dogs} bachelor ${dogs === 1 ? 'programme is a Dog' : 'programmes are Dogs'}: fewer applications than seats and enrolment not growing.`,
+      sentence: `bachelor ${dogs === 1 ? 'programme is a Dog' : 'programmes are Dogs'}: fewer applications than seats and enrolment not growing.`,
     };
   }
   return NO_ANSWER;

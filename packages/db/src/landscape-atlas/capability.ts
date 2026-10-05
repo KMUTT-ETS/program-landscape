@@ -93,7 +93,7 @@ export function buildCapability(rows: readonly CapabilityInput[], computedAt: st
         ? NO_ANSWER
         : {
             figure: String(rich),
-            sentence: `${rich} of ${ok.length} ${ok.length === 1 ? 'faculty' : 'faculties'} ${rich === 1 ? 'brings' : 'bring'} in ฿1M or more in external grants per teaching staff member a year.`,
+            sentence: `of ${ok.length} ${ok.length === 1 ? 'faculty' : 'faculties'} ${rich === 1 ? 'brings' : 'bring'} in ฿1M or more in external grants per teaching staff member a year.`,
           },
   };
 }

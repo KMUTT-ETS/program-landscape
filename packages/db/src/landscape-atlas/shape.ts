@@ -108,13 +108,13 @@ function shapeAnswer(faculties: TreemapFaculty[], total: number, small: number):
     const n = faculties.length;
     return {
       figure: total.toLocaleString('en-US'),
-      sentence: `All ${total.toLocaleString('en-US')} active students are in the ${n} ${plural(n, 'faculty', 'faculties')} shown; ${smallText}`,
+      sentence: `active students, all in the ${n} ${plural(n, 'faculty', 'faculties')} shown; ${smallText}`,
     };
   }
   const top = faculties.slice(0, 5).reduce((s, f) => s + f.value, 0);
   const share = Math.round((top / total) * 100);
   return {
     figure: `${share}%`,
-    sentence: `${share}% of active students are in the 5 largest of ${faculties.length} faculties; ${smallText}`,
+    sentence: `of active students are in the 5 largest of ${faculties.length} faculties; ${smallText}`,
   };
 }

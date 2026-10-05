@@ -50,7 +50,7 @@ describe('buildCapability', () => {
     ]);
     expect(out.answer).toEqual({
       figure: '1',
-      sentence: '1 of 3 faculties brings in ฿1M or more in external grants per teaching staff member a year.',
+      sentence: 'of 3 faculties brings in ฿1M or more in external grants per teaching staff member a year.',
     });
   });
 });

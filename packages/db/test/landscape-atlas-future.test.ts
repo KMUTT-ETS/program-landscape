@@ -85,7 +85,7 @@ describe('buildFuture answer', () => {
     expect(out.answer).toEqual({
       figure: '2 of 2',
       sentence:
-        '2 of 2 national strategic sectors are fed by fewer than 15 programmes; Digital economy, Green economy by none we can map.',
+        'national strategic sectors are fed by fewer than 15 programmes; Digital economy, Green economy by none we can map.',
     });
   });
 
@@ -109,8 +109,8 @@ describe('buildFuture answer', () => {
       'now',
     );
     expect(out.answer).toEqual({
-      figure: '0 of 2',
-      sentence: 'All 2 national strategic sectors are fed by 15 or more programmes.',
+      figure: '2 of 2',
+      sentence: 'national strategic sectors are fed by 15 or more programmes.',
     });
   });
 
@@ -129,7 +129,7 @@ describe('buildFuture answer', () => {
     );
     expect(out.answer).toEqual({
       figure: '1 of 2',
-      sentence: '1 of 2 national strategic sectors is fed by fewer than 15 programmes.',
+      sentence: 'national strategic sector is fed by fewer than 15 programmes.',
     });
   });
 });

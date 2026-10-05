@@ -52,7 +52,7 @@ describe('buildMarket', () => {
     ]);
     expect(out.answer).toEqual({
       figure: '3',
-      sentence: '2 fields are under-served and 1 is white space (no KKU programme); 1 is over-served.',
+      sentence: 'fields need attention: 2 under-served and 1 white space (no KKU programme); 1 over-served.',
     });
     expect(out.counts['under-served']).toBe(2);
   });
