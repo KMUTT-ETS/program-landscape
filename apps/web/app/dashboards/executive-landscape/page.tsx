@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { auth } from '@/lib/auth';
-import { getBenchmarkingOverview, getDashboardOverview, prisma, type DashboardOverview } from '@kku/db';
+import { HEALTH_SCORE_VERSION, getBenchmarkingOverview, getDashboardOverview, prisma, type DashboardOverview } from '@kku/db';
 import {
   Card,
   CardHeader,
@@ -106,15 +106,17 @@ export default async function ExecutiveLandscapePage({ searchParams }: { searchP
     ];
   }
 
-  // The chapter endpoints do their own fan-out (multi-scope-aware). Just
-  // pass the requested scope; the API unions internally.
+  // The chapter endpoints do NOT fan out or union: each is clamped by
+  // clampScopeForUser, which narrows a multi-grant user to a single grant
+  // (same behaviour as /gap/map). So a multi-grant user sees the chapters
+  // for one grant, while the hero KPIs above use the overview union.
   const scopeQuery = effectivelyUniversityWide
     ? 'scope=university'
     : grantedFacultyIds.length === 1 && grantedProgramIds.length === 0
       ? `scope=faculty&scopeId=${encodeURIComponent(grantedFacultyIds[0]!)}`
       : grantedProgramIds.length === 1 && grantedFacultyIds.length === 0
         ? `scope=program&scopeId=${encodeURIComponent(grantedProgramIds[0]!)}`
-        : 'scope=university'; // API clamps; multi-target fan-out happens server-side
+        : 'scope=university'; // API clamps a multi-grant user to one grant; no union
   const basis: MarketBasis = (MARKET_BASES as readonly string[]).includes(searchParams.basis ?? '')
     ? (searchParams.basis as MarketBasis)
     : 'all';
@@ -156,7 +158,7 @@ export default async function ExecutiveLandscapePage({ searchParams }: { searchP
         {/* HEADER */}
         <PageHeader
           eyebrow="Module 00 · Executive Landscape"
-          title="Curriculum Landscape"
+          title="Executive Landscape"
           subtitle={
             isUniversityWide
               ? `Strategic snapshot of all ${k.programCount} KKU programs across ${k.facultyCount} faculties.`
@@ -267,13 +269,13 @@ export default async function ExecutiveLandscapePage({ searchParams }: { searchP
                           { id: 'graduate_outcomes', name: 'KKU Alumni · outcomes' },
                           { id: 'kmitl_demand', name: 'LinkedIn labour-market skill demand · subscribed by MHESI (API hosted by KMITL)' },
                         ],
-                        methodologyVersion: 'health-score.v1',
+                        methodologyVersion: HEALTH_SCORE_VERSION,
                         scope: provenanceScope,
                       }}
                     >
                       <HealthByFaculty
                         rows={overview.facultyHealth.map((r) => ({ ...r }))}
-                        methodologyVersion="health-score.v1"
+                        methodologyVersion={HEALTH_SCORE_VERSION}
                       />
                     </PanelFrame>
                     <Card padding="md" className="flex flex-col gap-4">
@@ -380,7 +382,7 @@ export default async function ExecutiveLandscapePage({ searchParams }: { searchP
             <span className="mx-2 opacity-60">·</span>
             Scope:{' '}
             {isUniversityWide
-              ? 'university · all 24 faculties'
+              ? `university · all ${k.facultyCount} faculties`
               : user.role === 'PROGRAM_USER'
                 ? 'program · your assigned program'
                 : 'faculty · your assigned faculty'}

@@ -33,7 +33,7 @@ export async function PositionSection({ scopeQuery, children }: { scopeQuery: st
         <div className="flex flex-col gap-2">
           <ChartFrame
             title="Growth–share matrix"
-            description={`X = TCAS round-3 applications per seat, latest entry year (log; split at 1.0). Y = 3-year enrolment change (split at 0%). Size = active students; colour = net contribution per student. Stars ${gs.counts.star} · Cash cows ${gs.counts['cash-cow']} · Questions ${gs.counts.question} · Dogs ${gs.counts.dog}.`}
+            description={`X = TCAS round-3 applications per seat, latest entry year (log; split at 1.0). Y = 3-year enrolment change (split at 0%). Size = active students. Stars ${gs.counts.star} · Cash cows ${gs.counts['cash-cow']} · Questions ${gs.counts.question} · Dogs ${gs.counts.dog}. Colour: green = positive net contribution per student, red = negative, grey = no finance data.`}
             meta={meta}
             height={500}
             chart={
@@ -58,7 +58,7 @@ export async function PositionSection({ scopeQuery, children }: { scopeQuery: st
         <div className="flex flex-col gap-2">
           <ChartFrame
             title="Health × risk action map"
-            description={`X = health score (split at 65, "healthy"). Y = KKU risk matrix score 1–25 (split at 10, start of HIGH). Size = active students; colour = risk level. Act now ${hr.counts['act-now']} · Watch ${hr.counts.watch} · Fix quietly ${hr.counts['fix-quietly']} · Protect ${hr.counts.protect}.`}
+            description={`X = health score (split at 65, "healthy"). Y = KKU risk matrix score 1–25 (split at 10, start of HIGH). Size = active students. Act now ${hr.counts['act-now']} · Watch ${hr.counts.watch} · Fix quietly ${hr.counts['fix-quietly']} · Protect ${hr.counts.protect}. Colour = KKU risk level: green low, amber moderate, red high or very high.`}
             meta={meta}
             height={500}
             chart={

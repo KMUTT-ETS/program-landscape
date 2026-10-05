@@ -21,7 +21,7 @@ const LEVEL_LABEL: Record<string, string> = {
 };
 
 // Stacked bar showing degree-level composition. Two stacks side-by-
-// side: program count vs enrolment volume — they tell a story when
+// side: program count vs latest-intake volume — they tell a story when
 // they diverge (e.g., 70 PhDs but only 96 students = 1.4 per
 // program).
 export function LevelMix({ rows }: Props) {
@@ -49,7 +49,7 @@ export function LevelMix({ rows }: Props) {
         items={series.map((s) => ({ label: s.label, value: s.programs, color: s.color }))}
       />
       <StackedBar
-        title={`Students enrolled · ${enrolTotal.toLocaleString('en-US')}`}
+        title={`Latest intake · ${enrolTotal.toLocaleString('en-US')}`}
         items={series.map((s) => ({ label: s.label, value: s.students, color: s.color }))}
       />
       <div className="md:col-span-2">
@@ -58,14 +58,14 @@ export function LevelMix({ rows }: Props) {
             <tr className="text-left text-text-tertiary">
               <th className="pb-1 font-normal">Level</th>
               <th className="pb-1 text-right font-normal">Programs</th>
-              <th className="pb-1 text-right font-normal">Students</th>
+              <th className="pb-1 text-right font-normal">Latest intake</th>
               <th className="pb-1 text-right font-normal">Avg / program</th>
               <th className="pb-1 text-right font-normal">Implication</th>
             </tr>
           </thead>
           <tbody>
             {series.map((s) => (
-              <tr key={s.code} className="border-t border-border-subtle">
+              <tr key={s.code} className="border-t border-subtle">
                 <td className="py-1.5">
                   <span className="inline-flex items-center gap-1.5">
                     <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: s.color }} />

@@ -23,7 +23,7 @@ export async function CapabilitySection({ scopeQuery }: { scopeQuery: string }) 
       <ChapterHeader {...HEAD} answer={data.answer} />
       <ChartFrame
         title="Research & grant engine"
-        description="By faculty. X = publications per active teaching staff member per year (last 3 complete years). Y = external grant baht per staff member per year (last 3 complete Thai fiscal years, log). Size = active teaching staff. Dashed lines = KKU medians."
+        description="By faculty. X = publications per active teaching staff member per year (last 3 complete years). Y = external grant baht per staff member per year (last 3 complete Thai fiscal years, log). Size = active teaching staff. Dashed lines = medians of the faculties shown (from 3 faculties up). Colour: green = at or above both medians, red = below both, grey = mixed or fewer than 3 faculties."
         meta={meta}
         height={520}
         chart={<AtlasBubble points={data.points} frame={data.frame} axisXLabel="Publications per staff per year" axisYLabel="Grant ฿ per staff per year" width={1120} height={440} maxRadius={22} />}

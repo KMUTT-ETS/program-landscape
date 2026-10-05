@@ -76,3 +76,7 @@ faculty. AI readiness already carries a skill-resilience sub-score that classifi
 - Position covers bachelor programmes only (TCAS and the risk register are bachelor-only).
 - Sector coverage depends on skills extracted from curriculum PDFs.
 - The Cockpit's Strategic Matrix still uses stand-in axes; this atlas does not change it.
+- Market is shown at university scope only: the gap map's demand shares are university-wide, so at a faculty or department scope it would compare that scope's graduate share with all-KKU demand and mislabel fields as white space or over-served. Narrower scopes link to the Gap Analyzer instead.
+- Capability's dashed median guides and its above/below colours need at least 3 faculties in view; with fewer, no guides are drawn and every bubble is grey.
+- Future's thin-sector rule applies at university scope only; at other scopes the chapter reports the sectors fed by the programmes in scope.
+- A user with several grants sees the atlas chapters for one grant (the API's scope clamp narrows a multi-grant user to one, as on `/gap/map`), while the hero KPIs show the union of all grants.

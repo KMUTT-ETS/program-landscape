@@ -1,5 +1,5 @@
 import { ChartFrame, PortfolioTreemap, type TreemapGroup } from '@kku/ui';
-import type { ShapeChapter } from '@kku/db';
+import { round1, type ShapeChapter } from '@kku/db';
 import { fetchChapter } from './fetch-chapter';
 import { ChapterHeader, ChapterUnavailable, UnplottedList } from './chapter-header';
 import { AtlasTable } from './atlas-table';
@@ -48,7 +48,7 @@ export async function ShapeSection({ scopeQuery, children }: { scopeQuery: strin
               f.children.map((c) => ({
                 id: c.id,
                 label: c.label,
-                values: { Faculty: f.sublabel || f.label, Code: c.sublabel, 'Active students': c.value, 'Health score': c.health },
+                values: { Faculty: f.sublabel || f.label, Code: c.sublabel, 'Active students': c.value, 'Health score': c.health === null ? null : round1(c.health) },
               })),
             )}
           />

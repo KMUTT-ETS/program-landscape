@@ -29,6 +29,27 @@ export async function MarketSection({ scopeQuery, basis }: { scopeQuery: string;
       </section>
     );
   }
+  // The gap map's shares are university-wide on the demand side; at a narrower
+  // scope it compares the scope's graduate share with all-KKU demand, so its
+  // "white space" and "over-served" verdicts would be wrong. University only.
+  if (res.data.scope.level !== 'university') {
+    return (
+      <section className="flex flex-col gap-4">
+        <ChapterHeader {...HEAD} answer={null} />
+        <ChapterUnavailable
+          message={
+            <>
+              The market map compares KKU&apos;s graduate share with job demand across the whole university, so it is shown at university level only. For this faculty&apos;s fields, open the{' '}
+              <Link href="/gap-analysis" className="text-accent-default hover:underline">
+                Gap Analyzer
+              </Link>
+              .
+            </>
+          }
+        />
+      </section>
+    );
+  }
   const market = buildMarket(res.data.rows);
   return (
     <section className="flex flex-col gap-4">
@@ -47,7 +68,7 @@ export async function MarketSection({ scopeQuery, basis }: { scopeQuery: string;
       </nav>
       <ChartFrame
         title="Demand vs supply by field of study"
-        description="One dot per field (bachelor). X = KKU's share of graduates, Y = share of job adverts, both log. On the diagonal, demand and supply are in balance; above it, under-served. White-space fields (no KKU programme), and fields whose KKU programmes have no graduates yet, sit on the left edge. Size = adverts."
+        description="One dot per field (bachelor). X = KKU's share of graduates, Y = share of job adverts, both log. On the diagonal, demand and supply are in balance; above it, under-served. White-space fields (no KKU programme), and fields whose KKU programmes have no graduates yet, sit on the left edge, which means no KKU graduates. Size = adverts. Colour = verdict: red white space, amber under-served, green served, grey over-served."
         meta={res.meta}
         height={520}
         chart={<AtlasBubble points={market.points} frame={market.frame} axisXLabel="KKU graduate share" axisYLabel="Job-advert share" width={1120} height={440} maxRadius={22} />}

@@ -29,7 +29,7 @@ export function ChapterHeader({
   );
 }
 
-export function ChapterUnavailable({ message }: { message?: string }) {
+export function ChapterUnavailable({ message }: { message?: React.ReactNode }) {
   return (
     <div className="rounded-lg border border-default bg-surface-1 p-4 text-sm text-text-secondary">
       {message ?? 'This chapter could not load. Reload the page to try again.'}
@@ -49,12 +49,15 @@ export function ChapterSkeleton({ id, number, kicker }: { id: string; number: nu
 }
 
 /** "Listed, not plotted" — what a chart could not place, with reasons. */
+const SINGULAR: Record<string, string> = { programmes: 'programme', fields: 'field', faculties: 'faculty' };
+
 export function UnplottedList({ items, noun = 'programmes' }: { items: Array<{ id: string; label: string; reason: string }>; noun?: string }) {
   if (items.length === 0) return null;
+  const word = items.length === 1 ? (SINGULAR[noun] ?? noun) : noun;
   return (
     <details className="text-xs text-text-tertiary">
       <summary className="cursor-pointer">
-        {items.length} {noun} not plotted
+        {items.length} {word} not plotted
       </summary>
       <ul className="mt-1 flex flex-col gap-0.5">
         {items.map((u) => (
