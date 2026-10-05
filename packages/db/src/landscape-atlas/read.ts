@@ -98,11 +98,18 @@ const PositionRow = z.object({
 export async function readPosition(scope: AtlasScope): Promise<PositionChapter> {
   if (isEmpty(scope)) return buildPosition(buildGrowthShare([]), buildHealthRisk([]), nowIso());
   const raw = await prisma.$queryRawUnsafe<unknown[]>(
-    `WITH tcas AS (
-       SELECT ts.program_id, ts.entry_year_be, SUM(ts.applicants)::int AS applications, SUM(ts.quota)::int AS seats
+    `-- TCAS rows hold round 3 only, and in 2568 it is split into 3.1/3.2 rows carrying the
+     -- same figures. Take each course code once per year (MAX), then sum courses (majors).
+     WITH tcas_course AS (
+       SELECT ts.program_id, ts.entry_year_be, ts.tcas_course_code,
+              MAX(ts.applicants) AS applicants, MAX(ts.quota) AS seats
        FROM tcas_admission_stats ts
        WHERE ts.program_id IS NOT NULL AND ${realDataSqlUnsafe('ts')}
-       GROUP BY ts.program_id, ts.entry_year_be
+       GROUP BY ts.program_id, ts.entry_year_be, ts.tcas_course_code
+     ), tcas AS (
+       SELECT program_id, entry_year_be, SUM(applicants)::int AS applications, SUM(seats)::int AS seats
+       FROM tcas_course
+       GROUP BY program_id, entry_year_be
      ), latest_tcas AS (
        SELECT DISTINCT ON (program_id) program_id, entry_year_be, applications, seats
        FROM tcas ORDER BY program_id, entry_year_be DESC

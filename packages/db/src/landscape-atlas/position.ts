@@ -23,9 +23,9 @@ export interface GrowthShareInput {
   nameTh: string;
   nameEn: string;
   facultyCode: string;
-  /** TCAS applications in the latest entry year, all rounds summed. */
+  /** TCAS applications: round 3, latest entry year; each course code counted once (3.1/3.2 are the same round). */
   applications: number | null;
-  /** TCAS seats (quota) in the same year. */
+  /** TCAS seats (quota): round 3, same year; each course code counted once (3.1/3.2 are the same round). */
   seats: number | null;
   tcasYearBe: number | null;
   /** 3-year enrolment change, % (same rule as dashboard-overview). */
