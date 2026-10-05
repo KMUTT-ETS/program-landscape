@@ -2151,7 +2151,7 @@ export class LandscapeController {
     caveats: [
       ...ATLAS_CAVEATS,
       'Bachelor programmes only: TCAS and the risk register cover bachelor programmes.',
-      'Applications, not applicants: one student can apply in several TCAS rounds.',
+      'TCAS round 3 only (part of admissions, not all of it); each course code is counted once per entry year.',
     ],
   })
   async position(@AuthSession() user: SessionUser, @Query(new ZodValidationPipe(ScopeQuery)) q: ScopeQueryT) {
@@ -3183,7 +3183,7 @@ export async function PositionSection({ scopeQuery, children }: { scopeQuery: st
         <div className="flex flex-col gap-2">
           <ChartFrame
             title="Growth–share matrix"
-            description={`X = TCAS applications per seat, latest entry year (log; split at 1.0). Y = 3-year enrolment change (split at 0%). Size = active students; colour = net contribution per student. Stars ${gs.counts.star} · Cash cows ${gs.counts['cash-cow']} · Questions ${gs.counts.question} · Dogs ${gs.counts.dog}.`}
+            description={`X = TCAS round-3 applications per seat, latest entry year (log; split at 1.0). Y = 3-year enrolment change (split at 0%). Size = active students; colour = net contribution per student. Stars ${gs.counts.star} · Cash cows ${gs.counts['cash-cow']} · Questions ${gs.counts.question} · Dogs ${gs.counts.dog}.`}
             meta={meta}
             height={500}
             chart={
@@ -3287,7 +3287,7 @@ export async function MarketSection({ scopeQuery, basis }: { scopeQuery: string;
       </nav>
       <ChartFrame
         title="Demand vs supply by field of study"
-        description="One dot per field (bachelor). X = KKU's share of graduates, Y = share of job adverts, both log. On the diagonal, demand and supply are in balance; above it, under-served. White-space fields (no KKU programme) sit on the left edge. Size = adverts."
+        description="One dot per field (bachelor). X = KKU's share of graduates, Y = share of job adverts, both log. On the diagonal, demand and supply are in balance; above it, under-served. White-space fields (no KKU programme), and fields whose KKU programmes have no graduates yet, sit on the left edge. Size = adverts."
         meta={res.meta}
         height={520}
         chart={<AtlasBubble points={market.points} frame={market.frame} axisXLabel="KKU graduate share" axisYLabel="Job-advert share" width={1120} height={440} />}
@@ -3618,7 +3618,7 @@ axis definitions, the split lines, the "listed, not plotted" rule and the answer
 
 ## Chapter 2 · Position (bachelor programmes)
 **Growth–share matrix.**
-- X = TCAS applications ÷ seats in the latest entry year with data, all rounds summed (log). **Split 1.0.** These are applications, not applicants: one student can apply in several rounds.
+- X = TCAS round-3 applications ÷ round-3 seats in the latest entry year with data (log). **Split 1.0.** Linked TCAS rows hold round 3 only, which is part of admissions, not all of it. In 2568 round 3 is split into 3.1 and 3.2 rows carrying the same figures, so each course code is counted once per year, then course codes are summed.
 - Y = 3-year enrolment change, % (latest year vs three years earlier, `enrollment_metrics`), axis clamped to −100…+200 % (table keeps the raw value). **Split 0 %** (0 counts as not growing).
 - Size = active students; colour = net contribution ÷ active students.
 - Quadrants: Star (≥ 1.0, growing), Cash cow (≥ 1.0, not growing), Question (< 1.0, growing), Dog (< 1.0, not growing).

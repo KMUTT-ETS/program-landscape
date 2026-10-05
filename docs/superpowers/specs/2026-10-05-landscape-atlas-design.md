@@ -74,10 +74,11 @@ or faculty that a chart cannot place is listed beneath it with the reason.
   programmes with fewer than 15 enrolled students.
 
 ### 4.2 Growth–share matrix (Position, bachelor)
-- **X:** TCAS applications per seat for the latest entry year with data, all rounds
-  summed (`SUM(applicants) / SUM(quota)` from `tcas_admission_stats` rows linked to the
-  programme). Log scale. Split at **1.0**. Axis label says "applications", because one
-  student can apply in several rounds.
+- **X:** TCAS **round 3** applications per seat for the latest entry year with data
+  (`tcas_admission_stats` rows linked to the programme hold round 3 only). Each course
+  code is counted once per year — in 2568 round 3 is split into 3.1 and 3.2 rows that carry
+  the same figures — then course codes are summed. Log scale. Split at **1.0**. Round 3 is
+  part of admissions, not all of it; the caveat says so.
 - **Y:** 3-year enrolment change, the same `enrollmentDeltaPct` that
   `dashboard-overview.ts` computes. Split at **0 %**.
 - **Size:** currently active students (as 4.1). **Colour:** net contribution per student (diverging,
