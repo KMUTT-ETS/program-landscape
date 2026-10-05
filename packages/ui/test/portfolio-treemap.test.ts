@@ -23,6 +23,12 @@ describe('squarify', () => {
     expect(out[0]!.w * out[0]!.h).toBe(0);
     expect(out[1]!.w * out[1]!.h).toBeCloseTo(5000, 5);
   });
+  it('treats non-finite values as zero', () => {
+    const out = squarify([NaN, 5], rect);
+    expect(out[0]!.w * out[0]!.h).toBe(0);
+    expect(out[1]!.w * out[1]!.h).toBeCloseTo(5000, 5);
+    for (const r of out) for (const n of [r.x, r.y, r.w, r.h]) expect(Number.isNaN(n)).toBe(false);
+  });
   it('returns empty rects for an empty or zero total', () => {
     expect(squarify([], rect)).toEqual([]);
     expect(squarify([0, 0], rect).every((r) => r.w === 0)).toBe(true);
@@ -44,6 +50,14 @@ describe('PortfolioTreemap', () => {
     expect(html).toContain('คณะแพทยศาสตร์');
     expect(html).toContain('href="/programs/p1"');
     expect(html).toContain('data-hatched="true"');
+  });
+  it('does not hide links and buttons behind role="img"', () => {
+    const html = renderToStaticMarkup(createElement(PortfolioTreemap, { nodes, height: 400 }));
+    expect(html).not.toContain('role="img"');
+    expect(html).toContain('role="group"');
+    expect(html).toContain('href="/programs/p1"');
+    expect(html).toContain('role="button"');
+    expect(html).not.toMatch(/url\(#[^)]*:/);
   });
   it('renders the empty state with no nodes', () => {
     const html = renderToStaticMarkup(createElement(PortfolioTreemap, { nodes: [], height: 400, emptyLabel: 'Nothing to show.' }));

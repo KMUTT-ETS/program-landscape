@@ -39,11 +39,11 @@ export interface TreemapRect {
 /** Squarified treemap layout. Returns one rect per value, in input order. */
 export function squarify(values: readonly number[], rect: TreemapRect): TreemapRect[] {
   const out: TreemapRect[] = values.map(() => ({ x: rect.x, y: rect.y, w: 0, h: 0 }));
-  const total = values.reduce((s, v) => s + Math.max(0, v), 0);
+  const total = values.reduce((s, v) => s + (Number.isFinite(v) && v > 0 ? v : 0), 0);
   if (total <= 0 || rect.w <= 0 || rect.h <= 0) return out;
   const scale = (rect.w * rect.h) / total;
   const items = values
-    .map((v, i) => ({ i, area: Math.max(0, v) * scale }))
+    .map((v, i) => ({ i, area: (Number.isFinite(v) && v > 0 ? v : 0) * scale }))
     .filter((d) => d.area > 0)
     .sort((a, b) => b.area - a.area);
   let free: TreemapRect = { ...rect };
@@ -112,7 +112,7 @@ export interface PortfolioTreemapProps {
 export function PortfolioTreemap({ nodes, height = 420, emptyLabel = 'No data to show.', unit = 'students' }: PortfolioTreemapProps) {
   const palette = useChartPalette();
   const [focus, setFocus] = React.useState<string | null>(null);
-  const hatchId = React.useId();
+  const hatchId = `hatch-${React.useId().replace(/:/g, '')}`;
   if (nodes.length === 0) {
     return <p className="text-sm text-text-tertiary">{emptyLabel}</p>;
   }
@@ -127,7 +127,7 @@ export function PortfolioTreemap({ nodes, height = 420, emptyLabel = 'No data to
           ← All faculties
         </button>
       )}
-      <svg viewBox={`0 0 ${VIEW_W} ${height}`} width="100%" role="img" aria-label="Portfolio treemap: faculties and their programmes, sized by students">
+      <svg viewBox={`0 0 ${VIEW_W} ${height}`} width="100%" role="group" aria-label="Portfolio treemap: faculties and their programmes, sized by students">
         <defs>
           <pattern id={hatchId} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
             <line x1="0" y1="0" x2="0" y2="6" stroke={palette.axis} strokeOpacity={0.45} strokeWidth="2" />
@@ -144,10 +144,13 @@ export function PortfolioTreemap({ nodes, height = 420, emptyLabel = 'No data to
               <g
                 role="button"
                 tabIndex={0}
-                aria-label={`${g.label}: ${g.value.toLocaleString('en-US')} ${unit}. Zoom in.`}
+                aria-label={`${g.label}: ${g.value.toLocaleString('en-US')} ${unit}. ${focus ? 'Zoom out.' : 'Zoom in.'}`}
                 onClick={() => setFocus(focus ? null : g.id)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') setFocus(focus ? null : g.id);
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setFocus(focus ? null : g.id);
+                  }
                 }}
                 style={{ cursor: 'pointer' }}
               >
