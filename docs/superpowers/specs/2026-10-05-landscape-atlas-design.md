@@ -29,6 +29,7 @@ visuals are added; existing panels move into the chapter they answer.
 | D5 | Future-fit is a **sorted scorecard** (faculties × measures, radar on hover), not 24 small radars. |
 | D6 | Split lines reuse existing methodology thresholds: **1.0 applications per seat**, **0 % enrolment change**, **health 65** (the "healthy" band), **KKU risk matrix score 10** (start of HIGH). |
 | D7 | Chapter answers are **deterministic sentences** computed from the data, not AI. No AI call is added. |
+| D8 | Future-fit has **three** columns. Automation resilience was dropped: only 537 of 4,372 skills carry an automation-risk tag (22 HIGH), so the share of high-risk skills has median 0 and max 0.14 across programmes and the column would read 86–100 everywhere. AI readiness already carries a skill-resilience sub-score. |
 
 ## 3. Page structure
 
@@ -62,7 +63,7 @@ or faculty that a chart cannot place is listed beneath it with the reason.
 
 ### 4.1 Portfolio treemap (Shape)
 - **Hierarchy:** faculty → programme (department is skipped; `departmentId` is often null).
-- **Area:** students enrolled now (`currentlyEnrolledStudents`).
+- **Area:** currently active students per programme: the sum of `student_cohort_distributions.student_count` (rows passing `realDataWhere()`). `currentlyEnrolledStudents` only gives scope totals, and `enrollment_metrics.enrolled` is intake, not headcount. Dev: 241 programmes, 35,676 students.
 - **Colour:** overall health score in the existing bands: < 40 danger, 40–65 needs
   attention, ≥ 65 healthy. No health score → neutral grey with hatching.
 - **Zero enrolled:** takes no area; counted in a note ("N programmes with no enrolled
@@ -79,7 +80,7 @@ or faculty that a chart cannot place is listed beneath it with the reason.
   student can apply in several rounds.
 - **Y:** 3-year enrolment change, the same `enrollmentDeltaPct` that
   `dashboard-overview.ts` computes. Split at **0 %**.
-- **Size:** students enrolled now. **Colour:** net contribution per student (diverging,
+- **Size:** currently active students (as 4.1). **Colour:** net contribution per student (diverging,
   negative = danger tone).
 - **Quadrants:** Star (≥ 1.0, growing), Cash cow (≥ 1.0, not growing), Question (< 1.0,
   growing), Dog (< 1.0, not growing).
@@ -122,13 +123,14 @@ or faculty that a chart cannot place is listed beneath it with the reason.
 
 ### 4.6 Future-fit scorecard (Future, by faculty)
 - **Rows:** faculties, sorted by the mean of the available columns.
-- **Columns (0–100, shaded):** AI readiness (programme mean); digital intelligence
-  (`dqCompetencyByScope`, bachelor); relevance (health-score dimension); automation
-  resilience = 100 − `skill_automation_index` (bachelor KRI).
+- **Columns (0–100, shaded):** AI readiness (mean of the faculty's programmes'
+  `programAiReadiness().overallScore`); digital intelligence (`dqCompetencyByScope` at
+  faculty scope, `rawMean`, with scored students shown); relevance (mean of the
+  programmes' health relevance dimension). See D8 for the dropped fourth column.
 - **Blank cell** = no data, never 0; the row mean uses only present columns and shows
   how many it used.
-- **Hover:** that faculty's radar (`RadarChartSmall`).
-- **Answer line:** the lowest-ranked faculties with at least 3 of 4 columns.
+- **Expand a row** (a `<details>` row, so it works without JS and from the keyboard) to see that faculty's radar (`RadarChartSmall`).
+- **Answer line:** the lowest-ranked faculties with at least 2 of 3 columns.
 
 ### 4.7 National-strategy coverage (Future)
 - **Grid:** faculties × the 8 `sectors` rows (BCG + S-curve).
@@ -150,17 +152,23 @@ One file per chapter: `shape.ts`, `position.ts`, `market.ts`, `capability.ts`,
 - **pure shaping functions** (no I/O): split lines, quadrant assignment, "listed, not
   plotted" partition, faculty aggregation, answer-line sentence.
 
-**AI readiness needs a batch reader.** `programAiReadiness(programId)` is
-per-programme; add `aiReadinessByProgram(programIds)` that reads the stored results in
-one query, so the scorecard does not fan out 300 calls.
+**AI readiness needs a batch reader.** `programAiReadiness(programId)` is computed on
+read (six queries, no AI call) and nothing is stored. Add `aiReadinessByProgram(ids)`
+that runs it with bounded concurrency (8) and returns `Map<programId, overallScore>`;
+the chapter result is cached for 5 minutes by the API, so the cost is paid once per
+cache window.
 
 `LANDSCAPE_ATLAS_VERSION = 'landscape-atlas.v1'` lives in `types.ts`.
 
 ### 5.2 API — `apps/api/src/landscape/`
 `LandscapeController` + `LandscapeService`:
-`GET /landscape/{shape,position,market,capability,future}`, each accepting `scope` and
-`scopeId`, clamped with `clampScopeForUser` (`apps/api/src/common/scope-guards.ts`), the
-same fan-out the Cockpit uses for multi-grant users. `market` also accepts `basis`.
+`GET /landscape/{shape,position,capability,future}`, each accepting `scope` and
+`scopeId`, clamped with `clampScopeForUser` (`apps/api/src/common/scope-guards.ts`) the
+way `/gap/map` does it. A programme-level clamp (PROGRAM_USER) is answered for that one
+programme (charts still render; most will list it alone). **Market reuses the existing
+`GET /gap/map`** (already scoped, cached, provenance-stamped, and carrying `basis`); the
+atlas only adds a pure shaping function for the diagonal, so there is no
+`/landscape/market`.
 Responses use the standard envelope with `@Provenance` (sources, freshness,
 `methodologyVersion`), cached 5 minutes via `CacheService` keyed on chapter + scope +
 parameters. Read-only, so no `@AuditLog`; no AI, so no `@AiCall`.
@@ -172,15 +180,17 @@ parameters. Read-only, so no `@AuditLog`; no AI, so no `@AiCall`.
 - New `chapters/` folder: `shape.tsx`, `position.tsx`, `market.tsx`, `capability.tsx`,
   `future.tsx`, plus `chapter-header.tsx` (kicker, question, answer line). Each chapter
   fetches its own endpoint.
-- The page's inline role-scope logic is replaced by the API's clamp.
+- The page keeps its existing role-scope code for the panels that stay; the new
+  chapters send the same `scope`/`scopeId` query and the API clamps it.
 
 ### 5.4 Visual components — `packages/ui/src/viz/`
 - **Extend `BubbleMatrix`** with: log axes, reference lines (vertical, horizontal,
   diagonal), quadrant corner labels, an edge rail for points that cannot sit on a log
   axis. Serves 4.2, 4.3, 4.4, 4.5. Existing callers keep today's behaviour by default.
-- **New `PortfolioTreemap`** on Recharts' `Treemap` (already a dependency).
+- **New `PortfolioTreemap`**: inline SVG with a pure `squarify()` layout (Recharts'
+  `Treemap` renders nothing during server rendering; inline SVG matches `BubbleMatrix`).
 - **New `ScoreGrid`** (rows × columns of shaded cells with blank-cell support, optional
-  row hover slot), used by 4.6 and 4.7; reuses the `Heatmap` cell colour logic.
+  expandable row detail), used by 4.6 and 4.7; reuses the `Heatmap` cell colour logic.
 - No new charting library.
 
 ## 6. Failure and data-gap handling
