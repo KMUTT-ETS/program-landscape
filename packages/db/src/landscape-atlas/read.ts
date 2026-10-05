@@ -7,14 +7,18 @@ import { realDataSqlUnsafe, realDataWhere } from '../data-quality';
 import { getProgramScoreIndex } from '../health-score';
 import { listPortfolioRisk } from '../risk-scoring';
 import { grantAward } from '../grant-award';
-import { dqCompetencyByScope } from '../student-dq';
+import {
+  DQ_ELIGIBLE_LEVEL,
+  DQ_MIN_CELL_STUDENTS,
+  OVERALL_MEAN_MAX_MODULE_NO,
+  dqCompetencyByScope,
+} from '../student-dq';
 import { programAiReadiness } from '../program-deep-dive';
 import { scopeProgramIds } from '../gap-map';
-import { meanOf } from './scales';
 import { buildShape, type ShapeChapter } from './shape';
 import { buildGrowthShare, buildHealthRisk, buildPosition, type PositionChapter } from './position';
 import { buildCapability, type CapabilityChapter, type CapabilityInput } from './capability';
-import { buildFuture, type FutureChapter, type ScorecardInput } from './future';
+import { buildFuture, type DqRollup, type FutureChapter, type ScorecardProgrammeInput } from './future';
 
 export type AtlasScopeLevel = 'university' | 'faculty' | 'department' | 'program';
 
@@ -224,10 +228,19 @@ export async function readCapability(scope: AtlasScope): Promise<CapabilityChapt
 
 const FacultyProgrammeRow = z.object({
   programId: z.string(),
-  facultyId: z.string(),
   code: z.string(),
   nameTh: z.string(),
-  nameEn: z.string().nullable(),
+  nameEn: z.string(),
+  level: z.string(),
+  facultyId: z.string(),
+  facultyCode: z.string(),
+  facultyNameTh: z.string(),
+  facultyNameEn: z.string().nullable(),
+});
+const ProgrammeDqRow = z.object({
+  programId: z.string(),
+  rawMean: z.number().nullable(),
+  scored: z.number(),
 });
 const CoverageRow = z.object({ facultyId: z.string(), sectorId: z.string(), programmes: z.number() });
 
@@ -258,15 +271,65 @@ export async function aiReadinessByProgram(ids: readonly string[], concurrency =
   return out;
 }
 
+/**
+ * Each programme's own DQ, in one grouped query mirroring
+ * dqCompetencyByScope(): theory modules up to OVERALL_MEAN_MAX_MODULE_NO,
+ * DQ_ELIGIBLE_LEVEL only, null below DQ_MIN_CELL_STUDENTS scored students.
+ */
+async function dqByProgram(scope: AtlasScope): Promise<Map<string, DqRollup>> {
+  const rows = z.array(ProgrammeDqRow).parse(
+    await prisma.$queryRawUnsafe<unknown[]>(
+      `WITH s AS (
+         SELECT s.program_id, SUM(s.students_with_scores)::int AS scored
+         FROM dq_student_cube s JOIN programs p ON p.id = s.program_id
+         WHERE p.level = '${DQ_ELIGIBLE_LEVEL}' AND ${IN_SCOPE}
+         GROUP BY s.program_id
+       ), m AS (
+         SELECT m.program_id, (SUM(m.score_sum) / NULLIF(SUM(m.taken_count), 0))::float8 AS raw_mean
+         FROM dq_module_cube m JOIN programs p ON p.id = m.program_id
+         WHERE m.module_kind = 'THEORY' AND m.module_no <= ${OVERALL_MEAN_MAX_MODULE_NO}
+           AND p.level = '${DQ_ELIGIBLE_LEVEL}' AND ${IN_SCOPE}
+         GROUP BY m.program_id
+       )
+       SELECT s.program_id AS "programId", m.raw_mean AS "rawMean", s.scored
+       FROM s LEFT JOIN m ON m.program_id = s.program_id`,
+      scope.programIds,
+    ),
+  );
+  return new Map(
+    rows.map((r) => [
+      r.programId,
+      {
+        value: r.scored >= DQ_MIN_CELL_STUDENTS && r.rawMean !== null && Number.isFinite(r.rawMean) ? r.rawMean : null,
+        students: r.scored,
+      },
+    ]),
+  );
+}
+
+const toRollup = (d: { rawMean: number | null; scoredStudents: number }): DqRollup => ({
+  value: d.rawMean,
+  students: d.scoredStudents,
+});
+
 export async function readFuture(scope: AtlasScope): Promise<FutureChapter> {
   const sectors = await prisma.sector.findMany({
     select: { id: true, code: true, nameTh: true, nameEn: true },
     orderBy: { code: 'asc' },
   });
-  if (isEmpty(scope)) return buildFuture([], { faculties: [], sectors, counts: [] }, nowIso(), scope.level === 'university');
+  const scopeLevel = scope.level;
+  if (isEmpty(scope)) {
+    return buildFuture(
+      { programmes: [], facultyDq: new Map(), totalDq: { value: null, students: 0 }, scopeLevel },
+      { faculties: [], sectors, counts: [] },
+      nowIso(),
+    );
+  }
   const programmes = z.array(FacultyProgrammeRow).parse(
     await prisma.$queryRawUnsafe<unknown[]>(
-      `SELECT p.id AS "programId", f.id AS "facultyId", f.code, f.name_th AS "nameTh", f.name_en AS "nameEn"
+      `SELECT p.id AS "programId", p.code, p.name_th AS "nameTh",
+              COALESCE(NULLIF(TRIM(p.name_en), ''), p.name_th) AS "nameEn", p.level::text AS level,
+              f.id AS "facultyId", f.code AS "facultyCode", f.name_th AS "facultyNameTh", f.name_en AS "facultyNameEn"
        FROM programs p JOIN faculties f ON f.id = p.faculty_id
        WHERE ${IN_SCOPE}`,
       scope.programIds,
@@ -285,41 +348,50 @@ export async function readFuture(scope: AtlasScope): Promise<FutureChapter> {
   );
   const index = await getProgramScoreIndex();
   const ai = await aiReadinessByProgram(programmes.map((p) => p.programId));
+  const progDq = await dqByProgram(scope);
 
-  const faculties = new Map<string, { id: string; code: string; nameTh: string; nameEn: string; programIds: string[] }>();
-  for (const p of programmes) {
-    const f = faculties.get(p.facultyId) ?? { id: p.facultyId, code: p.code, nameTh: p.nameTh, nameEn: p.nameEn ?? '', programIds: [] };
-    f.programIds.push(p.programId);
-    faculties.set(p.facultyId, f);
+  // DQ rollups are respondent-weighted (never a mean of programme scores).
+  // The total row reads the chapter scope; a programme or department scope's
+  // faculty row reads that same scope (as before), otherwise each faculty.
+  const totalDq = toRollup(
+    scope.level === 'university' || !scope.id
+      ? await dqCompetencyByScope({ scope: 'university', scopeId: '' })
+      : await dqCompetencyByScope({ scope: scope.level, scopeId: scope.id }),
+  );
+  const narrow = scope.level === 'program' || scope.level === 'department';
+  const facultyIds = [...new Set(programmes.map((p) => p.facultyId))];
+  const facultyDq = new Map<string, DqRollup>();
+  for (const id of facultyIds) {
+    facultyDq.set(id, narrow ? totalDq : toRollup(await dqCompetencyByScope({ scope: 'faculty', scopeId: id })));
   }
 
-  // DQ is a scope rollup (never a mean of programme scores). A programme or
-  // department scope reads its own scope; otherwise each faculty is read.
-  const narrow = (scope.level === 'program' || scope.level === 'department') && scope.id;
-  const scorecard: ScorecardInput[] = [];
-  for (const f of faculties.values()) {
-    const dq = narrow
-      ? await dqCompetencyByScope({ scope: scope.level as 'program' | 'department', scopeId: scope.id! })
-      : await dqCompetencyByScope({ scope: 'faculty', scopeId: f.id });
-    scorecard.push({
-      facultyId: f.id,
-      code: f.code,
-      nameTh: f.nameTh,
-      nameEn: f.nameEn,
-      aiReadiness: meanOf(f.programIds.map((id) => ai.get(id) ?? null)),
-      dq: dq.rawMean,
-      dqStudents: dq.scoredStudents,
-      relevance: meanOf(f.programIds.map((id) => index.get(id)?.dimensions.relevance.score ?? null)),
-    });
+  const rows: ScorecardProgrammeInput[] = programmes.map((p) => {
+    const dq = progDq.get(p.programId);
+    return {
+      programId: p.programId,
+      code: p.code,
+      nameTh: p.nameTh,
+      nameEn: p.nameEn,
+      level: p.level,
+      facultyId: p.facultyId,
+      facultyNameTh: p.facultyNameTh,
+      facultyNameEn: p.facultyNameEn ?? '',
+      aiReadiness: ai.get(p.programId) ?? null,
+      relevance: index.get(p.programId)?.dimensions.relevance.score ?? null,
+      dq: dq?.value ?? null,
+      dqStudents: dq?.students ?? 0,
+    };
+  });
+
+  const faculties = new Map<string, { id: string; code: string; nameTh: string; nameEn: string }>();
+  for (const p of programmes) {
+    if (!faculties.has(p.facultyId)) {
+      faculties.set(p.facultyId, { id: p.facultyId, code: p.facultyCode, nameTh: p.facultyNameTh, nameEn: p.facultyNameEn ?? '' });
+    }
   }
   return buildFuture(
-    scorecard,
-    {
-      faculties: [...faculties.values()].map(({ id, code, nameTh, nameEn }) => ({ id, code, nameTh, nameEn })),
-      sectors,
-      counts,
-    },
+    { programmes: rows, facultyDq, totalDq, scopeLevel },
+    { faculties: [...faculties.values()], sectors, counts },
     nowIso(),
-    scope.level === 'university',
   );
 }

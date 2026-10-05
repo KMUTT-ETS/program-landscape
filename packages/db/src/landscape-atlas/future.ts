@@ -15,63 +15,204 @@ export const SCORECARD_COLUMNS = [
   'Relevance',
 ] as const;
 
-export interface ScorecardInput {
-  facultyId: string;
+export type ScorecardScopeLevel = 'university' | 'faculty' | 'department' | 'program';
+
+/** One canonical ACTIVE programme in scope. */
+export interface ScorecardProgrammeInput {
+  programId: string;
   code: string;
   nameTh: string;
   nameEn: string;
-  /** Mean of programmes' programAiReadiness().overallScore; null = none scored. */
+  level: string;
+  facultyId: string;
+  facultyNameTh: string;
+  facultyNameEn: string;
+  /** programAiReadiness().overallScore; null = no extracted skills. */
   aiReadiness: number | null;
-  /** dqCompetencyByScope(...).rawMean; null = no scored students. */
+  /** Health relevance dimension. */
+  relevance: number | null;
+  /** The programme's own DQ (bachelor only, above the student floor); null otherwise. */
   dq: number | null;
   dqStudents: number;
-  /** Mean of programmes' health relevance dimension. */
-  relevance: number | null;
 }
 
-export interface ScorecardRow {
+/** A DQ rollup: dqCompetencyByScope(...).rawMean and its scored students. */
+export interface DqRollup {
+  value: number | null;
+  students: number;
+}
+
+export interface ScorecardInput {
+  programmes: readonly ScorecardProgrammeInput[];
+  /** DQ rollup per faculty id; a missing faculty reads null. */
+  facultyDq: ReadonlyMap<string, DqRollup>;
+  /** DQ rollup at the chapter scope (the total row). */
+  totalDq: DqRollup;
+  scopeLevel: ScorecardScopeLevel;
+}
+
+export interface ScorecardNode {
   id: string;
   label: string;
   sublabel: string;
+  kind: 'faculty' | 'level' | 'programme' | 'total';
   cells: Array<number | null>;
   mean: number | null;
   present: number;
-  dqStudents: number;
+  /** Students behind the DQ cell; null where the row carries no DQ. */
+  dqStudents: number | null;
+  href?: string;
+  children: ScorecardNode[];
 }
 
 export interface Scorecard {
   columns: string[];
-  rows: ScorecardRow[];
+  rows: ScorecardNode[];
+  /** Pinned last, never expandable. */
+  total: ScorecardNode;
   /** Plain sentence naming the weakest faculties, or null. */
   note: string | null;
 }
 
-export function buildScorecard(inputs: readonly ScorecardInput[]): Scorecard {
-  const rows: ScorecardRow[] = inputs.map((r) => {
-    const cells = [r.aiReadiness, r.dq, r.relevance].map((v) => (v === null ? null : round1(v)));
-    const mean = meanOf(cells);
-    return {
-      id: r.facultyId,
-      label: r.nameTh,
-      sublabel: r.nameEn,
-      cells,
-      mean: mean === null ? null : round1(mean),
-      present: cells.filter((c) => c !== null).length,
-      dqStudents: r.dqStudents,
-    };
-  });
-  rows.sort((a, b) => {
-    if (a.mean === null && b.mean === null) return a.label.localeCompare(b.label);
-    if (a.mean === null) return 1;
-    if (b.mean === null) return -1;
-    return b.mean - a.mean || a.label.localeCompare(b.label);
-  });
+export const SCORECARD_LEVELS = [
+  ['BACHELOR', 'Bachelor'],
+  ['MASTER', 'Master'],
+  ['DOCTORAL', 'Doctoral'],
+  ['HIGHER_GRAD_DIPLOMA', 'Higher grad diploma'],
+] as const;
+
+const DQ_LEVEL = 'BACHELOR';
+
+const TOTAL_LABEL: Record<ScorecardScopeLevel, string> = {
+  university: 'University average',
+  faculty: 'Faculty average',
+  department: 'Department average',
+  program: 'Programme average',
+};
+
+function node(
+  base: Omit<ScorecardNode, 'cells' | 'mean' | 'present'>,
+  ai: number | null,
+  dq: number | null,
+  relevance: number | null,
+): ScorecardNode {
+  const cells = [ai, dq, relevance].map((v) => (v === null ? null : round1(v)));
+  const mean = meanOf(cells);
+  return {
+    ...base,
+    cells,
+    mean: mean === null ? null : round1(mean),
+    present: cells.filter((c) => c !== null).length,
+  };
+}
+
+function byMean(a: ScorecardNode, b: ScorecardNode): number {
+  if (a.mean === null && b.mean === null) return a.label.localeCompare(b.label);
+  if (a.mean === null) return 1;
+  if (b.mean === null) return -1;
+  return b.mean - a.mean || a.label.localeCompare(b.label);
+}
+
+const meanAi = (ps: readonly ScorecardProgrammeInput[]) => meanOf(ps.map((p) => p.aiReadiness));
+const meanRel = (ps: readonly ScorecardProgrammeInput[]) => meanOf(ps.map((p) => p.relevance));
+const plural = (n: number) => `${n} programme${n === 1 ? '' : 's'}`;
+
+/**
+ * Faculty → level → programme. AI readiness and relevance are means over the
+ * programmes beneath a row (never a mean of child means); DQ is a scope
+ * rollup, bachelor only.
+ */
+export function buildScorecard(input: ScorecardInput): Scorecard {
+  const byFaculty = new Map<string, ScorecardProgrammeInput[]>();
+  for (const p of input.programmes) {
+    const list = byFaculty.get(p.facultyId) ?? [];
+    list.push(p);
+    byFaculty.set(p.facultyId, list);
+  }
+
+  const rows: ScorecardNode[] = [];
+  for (const [facultyId, ps] of byFaculty) {
+    const fDq = input.facultyDq.get(facultyId) ?? { value: null, students: 0 };
+    const levels: ScorecardNode[] = [];
+    for (const [level, levelLabel] of SCORECARD_LEVELS) {
+      const lps = ps.filter((p) => p.level === level);
+      if (lps.length === 0) continue;
+      const programmes = lps
+        .map((p) => {
+          const dq = p.level === DQ_LEVEL ? p.dq : null;
+          return node(
+            {
+              id: p.programId,
+              label: p.nameTh,
+              sublabel: p.nameEn && p.nameEn !== p.nameTh ? `${p.code} · ${p.nameEn}` : p.code,
+              kind: 'programme',
+              dqStudents: dq === null ? null : p.dqStudents,
+              href: `/programs/${p.programId}`,
+              children: [],
+            },
+            p.aiReadiness,
+            dq,
+            p.relevance,
+          );
+        })
+        .sort(byMean);
+      const isDq = level === DQ_LEVEL;
+      levels.push(
+        node(
+          {
+            id: `${facultyId}:${level}`,
+            label: levelLabel,
+            sublabel: plural(lps.length),
+            kind: 'level',
+            dqStudents: isDq ? fDq.students : null,
+            children: programmes,
+          },
+          meanAi(lps),
+          isDq ? fDq.value : null,
+          meanRel(lps),
+        ),
+      );
+    }
+    const first = ps[0]!;
+    rows.push(
+      node(
+        {
+          id: facultyId,
+          label: first.facultyNameTh,
+          sublabel: first.facultyNameEn,
+          kind: 'faculty',
+          dqStudents: fDq.students,
+          children: levels,
+        },
+        meanAi(ps),
+        fDq.value,
+        meanRel(ps),
+      ),
+    );
+  }
+  rows.sort(byMean);
+
+  const total = node(
+    {
+      id: 'total',
+      label: TOTAL_LABEL[input.scopeLevel],
+      sublabel: plural(input.programmes.length),
+      kind: 'total',
+      dqStudents: input.totalDq.students,
+      children: [],
+    },
+    meanAi(input.programmes),
+    input.totalDq.value,
+    meanRel(input.programmes),
+  );
+
   const eligible = rows.filter((r) => r.present >= 2);
   // Naming "the lowest" is only meaningful with enough faculties to rank.
   const lowest = eligible.length >= 4 ? eligible.slice(-3).reverse() : [];
   return {
     columns: [...SCORECARD_COLUMNS],
     rows,
+    total,
     note: lowest.length
       ? `Lowest on the measures available: ${lowest.map((r) => r.sublabel || r.label).join(', ')}.`
       : null,
@@ -126,11 +267,11 @@ export interface FutureChapter {
 }
 
 export function buildFuture(
-  scorecard: readonly ScorecardInput[],
+  scorecard: ScorecardInput,
   coverage: CoverageInput,
   computedAt: string,
-  universityScope: boolean,
 ): FutureChapter {
+  const universityScope = scorecard.scopeLevel === 'university';
   const grid = buildCoverage(coverage);
   const n = grid.columns.length;
   const thin = grid.thinSectors.length;

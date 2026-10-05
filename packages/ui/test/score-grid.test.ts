@@ -81,4 +81,59 @@ describe('ScoreGrid', () => {
     expect(html).toContain('/ 0.12)');
     expect(html).toContain('title="Not mapped"');
   });
+
+  it('renders children as nested <details> with indentation per depth', () => {
+    const html = renderToStaticMarkup(
+      createElement(ScoreGrid, {
+        columns: ['A'],
+        mode: 'score',
+        rows: [
+          {
+            id: 'f',
+            label: 'Faculty',
+            cells: [70],
+            children: [
+              { id: 'l', label: 'Bachelor', cells: [60], children: [{ id: 'p', label: 'Prog', cells: [50] }] },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(html.match(/<details/g)?.length).toBe(2);
+    expect(html).toContain('padding-left:0px');
+    expect(html).toContain('padding-left:16px');
+    expect(html).toContain('padding-left:32px');
+    // chevrons on the two parents only, not on the leaf programme
+    expect(html.split('▸').length - 1).toBe(2);
+  });
+
+  it('renders href as a link on the label', () => {
+    const html = renderToStaticMarkup(
+      createElement(ScoreGrid, {
+        columns: ['A'],
+        mode: 'score',
+        rows: [{ id: 'p', label: 'Prog', cells: [50], href: '/programs/p' }],
+      }),
+    );
+    expect(html).toContain('<a href="/programs/p"');
+    expect(html).toContain('>Prog</a>');
+  });
+
+  it('renders the total row last, bold, with a top border, never expandable', () => {
+    const html = renderToStaticMarkup(
+      createElement(ScoreGrid, {
+        columns: ['A'],
+        mode: 'score',
+        rows: [{ id: 'r1', label: 'Row one', cells: [70] }],
+        total: { id: 't', label: 'University average', cells: [55], children: [{ id: 'x', label: 'hidden', cells: [1] }] },
+      }),
+    );
+    expect(html.indexOf('University average')).toBeGreaterThan(html.indexOf('Row one'));
+    expect(html).toContain('data-total="true"');
+    const totalChunk = html.slice(html.indexOf('data-total="true"') - 200);
+    expect(totalChunk).toContain('font-semibold');
+    expect(totalChunk).toContain('border-t');
+    expect(html).not.toContain('<details');
+    expect(html).not.toContain('hidden');
+  });
 });

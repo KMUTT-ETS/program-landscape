@@ -1,5 +1,5 @@
-import { ChartFrame, RadarChartSmall, ScoreGrid } from '@kku/ui';
-import type { FutureChapter } from '@kku/db';
+import { ChartFrame, ScoreGrid, type ScoreGridRow } from '@kku/ui';
+import type { FutureChapter, ScorecardNode } from '@kku/db';
 import { fetchChapter } from './fetch-chapter';
 import { ChapterHeader, ChapterUnavailable } from './chapter-header';
 import { AtlasTable } from './atlas-table';
@@ -10,6 +10,35 @@ const HEAD = {
   kicker: 'Future',
   question: "Is the portfolio ready for AI and Thailand's strategic industries?",
 };
+
+const KIND_LABEL: Record<ScorecardNode['kind'], string> = {
+  faculty: 'Faculty',
+  level: 'Level',
+  programme: 'Programme',
+  total: 'Total',
+};
+
+const trailing = (n: ScorecardNode) => (n.mean === null ? '—' : `${n.mean.toFixed(0)} (${n.present}/3)`);
+
+function toGridRow(n: ScorecardNode): ScoreGridRow {
+  return {
+    id: n.id,
+    label: n.label,
+    sublabel: n.sublabel,
+    cells: n.cells,
+    trailing: trailing(n),
+    href: n.href,
+    children: n.children.length ? n.children.map(toGridRow) : undefined,
+  };
+}
+
+/** Every node, depth-first; a level row carries its faculty's name so the flat table reads on its own. */
+function flatten(nodes: ScorecardNode[], parent?: ScorecardNode): Array<{ node: ScorecardNode; label: string }> {
+  return nodes.flatMap((n) => [
+    { node: n, label: n.kind === 'level' && parent ? `${parent.sublabel || parent.label} › ${n.label}` : n.label },
+    ...flatten(n.children, n),
+  ]);
+}
 
 export async function FutureSection({ scopeQuery }: { scopeQuery: string }) {
   const res = await fetchChapter<FutureChapter>(`/landscape/future?${scopeQuery}`);
@@ -29,44 +58,35 @@ export async function FutureSection({ scopeQuery }: { scopeQuery: string }) {
       <ChapterHeader {...HEAD} answer={data.answer} />
       <ChartFrame
         title="Future-fit scorecard"
-        description="By faculty, sorted by the mean of the measures available. AI readiness and relevance are means over the faculty's programmes; DQ is the faculty's respondent-weighted score. A dash means no data, never 0. Open a row for its radar."
+        description="Faculties sorted by the mean of the measures available. Open a faculty for its degree levels, and a level for its programmes; a programme name opens its deep-dive. AI readiness and relevance on every row are means over the programmes beneath it. DQ exists for bachelor students only: a programme shows its own score, a faculty and its Bachelor row show the faculty's respondent-weighted score, other levels have none. The last row averages every programme in scope. A dash means no data, never 0."
         meta={meta}
-        height={560}
+        height={640}
         chart={
-          <div className="h-full overflow-y-auto">
+          <div className="flex h-full flex-col">
             <ScoreGrid
+              className="min-h-0 flex-1 overflow-y-auto"
               columns={sc.columns}
               mode="score"
               trailingLabel="Mean"
-              rows={sc.rows.map((r) => ({
-                id: r.id,
-                label: r.label,
-                sublabel: r.sublabel,
-                cells: r.cells,
-                trailing: r.mean === null ? '—' : `${r.mean.toFixed(0)} (${r.present}/3)`,
-                detail: (
-                  <RadarChartSmall
-                    points={sc.columns.map((label, i) => ({ label, value: r.cells[i] ?? null }))}
-                    seriesLabel={r.sublabel || r.label}
-                  />
-                ),
-              }))}
+              rows={sc.rows.map(toGridRow)}
+              total={{ ...toGridRow(sc.total), children: undefined }}
             />
-            {sc.note && <p className="mt-2 text-xs text-text-tertiary">{sc.note}</p>}
+            {sc.note && <p className="mt-2 shrink-0 text-xs text-text-tertiary">{sc.note}</p>}
           </div>
         }
         dataTable={
           <AtlasTable
-            first="Faculty"
-            rows={sc.rows.map((r) => ({
-              id: r.id,
-              label: r.label,
+            first="Row"
+            rows={[...flatten(sc.rows), { node: sc.total, label: sc.total.label }].map(({ node: n, label }) => ({
+              id: `${n.kind}:${n.id}`,
+              label,
               values: {
-                'AI readiness': r.cells[0] ?? null,
-                'DQ score': r.cells[1] ?? null,
-                'DQ scored students': r.dqStudents,
-                Relevance: r.cells[2] ?? null,
-                Mean: r.mean,
+                Kind: KIND_LABEL[n.kind],
+                'AI readiness': n.cells[0] ?? null,
+                'DQ score': n.cells[1] ?? null,
+                'DQ scored students': n.dqStudents,
+                Relevance: n.cells[2] ?? null,
+                Mean: n.mean,
               },
             }))}
           />

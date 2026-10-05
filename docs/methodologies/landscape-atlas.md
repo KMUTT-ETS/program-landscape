@@ -56,11 +56,12 @@ axis definitions, the split lines, the "listed, not plotted" rule and the answer
 - **Answer:** faculties at ฿1M or more per staff member a year.
 
 ## Chapter 5 · Future
-**Future-fit scorecard** — three columns (automation resilience dropped, see below):
-- AI readiness = mean of the faculty's programmes' `programAiReadiness().overallScore`, excluding programmes with no extracted skills.
-- Digital intelligence = `dqCompetencyByScope(faculty).rawMean` (respondent-weighted, never a mean of programme scores).
-- Relevance = mean of the programmes' health relevance dimension.
-- Row mean over present columns only; rows with no column sort last.
+**Future-fit scorecard** — three columns (automation resilience dropped, see below), drilled down Faculty → Level → Programme with a pinned total row:
+- **Programme row:** AI readiness = its `programAiReadiness().overallScore` (null when it has no extracted skills); Relevance = its health relevance dimension; DQ = its own respondent-weighted score (theory modules up to `OVERALL_MEAN_MAX_MODULE_NO`), bachelor only and only with at least `DQ_MIN_CELL_STUDENTS` scored students, else null. The name links to `/programs/<id>`.
+- **Level row** (Bachelor, Master, Doctoral, Higher grad diploma — only levels that have programmes, in that order): AI readiness and Relevance = means over its programmes' present values; DQ = the faculty rollup on the Bachelor row only (DQ is bachelor-only, so the faculty rollup is the bachelor rollup), null on other levels.
+- **Faculty row:** AI readiness and Relevance = means over all the faculty's programmes (not a mean of level means); DQ = `dqCompetencyByScope(faculty).rawMean` (respondent-weighted, never a mean of programme scores). At a department or programme scope the faculty row reads that scope's DQ instead.
+- **Total row** (pinned last, bold, not expandable): "University average", "Faculty average", "Department average" or "Programme average" by the chapter scope. AI readiness and Relevance = means over every programme in scope (not a mean of faculty means); DQ = `dqCompetencyByScope` at the chapter scope (`university` reads every bachelor programme).
+- Every row's mean is over its present columns only, shown with "(n/3)". Faculties sort by mean (rows with no column last), levels in fixed order, programmes by mean then name. A missing value is "—", never 0.
 - The note naming the three lowest faculties appears only when at least 4 faculties have at least 2 of the 3 measures.
 
 **National-strategy coverage:** faculties × the 8 `sectors`; a cell counts the faculty's programmes with at least one
