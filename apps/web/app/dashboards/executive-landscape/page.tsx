@@ -13,7 +13,6 @@ import {
 } from '@kku/ui';
 import type { SessionUser } from '@kku/shared';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
-import { AlertColumn } from '@/components/dashboard/alert-card';
 import { LevelMix } from '@/components/dashboard/level-mix';
 import { PulseStrip } from '@/components/dashboard/pulse-strip';
 import { LifecycleVerdictViz } from '@/components/dashboard/lifecycle-verdict';
@@ -144,7 +143,6 @@ export default async function ExecutiveLandscapePage({ searchParams }: { searchP
   const generatedAtIso = overview.generatedAt.toISOString();
 
   const railItems: RailItem[] = [
-    { href: '#attention', label: 'Needs attention' },
     { href: '#shape', marker: '1', label: 'Shape' },
     { href: '#position', marker: '2', label: 'Position' },
     { href: '#market', marker: '3', label: 'Market' },
@@ -228,25 +226,6 @@ export default async function ExecutiveLandscapePage({ searchParams }: { searchP
             <SectionRail label="Chapters" items={railItems} />
           </div>
           <div className="flex min-w-0 flex-col gap-10">
-            <section id="attention" className="scroll-mt-[5rem] grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <Card padding="md">
-                <AlertColumn
-                  tone="urgent"
-                  alerts={overview.urgent}
-                  title="Urgent review"
-                  emptyHint="No programs in the urgent-review window."
-                />
-              </Card>
-              <Card padding="md">
-                <AlertColumn
-                  tone="momentum"
-                  alerts={overview.momentum}
-                  title="Momentum (3-yr enrolment growth)"
-                  emptyHint="No high-growth programs detected in the 3-yr window."
-                />
-              </Card>
-            </section>
-
             <div id="shape" className="scroll-mt-[5rem]">
               <Suspense fallback={<ChapterSkeleton id="shape" number={1} kicker="Shape" />}>
                 <ShapeSection scopeQuery={scopeQuery}>
