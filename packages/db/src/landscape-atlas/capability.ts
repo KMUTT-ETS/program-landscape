@@ -37,20 +37,34 @@ export interface CapabilityChapter {
 /** Grants below this sit on the floor of the log axis. */
 export const GRANT_AXIS_FLOOR_THB = 10_000;
 const YEARS = 3;
+const MIN_FACULTIES_FOR_MEDIAN = 3;
 
-export function buildCapability(rows: readonly CapabilityInput[], computedAt: string): CapabilityChapter {
+export function buildCapability(
+  rows: readonly CapabilityInput[],
+  computedAt: string,
+): CapabilityChapter {
   const unplotted: Unplotted[] = [];
   const ok: Array<{ r: CapabilityInput; pubs: number; grant: number }> = [];
   for (const r of rows) {
-    if (r.activeStaff <= 0) unplotted.push({ id: r.facultyId, label: r.nameTh, reason: 'No active teaching staff' });
-    else if (r.grantBahtPerStaffPerYear === null) unplotted.push({ id: r.facultyId, label: r.nameTh, reason: 'Grant data not synced' });
-    else ok.push({ r, pubs: r.publications3y / YEARS / r.activeStaff, grant: r.grantBahtPerStaffPerYear });
+    if (r.activeStaff <= 0)
+      unplotted.push({ id: r.facultyId, label: r.nameTh, reason: 'No active teaching staff' });
+    else if (r.grantBahtPerStaffPerYear === null)
+      unplotted.push({ id: r.facultyId, label: r.nameTh, reason: 'Grant data not synced' });
+    else
+      ok.push({
+        r,
+        pubs: r.publications3y / YEARS / r.activeStaff,
+        grant: r.grantBahtPerStaffPerYear,
+      });
   }
-  const mPubs = median(ok.map((o) => o.pubs));
-  const mGrant = median(ok.map((o) => o.grant));
+  // Medians over fewer than three faculties are meaningless (one faculty IS the median).
+  const enough = ok.length >= MIN_FACULTIES_FOR_MEDIAN;
+  const mPubs = enough ? median(ok.map((o) => o.pubs)) : null;
+  const mGrant = enough ? median(ok.map((o) => o.grant)) : null;
   const xMax = Math.max(1, ...ok.map((o) => o.pubs)) * 1.1;
   const yMax = Math.max(GRANT_AXIS_FLOOR_THB * 10, ...ok.map((o) => o.grant)) * 1.5;
-  const yPos = (g: number) => (g < GRANT_AXIS_FLOOR_THB ? 0 : logPos(g, GRANT_AXIS_FLOOR_THB, yMax));
+  const yPos = (g: number) =>
+    g < GRANT_AXIS_FLOOR_THB ? 0 : logPos(g, GRANT_AXIS_FLOOR_THB, yMax);
   const tone = (pubs: number, grant: number): Tone => {
     if (mPubs === null || mGrant === null) return 'neutral';
     const hiP = pubs >= mPubs;
@@ -83,7 +97,9 @@ export function buildCapability(rows: readonly CapabilityInput[], computedAt: st
     medians: { publications: mPubs, grant: mGrant },
     frame: {
       split:
-        mPubs === null || mGrant === null ? null : { x: linearPos(mPubs, 0, xMax), y: yPos(mGrant) },
+        mPubs === null || mGrant === null
+          ? null
+          : { x: linearPos(mPubs, 0, xMax), y: yPos(mGrant) },
       diagonal: false,
       xTicks: [0, xMax / 2, xMax].map((v) => ({ at: linearPos(v, 0, xMax), label: v.toFixed(1) })),
       yTicks: logTicks(GRANT_AXIS_FLOOR_THB, yMax, thbShort),
@@ -91,9 +107,14 @@ export function buildCapability(rows: readonly CapabilityInput[], computedAt: st
     answer:
       ok.length === 0
         ? NO_ANSWER
-        : {
-            figure: String(rich),
-            sentence: `of ${ok.length} ${ok.length === 1 ? 'faculty' : 'faculties'} ${rich === 1 ? 'brings' : 'bring'} in ฿1M or more in external grants per teaching staff member a year.`,
-          },
+        : ok.length === 1
+          ? {
+              figure: thbShort(ok[0]!.grant),
+              sentence: 'in external grants per teaching staff member a year.',
+            }
+          : {
+              figure: String(rich),
+              sentence: `of ${ok.length} ${ok.length === 1 ? 'faculty' : 'faculties'} ${rich === 1 ? 'brings' : 'bring'} in ฿1M or more in external grants per teaching staff member a year.`,
+            },
   };
 }

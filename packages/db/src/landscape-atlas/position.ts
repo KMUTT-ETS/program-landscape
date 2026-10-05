@@ -143,8 +143,8 @@ export function actionQuadrant(health: number, riskMatrixScore: number): ActionQ
 
 const RISK_TONE: Record<Exclude<KkuRiskLevel, 'NEEDS_DATA'>, Tone> = {
   LOW: 'positive',
-  MODERATE: 'neutral',
-  HIGH: 'warning',
+  MODERATE: 'warning',
+  HIGH: 'negative',
   VERY_HIGH: 'negative',
 };
 

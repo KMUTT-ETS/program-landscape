@@ -53,4 +53,31 @@ describe('buildCapability', () => {
       sentence: 'of 3 faculties brings in ฿1M or more in external grants per teaching staff member a year.',
     });
   });
+
+  it('with one faculty: no medians, no split, neutral tone, answer is the faculty figure', () => {
+    const out = buildCapability([f({ facultyId: 'a', grantBahtPerStaffPerYear: 2_500_000 })], 'now');
+    expect(out.frame.split).toBeNull();
+    expect(out.medians).toEqual({ publications: null, grant: null });
+    expect(out.points[0]!.tone).toBe('neutral');
+    expect(out.answer).toEqual({ figure: '฿2.5M', sentence: 'in external grants per teaching staff member a year.' });
+  });
+
+  it('with two faculties: still no medians or split, all neutral', () => {
+    const out = buildCapability(
+      [f({ facultyId: 'a', publications3y: 900 }), f({ facultyId: 'b', publications3y: 30, grantBahtPerStaffPerYear: 20_000 })],
+      'now',
+    );
+    expect(out.frame.split).toBeNull();
+    expect(out.medians).toEqual({ publications: null, grant: null });
+    expect(out.points.map((p) => p.tone)).toEqual(['neutral', 'neutral']);
+  });
+
+  it('with three faculties: medians and split are set', () => {
+    const out = buildCapability(
+      [f({ facultyId: 'a' }), f({ facultyId: 'b', publications3y: 30 }), f({ facultyId: 'c', publications3y: 900 })],
+      'now',
+    );
+    expect(out.frame.split).not.toBeNull();
+    expect(out.medians.publications).not.toBeNull();
+  });
 });

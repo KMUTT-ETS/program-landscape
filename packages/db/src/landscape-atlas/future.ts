@@ -1,10 +1,19 @@
 // packages/db/src/landscape-atlas/future.ts
 import { meanOf, round1 } from './scales';
-import { LANDSCAPE_ATLAS_VERSION, NO_ANSWER, SECTOR_THIN_PROGRAMMES, type ChapterAnswer } from './types';
+import {
+  LANDSCAPE_ATLAS_VERSION,
+  NO_ANSWER,
+  SECTOR_THIN_PROGRAMMES,
+  type ChapterAnswer,
+} from './types';
 
 // ── Future-fit scorecard (spec 4.6, D8: three columns) ───────────────
 
-export const SCORECARD_COLUMNS = ['AI readiness', 'Digital intelligence (DQ)', 'Relevance'] as const;
+export const SCORECARD_COLUMNS = [
+  'AI readiness',
+  'Digital intelligence (DQ)',
+  'Relevance',
+] as const;
 
 export interface ScorecardInput {
   facultyId: string;
@@ -63,7 +72,9 @@ export function buildScorecard(inputs: readonly ScorecardInput[]): Scorecard {
   return {
     columns: [...SCORECARD_COLUMNS],
     rows,
-    note: lowest.length ? `Lowest on the measures available: ${lowest.map((r) => r.sublabel || r.label).join(', ')}.` : null,
+    note: lowest.length
+      ? `Lowest on the measures available: ${lowest.map((r) => r.sublabel || r.label).join(', ')}.`
+      : null,
   };
 }
 
@@ -114,20 +125,43 @@ export interface FutureChapter {
   answer: ChapterAnswer;
 }
 
-export function buildFuture(scorecard: readonly ScorecardInput[], coverage: CoverageInput, computedAt: string): FutureChapter {
+export function buildFuture(
+  scorecard: readonly ScorecardInput[],
+  coverage: CoverageInput,
+  computedAt: string,
+  universityScope: boolean,
+): FutureChapter {
   const grid = buildCoverage(coverage);
   const n = grid.columns.length;
   const thin = grid.thinSectors.length;
+  const fed = grid.columns.filter((c) => c.total > 0).length;
   const answer: ChapterAnswer =
     n === 0
       ? NO_ANSWER
-      : {
-          figure: `${thin === 0 ? n : thin} of ${n}`,
-          sentence:
-            thin === 0
-              ? `national strategic sectors are fed by ${SECTOR_THIN_PROGRAMMES} or more programmes.`
-              : `national strategic ${thin === 1 ? 'sector is' : 'sectors are'} fed by fewer than ${SECTOR_THIN_PROGRAMMES} programmes` +
-            (grid.unmappedSectors.length ? `; ${grid.unmappedSectors.join(', ')} by none we can map.` : '.'),
-        };
-  return { version: LANDSCAPE_ATLAS_VERSION, computedAt, scorecard: buildScorecard(scorecard), coverage: grid, answer };
+      : !universityScope
+        ? {
+            figure: `${fed} of ${n}`,
+            sentence:
+              'national strategic sectors are fed by programmes in this scope' +
+              (grid.unmappedSectors.length
+                ? `; none mapped for ${grid.unmappedSectors.join(', ')}.`
+                : '.'),
+          }
+        : {
+            figure: `${thin === 0 ? n : thin} of ${n}`,
+            sentence:
+              thin === 0
+                ? `national strategic sectors are fed by ${SECTOR_THIN_PROGRAMMES} or more programmes.`
+                : `national strategic ${thin === 1 ? 'sector is' : 'sectors are'} fed by fewer than ${SECTOR_THIN_PROGRAMMES} programmes` +
+                  (grid.unmappedSectors.length
+                    ? `; ${grid.unmappedSectors.join(', ')} by none we can map.`
+                    : '.'),
+          };
+  return {
+    version: LANDSCAPE_ATLAS_VERSION,
+    computedAt,
+    scorecard: buildScorecard(scorecard),
+    coverage: grid,
+    answer,
+  };
 }

@@ -81,6 +81,7 @@ describe('buildFuture answer', () => {
         counts: [],
       },
       'now',
+      true,
     );
     expect(out.answer).toEqual({
       figure: '2 of 2',
@@ -107,6 +108,7 @@ describe('buildFuture answer', () => {
         ],
       },
       'now',
+      true,
     );
     expect(out.answer).toEqual({
       figure: '2 of 2',
@@ -126,10 +128,48 @@ describe('buildFuture answer', () => {
         ],
       },
       'now',
+      true,
     );
     expect(out.answer).toEqual({
       figure: '1 of 2',
       sentence: 'national strategic sector is fed by fewer than 15 programmes.',
+    });
+  });
+
+  it('non-university scope: counts sectors fed by any programme, no thin threshold', () => {
+    const out = buildFuture(
+      [],
+      {
+        faculties: fac,
+        sectors: secs,
+        counts: [{ facultyId: 'f1', sectorId: 's1', programmes: 2 }],
+      },
+      'now',
+      false,
+    );
+    expect(out.answer).toEqual({
+      figure: '1 of 2',
+      sentence: 'national strategic sectors are fed by programmes in this scope; none mapped for Green economy.',
+    });
+  });
+
+  it('non-university scope: all sectors fed ends with a full stop', () => {
+    const out = buildFuture(
+      [],
+      {
+        faculties: fac,
+        sectors: secs,
+        counts: [
+          { facultyId: 'f1', sectorId: 's1', programmes: 1 },
+          { facultyId: 'f1', sectorId: 's2', programmes: 1 },
+        ],
+      },
+      'now',
+      false,
+    );
+    expect(out.answer).toEqual({
+      figure: '2 of 2',
+      sentence: 'national strategic sectors are fed by programmes in this scope.',
     });
   });
 });

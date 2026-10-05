@@ -263,7 +263,7 @@ export async function readFuture(scope: AtlasScope): Promise<FutureChapter> {
     select: { id: true, code: true, nameTh: true, nameEn: true },
     orderBy: { code: 'asc' },
   });
-  if (isEmpty(scope)) return buildFuture([], { faculties: [], sectors, counts: [] }, nowIso());
+  if (isEmpty(scope)) return buildFuture([], { faculties: [], sectors, counts: [] }, nowIso(), scope.level === 'university');
   const programmes = z.array(FacultyProgrammeRow).parse(
     await prisma.$queryRawUnsafe<unknown[]>(
       `SELECT p.id AS "programId", f.id AS "facultyId", f.code, f.name_th AS "nameTh", f.name_en AS "nameEn"
@@ -320,5 +320,6 @@ export async function readFuture(scope: AtlasScope): Promise<FutureChapter> {
       counts,
     },
     nowIso(),
+    scope.level === 'university',
   );
 }

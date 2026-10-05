@@ -114,6 +114,15 @@ describe('buildHealthRisk', () => {
     expect(out.frame.split).toEqual({ x: linearPos(65, 45, 100), y: 37.5 });
   });
 
+  it('colours risk levels green, amber, red, red (never grey)', () => {
+    const out = buildHealthRisk(
+      (['LOW', 'MODERATE', 'HIGH', 'VERY_HIGH'] as const).map((riskLevel, i) =>
+        hr({ programId: String(i), health: 60, riskMatrixScore: 5, riskLevel }),
+      ),
+    );
+    expect(out.points.map((p) => p.tone)).toEqual(['positive', 'warning', 'negative', 'negative']);
+  });
+
   it('keeps every plotted x within 0–100 with the split between the extremes', () => {
     const out = buildHealthRisk([
       hr({ programId: 'a', health: 20, riskMatrixScore: 12, riskLevel: 'HIGH' }),
