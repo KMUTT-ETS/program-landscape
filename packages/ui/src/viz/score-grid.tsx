@@ -35,11 +35,11 @@ function scoreClass(v: number): string {
 
 export function ScoreGrid({ columns, rows, mode, trailingLabel, emptyLabel = 'No data to show.', className }: ScoreGridProps) {
   if (rows.length === 0) return <p className="text-sm text-text-tertiary">{emptyLabel}</p>;
-  const max = Math.max(1, ...rows.flatMap((r) => r.cells.filter((c): c is number => c !== null)));
+  const max = Math.max(1, ...rows.flatMap((r) => r.cells.filter((c): c is number => c !== null && Number.isFinite(c))));
   const template = `minmax(180px, 1.6fr) repeat(${columns.length}, minmax(64px, 1fr))${trailingLabel ? ' minmax(64px, auto)' : ''}`;
 
   const cell = (v: number | null, i: number) => {
-    if (v === null) {
+    if (v === null || !Number.isFinite(v)) {
       return mode === 'score' ? (
         <span key={i} title="No data" className="py-1 text-center text-text-tertiary">—</span>
       ) : (
@@ -53,7 +53,7 @@ export function ScoreGrid({ columns, rows, mode, trailingLabel, emptyLabel = 'No
         </span>
       );
     }
-    const alpha = (0.12 + 0.6 * (v / max)).toFixed(2);
+    const alpha = Math.max(0.12, 0.12 + 0.6 * (v / max)).toFixed(2);
     return (
       <span
         key={i}
@@ -65,10 +65,15 @@ export function ScoreGrid({ columns, rows, mode, trailingLabel, emptyLabel = 'No
     );
   };
 
-  const line = (r: ScoreGridRow) => (
+  const line = (r: ScoreGridRow, expandable: boolean) => (
     <div className="grid items-center gap-1 px-2 py-1 text-xs" style={{ gridTemplateColumns: template }}>
       <span className="min-w-0">
-        <span className="block truncate text-text-primary">{r.label}</span>
+        <span className="block truncate text-text-primary">
+          {expandable && (
+            <span aria-hidden className="mr-1 inline-block transition-transform group-open:rotate-90">▸</span>
+          )}
+          {r.label}
+        </span>
         {r.sublabel && <span className="block truncate text-[10px] text-text-tertiary">{r.sublabel}</span>}
       </span>
       {r.cells.map(cell)}
@@ -90,12 +95,12 @@ export function ScoreGrid({ columns, rows, mode, trailingLabel, emptyLabel = 'No
       </div>
       {rows.map((r) =>
         r.detail ? (
-          <details key={r.id} className="border-b border-subtle last:border-b-0">
-            <summary className="cursor-pointer list-none hover:bg-surface-2">{line(r)}</summary>
+          <details key={r.id} className="group border-b border-subtle last:border-b-0">
+            <summary className="cursor-pointer list-none hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-default/40">{line(r, true)}</summary>
             <div className="px-4 py-2">{r.detail}</div>
           </details>
         ) : (
-          <div key={r.id} className="border-b border-subtle last:border-b-0">{line(r)}</div>
+          <div key={r.id} className="border-b border-subtle last:border-b-0">{line(r, false)}</div>
         ),
       )}
     </div>
