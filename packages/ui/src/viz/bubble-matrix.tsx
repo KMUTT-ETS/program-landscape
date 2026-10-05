@@ -28,6 +28,14 @@ import { useChartPalette } from './chart-theme';
 // Accessibility: each bubble has a visible text label + aria-label with
 // the metric read-back. Hover = tooltip overlay with Thai description.
 
+export type BubbleTone = 'positive' | 'warning' | 'negative' | 'neutral';
+
+export interface BubbleTick {
+  /** Position in 0-100 plot space. */
+  at: number;
+  label: string;
+}
+
 export interface Bubble {
   id: string;
   label: string;
@@ -35,6 +43,8 @@ export interface Bubble {
   y: number;            // 0-100
   size: number;         // arbitrary; normalised internally
   color: number;        // arbitrary; negative → negative-tone, positive → positive-tone
+  /** Categorical tone; overrides `color` when set. */
+  tone?: BubbleTone;
   dataCompletenessPct?: number;
 }
 
@@ -50,6 +60,12 @@ export interface BubbleMatrixProps {
   height?: number;
   onBubbleClick?: (b: Bubble) => void;
   className?: string;
+  /** Cross-hair position in 0-100 plot space. Default 50/50; null hides it. */
+  split?: { x: number; y: number } | null;
+  /** Draw the y = x diagonal (bottom-left → top-right). */
+  diagonal?: boolean;
+  xTicks?: BubbleTick[];
+  yTicks?: BubbleTick[];
   // Optional named labels for the 4 quadrants. When supplied, renders a
   // small caption in each corner (e.g. STARS top-right, DOGS bottom-left)
   // — useful for BCG-style portfolio views where the quadrant name is
@@ -79,6 +95,10 @@ export function BubbleMatrix({
   onBubbleClick,
   className,
   quadrantLabels,
+  split = { x: 50, y: 50 },
+  diagonal = false,
+  xTicks = [],
+  yTicks = [],
 }: BubbleMatrixProps) {
   const palette = useChartPalette();
   const [hovered, setHovered] = React.useState<Bubble | null>(null);
@@ -129,14 +149,11 @@ export function BubbleMatrix({
   // Bubble colour: diverging. Positive → data-positive (greenish),
   // negative → data-negative (red), zero → neutral.
   const colorFor = (b: Bubble) => {
+    if (b.tone) return palette[b.tone];
     if (b.color > 0) return palette.positive;
     if (b.color < 0) return palette.negative;
     return palette.neutral;
   };
-
-  // Quadrant guides at 50/50.
-  const quadrantX = M.left + W / 2;
-  const quadrantY = M.top + H / 2;
 
   // ── Pan + zoom maths ─────────────────────────────────────────────
   // We apply: screen = pan + base * zoom. Inverse: base = (screen - pan) / zoom.
@@ -236,6 +253,12 @@ export function BubbleMatrix({
       r: radius(b),
     };
   });
+  // Plot-space (0-100) → screen, with the same zoom/pan transform as the
+  // bubbles, so guides stay on the values they mark when zoomed.
+  const toScreenX = (p: number) => pan.x + (M.left + (p / 100) * W) * zoom + M.left * (1 - zoom);
+  const toScreenY = (p: number) => pan.y + (M.top + H - (p / 100) * H) * zoom + M.top * (1 - zoom);
+  const inX = (px: number) => px >= M.left - 0.5 && px <= M.left + W + 0.5;
+  const inY = (py: number) => py >= M.top - 0.5 && py <= M.top + H + 0.5;
   // The `+ M.left * (1 - zoom)` (and same for y) shifts the zoom origin
   // from (0,0) to (M.left, M.top), so the plot's top-left corner stays
   // pinned when zoom changes from 1 with pan=0. Otherwise zooming would
@@ -317,24 +340,6 @@ export function BubbleMatrix({
         {/* plot area background */}
         <rect x={M.left} y={M.top} width={W} height={H} fill="transparent" stroke={palette.grid} />
 
-        {/* quadrant cross-hairs */}
-        <line
-          x1={quadrantX}
-          x2={quadrantX}
-          y1={M.top}
-          y2={M.top + H}
-          stroke={palette.grid}
-          strokeDasharray="3 3"
-        />
-        <line
-          x1={M.left}
-          x2={M.left + W}
-          y1={quadrantY}
-          y2={quadrantY}
-          stroke={palette.grid}
-          strokeDasharray="3 3"
-        />
-
         {/* Axis labels — outside the clipPath so they always show */}
         <text
           x={M.left + W / 2}
@@ -355,6 +360,23 @@ export function BubbleMatrix({
         >
           {axisYLabel}
         </text>
+
+        {xTicks.map((t) => {
+          const px = toScreenX(t.at);
+          return inX(px) ? (
+            <text key={`xt-${t.at}`} x={px} y={M.top + H + 14} textAnchor="middle" fontSize={9} fill={palette.axis}>
+              {t.label}
+            </text>
+          ) : null;
+        })}
+        {yTicks.map((t) => {
+          const py = toScreenY(t.at);
+          return inY(py) ? (
+            <text key={`yt-${t.at}`} x={M.left - 6} y={py + 3} textAnchor="end" fontSize={9} fill={palette.axis}>
+              {t.label}
+            </text>
+          ) : null;
+        })}
 
         {xMinLabel && (
           <text x={M.left} y={effectiveHeight - 28} textAnchor="start" fontSize={10} fill={palette.axis}>
@@ -462,6 +484,25 @@ export function BubbleMatrix({
             Rendered LAST so bubbles sit on top of the pan-drag rect
             and receive hover (floating tooltip) + click events. */}
         <g clipPath={`url(#${clipId})`}>
+          {split && (
+            <>
+              <line
+                x1={toScreenX(split.x)} x2={toScreenX(split.x)} y1={M.top} y2={M.top + H}
+                stroke={palette.grid} strokeDasharray="3 3"
+              />
+              <line
+                x1={M.left} x2={M.left + W} y1={toScreenY(split.y)} y2={toScreenY(split.y)}
+                stroke={palette.grid} strokeDasharray="3 3"
+              />
+            </>
+          )}
+          {diagonal && (
+            <line
+              data-guide="diagonal"
+              x1={toScreenX(0)} y1={toScreenY(0)} x2={toScreenX(100)} y2={toScreenY(100)}
+              stroke={palette.axis} strokeOpacity={0.5}
+            />
+          )}
           {bubblePositions.map(({ bubble: b, cx, cy, r }) => {
             const lowData = (b.dataCompletenessPct ?? 100) < 50;
             return (
@@ -470,6 +511,7 @@ export function BubbleMatrix({
                 cx={cx}
                 cy={cy}
                 r={r}
+                data-tone={b.tone ?? (b.color > 0 ? 'positive' : b.color < 0 ? 'negative' : 'neutral')}
                 fill={colorFor(b)}
                 fillOpacity={lowData ? 0.25 : 0.55}
                 stroke={colorFor(b)}
