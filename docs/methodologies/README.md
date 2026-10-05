@@ -21,6 +21,7 @@ lookup map in `@kku/shared/methodologies.ts`.
 | `program-job-field` | Gap Analyzer (programme assignments) | `program-job-field.v1` | [gap-map.md](./gap-map.md) §7 |
 | `program-overlap` | Education (program overlap), Deep-Dive, Risk Management (two KRIs) | `program-overlap.v1` | [program-overlap.md](./program-overlap.md) |
 | `program-overlap-recommendation` | Program overlap (AI wording for flagged pairs) | `program-overlap-recommendation.v1` | [program-overlap.md](./program-overlap.md) §8 |
+| `landscape-atlas` | Executive Landscape (five chapters) | `landscape-atlas.v1` | [landscape-atlas.md](./landscape-atlas.md) |
 | `scenario-engine` | Scenario Planner | `scenario-engine.v1` | [scenario-engine.md](./scenario-engine.md) |
 | `benchmarking` | Benchmarking | `benchmarking.v1` | See [benchmarking.md](./benchmarking.md) (placeholder — extend from service comments) |
 | `curriculum-heuristic` | PDF intake / curriculum extraction | `heuristic-v1` | In-code docstring: `apps/ingestion/src/pdf-intake/extractors/curriculum-extractor.ts` |
