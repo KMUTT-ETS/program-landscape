@@ -14,7 +14,7 @@ export function ChapterHeader({
   answer: ChapterAnswer | null;
 }) {
   return (
-    <header id={id} className="scroll-mt-[5rem] border-t-2 border-strong pt-4">
+    <header data-chapter={id} className="border-t-2 border-strong pt-4">
       <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-tertiary">
         Chapter {number} · {kicker}
       </p>
@@ -40,7 +40,7 @@ export function ChapterUnavailable({ message }: { message?: string }) {
 export function ChapterSkeleton({ id, number, kicker }: { id: string; number: number; kicker: string }) {
   return (
     <div className="flex flex-col gap-3">
-      <p id={id} className="scroll-mt-[5rem] border-t-2 border-strong pt-4 text-[11px] font-semibold uppercase tracking-[0.1em] text-text-tertiary">
+      <p data-chapter={id} className="border-t-2 border-strong pt-4 text-[11px] font-semibold uppercase tracking-[0.1em] text-text-tertiary">
         Chapter {number} · {kicker}
       </p>
       <div className="h-[18rem] animate-shimmer rounded-lg bg-surface-2" aria-hidden />

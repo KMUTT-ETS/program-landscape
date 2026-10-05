@@ -1,5 +1,6 @@
 'use client';
 
+import * as React from 'react';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
 import { BubbleMatrix, type Bubble, type BubbleMatrixProps } from '@kku/ui';
@@ -23,10 +24,24 @@ export function AtlasBubble({
   height?: number;
 }) {
   const router = useRouter();
+  // BubbleMatrix draws at a fixed pixel width inside an overflow-hidden box,
+  // so a width wider than the column clips the right of the plot. Fit it to
+  // the container once mounted; `width` is only the SSR / first-paint value.
+  const boxRef = React.useRef<HTMLDivElement>(null);
+  const [fitWidth, setFitWidth] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const measure = () => setFitWidth(Math.max(320, Math.floor(el.clientWidth)));
+    measure();
+    const obs = new ResizeObserver(measure);
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
   const hrefById = new Map(points.map((p) => [p.id, p.href]));
   const bubbles: Bubble[] = points.map((p) => ({ id: p.id, label: p.label, x: p.x, y: p.y, size: p.size, color: 0, tone: p.tone }));
   return (
-    <div className="overflow-x-auto">
+    <div ref={boxRef} className="w-full min-w-0">
       <BubbleMatrix
         bubbles={bubbles}
         axisXLabel={axisXLabel}
@@ -36,7 +51,7 @@ export function AtlasBubble({
         xTicks={frame.xTicks}
         yTicks={frame.yTicks}
         quadrantLabels={quadrantLabels}
-        width={width}
+        width={fitWidth ?? width}
         height={height}
         onBubbleClick={(b) => {
           const href = hrefById.get(b.id);

@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { auth } from '@/lib/auth';
-import { apiFetch } from '@/lib/api-client';
 import { getBenchmarkingOverview, getDashboardOverview, prisma, type DashboardOverview } from '@kku/db';
 import {
   Card,
@@ -14,19 +13,25 @@ import {
 } from '@kku/ui';
 import type { SessionUser } from '@kku/shared';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
-import { StrategicMatrixHero } from '@/components/dashboard/strategic-matrix-hero';
-import type { CockpitMatrix } from '../../cockpit/types';
 import { AlertColumn } from '@/components/dashboard/alert-card';
 import { LevelMix } from '@/components/dashboard/level-mix';
 import { PulseStrip } from '@/components/dashboard/pulse-strip';
 import { LifecycleVerdictViz } from '@/components/dashboard/lifecycle-verdict';
 import { HealthByFaculty } from '@/components/dashboard/health-by-faculty';
 import { CurriculumModernity } from '@/components/dashboard/curriculum-modernity';
+import { Suspense } from 'react';
+import { SectionRail, type RailItem } from '@/components/evidence';
+import { ChapterSkeleton } from './chapters/chapter-header';
+import { ShapeSection } from './chapters/shape-section';
+import { PositionSection } from './chapters/position-section';
+import { MarketSection, MARKET_BASES, type MarketBasis } from './chapters/market-section';
+import { CapabilitySection } from './chapters/capability-section';
+import { FutureSection } from './chapters/future-section';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Executive Landscape · KKU' };
 
-export default async function ExecutiveLandscapePage() {
+export default async function ExecutiveLandscapePage({ searchParams }: { searchParams: { basis?: string } }) {
   const session = await auth();
   if (!session?.user || !(session.user as SessionUser).userId) {
     redirect('/signin');
@@ -101,25 +106,25 @@ export default async function ExecutiveLandscapePage() {
     ];
   }
 
-  // For the matrix we let the cockpit endpoint do its own fan-out
-  // (already multi-scope-aware via cockpitScopeTargets). Just pass the
-  // requested scope; the API unions internally.
-  const matrixQuery = effectivelyUniversityWide
+  // The chapter endpoints do their own fan-out (multi-scope-aware). Just
+  // pass the requested scope; the API unions internally.
+  const scopeQuery = effectivelyUniversityWide
     ? 'scope=university'
     : grantedFacultyIds.length === 1 && grantedProgramIds.length === 0
       ? `scope=faculty&scopeId=${encodeURIComponent(grantedFacultyIds[0]!)}`
       : grantedProgramIds.length === 1 && grantedFacultyIds.length === 0
         ? `scope=program&scopeId=${encodeURIComponent(grantedProgramIds[0]!)}`
         : 'scope=university'; // API clamps; multi-target fan-out happens server-side
+  const basis: MarketBasis = (MARKET_BASES as readonly string[]).includes(searchParams.basis ?? '')
+    ? (searchParams.basis as MarketBasis)
+    : 'all';
 
   // Run the overview fan-out (1 call for single-grant; N for multi).
   const overviewParts = await Promise.all(overviewTargets.map((t) => getDashboardOverview(t)));
   const overview = overviewParts.length === 1 ? overviewParts[0]! : combineDashboardOverviews(overviewParts);
 
-  const strategicMatrix = await apiFetch<CockpitMatrix>(`/cockpit/matrix?${matrixQuery}`).catch(() => null);
-
   // Portfolio-level curriculum-modernity counts (university-wide AI peer review)
-  // — sits beside the Strategic Matrix.
+  // — shown in the Position chapter.
   const modernityCounts = await getBenchmarkingOverview()
     .then((o) => o.hero.modernityCounts)
     .catch(() => null);
@@ -135,6 +140,15 @@ export default async function ExecutiveLandscapePage() {
   const k = overview.kpis;
   const bulkRunning = k.bulkPipelineProgress.done < k.bulkPipelineProgress.total;
   const generatedAtIso = overview.generatedAt.toISOString();
+
+  const railItems: RailItem[] = [
+    { href: '#attention', label: 'Needs attention' },
+    { href: '#shape', marker: '1', label: 'Shape' },
+    { href: '#position', marker: '2', label: 'Position' },
+    { href: '#market', marker: '3', label: 'Market' },
+    { href: '#capability', marker: '4', label: 'Capability' },
+    { href: '#future', marker: '5', label: 'Future' },
+  ];
 
   return (
     <AuthedAppShell user={user}>
@@ -207,133 +221,143 @@ export default async function ExecutiveLandscapePage() {
           />
         )}
 
-        {/* HERO — BCG-style Strategic Matrix at university scope.
-            Re-uses the cockpit's matrix view as the home-page anchor.
-            Same data, click-to-deep-dive, matches what users see when
-            they navigate to /cockpit/matrix. */}
-        {strategicMatrix && (
-          <div className={modernityCounts ? 'grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]' : ''}>
-            <PanelFrame
-              title="BCG-style Strategic Matrix"
-              description={`X = ${strategicMatrix.axisX.label} · Y = ${strategicMatrix.axisY.label}. Each dot is one program. Click any dot to open the program's deep-dive. Same view as the cockpit's Strategic Matrix at university scope.`}
-              freshnessDate={generatedAtIso}
-              provenanceMeta={{
-                freshnessDate: generatedAtIso,
-                sources: [
-                  { id: 'health_score', name: 'KKU health score (drives axes)' },
-                  { id: 'financial_metrics', name: 'KKU Finance · revenue & contribution' },
-                ],
-                methodologyVersion: strategicMatrix.methodologyVersion,
-                scope: provenanceScope,
-              }}
-            >
-              <StrategicMatrixHero matrix={strategicMatrix} />
-            </PanelFrame>
-            {modernityCounts && (
-              <PanelFrame
-                title="Curriculum modernity verdict"
-                description="Where KKU's AI-reviewed curricula sit on the old-school → frontier spectrum, judged against named peer programs."
-                freshnessDate={generatedAtIso}
-                provenanceMeta={{
-                  freshnessDate: generatedAtIso,
-                  sources: [{ id: 'peer_review', name: 'AI peer review · content modernity' }],
-                  methodologyVersion: 'program-peer-review.v3',
-                  scope: provenanceScope,
-                }}
-              >
-                <CurriculumModernity counts={modernityCounts} variant="compact" />
-              </PanelFrame>
-            )}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[11rem_minmax(0,1fr)]">
+          <div className="hidden lg:block">
+            <SectionRail label="Chapters" items={railItems} />
           </div>
-        )}
+          <div className="flex min-w-0 flex-col gap-10">
+            <section id="attention" className="scroll-mt-[5rem] grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <Card padding="md">
+                <AlertColumn
+                  tone="urgent"
+                  alerts={overview.urgent}
+                  title="Urgent review"
+                  emptyHint="No programs in the urgent-review window."
+                />
+              </Card>
+              <Card padding="md">
+                <AlertColumn
+                  tone="momentum"
+                  alerts={overview.momentum}
+                  title="Momentum (3-yr enrolment growth)"
+                  emptyHint="No high-growth programs detected in the 3-yr window."
+                />
+              </Card>
+            </section>
 
-        {/* ROW: LIFECYCLE VERDICT + FACULTY HEALTH */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <PanelFrame
-            title="Lifecycle verdict"
-            description="Forward-looking trajectory across all programs. Combines AI readiness, content modernity, enrolment + financial trends, capability strength, demographic resilience."
-            freshnessDate={overview.lifecycle.latestComputedAt?.toISOString() ?? generatedAtIso}
-            provenanceMeta={{
-              freshnessDate: overview.lifecycle.latestComputedAt?.toISOString() ?? generatedAtIso,
-              sources: [
-                { id: 'health_score', name: 'KKU health score (5 dimensions)' },
-                { id: 'ai_readiness', name: 'AI readiness assessment (per-program)' },
-                { id: 'peer_review', name: 'AI peer review · content modernity' },
-              ],
-              methodologyVersion:
-                overview.lifecycle.methodologyVersions[0] ?? overview.methodologyVersion,
-              scope: provenanceScope,
-            }}
-          >
-            <LifecycleVerdictViz
-              total={overview.lifecycle.total}
-              expectedTotal={overview.lifecycle.expectedTotal}
-              counts={overview.lifecycle.counts}
-              methodologyVersions={overview.lifecycle.methodologyVersions}
-              latestComputedAt={overview.lifecycle.latestComputedAt?.toISOString() ?? null}
-              programs={overview.lifecycle.programs}
-            />
-          </PanelFrame>
+            <div id="shape" className="scroll-mt-[5rem]">
+              <Suspense fallback={<ChapterSkeleton id="shape" number={1} kicker="Shape" />}>
+                <ShapeSection scopeQuery={scopeQuery}>
+                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                    <PanelFrame
+                      title={
+                        isUniversityWide
+                          ? 'Health score · by faculty'
+                          : user.role === 'PROGRAM_USER'
+                            ? 'Health score · your program'
+                            : 'Health score · by department'
+                      }
+                      description="Equal-weighted across 5 dimensions: attractiveness, financial, capability, outcomes, relevance. Click any row to drill in."
+                      freshnessDate={generatedAtIso}
+                      provenanceMeta={{
+                        freshnessDate: generatedAtIso,
+                        sources: [
+                          { id: 'enrollment_metrics', name: 'KKU Registry · enrolment metrics' },
+                          { id: 'financial_metrics', name: 'KKU Finance · revenue + cost' },
+                          { id: 'graduate_outcomes', name: 'KKU Alumni · outcomes' },
+                          { id: 'kmitl_demand', name: 'LinkedIn labour-market skill demand · subscribed by MHESI (API hosted by KMITL)' },
+                        ],
+                        methodologyVersion: 'health-score.v1',
+                        scope: provenanceScope,
+                      }}
+                    >
+                      <HealthByFaculty
+                        rows={overview.facultyHealth.map((r) => ({ ...r }))}
+                        methodologyVersion="health-score.v1"
+                      />
+                    </PanelFrame>
+                    <Card padding="md" className="flex flex-col gap-4">
+                      <CardHeader className="mb-0">
+                        <CardTitle className="text-sm">Demographic mix</CardTitle>
+                      </CardHeader>
+                      <LevelMix rows={overview.levelMix} />
+                      <p className="text-[11px] text-text-tertiary">
+                        Thailand 18–22 cohort declines ~1.8%/yr. Bachelor's exposure is highest;
+                        Doctoral programs already average &lt;2 students each.
+                      </p>
+                    </Card>
+                  </div>
+                </ShapeSection>
+              </Suspense>
+            </div>
 
-          <PanelFrame
-            title={
-              isUniversityWide
-                ? 'Health score · by faculty'
-                : user.role === 'PROGRAM_USER'
-                  ? 'Health score · your program'
-                  : 'Health score · by department'
-            }
-            description="Equal-weighted across 5 dimensions: attractiveness, financial, capability, outcomes, relevance. Click any row to drill in."
-            freshnessDate={generatedAtIso}
-            provenanceMeta={{
-              freshnessDate: generatedAtIso,
-              sources: [
-                { id: 'enrollment_metrics', name: 'KKU Registry · enrolment metrics' },
-                { id: 'financial_metrics', name: 'KKU Finance · revenue + cost' },
-                { id: 'graduate_outcomes', name: 'KKU Alumni · outcomes' },
-                { id: 'kmitl_demand', name: 'LinkedIn labour-market skill demand · subscribed by MHESI (API hosted by KMITL)' },
-              ],
-              methodologyVersion: 'health-score.v1',
-              scope: provenanceScope,
-            }}
-          >
-            <HealthByFaculty
-              rows={overview.facultyHealth.map((r) => ({ ...r }))}
-              methodologyVersion="health-score.v1"
-            />
-          </PanelFrame>
-        </div>
+            <div id="position" className="scroll-mt-[5rem]">
+              <Suspense fallback={<ChapterSkeleton id="position" number={2} kicker="Position" />}>
+                <PositionSection scopeQuery={scopeQuery}>
+                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                    <PanelFrame
+                      title="Lifecycle verdict"
+                      description="Forward-looking trajectory across all programs. Combines AI readiness, content modernity, enrolment + financial trends, capability strength, demographic resilience."
+                      freshnessDate={overview.lifecycle.latestComputedAt?.toISOString() ?? generatedAtIso}
+                      provenanceMeta={{
+                        freshnessDate: overview.lifecycle.latestComputedAt?.toISOString() ?? generatedAtIso,
+                        sources: [
+                          { id: 'health_score', name: 'KKU health score (5 dimensions)' },
+                          { id: 'ai_readiness', name: 'AI readiness assessment (per-program)' },
+                          { id: 'peer_review', name: 'AI peer review · content modernity' },
+                        ],
+                        methodologyVersion:
+                          overview.lifecycle.methodologyVersions[0] ?? overview.methodologyVersion,
+                        scope: provenanceScope,
+                      }}
+                    >
+                      <LifecycleVerdictViz
+                        total={overview.lifecycle.total}
+                        expectedTotal={overview.lifecycle.expectedTotal}
+                        counts={overview.lifecycle.counts}
+                        methodologyVersions={overview.lifecycle.methodologyVersions}
+                        latestComputedAt={overview.lifecycle.latestComputedAt?.toISOString() ?? null}
+                        programs={overview.lifecycle.programs}
+                      />
+                    </PanelFrame>
+                    {modernityCounts && (
+                      <PanelFrame
+                        title="Curriculum modernity verdict"
+                        description="Where KKU's AI-reviewed curricula sit on the old-school → frontier spectrum, judged against named peer programs."
+                        freshnessDate={generatedAtIso}
+                        provenanceMeta={{
+                          freshnessDate: generatedAtIso,
+                          sources: [{ id: 'peer_review', name: 'AI peer review · content modernity' }],
+                          methodologyVersion: 'program-peer-review.v3',
+                          scope: provenanceScope,
+                        }}
+                      >
+                        <CurriculumModernity counts={modernityCounts} variant="compact" />
+                      </PanelFrame>
+                    )}
+                  </div>
+                </PositionSection>
+              </Suspense>
+            </div>
 
-        {/* DEMOGRAPHIC MIX */}
-        <Card padding="md" className="flex flex-col gap-4">
-          <CardHeader className="mb-0">
-            <CardTitle className="text-sm">Demographic mix</CardTitle>
-          </CardHeader>
-          <LevelMix rows={overview.levelMix} />
-          <p className="text-[11px] text-text-tertiary">
-            Thailand 18–22 cohort declines ~1.8%/yr. Bachelor's exposure is highest;
-            Doctoral programs already average &lt;2 students each.
-          </p>
-        </Card>
+            <div id="market" className="scroll-mt-[5rem]">
+              <Suspense fallback={<ChapterSkeleton id="market" number={3} kicker="Market" />}>
+                <MarketSection scopeQuery={scopeQuery} basis={basis} />
+              </Suspense>
+            </div>
 
-        {/* RISK + MOMENTUM */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <Card padding="md">
-            <AlertColumn
-              tone="urgent"
-              alerts={overview.urgent}
-              title="Urgent review"
-              emptyHint="No programs in the urgent-review window."
-            />
-          </Card>
-          <Card padding="md">
-            <AlertColumn
-              tone="momentum"
-              alerts={overview.momentum}
-              title="Momentum (3-yr enrolment growth)"
-              emptyHint="No high-growth programs detected in the 3-yr window."
-            />
-          </Card>
+            <div id="capability" className="scroll-mt-[5rem]">
+              <Suspense fallback={<ChapterSkeleton id="capability" number={4} kicker="Capability" />}>
+                <CapabilitySection scopeQuery={scopeQuery} />
+              </Suspense>
+            </div>
+
+            <div id="future" className="scroll-mt-[5rem]">
+              <Suspense fallback={<ChapterSkeleton id="future" number={5} kicker="Future" />}>
+                <FutureSection scopeQuery={scopeQuery} />
+              </Suspense>
+            </div>
+          </div>
         </div>
 
         {/* FOOTER STAT GRID — for analyst eyes */}
@@ -343,11 +367,7 @@ export default async function ExecutiveLandscapePage() {
               Coverage & data quality
             </CardTitle>
           </CardHeader>
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            <Stat
-              label="Matrix coverage"
-              value={`${strategicMatrix?.bubbles.length ?? 0}/${k.programCount}`}
-            />
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
             <Stat label="Surging programs" value={k.surgingCount} />
             <Stat label="Crashing programs" value={k.crashingCount} />
             <Stat
@@ -356,7 +376,7 @@ export default async function ExecutiveLandscapePage() {
             />
           </div>
           <p className="mt-3 text-[11px] text-text-tertiary">
-            Methodology version: <span className="font-tabular text-text-secondary">{overview.methodologyVersion}</span>
+            Methodology version: <span className="font-tabular text-text-secondary">{overview.methodologyVersion} · landscape-atlas.v1</span>
             <span className="mx-2 opacity-60">·</span>
             Scope:{' '}
             {isUniversityWide

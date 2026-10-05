@@ -115,7 +115,12 @@ export function readChartPalette(): ChartPalette {
 // Subscribes to theme changes on the <html> element so charts re-read
 // their palette when the user flips light/dark.
 export function useChartPalette(): ChartPalette {
-  const [palette, setPalette] = React.useState<ChartPalette>(() => readChartPalette());
+  // Seed with the static palette on BOTH server and client. Seeding from
+  // readChartPalette() on the client made the first client render differ
+  // from the SSR markup in dark mode; React does not patch mismatched
+  // attributes during hydration, and the effect below then set an equal
+  // value, so the light-mode SSR colours stayed on screen.
+  const [palette, setPalette] = React.useState<ChartPalette>(FALLBACK_PALETTE);
   React.useEffect(() => {
     const recompute = () => setPalette(readChartPalette());
     // Initial resolve now that we're on the client.
