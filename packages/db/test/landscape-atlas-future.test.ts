@@ -29,13 +29,22 @@ describe('buildScorecard', () => {
     expect(out.columns).toEqual(['AI readiness', 'Digital intelligence (DQ)', 'Relevance']);
   });
 
-  it('names the lowest faculties that have at least 2 of 3 measures', () => {
+  it('gives no note when fewer than 4 faculties have at least 2 of 3 measures', () => {
     const out = buildScorecard([
       s({ facultyId: 'a', nameEn: 'A', aiReadiness: 90, dq: 90, relevance: 90 }),
       s({ facultyId: 'b', nameEn: 'B', aiReadiness: 10, dq: 10, relevance: null }),
       s({ facultyId: 'c', nameEn: 'C', aiReadiness: 5, dq: null, relevance: null }),
     ]);
-    expect(out.note).toBe('Lowest on the measures available: B, A.');
+    expect(out.note).toBeNull();
+  });
+
+  it('names the bottom 3 faculties, lowest first, when at least 4 qualify', () => {
+    const out = buildScorecard(
+      [90, 70, 50, 30, 10].map((v, i) =>
+        s({ facultyId: 'ABCDE'[i]!, nameEn: 'ABCDE'[i]!, aiReadiness: v, dq: v, relevance: v }),
+      ),
+    );
+    expect(out.note).toBe('Lowest on the measures available: E, D, C.');
   });
 });
 
@@ -77,6 +86,50 @@ describe('buildFuture answer', () => {
       figure: '2 of 2',
       sentence:
         '2 of 2 national strategic sectors are fed by fewer than 15 programmes; Digital economy, Green economy by none we can map.',
+    });
+  });
+
+  const fac = [{ id: 'f1', code: 'F1', nameTh: 'ก', nameEn: 'One' }];
+  const secs = [
+    { id: 's1', code: 'A', nameTh: 'ก', nameEn: 'Digital economy' },
+    { id: 's2', code: 'B', nameTh: 'ข', nameEn: 'Green economy' },
+  ];
+
+  it('says all sectors are well fed when none is thin', () => {
+    const out = buildFuture(
+      [],
+      {
+        faculties: fac,
+        sectors: secs,
+        counts: [
+          { facultyId: 'f1', sectorId: 's1', programmes: 15 },
+          { facultyId: 'f1', sectorId: 's2', programmes: 20 },
+        ],
+      },
+      'now',
+    );
+    expect(out.answer).toEqual({
+      figure: '0 of 2',
+      sentence: 'All 2 national strategic sectors are fed by 15 or more programmes.',
+    });
+  });
+
+  it('uses the singular for exactly one thin sector that has some programmes', () => {
+    const out = buildFuture(
+      [],
+      {
+        faculties: fac,
+        sectors: secs,
+        counts: [
+          { facultyId: 'f1', sectorId: 's1', programmes: 5 },
+          { facultyId: 'f1', sectorId: 's2', programmes: 20 },
+        ],
+      },
+      'now',
+    );
+    expect(out.answer).toEqual({
+      figure: '1 of 2',
+      sentence: '1 of 2 national strategic sectors is fed by fewer than 15 programmes.',
     });
   });
 });

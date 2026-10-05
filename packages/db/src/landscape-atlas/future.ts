@@ -58,7 +58,8 @@ export function buildScorecard(inputs: readonly ScorecardInput[]): Scorecard {
     return b.mean - a.mean || a.label.localeCompare(b.label);
   });
   const eligible = rows.filter((r) => r.present >= 2);
-  const lowest = eligible.slice(-3).reverse();
+  // Naming "the lowest" is only meaningful with enough faculties to rank.
+  const lowest = eligible.length >= 4 ? eligible.slice(-3).reverse() : [];
   return {
     columns: [...SCORECARD_COLUMNS],
     rows,
@@ -123,7 +124,9 @@ export function buildFuture(scorecard: readonly ScorecardInput[], coverage: Cove
       : {
           figure: `${thin} of ${n}`,
           sentence:
-            `${thin} of ${n} national strategic sectors ${thin === 1 ? 'is' : 'are'} fed by fewer than ${SECTOR_THIN_PROGRAMMES} programmes` +
+            thin === 0
+              ? `All ${n} national strategic sectors are fed by ${SECTOR_THIN_PROGRAMMES} or more programmes.`
+              : `${thin} of ${n} national strategic sectors ${thin === 1 ? 'is' : 'are'} fed by fewer than ${SECTOR_THIN_PROGRAMMES} programmes` +
             (grid.unmappedSectors.length ? `; ${grid.unmappedSectors.join(', ')} by none we can map.` : '.'),
         };
   return { version: LANDSCAPE_ATLAS_VERSION, computedAt, scorecard: buildScorecard(scorecard), coverage: grid, answer };
