@@ -26,6 +26,22 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-10-05',
+    version: 'v2.1.2 · Landscape atlas',
+    title:
+      'The Executive Landscape becomes a five-chapter atlas of the whole portfolio — shape, strategic position, market, capability and future readiness — each chapter opening with its question and a one-line answer',
+    audience: ['Council', 'Executive', 'Analyst', 'Admin'],
+    bullets: [
+      'Shape: a treemap of every faculty and programme, sized by currently active students and coloured by health score.',
+      'Position (bachelor programmes): a growth–share matrix (TCAS round-3 applications per seat against 3-year enrolment change) replaces the old strategic matrix, beside a health × risk action map that sorts programmes into act now, watch, fix quietly and protect.',
+      'Market: every field of study plotted as job-advert share against KKU graduate share, with the balance line drawn; fields KKU does not teach sit on the left edge. Shown at university level.',
+      'Capability: publications and external grant money per teaching staff member, by faculty. Future: a drill-down scorecard (faculty → degree level → programme, with a university average row) of AI readiness, digital intelligence and relevance, and a grid of how faculties feed Thailand’s eight strategic sectors.',
+      'Every chart has its sources, freshness and a "show data" table; anything a chart cannot place is listed with the reason, never drawn as zero. The answer lines are computed by fixed rules, not AI. Methodology: landscape-atlas.v1.',
+      'Charts now keep their dark-mode colours after the page loads. The Urgent review and Momentum panels were removed from the Executive Landscape.',
+      'Admin: the backup check and backup script no longer hang when run by hand from a terminal.',
+    ],
+  },
+  {
     date: '2026-10-04',
     version: 'v2.1.1 · Reliability fixes',
     title: 'Operational fixes: bulk AI embedding runs wait out rate limits, the nightly backup check no longer fails on a quiet weekend, and the release build no longer depends on Google Fonts',
