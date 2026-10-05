@@ -1,7 +1,7 @@
 // apps/api/src/landscape/landscape.controller.ts
 import { Controller, Get, Query } from '@nestjs/common';
 import { z } from 'zod';
-import { LANDSCAPE_ATLAS_VERSION, resolveAtlasScope, type AtlasScope } from '@kku/db';
+import { HEALTH_SCORE_VERSION, LANDSCAPE_ATLAS_VERSION, resolveAtlasScope, type AtlasScope } from '@kku/db';
 import type { ApiMeta, SessionUser } from '@kku/shared';
 import { AuthSession, Authorized, Provenance, ZodValidationPipe, clampScopeForUser } from '../common';
 import { LandscapeService } from './landscape.service';
@@ -14,7 +14,7 @@ type ScopeQueryT = z.infer<typeof ScopeQuery>;
 
 const src = (id: string, name: string) => ({ id, name });
 const ENROLMENT = src('student_cohort_distributions', 'KKU Registry · currently active students');
-const HEALTH = src('health_score', 'KKU health score (health-score.v5.4)');
+const HEALTH = src('health_score', `KKU health score (${HEALTH_SCORE_VERSION})`);
 
 const ATLAS_CAVEATS = [
   'Charts list what they cannot place, with the reason; a missing value is never drawn as 0.',

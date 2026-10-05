@@ -40,3 +40,13 @@ describe('BubbleMatrix guides', () => {
     expect(html).toContain('data-tone="warning"');
   });
 });
+
+describe('BubbleMatrix maxRadius', () => {
+  const radii = (html: string) => [...html.matchAll(/<circle[^>]*? r="([\d.]+)"/g)].map((m) => Number(m[1]));
+  it('defaults to a 32px largest bubble', () => {
+    expect(Math.max(...radii(renderToStaticMarkup(createElement(BubbleMatrix, base))))).toBe(32);
+  });
+  it('caps the largest bubble at maxRadius', () => {
+    expect(Math.max(...radii(renderToStaticMarkup(createElement(BubbleMatrix, { ...base, maxRadius: 16 }))))).toBe(16);
+  });
+});

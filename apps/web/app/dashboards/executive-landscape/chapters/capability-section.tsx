@@ -26,7 +26,7 @@ export async function CapabilitySection({ scopeQuery }: { scopeQuery: string }) 
         description="By faculty. X = publications per active teaching staff member per year (last 3 complete years). Y = external grant baht per staff member per year (last 3 complete Thai fiscal years, log). Size = active teaching staff. Dashed lines = KKU medians."
         meta={meta}
         height={520}
-        chart={<AtlasBubble points={data.points} frame={data.frame} axisXLabel="Publications per staff per year" axisYLabel="Grant ฿ per staff per year" width={1120} height={440} />}
+        chart={<AtlasBubble points={data.points} frame={data.frame} axisXLabel="Publications per staff per year" axisYLabel="Grant ฿ per staff per year" width={1120} height={440} maxRadius={22} />}
         dataTable={<AtlasTable rows={data.points} first="Faculty" />}
       />
       <UnplottedList items={data.unplotted} noun="faculties" />

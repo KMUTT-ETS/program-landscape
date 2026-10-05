@@ -14,6 +14,7 @@ export function AtlasBubble({
   quadrantLabels,
   width = 560,
   height = 400,
+  maxRadius,
 }: {
   points: AtlasPoint[];
   frame: PlotFrame;
@@ -22,6 +23,7 @@ export function AtlasBubble({
   quadrantLabels?: BubbleMatrixProps['quadrantLabels'];
   width?: number;
   height?: number;
+  maxRadius?: number;
 }) {
   const router = useRouter();
   // BubbleMatrix draws at a fixed pixel width inside an overflow-hidden box,
@@ -42,6 +44,7 @@ export function AtlasBubble({
   const bubbles: Bubble[] = points.map((p) => ({ id: p.id, label: p.label, x: p.x, y: p.y, size: p.size, color: 0, tone: p.tone }));
   return (
     <div ref={boxRef} className="w-full min-w-0">
+      <div className="overflow-x-auto">
       <BubbleMatrix
         bubbles={bubbles}
         axisXLabel={axisXLabel}
@@ -53,11 +56,13 @@ export function AtlasBubble({
         quadrantLabels={quadrantLabels}
         width={fitWidth ?? width}
         height={height}
+        maxRadius={maxRadius}
         onBubbleClick={(b) => {
           const href = hrefById.get(b.id);
           if (href) router.push(href as Route);
         }}
       />
+      </div>
     </div>
   );
 }

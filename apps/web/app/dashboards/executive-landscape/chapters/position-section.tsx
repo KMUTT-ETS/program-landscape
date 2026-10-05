@@ -39,6 +39,7 @@ export async function PositionSection({ scopeQuery, children }: { scopeQuery: st
             chart={
               <AtlasBubble
                 points={gs.points}
+                maxRadius={16}
                 frame={gs.frame}
                 axisXLabel="Applications per seat"
                 axisYLabel="Enrolment change, 3 yr"
@@ -63,6 +64,7 @@ export async function PositionSection({ scopeQuery, children }: { scopeQuery: st
             chart={
               <AtlasBubble
                 points={hr.points}
+                maxRadius={16}
                 frame={hr.frame}
                 axisXLabel="Health score"
                 axisYLabel="KKU risk score"

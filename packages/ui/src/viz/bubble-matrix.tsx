@@ -58,6 +58,8 @@ export interface BubbleMatrixProps {
   yMaxLabel?: string;
   width?: number;
   height?: number;
+  /** Radius of the largest bubble in px (default 32, minimum 6). */
+  maxRadius?: number;
   onBubbleClick?: (b: Bubble) => void;
   className?: string;
   /** Cross-hair position in 0-100 plot space. Default 50/50; null hides it. */
@@ -92,6 +94,7 @@ export function BubbleMatrix({
   yMaxLabel,
   width = 720,
   height = 480,
+  maxRadius = 32,
   onBubbleClick,
   className,
   quadrantLabels,
@@ -143,7 +146,7 @@ export function BubbleMatrix({
   const maxBubbleSize = Math.max(1, ...bubbles.map((b) => Math.abs(b.size)));
   const radius = (b: Bubble) => {
     const t = maxBubbleSize === 0 ? 0 : Math.abs(b.size) / maxBubbleSize;
-    return 6 + Math.sqrt(t) * 26;
+    return 6 + Math.sqrt(t) * (Math.max(6, maxRadius) - 6);
   };
 
   // Bubble colour: diverging. Positive → data-positive (greenish),
@@ -488,11 +491,11 @@ export function BubbleMatrix({
             <>
               <line
                 x1={toScreenX(split.x)} x2={toScreenX(split.x)} y1={M.top} y2={M.top + H}
-                stroke={palette.grid} strokeDasharray="3 3"
+                stroke={palette.grid} strokeDasharray="3 3" pointerEvents="none"
               />
               <line
                 x1={M.left} x2={M.left + W} y1={toScreenY(split.y)} y2={toScreenY(split.y)}
-                stroke={palette.grid} strokeDasharray="3 3"
+                stroke={palette.grid} strokeDasharray="3 3" pointerEvents="none"
               />
             </>
           )}
@@ -500,7 +503,7 @@ export function BubbleMatrix({
             <line
               data-guide="diagonal"
               x1={toScreenX(0)} y1={toScreenY(0)} x2={toScreenX(100)} y2={toScreenY(100)}
-              stroke={palette.axis} strokeOpacity={0.5}
+              stroke={palette.axis} strokeOpacity={0.5} pointerEvents="none"
             />
           )}
           {bubblePositions.map(({ bubble: b, cx, cy, r }) => {

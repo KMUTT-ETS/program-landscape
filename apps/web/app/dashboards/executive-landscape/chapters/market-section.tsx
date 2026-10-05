@@ -50,7 +50,7 @@ export async function MarketSection({ scopeQuery, basis }: { scopeQuery: string;
         description="One dot per field (bachelor). X = KKU's share of graduates, Y = share of job adverts, both log. On the diagonal, demand and supply are in balance; above it, under-served. White-space fields (no KKU programme), and fields whose KKU programmes have no graduates yet, sit on the left edge. Size = adverts."
         meta={res.meta}
         height={520}
-        chart={<AtlasBubble points={market.points} frame={market.frame} axisXLabel="KKU graduate share" axisYLabel="Job-advert share" width={1120} height={440} />}
+        chart={<AtlasBubble points={market.points} frame={market.frame} axisXLabel="KKU graduate share" axisYLabel="Job-advert share" width={1120} height={440} maxRadius={22} />}
         dataTable={<AtlasTable rows={market.points} first="Field" />}
       />
       <UnplottedList items={market.unplotted} noun="fields" />
