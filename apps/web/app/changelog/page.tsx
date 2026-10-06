@@ -27,6 +27,15 @@ interface ChangelogEntry {
 const ENTRIES: ChangelogEntry[] = [
   {
     date: '2026-10-06',
+    version: 'v2.1.4 · Deploy reliability',
+    title: 'Deployments no longer fail when a service from an older release still points at that release’s files; nothing changes on screen',
+    audience: ['Admin'],
+    bullets: [
+      'The services read their credentials from one fixed location on the server instead of from inside each release folder. Previously a service that is never rebuilt between releases (the file store) kept pointing at the folder of the release that first created it, and a deploy failed once that old folder was cleaned up.',
+    ],
+  },
+  {
+    date: '2026-10-06',
     version: 'v2.1.3 · Database image build fix',
     title: 'The database image can be built again from scratch after the PostgreSQL package server retired Debian 11; nothing changes on screen',
     audience: ['Admin'],
