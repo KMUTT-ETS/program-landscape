@@ -1,6 +1,6 @@
 # PDF generation
 
-All PDF output for the KKU Curriculum Landscape app — Council Packs,
+All PDF output for the Program Landscape app — Council Packs,
 program briefs, scenario packs, weekly trend digests, decision records,
 data-quality reports — routes through a single centralised service
 backed by **Gotenberg** with **TH Sarabun New** embedded.

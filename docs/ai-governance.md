@@ -1,6 +1,6 @@
 # AI governance
 
-Policy for how AI is used across KKU Curriculum Landscape. The app
+Policy for how AI is used across Program Landscape. The app
 makes consequential recommendations about academic programs — closure,
 merger, new launch. AI helps analysts get there; it does not decide.
 
