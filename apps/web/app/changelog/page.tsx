@@ -26,6 +26,16 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-10-06',
+    version: 'v2.1.3 · Database image build fix',
+    title: 'The database image can be built again from scratch after the PostgreSQL package server retired Debian 11; nothing changes on screen',
+    audience: ['Admin'],
+    bullets: [
+      'The database image now installs pgvector from the PostgreSQL archive server, with the base image and the pgvector version pinned to exactly what production already runs. Without this, a release build without a cached image failed.',
+      'Documentation no longer uses a retired product title.',
+    ],
+  },
+  {
     date: '2026-10-05',
     version: 'v2.1.2 · Landscape atlas',
     title:
