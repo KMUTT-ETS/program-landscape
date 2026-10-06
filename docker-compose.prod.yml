@@ -437,12 +437,19 @@ volumes:
   minio-data:
   nginx-logs:
 
+# Absolute paths on purpose. A relative ./secrets/... resolves inside the
+# release folder, so a container keeps the path of the release that CREATED
+# it. MinIO's image never changes between our releases, so compose never
+# recreates it: on prod it was still bound to releases/2.0.2/secrets/… when
+# the v2.1.2 deploy pruned that folder, and the v2.1.3 deploy's restart
+# failed ("error mounting … not a directory"). The real files live in
+# /opt/program-landscape/secrets (deploy.sh's SECRETS_DIR), which never moves.
 secrets:
   postgres_user:
-    file: ./secrets/postgres_user
+    file: /opt/program-landscape/secrets/postgres_user
   postgres_password:
-    file: ./secrets/postgres_password
+    file: /opt/program-landscape/secrets/postgres_password
   minio_user:
-    file: ./secrets/minio_user
+    file: /opt/program-landscape/secrets/minio_user
   minio_password:
-    file: ./secrets/minio_password
+    file: /opt/program-landscape/secrets/minio_password
