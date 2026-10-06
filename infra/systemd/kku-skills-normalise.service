@@ -1,5 +1,5 @@
 [Unit]
-Description=KKU Curriculum Landscape — skill-name normaliser (LinkedIn / program-digest aliases)
+Description=Program Landscape — skill-name normaliser (LinkedIn / program-digest aliases)
 Documentation=file:///home/denpong/projects/program-landscape/CLAUDE.md
 # We don't depend on the API container — the script reads/writes Postgres
 # directly via Prisma. Postgres MUST be reachable on localhost:5432 by the

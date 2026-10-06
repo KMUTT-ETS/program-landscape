@@ -1,5 +1,5 @@
 [Unit]
-Description=KKU Curriculum Landscape — trigger skill-name normaliser weekly
+Description=Program Landscape — trigger skill-name normaliser weekly
 Documentation=file:///home/denpong/projects/program-landscape/CLAUDE.md
 
 [Timer]
