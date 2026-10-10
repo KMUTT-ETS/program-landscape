@@ -389,6 +389,20 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 - **Verified live on dev:** `SUCCEEDED`, 26 found, 22 inserted, 4 citations refreshed, **90 credits** (75 + 15), profile bound. Record afterwards: 28 rows — 22 `google-scholar`, 4 library matched by Scholar, 2 library untouched, 1998-2026.
 - **NOT deployed.** `main` is ~45 commits past `v1.9.1`. The admin console's bulk path has never been exercised against real data, which at 75 credits a search is the most expensive thing to get wrong.
 
+*Ops, build and deploy traps (learned 2026-10-04 → 10-10):*
+- `AI_GOOGLE_EMBEDDING_MODEL` (env only) is the sole source of the embedding model — admin model overrides do not apply to `embed()`; a wrong value 404s every embed. Changing it needs `docker compose up -d --force-recreate ingestion`.
+- `docker compose exec -T` does not exit until its stdin closes — any script run by hand from a terminal must pass `</dev/null` (systemd timers already have it).
+- verify-backup: preflight gate 6 only READS the last verdict file (`/var/lib/program-landscape/backup-verification.json`); run the bundle's new `scripts/dr/verify-backup.sh` before deploying. Ctrl+C during "Restoring dump" is reported as "dump corrupted" — let it run (~2 min).
+- Never reintroduce `next/font/google`: it downloads at BUILD time and a DNS blip in the build container fails the web image. Fonts are self-hosted via `next/font/local` (`apps/web/public/fonts/`).
+- `infra/postgres/Dockerfile` is Debian bullseye: PGDG serves it only from `apt-archive.postgresql.org`; base digest and `postgresql-16-pgvector=0.8.6-1.pgdg11+1` are pinned to prod. Never move the base to bookworm (glibc collation → text-index corruption). A cached layer hides a broken source until `docker builder prune`.
+- Compose secrets must be absolute (`/opt/program-landscape/secrets/…`): a relative path binds to the release folder that CREATED the container, and never-recreated services (MinIO) break when that release is pruned.
+- Docker creates a missing bind-mount source as an empty directory, which leaves a stub `releases/<old>/` that survives the keep-last-3 prune (sorted by mtime) while a real release is deleted — remove stubs after fixing a stale bind.
+- After a failed `compose up` mid-deploy, the services ordered after the failing one are recreated but NOT started — finish with `docker compose up -d --remove-orphans`, then `sudo ./scripts/smoke-test.sh`.
+- A release tag may be force-moved (`git tag -f -a` + `git push -f origin <tag>`) only before any bundle is built from it.
+- Linked `tcas_admission_stats` rows are TCAS round 3 only; 2568's `3.1`/`3.2` rows repeat the same figures — count each `tcas_course_code` once per entry year, then sum courses.
+- A postgis throwaway container takes ~80 s on first boot before TCP accepts connections — wait longer than 30 s in smoke tests.
+- Landscape-atlas chapters are cached in Redis under `kku:cache:landscape:atlas:*` (5 min); after changing a chapter's response shape, delete only those keys.
+
 *Dev/process traps that cost three wrong diagnoses on 2026-09-09:*
 - **`nest start --watch` only watches `apps/api/src`.** Edits to `packages/shared` or `packages/db` leave the api running STALE code indefinitely, and it is worse than plain staleness: `apps/api/src` DOES hot-reload, so you get new controller code calling an old runner and an old transport. **Check `ps -o lstart= -p <pid>` against the commit time before debugging anything else.**
 - **Ask what is LISTENING, not what matches your pattern.** `nest start --watch` compiles to `dist/` and runs `node dist/main`, so the real server does not match a `nest start` grep. Killing the wrappers left the server alive; the replacement died on `EADDRINUSE` and the health check returned 200 *from the stale process*. `ss -ltnp` first.
