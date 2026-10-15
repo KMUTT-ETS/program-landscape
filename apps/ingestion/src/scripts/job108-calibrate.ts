@@ -109,7 +109,7 @@ import {
 // node:crypto into anything that imports it, which has already broken a
 // client build once.
 import { JOBTHAI_ANY_FIELD, extractFieldsOfStudy } from '@kku/shared/src/jobthai';
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 import type { ZodType, ZodTypeDef } from 'zod';
 
 import { parseCalibrateArgs } from '../job108/calibrate-args';
@@ -386,6 +386,7 @@ function printReport(results: PostingResult[], sample: number, callsMade: number
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const parsed = parseCalibrateArgs(process.argv.slice(2));
   if (!parsed.ok) {
     console.error(`[job108:calibrate] ${parsed.error}`);

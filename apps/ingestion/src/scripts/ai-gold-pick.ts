@@ -23,7 +23,7 @@
 //   pnpm ai:gold-pick --kind PROGRAM_DIGEST --apply
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 
 interface CliArgs {
   apply: boolean;
@@ -45,6 +45,7 @@ function parseArgs(argv: string[]): CliArgs {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const args = parseArgs(process.argv.slice(2));
   console.log(args.apply ? '═══ APPLY MODE ═══' : '═══ DRY RUN ═══');
   console.log(`Target sample size: ${args.total} (min ${args.minPerKind} per kind)`);

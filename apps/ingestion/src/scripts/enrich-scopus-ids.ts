@@ -47,7 +47,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 
 const args = new Set(process.argv.slice(2));
 const APPLY = args.has('--apply');
@@ -105,6 +105,7 @@ async function sleep(ms: number): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   console.log(`Mode: ${APPLY ? 'APPLY (will write)' : 'DRY RUN'}`);
   console.log(`Polite mailto: ${POLITE_MAILTO || '(none — will throttle harder)'}`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');

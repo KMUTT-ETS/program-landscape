@@ -57,7 +57,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, generateProgramResearchExpertise } from '@kku/db';
+import { loadOrganization, prisma, generateProgramResearchExpertise } from '@kku/db';
 import { type AiService } from '@kku/shared';
 import { createIngestionAiService } from '../lib/ai-service';
 
@@ -209,6 +209,7 @@ function confidenceHistogram(values: number[]): string {
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
+  await loadOrganization();
   console.log(`Log file: ${LOG_PATH}`);
   const targets = await resolveTargets();
   console.log(`━━━ program-research-expertise generation ━━━`);

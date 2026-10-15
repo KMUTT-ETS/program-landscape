@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 import { S3Storage, MarkitdownClient } from '@kku/shared';
 import { runTrendDocumentIngest } from '../trend-signals/ingest-document';
 import { createIngestionAiService } from '../lib/ai-service';
@@ -26,6 +26,7 @@ function env(key: string): string {
 }
 
 async function main() {
+  await loadOrganization();
   const argv = process.argv.slice(2);
   const source = argv.find((a) => !a.startsWith('--'));
   const typeArg = argv.find((a) => a.startsWith('--type='))?.split('=')[1]?.toUpperCase();

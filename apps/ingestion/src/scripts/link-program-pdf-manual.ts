@@ -40,7 +40,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 import { S3Storage } from '@kku/shared';
 
 const args = new Set(process.argv.slice(2));
@@ -115,6 +115,7 @@ const LINKS: ManualLink[] = [
 ];
 
 async function main(): Promise<void> {
+  await loadOrganization();
   console.log(`Mode: ${APPLY ? 'APPLY (will write)' : 'DRY RUN'}`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 

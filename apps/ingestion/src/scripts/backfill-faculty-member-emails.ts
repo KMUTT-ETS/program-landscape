@@ -40,7 +40,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 import { withScriptRun } from '../lib/script-run';
 import {
   withConnection as mssqlWithConnection,
@@ -58,6 +58,7 @@ function parseArgs(argv: string[]): { apply: boolean } {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const args = parseArgs(process.argv.slice(2));
   console.log(`Mode: ${args.apply ? 'APPLY' : 'DRY RUN'}`);
 

@@ -27,7 +27,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 import { runDemandMatch } from '../program-demand-match/run';
 import { createIngestionAiService } from '../lib/ai-service';
 
@@ -50,6 +50,7 @@ async function resolveProgramId(arg: string): Promise<string> {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const args = process.argv.slice(2);
   const positional = args.find((a) => !a.startsWith('--'));
   if (!positional) {

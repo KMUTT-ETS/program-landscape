@@ -7,7 +7,7 @@
 // Usage: pnpm tsx apps/ingestion/src/scripts/refresh-external-ai-urls.ts
 
 import 'dotenv/config';
-import { Prisma, prisma } from '@kku/db';
+import { loadOrganization, Prisma, prisma } from '@kku/db';
 
 interface Refresh {
   slug: string;
@@ -94,6 +94,7 @@ const REFRESHES: Refresh[] = [
 ];
 
 async function main() {
+  await loadOrganization();
   let updated = 0;
   for (const r of REFRESHES) {
     const before = await prisma.externalAiSource.findUnique({ where: { slug: r.slug } });

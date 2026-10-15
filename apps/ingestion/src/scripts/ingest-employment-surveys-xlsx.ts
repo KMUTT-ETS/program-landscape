@@ -60,7 +60,7 @@ function loadDotEnv(envPath: string): void {
 }
 
 import * as XLSX from 'xlsx';
-import { prisma, type ProgramLevel } from '@kku/db';
+import { loadOrganization, prisma, type ProgramLevel } from '@kku/db';
 import { withScriptRun } from '../lib/script-run';
 
 // ── Constants ────────────────────────────────────────────────────────────
@@ -642,6 +642,7 @@ async function upsertBucket(b: Bucket, freshness: Date, commit: boolean, runId: 
 
 // ── Main ─────────────────────────────────────────────────────────────────
 async function main(): Promise<void> {
+  await loadOrganization();
   const args = parseArgs(process.argv.slice(2));
 
   // List target files

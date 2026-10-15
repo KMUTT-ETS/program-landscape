@@ -50,7 +50,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { formatDataSourceSync, prisma, syncDataSourcesFromCatalog } from '@kku/db';
+import { loadOrganization, formatDataSourceSync, prisma, syncDataSourcesFromCatalog } from '@kku/db';
 
 /** A transaction that always rolls back, so the dry run exercises the real
  *  code path — including any constraint the plan would violate — instead of a
@@ -70,6 +70,7 @@ async function planOnly(): ReturnType<typeof syncDataSourcesFromCatalog> {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const args = process.argv.slice(2);
   const unknown = args.filter((a) => a !== '--apply');
   if (unknown.length > 0) {

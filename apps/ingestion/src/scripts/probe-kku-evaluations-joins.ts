@@ -22,6 +22,7 @@
 // Read-only, aggregate-only.
 // ───────────────────────────────────────────────────────────────────────
 
+import { loadOrganization } from '@kku/db';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { configFromEnv, query, withConnection } from '../lib/oracle-client';
@@ -53,6 +54,7 @@ function writeFixture(name: string, payload: unknown): void {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const cfg = configFromEnv('KKU_REGISTRY_DB');
   await withConnection(cfg, async (conn) => {
     console.log(`▶ EVALUATE_INSTRUCTOR — follow-up probe`);

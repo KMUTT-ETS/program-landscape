@@ -37,6 +37,7 @@
 // contain PII.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { loadOrganization } from '@kku/db';
 import { existsSync, readFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -1142,6 +1143,7 @@ function pct(n: number, d: number): string {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const [cmd, ...rest] = process.argv.slice(2);
   if (!cmd) {
     printUsage();

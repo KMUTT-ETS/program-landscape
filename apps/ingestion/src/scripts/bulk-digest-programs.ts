@@ -46,7 +46,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, type ProgramLevel } from '@kku/db';
+import { loadOrganization, prisma, type ProgramLevel } from '@kku/db';
 import { S3Storage } from '@kku/shared';
 import { runProgramDigest } from '../program-digest/run';
 import { createIngestionAiService } from '../lib/ai-service';
@@ -88,6 +88,7 @@ const LEVEL_TH_LABEL: Record<string, string> = {
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
+  await loadOrganization();
   console.log(`Log file: ${LOG_PATH}`);
   audit({ event: 'start', limit: LIMIT, levelFilter: LEVEL_FILTER });
 

@@ -14,7 +14,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 
 interface Tuple {
   faculty: string;
@@ -55,6 +55,7 @@ function jaccard(a: string, b: string): number {
 }
 
 async function main() {
+  await loadOrganization();
   const FIXTURE = path.resolve(
     process.cwd(),
     'apps/ingestion/test/fixtures/kku-registry/aggregated.json',

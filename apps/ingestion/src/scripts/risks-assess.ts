@@ -47,7 +47,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import {
+import { loadOrganization,
   prisma,
   loadProgramRiskInputs,
   programFunnelRoundRows,
@@ -476,6 +476,7 @@ async function ensureIndicatorCatalog(): Promise<void> {
 // ── Main ────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
+  await loadOrganization();
   console.log(`[risks-assess] mode=${dryRun ? 'DRY-RUN' : 'APPLY'}, ai=${noAi ? 'OFF' : 'ON'}`);
   console.log(`[risks-assess] log → ${LOG_PATH}\n`);
 

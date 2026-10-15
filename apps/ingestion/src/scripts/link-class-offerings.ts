@@ -49,7 +49,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, Prisma } from '@kku/db';
+import { loadOrganization, prisma, Prisma } from '@kku/db';
 import { withScriptRun } from '../lib/script-run';
 import {
   withConnection as oracleWithConnection,
@@ -124,6 +124,7 @@ function parseArgs(argv: string[]): CliArgs {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const args = parseArgs(process.argv.slice(2));
   console.log(`Mode: ${args.apply ? 'APPLY' : 'DRY RUN'}${args.sinceYear ? ` · since BE ${args.sinceYear}` : ''}`);
 

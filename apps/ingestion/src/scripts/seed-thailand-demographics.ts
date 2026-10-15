@@ -42,7 +42,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 
 // NESDC mid-variant — population in millions of persons.
 // Five-year anchor points; interpolated linearly for in-between years.
@@ -105,6 +105,7 @@ function interpolate(anchors: Anchors, year: number): number {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   let written = 0;
   for (const a of ANCHORS) {
     for (let year = FIRST_YEAR; year <= LAST_YEAR; year++) {

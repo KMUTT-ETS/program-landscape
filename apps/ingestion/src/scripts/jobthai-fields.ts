@@ -37,12 +37,13 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, latestDemandRunId } from '@kku/db';
+import { loadOrganization, prisma, latestDemandRunId } from '@kku/db';
 
 import { createIngestionAiService } from '../lib/ai-service';
 import { defaultFieldsDeps, parseFieldsArgs, refreshJobFields } from '../jobthai/fields';
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const args = parseFieldsArgs(process.argv.slice(2));
   // The taxonomy this script builds draws on every demand source that feeds
   // it (see TAXONOMY_SOURCES in packages/db/src/job-fields.ts), not JobThai

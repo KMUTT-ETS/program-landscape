@@ -29,6 +29,7 @@
 // All aggregates; small-bucket suppression applied where relevant.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { loadOrganization } from '@kku/db';
 import { existsSync, readFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -531,6 +532,7 @@ All output is aggregate; no per-student or per-line-item rows are saved.
 `.trim();
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const subcommand = process.argv[2];
   if (!subcommand) {
     console.error(HELP);

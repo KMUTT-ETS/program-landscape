@@ -59,7 +59,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 import { SOURCE_CATALOG } from '@kku/shared';
 
 interface Finding {
@@ -186,6 +186,7 @@ async function applyFixes(findings: Finding[]): Promise<number> {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const apply = process.argv.includes('--apply');
   const quiet = process.argv.includes('--quiet');
 

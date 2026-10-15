@@ -45,7 +45,7 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { prisma, type FacultyRank } from '@kku/db';
+import { loadOrganization, prisma, type FacultyRank } from '@kku/db';
 import {
   configFromEnv,
   query,
@@ -99,6 +99,7 @@ interface KkuPubPerson {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   console.log(`[backfill-faculty] mode=${apply ? 'APPLY (will insert)' : 'DRY-RUN'}`);
 
   const cfg: PostgresConfig = configFromEnv('KKU_PUBLICATIONS_DB');

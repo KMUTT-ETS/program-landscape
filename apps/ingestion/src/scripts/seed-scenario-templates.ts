@@ -37,9 +37,10 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 
 async function main() {
+  await loadOrganization();
   console.log('━━━ Seeding 4 data-driven scenario templates ━━━\n');
 
   // Pick an owner — any SUPER_ADMIN, fall back to first user.

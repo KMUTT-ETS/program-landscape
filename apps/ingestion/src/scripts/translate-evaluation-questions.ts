@@ -42,7 +42,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 import {
   buildEvaluationQuestionTranslateMessages,
   EVALUATION_QUESTION_TRANSLATE_VERSION,
@@ -51,6 +51,7 @@ import {
 import { createIngestionAiService } from '../lib/ai-service';
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const force = process.argv.includes('--force');
 
   const where = force

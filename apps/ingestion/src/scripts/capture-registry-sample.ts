@@ -29,6 +29,7 @@
 // schema. Run `schema` first to confirm column names before `aggregate`.
 // ────────────────────────────────────────────────────────────────────────────
 
+import { loadOrganization } from '@kku/db';
 import { existsSync, readFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -341,6 +342,7 @@ Reads KKU_REGISTRY_DB_* from .env. Writes JSON fixtures to
 `.trim();
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const subcommand = process.argv[2];
   if (!subcommand) {
     console.error(HELP);

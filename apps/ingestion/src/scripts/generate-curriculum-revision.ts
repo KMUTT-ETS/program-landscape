@@ -41,7 +41,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, generateProgramCurriculumRevision } from '@kku/db';
+import { loadOrganization, prisma, generateProgramCurriculumRevision } from '@kku/db';
 import { createIngestionAiService } from '../lib/ai-service';
 
 const args = process.argv.slice(2);
@@ -66,6 +66,7 @@ function audit(r: Record<string, unknown>): void {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   console.log(`Log file: ${LOG_PATH}`);
   audit({ event: 'start', programFilter: PROGRAM_CODE, limit: LIMIT });
 

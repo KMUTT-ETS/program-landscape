@@ -45,7 +45,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, type ProgramLevel } from '@kku/db';
+import { loadOrganization, prisma, type ProgramLevel } from '@kku/db';
 import { withScriptRun } from '../lib/script-run';
 import { OracleSession, configFromEnv as oracleConfigFromEnv } from '../lib/oracle-client';
 
@@ -219,6 +219,7 @@ async function processProgram(
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const args = parseArgs(process.argv.slice(2));
   console.log(`Mode: ${args.apply ? 'APPLY' : 'DRY RUN'}`);
 

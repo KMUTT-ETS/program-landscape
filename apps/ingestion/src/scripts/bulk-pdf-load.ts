@@ -30,6 +30,7 @@
 // Designed to run on the prod server (where MinIO + Postgres live) or
 // on a staging box. The API must be reachable at $API_URL.
 
+import { loadOrganization } from '@kku/db';
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -118,6 +119,7 @@ const results: Result[] = [];
 let completed = 0;
 
 async function main(): Promise<void> {
+  await loadOrganization();
 for (const entry of entries) {
   completed++;
   const prefix = `[${completed}/${entries.length}] ${entry.sourceSlug}`;

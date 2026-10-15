@@ -28,6 +28,7 @@
 // before credentials are issued. Full implementation lands in Phase B.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { loadOrganization } from '@kku/db';
 import { existsSync, readFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -196,6 +197,7 @@ const SUBCOMMANDS: Record<string, (c: Credentials) => Promise<void>> = {
 };
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const sub = process.argv[2];
   if (!sub) {
     console.error('Usage: pnpm kmitl:capture <subcommand>');

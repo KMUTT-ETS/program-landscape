@@ -17,6 +17,7 @@
 // Run with: pnpm tsx apps/ingestion/src/scripts/probe-entry-scores.ts
 // ───────────────────────────────────────────────────────────────────────
 
+import { loadOrganization } from '@kku/db';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { configFromEnv, query, withConnection } from '../lib/oracle-client';
@@ -44,6 +45,7 @@ function loadDotEnv(envPath: string): void {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   console.log('▶ Probing AVSREG.VIEW_STUDENT_SCORES…');
   const cfg = configFromEnv('KKU_REGISTRY_DB');
   await withConnection(cfg, async (conn) => {

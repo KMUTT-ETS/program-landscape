@@ -1,6 +1,7 @@
 #!/usr/bin/env tsx
 // Probe POWERBI.ADMISSION_STAT — re-check after Registrar added ENROLLSEAT,
 // PLAN, CURR_ID. Read-only.
+import { loadOrganization } from '@kku/db';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 loadDotEnv(path.resolve(process.cwd(), '.env'));
@@ -18,6 +19,7 @@ function loadDotEnv(envPath: string): void {
 import { configFromEnv, query, withConnection } from '../lib/oracle-client';
 
 async function main() {
+  await loadOrganization();
   const cfg = configFromEnv('KKU_REGISTRY_DB');
   await withConnection(cfg, async (conn) => {
     const q = (label: string, sql: string) => query<Record<string, unknown>>(conn, sql)

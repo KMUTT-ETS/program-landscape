@@ -31,7 +31,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 
 // createIngestionAiService is the ONLY sanctioned way to build an AiService in
 // an ingestion script — it wires the model-override resolver.
@@ -43,6 +43,7 @@ function pct(n: number, d: number): string {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const apply = process.argv.includes('--apply');
   const ai = createIngestionAiService();
 

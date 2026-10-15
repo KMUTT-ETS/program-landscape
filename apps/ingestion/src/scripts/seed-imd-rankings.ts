@@ -33,7 +33,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, type ImdDataset } from '@kku/db';
+import { loadOrganization, prisma, type ImdDataset } from '@kku/db';
 import { SOURCE_CATALOG } from '@kku/shared';
 
 interface EconomyEntry {
@@ -110,6 +110,7 @@ async function upsertDataSourceRow(dryRun: boolean): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const { file, dryRun } = parseArgs(process.argv.slice(2));
   if (!existsSync(file)) {
     console.error(`Seed file not found: ${file}`);

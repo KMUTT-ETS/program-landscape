@@ -45,7 +45,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, type ProgramLevel } from '@kku/db';
+import { loadOrganization, prisma, type ProgramLevel } from '@kku/db';
 
 const LEVEL_TH: Record<ProgramLevel, string> = {
   BACHELOR: 'ปริญญาตรี',
@@ -67,6 +67,7 @@ const FIXTURE_PATH = path.resolve(
 );
 
 async function main(): Promise<number> {
+  await loadOrganization();
   const dryRun = process.argv.includes('--dry-run');
 
   if (!existsSync(FIXTURE_PATH)) {

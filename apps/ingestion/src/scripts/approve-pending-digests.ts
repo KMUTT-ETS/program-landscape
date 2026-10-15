@@ -37,7 +37,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, materialiseProgramDigest } from '@kku/db';
+import { loadOrganization, prisma, materialiseProgramDigest } from '@kku/db';
 
 const args = process.argv.slice(2);
 function flag(name: string): string | undefined {
@@ -58,6 +58,7 @@ interface RowOutcome {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const reviewer = await prisma.user.findUnique({
     where: { email: REVIEWER_EMAIL },
     select: { id: true, email: true },

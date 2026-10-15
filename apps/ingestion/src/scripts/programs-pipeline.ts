@@ -122,7 +122,7 @@ function loadDotEnv(envPath: string): void {
 }
 
 import { spawn } from 'node:child_process';
-import {
+import { loadOrganization,
   prisma,
   generateProgramResearchExpertise,
   generateProgramCurriculumRevision,
@@ -848,6 +848,7 @@ function resolveSiblingScript(baseName: string): { path: string; kind: 'ts' | 'j
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const args = parseArgs(process.argv.slice(2));
   const programs = await resolveProgramIds(args);
 

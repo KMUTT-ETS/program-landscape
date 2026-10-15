@@ -10,6 +10,7 @@
 //   pnpm tcas-funnel:probe --sample=20        # sample 20 rows
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { loadOrganization } from '@kku/db';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -34,6 +35,7 @@ function loadDotEnv(envPath: string): void {
 import { configFromEnv, query, withConnection } from '../lib/oracle-client';
 
 async function main() {
+  await loadOrganization();
   const args = process.argv.slice(2);
   const columnsOnly = args.includes('--columns');
   const sampleArg = args.find((a) => a.startsWith('--sample='));

@@ -33,7 +33,7 @@
 //   pnpm provenance:backfill --apply    # commit the UPDATEs
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { PrismaClient } from '@kku/db';
+import { loadOrganization, PrismaClient } from '@kku/db';
 
 interface TableConfig {
   /** DataSource slugs that this table's rows could plausibly have come from.
@@ -139,6 +139,7 @@ async function findOrCreateSyntheticLegacyRun(
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const apply = process.argv.includes('--apply');
   const prisma = new PrismaClient();
 

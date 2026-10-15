@@ -30,7 +30,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 import { runProgramAiReadiness } from '../program-ai-readiness/run';
 import { createIngestionAiService } from '../lib/ai-service';
 
@@ -95,6 +95,7 @@ async function resolveTargets(args: CliArgs): Promise<Array<{ id: string; code: 
 }
 
 async function main() {
+  await loadOrganization();
   const args = parseArgs(process.argv.slice(2));
   const targets = await resolveTargets(args);
 

@@ -39,7 +39,7 @@
 // already has the heuristic verdict applied).
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { prisma, type AutomationRisk } from '@kku/db';
+import { loadOrganization, prisma, type AutomationRisk } from '@kku/db';
 const args = new Set(process.argv.slice(2));
 const dryRun = args.has('--dry-run');
 const reset = args.has('--reset');
@@ -258,6 +258,7 @@ function classify(skill: { nameEn: string; nameTh: string; category: string | nu
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   console.log(`[seed-automation-risk] mode=${dryRun ? 'DRY-RUN' : 'APPLY'}${reset ? ' (resetting first)' : ''}`);
 
   if (reset && !dryRun) {

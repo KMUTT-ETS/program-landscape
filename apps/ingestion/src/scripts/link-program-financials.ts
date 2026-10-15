@@ -45,7 +45,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, refreshMetricViews, type ProgramLevel, Prisma } from '@kku/db';
+import { loadOrganization, prisma, refreshMetricViews, type ProgramLevel, Prisma } from '@kku/db';
 import { withScriptRun } from '../lib/script-run';
 import {
   withConnection as oracleWithConnection,
@@ -395,6 +395,7 @@ async function mainInner(args: ReturnType<typeof parseArgs>, runId: string): Pro
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const args = parseArgs(process.argv.slice(2));
   // Per-program financials derive from kku-finance (tuition Oracle view) +
   // kku-hr (per-staff salary MSSQL view). Attribute the synthetic run to

@@ -21,11 +21,12 @@
 //   pnpm demand:backfill-provenance --apply    # write
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 
 const DEMAND_SOURCE_SLUG = 'kmitl-skill-mapping';
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const apply = process.argv.includes('--apply');
 
   const [untagged, total, byVersion] = await Promise.all([
