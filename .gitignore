@@ -90,3 +90,10 @@ logs/
 .preflight/
 gold-labels/
 .superpowers/
+
+# Playwright (currently used for local testing)
+.playwright/
+.playwright-cli/
+
+# Agent Skills
+.agents/skills/
