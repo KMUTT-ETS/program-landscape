@@ -12,7 +12,7 @@ import type { Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import type { AnalystStreamEvent, SessionUser } from '@kku/shared';
-import { ANALYST_BRIEFS, getBriefTemplate } from '@kku/shared';
+import { analystBriefs, getBriefTemplate } from '@kku/shared';
 import {
   AiCall,
   AiQuota,
@@ -77,7 +77,7 @@ export class AnalystController {
   @Get('brief-templates')
   @Authorized('programs:read:all')
   async briefTemplates() {
-    return ANALYST_BRIEFS.map((b) => ({
+    return analystBriefs().map((b) => ({
       slug: b.slug,
       name: b.name,
       descriptionEn: b.descriptionEn,

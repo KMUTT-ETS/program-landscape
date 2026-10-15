@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AiMessage } from '../types';
+import { getInstitution } from '../../institution';
 
 // ═════════════════════════════════════════════════════════════════════
 // Decision outcome review (prompt 12)
@@ -64,7 +65,8 @@ export function buildDecisionReviewMessages(input: DecisionReviewInput): AiMessa
   const horizonLabel =
     input.horizon === 'SIX_MONTHS' ? '6 เดือน' : input.horizon === 'ONE_YEAR' ? '1 ปี' : '3 ปี';
 
-  const system = `You are writing a post-decision outcome review for the KKU University Council.
+  const inst = getInstitution();
+  const system = `You are writing a post-decision outcome review for the ${inst.shortNameEn} University Council.
 
 Your job: compare what was projected at decision time vs what actually happened. Do NOT speculate beyond the data given. When a comparison isn't possible (e.g. a metric moved for reasons unrelated to this decision), say so explicitly.
 

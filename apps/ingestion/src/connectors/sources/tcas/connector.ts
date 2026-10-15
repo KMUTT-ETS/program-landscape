@@ -1,11 +1,13 @@
 import * as xlsx from 'xlsx';
 import { prisma } from '@kku/db';
-import type {
-  ConnectorContext,
-  HealthStatus,
-  LoadResult,
-  NormalizedRecord,
-  RawRecord,
+import {
+  isOwnInstitution,
+  outboundUserAgent,
+  type ConnectorContext,
+  type HealthStatus,
+  type LoadResult,
+  type NormalizedRecord,
+  type RawRecord,
 } from '@kku/shared';
 import { ApiConnector } from '../../base/api-connector';
 
@@ -52,11 +54,7 @@ const TCAS3_FILES: TcasFile[] = [
   { url: 'https://assets.mytcas.com/68/T68-stat-r3_2-maxmin-24May25.xlsx', entryYearBE: 2568, round: '3.2' },
 ];
 
-const KKU_INSTITUTION_NAME_TH = 'มหาวิทยาลัยขอนแก่น';
-
 const FETCH_TIMEOUT_MS = 60_000;
-const FETCH_USER_AGENT =
-  'KKU-Curriculum-Landscape/1.0 (research; contact: denpong@kku.ac.th)';
 
 // Thai column headers in the source xlsx.
 const COL = {
@@ -96,7 +94,7 @@ export class TcasRealConnector extends ApiConnector {
       const res = await fetch(probe, {
         signal: controller.signal,
         method: 'HEAD',
-        headers: { 'user-agent': FETCH_USER_AGENT },
+        headers: { 'user-agent': outboundUserAgent() },
       });
       clearTimeout(timer);
       return {
@@ -122,7 +120,7 @@ export class TcasRealConnector extends ApiConnector {
         const res = await fetch(file.url, {
           signal: controller.signal,
           headers: {
-            'user-agent': FETCH_USER_AGENT,
+            'user-agent': outboundUserAgent(),
             referer: 'https://www.mytcas.com/stat/',
           },
         });
@@ -231,7 +229,7 @@ export class TcasRealConnector extends ApiConnector {
     for (const n of normalized) {
       try {
         const p = n.payload as Record<string, unknown>;
-        const isKku = p.institutionName === KKU_INSTITUTION_NAME_TH;
+        const isKku = isOwnInstitution(p.institutionName as string | null | undefined);
         let programId: string | null = null;
         if (isKku) {
           const facultyNameTh = String(p.facultyName ?? '');

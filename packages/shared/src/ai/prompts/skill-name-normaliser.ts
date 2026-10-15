@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AiMessage } from '../types';
+import { getInstitution } from '../../institution';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Skill-name normaliser — maps free-text skill names (Thai or English,
@@ -86,13 +87,16 @@ export interface SkillNormaliserInput {
   }>;
 }
 
-const SOURCE_HINT: Record<string, string> = {
+function sourceHints(): Record<string, string> {
+  const inst = getInstitution();
+  return {
   linkedin: 'Source = LinkedIn labour-market data (subscribed by MHESI, hosted at KMITL). Names tend to be English, sometimes with parenthetical synonyms or acronyms.',
-  program_digest: 'Source = KKU curriculum-document AI digest. Names are usually Thai with optional English; reflect what a curriculum teaches, not what a job demands.',
+  program_digest: `Source = ${inst.shortNameEn} curriculum-document AI digest. Names are usually Thai with optional English; reflect what a curriculum teaches, not what a job demands.`,
   job_posting: 'Source = job postings (JobThai/JobsDB). Names mix Thai and English, often messy with abbreviations.',
   course_skill: 'Source = course-description AI extraction. Mostly Thai academic vocabulary.',
   manual: 'Source = manual analyst entry. Trust the surface form more than usual.',
 };
+}
 
 export function buildSkillNormaliserMessages(input: SkillNormaliserInput): AiMessage[] {
   if (input.rawNames.length === 0) throw new Error('Empty rawNames batch');
@@ -100,7 +104,7 @@ export function buildSkillNormaliserMessages(input: SkillNormaliserInput): AiMes
     throw new Error(`Batch too large: ${input.rawNames.length} > 50 (split before calling)`);
   }
 
-  const sourceHint = SOURCE_HINT[input.sourceContext] ?? `Source = ${input.sourceContext}.`;
+  const sourceHint = sourceHints()[input.sourceContext] ?? `Source = ${input.sourceContext}.`;
 
   const system = `You normalise free-text skill names to a curated bilingual (Thai/English) skill taxonomy.
 

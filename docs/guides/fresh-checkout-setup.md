@@ -169,6 +169,86 @@ to run. There is no mock-data escape hatch by policy. **If you see
 fabricated-looking numbers, something is wrong** — investigate rather than trust
 it.
 
+### Loading the first public data sources
+
+Four sources need no credentials and can be loaded straight away. **Before
+running them at an institution other than KKU, set `INSTITUTION_NAME_TH`,
+`INSTITUTION_NAME_EN` and `INSTITUTION_CONTACT_EMAIL` in `.env`** (see
+`.env.example`): the names decide which TCAS rows count as yours, and the
+email goes into the User-Agent these connectors send.
+
+```bash
+# 1. World Bank — six Thailand indicators, last 10 years → Trends Radar
+pnpm connector:run world-bank
+
+# 2. Thailand youth-cohort projections. A seed script, not a connector:
+#    the NESDC figures are in the script; nothing is downloaded.
+pnpm demographics:seed
+
+# 3. TCAS round-3 admission statistics for every institution, TCAS62–68.
+#    Your rows link to programmes only if your programmes are seeded with
+#    faculty and programme nameTh exactly as CUPT writes them; unmatched rows
+#    land with programId = null and are listed in the run metadata. Safe to
+#    re-run after seeding programmes.
+pnpm connector:run tcas
+
+# 4. Curated policy and industry reports (MHESI, NESDC, NXPO, BOI, EECO,
+#    WEF, OECD, ADB) → Trends Radar
+for s in mhesi-policy nesdc-reports nxpo-reports boi-sectoral eeco-reports \
+         wef-future-of-jobs oecd-reports adb-gms; do
+  pnpm connector:run "$s"
+done
+```
+
+Check each with `/admin/data-sources/<slug>` (a SUCCEEDED run) and `/trends`.
+
+`demographics:seed` writes source `NESDC-PopProj-2010-2040`; `pnpm db:seed`
+also writes a synthetic `NESDC-v1` series beside it. Both stay in the table.
+
+**Report PDFs.** Every catalogued report becomes a Trends Radar signal whether
+or not its PDF downloads. Only entries whose URL ends in `.pdf` are fetched:
+
+| Slug | Document | URL | Expect |
+|---|---|---|---|
+| wef-future-of-jobs | Future of Jobs 2025 | https://www3.weforum.org/docs/WEF_Future_of_Jobs_Report_2025.pdf | downloads |
+| wef-future-of-jobs | Future of Jobs 2023 | https://www3.weforum.org/docs/WEF_Future_of_Jobs_2023.pdf | downloads |
+| adb-gms | GMS Strategic Framework 2030 | https://www.adb.org/sites/default/files/institutional-document/678631/gms-economic-cooperation-strategic-framework-2030.pdf | downloads |
+| adb-gms | Quality Jobs and the Future of Work in Asia-Pacific (2024) | https://www.adb.org/sites/default/files/publication/999501/quality-jobs-future-work-asia-pacific.pdf | downloads |
+| boi-sectoral | BOI Investment Promotion Strategy 2023–2027 | https://www.boi.go.th/upload/content/BOI_Strategy_2023.pdf | **HTTP 404** (checked 2026-10-15) — the file has moved; find the current copy on https://www.boi.go.th/ |
+
+The rest are landing pages and are never fetched. To get the document, open the
+page in a browser and download the PDF:
+
+| Slug | Document | Where to find it |
+|---|---|---|
+| mhesi-policy | TCAS reform — policy direction | https://www.mhesi.go.th/ (search the title) |
+| mhesi-policy | MHESI Skill Mapping initiative | https://www.mhesi.go.th/ (search the title) |
+| mhesi-policy | CISA platform launch | https://cisa.mhesi.go.th/ |
+| nesdc-reports | 13th NESDP 2023–2027 | https://www.nesdc.go.th/main.php?filename=plan13 |
+| nesdc-reports | Thailand Future Skills Outlook 2030 | https://www.nesdc.go.th/ (search the title) |
+| nesdc-reports | Quarterly Economic Outlook | https://www.nesdc.go.th/main.php?filename=QGDP_report |
+| nxpo-reports | NXPO Annual Report 2025 | https://www.nxpo.or.th/th/en/43052/ |
+| nxpo-reports | BCG Economy Model implementation report 2024 | https://www.nxpo.or.th/th/bcg-economy-model/ |
+| boi-sectoral | Target industries — updated incentives 2024 | https://www.boi.go.th/index.php?page=incentives_target |
+| boi-sectoral | Investment statistics H1 2024 | https://www.boi.go.th/index.php?page=statistics_thailand_investment |
+| eeco-reports | EEC development plans | https://www.eeco.or.th/en/eec-development-plan |
+| eeco-reports | EEC workforce demand forecast 2024–2030 | https://www.eeco.or.th/ (search the title) |
+| wef-future-of-jobs | Reskilling Revolution — 2024 update | https://www.weforum.org/agenda/2024/01/reskilling-revolution-2024-davos/ |
+| oecd-reports | OECD Skills Strategy for Southeast Asia | https://www.oecd.org/en/publications/oecd-skills-strategy-southeast-asia_5c5af83d-en.html |
+| oecd-reports | OECD Economic Survey: Thailand 2023 | https://www.oecd.org/economy/thailand-economic-snapshot/ |
+| oecd-reports | OECD Employment Outlook 2024 | https://www.oecd.org/employment/oecd-employment-outlook-19991266.htm |
+| adb-gms | ADB–Thailand Country Partnership Strategy 2021–2025 | https://www.adb.org/documents/thailand-country-partnership-strategy-2021-2025 |
+
+Upload a downloaded PDF at `/upload` (admin), with the issuing organisation as
+the source. Do not use `/admin/trend-documents` for these: it creates a second
+Trends Radar signal that duplicates the catalogue entry. A failed download is
+recorded only in the run log, not in the database.
+
+Downloaded and uploaded PDFs wait as `PENDING` until something queues them:
+with an AI key configured (`AI_PROVIDER=google` + `GOOGLE_AI_API_KEY`), call
+`POST /api/v1/pdfs/bulk-reprocess` as an admin while `pnpm dev` is running.
+With `AI_PROVIDER=stub` they get placeholder analysis only.
+
 ---
 
 ## 9. Everyday commands

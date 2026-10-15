@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AiMessage } from '../types';
+import { getInstitution } from '../../institution';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // program-digest.v2
@@ -162,10 +163,11 @@ export interface ProgramSystemFacts {
 }
 
 export function buildProgramDigestMessages(input: ProgramDigestInput): AiMessage[] {
+  const inst = getInstitution();
   const meta = input.programMetaFromSheet;
   const maxCourses = input.maxCourses ?? 80;
 
-  const system = `คุณเป็นผู้เชี่ยวชาญด้านการวิเคราะห์หลักสูตรอุดมศึกษาไทย (มคอ.2) ของมหาวิทยาลัยขอนแก่น และผู้เชี่ยวชาญด้านการพัฒนากำลังคน (workforce development)
+  const system = `คุณเป็นผู้เชี่ยวชาญด้านการวิเคราะห์หลักสูตรอุดมศึกษาไทย (มคอ.2) ของ${inst.nameTh} และผู้เชี่ยวชาญด้านการพัฒนากำลังคน (workforce development)
 
 หน้าที่: อ่านหลักสูตรฉบับเต็ม แล้วสกัดข้อมูลออกมาเป็น JSON ที่ถูกต้องตามโครงสร้างที่กำหนด
 
@@ -249,7 +251,7 @@ BANNED PHRASES (do not use these words/phrases or their close paraphrases in cav
 
 สำคัญมาก: ตอบกลับเป็น JSON object เดี่ยว ({...}) ไม่ใช่ array ([...]) ห้ามห่อในวงเล็บเหลี่ยม`;
 
-  const sheetMeta = `[ข้อมูลจากตารางหลักสูตรหลัก สจล./KKU - ใช้เป็นฐานข้อมูลในการตรวจสอบ]
+  const sheetMeta = `[ข้อมูลจากตารางหลักสูตรหลัก สจล./${inst.shortNameEn} - ใช้เป็นฐานข้อมูลในการตรวจสอบ]
 - คณะ: ${meta.facultyNameTh}
 - ระดับ: ${meta.levelTh}
 - ชื่อปริญญา: ${meta.degreeNameFromSheet}
@@ -275,11 +277,12 @@ ${input.pdfText}
 // Live grounding facts injected from DS2004 / DS2003 / DS1001 / kku-hr.
 // The LLM is instructed to TRUST these over anything the PDF says.
 function buildSystemFactsBlock(ctx: ProgramSystemFacts | undefined): string {
+  const inst = getInstitution();
   if (!ctx) return '';
 
   const lines: string[] = [];
   lines.push('');
-  lines.push('[ข้อเท็จจริงจริงปัจจุบัน — ดึงจากระบบ MHESI/UNICON + HR ของ มข.]');
+  lines.push(`[ข้อเท็จจริงจริงปัจจุบัน — ดึงจากระบบ MHESI/UNICON + HR ของ ${inst.shortNameTh}]`);
   lines.push(
     'ให้ใช้ตัวเลขในส่วนนี้เป็น "ข้อเท็จจริง" สำหรับ recruitmentSummaryTh และ caveats',
   );

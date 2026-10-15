@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AiMessage } from '../types';
+import { getInstitution } from '../../institution';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // evaluation-question-translate.v1  (2026-05-19)
@@ -53,8 +54,9 @@ export interface EvaluationQuestionTranslateInput {
 export function buildEvaluationQuestionTranslateMessages(
   input: EvaluationQuestionTranslateInput,
 ): AiMessage[] {
+  const inst = getInstitution();
   const system = `You translate Thai-language student-evaluation prompts into clear
-English. The source is a real questionnaire used by Khon Kaen University
+English. The source is a real questionnaire used by ${inst.nameEn}
 to evaluate teaching & learning. Translations are read by international
 faculty, ASEAN partner universities, and visiting Council members.
 

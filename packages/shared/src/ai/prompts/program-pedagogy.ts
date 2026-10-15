@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AiMessage } from '../types';
+import { getInstitution } from '../../institution';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // program-pedagogy.v1
@@ -200,7 +201,9 @@ export interface BuildProgramPedagogyMessagesInput {
   pdfText: string;
 }
 
-const SYSTEM_PROMPT = `You are a pedagogical evaluator for Khon Kaen University's Curriculum Compass.
+function systemPrompt(): string {
+  const inst = getInstitution();
+  return `You are a pedagogical evaluator for ${inst.nameEn}'s Curriculum Compass.
 
 Your job: read a program's curriculum PDF and assess whether its teaching, learning, and quality-assurance practices match the best-practice pattern for its discipline + level.
 
@@ -323,6 +326,7 @@ WORKED EXAMPLE — for a Bachelor of Engineering in Mechanical Engineering whose
   "narrativeTh": "หลักสูตรมีรูปแบบสอนสอดคล้องกับมาตรฐานวิศวกรรมระดับนานาชาติ มีโครงงาน สหกิจศึกษา 4 เดือน และระบบ TQF ที่ทำงานได้จริง ข้อเสนอแนะ: ระบุการสอดคล้องกับ CDIO/ABET อย่างชัดเจน",
   "narrativeEn": "Program teaching pattern matches international engineering standards with project-based learning, 4-month industrial internship, and a functioning TQF QA system. Recommendation: explicitly align with CDIO/ABET frameworks."
 }`;
+}
 
 export function buildProgramPedagogyMessages(
   input: BuildProgramPedagogyMessagesInput,
@@ -354,7 +358,7 @@ ${pdfText}
 Now produce the ProgramPedagogyAssessment JSON. Apply the discipline rubric above based on the Faculty + level. Score what you OBSERVE in the PDF against what you EXPECT for this discipline.`;
 
   return [
-    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'system', content: systemPrompt() },
     { role: 'user', content: userPrompt },
   ];
 }

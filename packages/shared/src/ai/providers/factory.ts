@@ -59,8 +59,30 @@ export interface AiFactoryConfig {
   modelOverrideResolver?: import('../types').ModelOverrideResolver;
 }
 
+// An env key present but empty (`AI_GOOGLE_COMPLETION_MODEL=`, as
+// .env.example ships it) reads as '' — which `??` does not skip, so the
+// provider would send an empty model name and every call would fail with
+// "model is required". Blank means unset: fall through to the default.
+function blankToUndefined(value: string | undefined): string | undefined {
+  return value?.trim() ? value.trim() : undefined;
+}
+
+export function normaliseModels(models: AiFactoryConfig['models']): AiFactoryConfig['models'] {
+  if (!models) return undefined;
+  return {
+    google: models.google && {
+      completion: blankToUndefined(models.google.completion),
+      embedding: blankToUndefined(models.google.embedding),
+    },
+    anthropic: models.anthropic && {
+      completion: blankToUndefined(models.anthropic.completion),
+    },
+  };
+}
+
 export function createAiService(config: AiFactoryConfig): AiService {
-  const { providerId, apiKeys, recorder, models, modelOverrideResolver } = config;
+  const { providerId, apiKeys, recorder, modelOverrideResolver } = config;
+  const models = normaliseModels(config.models);
 
   switch (providerId) {
     case 'google': {

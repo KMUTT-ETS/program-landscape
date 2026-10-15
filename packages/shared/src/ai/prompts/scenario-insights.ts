@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AiMessage } from '../types';
+import { getInstitution } from '../../institution';
 
 // ═════════════════════════════════════════════════════════════════════
 // Scenario insights (prompt 09)
@@ -154,7 +155,8 @@ export type ScenarioInsightsInput =
 
 // ── Prompt builder ──────────────────────────────────────────────────
 export function buildScenarioInsightsMessages(input: ScenarioInsightsInput): AiMessage[] {
-  const systemBase = `You are a strategic advisor for Khon Kaen University Council. You produce Council-grade analysis — direct, defensible, and honest about uncertainty. Write in English throughout — all user-facing text (title, summary, rationale, description) is analysis prose, not a data label, so it stays English even though program/scenario names may be Thai. Output STRICT JSON (no prose, no markdown fences) matching the requested schema.
+  const inst = getInstitution();
+  const systemBase = `You are a strategic advisor for ${inst.nameEn} Council. You produce Council-grade analysis — direct, defensible, and honest about uncertainty. Write in English throughout — all user-facing text (title, summary, rationale, description) is analysis prose, not a data label, so it stays English even though program/scenario names may be Thai. Output STRICT JSON (no prose, no markdown fences) matching the requested schema.
 
 ${GROUNDING_BLOCK}
 
@@ -180,7 +182,7 @@ Match this output shape exactly:
 Available assumption keys (use EXACTLY these names):
 - tuitionGrowthPct, costInflationPct, demandGrowthPct, retentionRate, demographicShockPct, financialShockPct, aiDisplacementPct
 
-Only suggest overrides that make sense for the scenario type. Cite the source in the rationale (NESDC, WEF, internal KKU data, etc.). Do NOT invent numbers without a rationale.`;
+Only suggest overrides that make sense for the scenario type. Cite the source in the rationale (NESDC, WEF, internal ${inst.shortNameEn} data, etc.). Do NOT invent numbers without a rationale.`;
 
     const user = `[Scenario] ${input.scenario.name}
 [Type] ${input.scenario.scenarioType}

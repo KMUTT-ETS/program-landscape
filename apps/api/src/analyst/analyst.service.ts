@@ -7,12 +7,12 @@ import {
   type AnalystConversationKind,
 } from '@kku/db';
 import {
-  ANALYST_DASHBOARD_SYSTEM_PROMPT,
+  analystDashboardSystemPrompt,
   ANALYST_DASHBOARD_SYSTEM_PROMPT_VERSION,
-  ANALYST_DASHBOARD_TOOL_DEFINITIONS,
-  ANALYST_SYSTEM_PROMPT,
+  analystDashboardToolDefinitions,
+  analystSystemPrompt,
   ANALYST_SYSTEM_PROMPT_VERSION,
-  ANALYST_TOOL_DEFINITIONS,
+  analystToolDefinitions,
   checkAnalystSafety,
   createAiService,
   detectLanguage,
@@ -91,16 +91,16 @@ export class AnalystService implements OnModuleInit {
   private kindConfig(kind: AnalystConversationKind | undefined): KindConfig {
     if (kind === 'DASHBOARD') {
       return {
-        systemPrompt: ANALYST_DASHBOARD_SYSTEM_PROMPT,
+        systemPrompt: analystDashboardSystemPrompt(),
         systemPromptVersion: ANALYST_DASHBOARD_SYSTEM_PROMPT_VERSION,
-        tools: ANALYST_DASHBOARD_TOOL_DEFINITIONS,
+        tools: analystDashboardToolDefinitions(),
         executor: 'dashboard',
       };
     }
     return {
-      systemPrompt: ANALYST_SYSTEM_PROMPT,
+      systemPrompt: analystSystemPrompt(),
       systemPromptVersion: ANALYST_SYSTEM_PROMPT_VERSION,
-      tools: ANALYST_TOOL_DEFINITIONS,
+      tools: analystToolDefinitions(),
       executor: 'strategic',
     };
   }

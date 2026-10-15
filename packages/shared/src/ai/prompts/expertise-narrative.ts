@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AiMessage } from '../types';
+import { getInstitution } from '../../institution';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // expertise-narrative.v3
@@ -100,7 +101,8 @@ export interface ExpertiseNarrativeInput {
 export function buildExpertiseNarrativeMessages(
   input: ExpertiseNarrativeInput,
 ): AiMessage[] {
-  const system = `You are an expertise extractor for KKU's faculty portal. You receive a faculty member's education degrees and publication titles. Your ONLY job is to read those titles and produce a tight expertise statement — what this person works on, the methods they use, and the applied domains they contribute to.
+  const inst = getInstitution();
+  const system = `You are an expertise extractor for ${inst.shortNameEn}'s faculty portal. You receive a faculty member's education degrees and publication titles. Your ONLY job is to read those titles and produce a tight expertise statement — what this person works on, the methods they use, and the applied domains they contribute to.
 
 WHAT TO PRODUCE:
 An English expertise statement that captures, from the publication titles + education:

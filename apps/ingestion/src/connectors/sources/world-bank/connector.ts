@@ -1,11 +1,12 @@
 import { z } from 'zod';
 import { prisma, type SignalType } from '@kku/db';
-import type {
-  ConnectorContext,
-  HealthStatus,
-  LoadResult,
-  NormalizedRecord,
-  RawRecord,
+import {
+  outboundUserAgent,
+  type ConnectorContext,
+  type HealthStatus,
+  type LoadResult,
+  type NormalizedRecord,
+  type RawRecord,
 } from '@kku/shared';
 import { ApiConnector } from '../../base/api-connector';
 
@@ -36,8 +37,6 @@ import { ApiConnector } from '../../base/api-connector';
 
 const COUNTRY_CODE = 'THA';
 const FETCH_TIMEOUT_MS = 30_000;
-const FETCH_USER_AGENT =
-  'KKU-Curriculum-Landscape/1.0 (research; contact: denpong@kku.ac.th)';
 const YEARS_BACK = 10;
 
 interface WbIndicator {
@@ -96,7 +95,7 @@ export class WorldBankRealConnector extends ApiConnector {
       const timer = setTimeout(() => controller.abort(), 10_000);
       const res = await fetch(url, {
         signal: controller.signal,
-        headers: { 'user-agent': FETCH_USER_AGENT, accept: 'application/json' },
+        headers: { 'user-agent': outboundUserAgent(), accept: 'application/json' },
       });
       clearTimeout(timer);
       return {
@@ -124,7 +123,7 @@ export class WorldBankRealConnector extends ApiConnector {
         const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
         const res = await fetch(url, {
           signal: controller.signal,
-          headers: { 'user-agent': FETCH_USER_AGENT, accept: 'application/json' },
+          headers: { 'user-agent': outboundUserAgent(), accept: 'application/json' },
         });
         clearTimeout(timer);
         if (!res.ok) {
