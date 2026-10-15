@@ -28,6 +28,6 @@ features:
 
 Program Landscape is a decision-support platform for university councils. It scores academic programmes against demand, finances, quality and future skills, and every number carries its sources, freshness and methodology version.
 
-The code is licensed **CC BY-NC-SA 4.0**: attribution, ShareAlike and non-commercial use are obligations, and the licence covers neither KKU's trademarks nor its data. Read [Licensing](./licensing.md) before you publish anything built from it.
+The code is licensed **CC BY-NC-SA 4.0**: attribution and ShareAlike are obligations and commercial use is not permitted, and the licence covers neither KKU's trademarks nor its data. Read [Licensing](./licensing.md) before you publish anything built from it.
 
 This site renders the repository's `docs/` folder in place. To change a page, edit its Markdown file in the repository. Pages marked *Generated* are rebuilt from their source on every build.
