@@ -1181,6 +1181,8 @@ Estimates assume one or two competent full-stack developers who have not seen th
 
 Read these when the situation calls for it, not front to back.
 
+Everything below is also browsable and searchable offline as the developer manual site: run `pnpm docs:dev` from the repository root.
+
 ### Start here
 
 | Doc | When |

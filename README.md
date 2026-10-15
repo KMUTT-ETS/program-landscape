@@ -53,6 +53,8 @@ Then open:
 | `pnpm typecheck` | `tsc --noEmit` across workspaces |
 | `pnpm format` | Prettier write |
 | `pnpm check` | lint + typecheck + test — run before committing |
+| `pnpm docs:dev` | developer manual site (adopter docs) at `http://localhost:5173` |
+| `pnpm docs:build` | build the manual to `apps/docs-site/dist/` and run its checks |
 | `pnpm storybook` | shadcn/ui component Storybook |
 | `pnpm clean` | remove `node_modules` / `dist` / `.next` / `coverage` |
 
