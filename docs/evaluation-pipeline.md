@@ -35,7 +35,7 @@ A single program carries up to **five** signed verdicts. Each is independently v
 **Plus two enum statuses** that flow alongside but are *not* computed:
 
 - `Program.status` — `ACTIVE` / `PAUSED` / `SUNSET` — operator-set.
-- `CouncilDecision.status` — 9-state workflow, see [§ Decision workspace state machine](#decision-workspace-state-machine).
+- `CouncilDecision.status` — 9-state workflow, see [§ Decision workspace state machine](#91-decision-workspace-state-machine).
 
 ---
 
