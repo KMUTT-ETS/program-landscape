@@ -2,7 +2,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vitepress';
 import { repoLinkPlugin } from '../src/link-plugin';
-import { excludedGlobs } from '../src/manifest';
+import { excludedGlobs, isUnderDir } from '../src/manifest';
 import { githubSlugify } from '../src/slugify';
 import { buildSidebar } from './sidebar';
 
@@ -24,7 +24,7 @@ function resolveVueForPages(): Plugin {
     enforce: 'pre',
     resolveId(id, importer, options) {
       if (id !== 'vue' && !id.startsWith('vue/')) return null;
-      if (importer === undefined || !importer.startsWith(docsDir + path.sep)) return null;
+      if (importer === undefined || !isUnderDir(importer, docsDir)) return null;
       return this.resolve(id, vitepressEntry, { ...options, skipSelf: true });
     },
   };

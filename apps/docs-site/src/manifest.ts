@@ -63,6 +63,15 @@ export function toPosix(p: string): string {
   return p.split(path.sep).join('/');
 }
 
+/**
+ * True when `id` (a native path or a Vite module id, which is always '/'-separated) lies inside
+ * `dir`. Both separators are normalised explicitly so the answer is the same on every platform.
+ */
+export function isUnderDir(id: string, dir: string): boolean {
+  const prefix = dir.replace(/\\/g, '/').replace(/\/*$/, '/');
+  return id.replace(/\\/g, '/').startsWith(prefix);
+}
+
 /** Every docs-relative .md path VitePress will render, sorted. */
 export function listRenderedPages(docsDir: string): string[] {
   return fs

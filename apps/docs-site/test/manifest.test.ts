@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   GATHERED,
   excludedGlobs,
+  isUnderDir,
   isExcluded,
   listRenderedPages,
   pageRoute,
@@ -52,5 +53,24 @@ describe('manifest', () => {
 
   it('converts platform separators to POSIX', () => {
     expect(toPosix(['a', 'b', 'c.md'].join(path.sep))).toBe('a/b/c.md');
+  });
+});
+
+describe('isUnderDir', () => {
+  it('matches a POSIX module id against a Windows-style dir', () => {
+    expect(isUnderDir('C:/repo/docs/x.md', 'C:\\repo\\docs')).toBe(true);
+  });
+  it('matches a Windows-style id against a Windows-style dir', () => {
+    expect(isUnderDir('C:\\repo\\docs\\sub\\x.md', 'C:\\repo\\docs')).toBe(true);
+  });
+  it('matches POSIX paths, with or without a trailing slash on the dir', () => {
+    expect(isUnderDir('/repo/docs/x.md?vue&type=script', '/repo/docs')).toBe(true);
+    expect(isUnderDir('/repo/docs/x.md', '/repo/docs/')).toBe(true);
+  });
+  it('rejects a sibling dir sharing the prefix, and the dir itself', () => {
+    expect(isUnderDir('/repo/docs-old/x.md', '/repo/docs')).toBe(false);
+    expect(isUnderDir('C:/repo/docs-old/x.md', 'C:\\repo\\docs')).toBe(false);
+    expect(isUnderDir('/repo/docs', '/repo/docs')).toBe(false);
+    expect(isUnderDir('C:\\repo\\docs', 'C:/repo/docs')).toBe(false);
   });
 });
