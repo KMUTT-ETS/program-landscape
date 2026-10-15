@@ -41,6 +41,10 @@ check "GET $BASE_HTTP/ → 301" \
 check "GET $BASE_HTTPS/api/v1/ready → status=ok" \
   "curl -fsS -k --http1.1 -H 'Host: program-landscape.kku.ac.th' -m 15 '$BASE_HTTPS/api/v1/ready' | grep -q '\"status\":\"ok\"'"
 
+# ── Organisation identity is seeded ───────────────────────────────────
+check "GET $BASE_HTTPS/api/v1/organization → configured" \
+  "curl -fsS -k --http1.1 -H 'Host: program-landscape.kku.ac.th' -m 10 '$BASE_HTTPS/api/v1/organization' | grep -q '\"configured\":true'"
+
 # ── API public auth route ─────────────────────────────────────────────
 check "GET $BASE_HTTPS/api/auth/providers → 200" \
   "curl -fsS -k --http1.1 -H 'Host: program-landscape.kku.ac.th' -m 10 -o /dev/null -w '%{http_code}' '$BASE_HTTPS/api/auth/providers' | grep -qx 200"
