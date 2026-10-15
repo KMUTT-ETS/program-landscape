@@ -283,9 +283,7 @@ If you are adding a surface and it does not have these, it is not finished. This
 | `AI_PROVIDER` | `google` (default) / `anthropic` / `stub`. Tool-use (AI Analyst) requires `anthropic` |
 | `GOOGLE_AI_API_KEY` / `ANTHROPIC_API_KEY` | At least one; `stub` provider works without either |
 | `CONNECTOR_MODE` | Global default connector mode. Leave at `mocked` initially |
-| `INSTITUTION_NAME_TH`, `INSTITUTION_NAME_EN` | **Set these to your institution.** Unset, they fall back to KKU, and the TCAS connector, deep-dive and health-score treat KKU's rows as "ours". The Thai name must equal the `สถาบัน` column of the TCAS sheets; the English name your name in the ranking tables. See `packages/shared/src/institution.ts` |
-| `INSTITUTION_SHORT_NAME_EN`, `INSTITUTION_SHORT_NAME_TH` | Your abbreviations (KKU's are `KKU` / `มข.`). Every AI prompt and AI Analyst brief names the institution from these and the two full names, so unset they write analysis as if for KKU |
-| `INSTITUTION_CONTACT_EMAIL`, `APP_PUBLIC_URL` | Sent in the User-Agent of outbound fetches (World Bank, TCAS, job-108, KMITL). Use a team mailbox |
+| *(none — moved)* | Institution identity is set in the app at **/admin/organization** (names, short names, region, contact email, public URL). The Thai name must match the TCAS สถาบัน column exactly; the form checks it for you. |
 | `MINIO_*`, `REDIS_*`, `GOTENBERG_URL` | Local defaults in `.env.example` work with `pnpm db:up` |
 
 **Known gaps in `.env.example` you will hit.** `UNICON_DS2001_DB_*` and `UNICON_DS1001_DB_*` are documented in `.env.prod.example` but **absent from `.env.example`**. When a connector reports missing config, check `.env.prod.example` and `configFromEnv('<PREFIX>')` in the connector before assuming the key does not exist.

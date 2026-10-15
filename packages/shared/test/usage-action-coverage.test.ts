@@ -49,6 +49,7 @@ const DELIBERATELY_OTHER = new Set([
   'jobthai.batch.delete',
   'notifications.subscribe',
   'notifications.unsubscribe',
+  'organization.update',
   'pdf.delete',
   'pdf.extraction.approve',
   'pdf.extraction.approve_all_pending',
