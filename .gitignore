@@ -97,3 +97,7 @@ gold-labels/
 
 # Agent Skills
 .agents/skills/
+
+# Developer manual site (apps/docs-site) — build artefacts
+docs/_generated/
+apps/docs-site/.vitepress/cache/
