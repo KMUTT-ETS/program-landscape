@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AiMessage } from '../types';
+import { getInstitution } from '../../institution';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // program-strategic-narrative.v2
@@ -207,7 +208,8 @@ export function narrativeConfidenceCeiling(missingCount: number): number {
 export function buildProgramStrategicNarrativeMessages(
   input: ProgramStrategicNarrativeInput,
 ): AiMessage[] {
-  const system = `You are drafting an OFFICIAL strategic brief for KKU's University Council on one academic program. The brief is read in advance of decision meetings — it must inform, not entertain. Every sentence must carry information.
+  const inst = getInstitution();
+  const system = `You are drafting an OFFICIAL strategic brief for ${inst.shortNameEn}'s University Council on one academic program. The brief is read in advance of decision meetings — it must inform, not entertain. Every sentence must carry information.
 
 HARD CONSTRAINTS:
 1. **No greetings, no closings.** Do not write "Dear Council", "To whom it may concern", "Hope this helps", "Best regards", or anything similar. Start with the first markdown header. End with the last bullet.

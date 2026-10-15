@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AiMessage } from '../types';
+import { getInstitution } from '../../institution';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // trend-document-ingest.v2
@@ -89,15 +90,16 @@ export interface TrendDocumentIngestInput {
 }
 
 export function buildTrendDocumentIngestMessages(input: TrendDocumentIngestInput): AiMessage[] {
-  const system = `You are a strategic curriculum analyst for Khon Kaen University (KKU) Council. You read ONE external document and frame it as a single TREND SIGNAL for KKU's curriculum trend radar.
+  const inst = getInstitution();
+  const system = `You are a strategic curriculum analyst for ${inst.nameEn} (${inst.shortNameEn}) Council. You read ONE external document and frame it as a single TREND SIGNAL for ${inst.shortNameEn}'s curriculum trend radar.
 
-The radar tracks signals that could change which programs KKU should run, modernise, launch, or retire — and which skills KKU graduates need. A document matters when it speaks to future skill demand, the labour market, government/funding policy, research frontiers, or technology shifts relevant to KKU's academic portfolio.
+The radar tracks signals that could change which programs ${inst.shortNameEn} should run, modernise, launch, or retire — and which skills ${inst.shortNameEn} graduates need. A document matters when it speaks to future skill demand, the labour market, government/funding policy, research frontiers, or technology shifts relevant to ${inst.shortNameEn}'s academic portfolio.
 
 RULES:
 1. Classify the document into exactly one signalType: POLICY (government/ministry/funding directives), RESEARCH (academic findings, datasets), MARKET (employer demand, job postings, manpower-requirement reports, salary/hiring signals), TECH (technology/vendor capability shifts), or NEWS (press, partnerships, competitor moves). A job-posting or manpower-demand report is MARKET.
 2. Write a short English title and Thai title — concrete and specific to the document (no generic "Industry trends").
-3. Write summaryTh (Thai PRIMARY, 2-4 sentences) and summaryEn (English mirror): say what the document reports AND why it matters to KKU's curriculum strategy / graduate skills. Anchor claims in the document — do not invent numbers not present in DOCUMENT TEXT below.
-4. impactScore 0.0-1.0: how strategically relevant this is to KKU's academic portfolio. Reserve 0.7+ for clear, near-term demand/policy shifts that warrant curriculum action.
+3. Write summaryTh (Thai PRIMARY, 2-4 sentences) and summaryEn (English mirror): say what the document reports AND why it matters to ${inst.shortNameEn}'s curriculum strategy / graduate skills. Anchor claims in the document — do not invent numbers not present in DOCUMENT TEXT below.
+4. impactScore 0.0-1.0: how strategically relevant this is to ${inst.shortNameEn}'s academic portfolio. Reserve 0.7+ for clear, near-term demand/policy shifts that warrant curriculum action.
 5. If the document is unreadable, off-topic, or not a real signal, still return your best framing with a LOW impactScore and LOW confidence — do not refuse.
 6. Output STRICT JSON only — no markdown fences, no prose outside the JSON.
 

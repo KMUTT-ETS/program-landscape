@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AiMessage } from '../types';
+import { getInstitution } from '../../institution';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // trend-signal-analysis.v4
@@ -176,25 +177,26 @@ export interface TrendSignalAnalysisInput {
 }
 
 export function buildTrendSignalAnalysisMessages(input: TrendSignalAnalysisInput): AiMessage[] {
-  const system = `You are a strategic curriculum analyst for Khon Kaen University (KKU) Council. Given an external TREND SIGNAL and the list of KKU's academic programs, decide which programs the trend affects, which job positions those programs feed, which skills it implicates, what KKU should DO about it, and where KKU should launch NEW offerings for demand it cannot currently serve.
+  const inst = getInstitution();
+  const system = `You are a strategic curriculum analyst for ${inst.nameEn} (${inst.shortNameEn}) Council. Given an external TREND SIGNAL and the list of ${inst.shortNameEn}'s academic programs, decide which programs the trend affects, which job positions those programs feed, which skills it implicates, what ${inst.shortNameEn} should DO about it, and where ${inst.shortNameEn} should launch NEW offerings for demand it cannot currently serve.
 
 A signal often names — directly or implicitly — the JOB POSITIONS the market is demanding (e.g. a manpower-demand report lists roles; a tech shift implies new roles). Reason about those positions explicitly.
 
 RULES:
-1. \`affectedPrograms\`: pick only KKU programs genuinely affected by the signal (0 is valid; do not pad). Every \`programId\` MUST appear in PROGRAMS below. For EACH affected program provide:
+1. \`affectedPrograms\`: pick only ${inst.shortNameEn} programs genuinely affected by the signal (0 is valid; do not pad). Every \`programId\` MUST appear in PROGRAMS below. For EACH affected program provide:
    - \`immediateRoles\`: job positions a CURRENT graduate of this program could be hired into right now in response to the signal (titleTh + titleEn). Be concrete (real job titles, not "various roles").
    - \`emergingRoles\`: positions reachable in 1-3 YEARS if the program adds/updates a module or track, or graduates upskill — the growth path the signal opens up.
    - \`fitNoteTh\`: one Thai sentence on why this program is in scope and how its graduates map to the demand.
-2. \`affectedSkills\`: name the concrete skills the trend implicates (e.g. "Machine learning", "Battery chemistry", "Health data privacy"). Use widely-recognised skill names; the system resolves them to KKU's taxonomy.
-3. \`recommendedActions\`: 1-6 concrete, prioritised actions KKU could take in response (e.g. add a module, launch a track, re-skill faculty, partner with industry). For EACH action provide a short title (titleTh + titleEn), a detail (detailTh + detailEn: 1-3 sentences saying WHAT to do, WHY it matters for KKU, and roughly HOW), and 1-3 exampleProjects — concrete, named example initiatives that would realise the action (a new course/track, an industry partnership, a micro-credential, a research lab, a co-op pipeline, etc.), each with a one-line description. Make examples specific to KKU and Northeast Thailand where relevant — no platitudes.
-4. \`newInitiatives\`: THE WHITE-SPACE CHECK. Look at the job positions the signal demands. For any demanded role that NO KKU program currently supplies — because it is a field KKU does not teach, OR it is a vocational / sub-degree / technician-level position KKU's degree programs do not produce — propose a NEW product/service KKU could launch to serve it: a re-skill or upskill offering (micro-credential, bootcamp, short course, non-degree certificate, professional diploma). For each: the offering title (titleTh + titleEn), the unmet role it serves (unmetRoleTh + unmetRoleEn), the target audience (audienceTh + audienceEn — who re-skills/upskills), the delivery format (formatTh + formatEn), and a detail (detailTh + detailEn). Return an EMPTY array if KKU's existing programs already cover all the demanded roles — do not invent gaps.
+2. \`affectedSkills\`: name the concrete skills the trend implicates (e.g. "Machine learning", "Battery chemistry", "Health data privacy"). Use widely-recognised skill names; the system resolves them to ${inst.shortNameEn}'s taxonomy.
+3. \`recommendedActions\`: 1-6 concrete, prioritised actions ${inst.shortNameEn} could take in response (e.g. add a module, launch a track, re-skill faculty, partner with industry). For EACH action provide a short title (titleTh + titleEn), a detail (detailTh + detailEn: 1-3 sentences saying WHAT to do, WHY it matters for ${inst.shortNameEn}, and roughly HOW), and 1-3 exampleProjects — concrete, named example initiatives that would realise the action (a new course/track, an industry partnership, a micro-credential, a research lab, a co-op pipeline, etc.), each with a one-line description. Make examples specific to ${inst.shortNameEn} and Northeast Thailand where relevant — no platitudes.
+4. \`newInitiatives\`: THE WHITE-SPACE CHECK. Look at the job positions the signal demands. For any demanded role that NO ${inst.shortNameEn} program currently supplies — because it is a field ${inst.shortNameEn} does not teach, OR it is a vocational / sub-degree / technician-level position ${inst.shortNameEn}'s degree programs do not produce — propose a NEW product/service ${inst.shortNameEn} could launch to serve it: a re-skill or upskill offering (micro-credential, bootcamp, short course, non-degree certificate, professional diploma). For each: the offering title (titleTh + titleEn), the unmet role it serves (unmetRoleTh + unmetRoleEn), the target audience (audienceTh + audienceEn — who re-skills/upskills), the delivery format (formatTh + formatEn), and a detail (detailTh + detailEn). Return an EMPTY array if ${inst.shortNameEn}'s existing programs already cover all the demanded roles — do not invent gaps.
 5. Output STRICT JSON, no markdown fences, no prose outside the JSON.
 
 GROUNDING — ROLE FIT MUST CITE THE PROGRAM'S OWN TAUGHT SKILLS:
-Each program in PROGRAMS below is shown with its own top taught skills (from KKU's curriculum data), or an explicit "no skill data" label when none is on file. This is the ONLY basis for curriculum-specific role-fit claims about a KKU program:
-- When a program's taught skills are shown: \`fitNoteTh\` and the role choices MUST be justifiable by naming or clearly matching one or more of those listed skills. Do not justify a role by what such a program "typically" or "usually" teaches elsewhere — that is world knowledge about the field in general, not a claim about this specific KKU program's curriculum, and it is not verifiable by a reader.
+Each program in PROGRAMS below is shown with its own top taught skills (from ${inst.shortNameEn}'s curriculum data), or an explicit "no skill data" label when none is on file. This is the ONLY basis for curriculum-specific role-fit claims about a ${inst.shortNameEn} program:
+- When a program's taught skills are shown: \`fitNoteTh\` and the role choices MUST be justifiable by naming or clearly matching one or more of those listed skills. Do not justify a role by what such a program "typically" or "usually" teaches elsewhere — that is world knowledge about the field in general, not a claim about this specific ${inst.shortNameEn} program's curriculum, and it is not verifiable by a reader.
 - When a program is labelled "no skill data": do NOT assert curriculum-specific fit. Either omit that program from \`affectedPrograms\`, or — if the program's NAME/FIELD alone clearly matches the signal — keep \`fitNoteTh\` to a name/field-level statement only (e.g. "the program's field matches the signal's domain; curriculum detail not on file") and do not invent specific skills or modules it "must" teach.
-- \`affectedSkills\` (the top-level list) is different: those may draw on general labour-market/domain knowledge about the trend itself, since that is this prompt's job (external context, per the platform's grounding rules) — the per-program restriction above applies specifically to claims about what an individual KKU program teaches.
+- \`affectedSkills\` (the top-level list) is different: those may draw on general labour-market/domain knowledge about the trend itself, since that is this prompt's job (external context, per the platform's grounding rules) — the per-program restriction above applies specifically to claims about what an individual ${inst.shortNameEn} program teaches.
 
 CONFIDENCE RUBRIC (report one number):
   0.90-1.00  every key input channel present and mutually consistent
@@ -278,7 +280,7 @@ No prose outside the JSON. No markdown fences around the JSON.`;
     { role: 'system', content: system },
     {
       role: 'user',
-      content: `${signalBlock}\n\n${programBlock}\n\nProduce the JSON analysis. For each genuinely-affected program (by id) list the immediate + 1-3 year job positions its graduates feed, name the implicated skills, recommend concrete prioritised actions, and — for demanded roles no KKU program supplies — propose new re-skill/upskill offerings. Ground every program-specific fit claim in that program's own listed taught skills.`,
+      content: `${signalBlock}\n\n${programBlock}\n\nProduce the JSON analysis. For each genuinely-affected program (by id) list the immediate + 1-3 year job positions its graduates feed, name the implicated skills, recommend concrete prioritised actions, and — for demanded roles no ${inst.shortNameEn} program supplies — propose new re-skill/upskill offerings. Ground every program-specific fit claim in that program's own listed taught skills.`,
     },
   ];
 }

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AiMessage } from '../types';
+import { getInstitution } from '../../institution';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // aunqa-criterion-narrative.v1
@@ -174,7 +175,8 @@ function formatEvidenceLine(line: AunqaEvidenceLine): string {
 export function buildAunqaCriterionNarrativeMessages(
   input: AunqaCriterionNarrativeInput,
 ): AiMessage[] {
-  const system = `You are drafting a self-assessment paragraph for ONE criterion of a university programme's quality-assurance review. A KKU QA officer will edit your draft; an external assessor will later ask for the evidence behind every sentence in it. Write what the evidence below supports and nothing else.
+  const inst = getInstitution();
+  const system = `You are drafting a self-assessment paragraph for ONE criterion of a university programme's quality-assurance review. A ${inst.shortNameEn} QA officer will edit your draft; an external assessor will later ask for the evidence behind every sentence in it. Write what the evidence below supports and nothing else.
 
 HARD CONSTRAINTS:
 1. **Every claim rests on a channel marked [AVAILABLE].** If a statement about this programme cannot be traced to an available channel in the EVIDENCE block, do not write it. You have no other knowledge of this programme.
@@ -185,14 +187,14 @@ HARD CONSTRAINTS:
 6. **Numbers come from the EVIDENCE block only.** Cite figures with the channel they came from where the same number could come from more than one channel. Never estimate or introduce a figure you were not given. Report them at a precision a reader can use — at most two decimal places for a rating, GPA, score or percentage, and thousands separators for counts (write 4.40, not 4.39601908613229). Rounding for legibility is not a change of claim; rounding into a different claim is — never write "around 3" for 2.93, and never drop a decimal that carries the point.
 7. **Carry a channel's caveat whenever you cite that channel's figure.** A staff ratio computed over a whole faculty is not a statement about this programme; a cohort-progression figure is not a measured time to graduate. If the caveat cannot fit, do not cite the figure.
 8. **Every sub-criterion with no available evidence must appear in \`gaps\`**, naming what the platform could not show and what the QA officer would have to supply. A sub-criterion that is only partly evidenced may also appear.
-9. **Write in English.** The whole output is English-only analysis prose. Thai programme and faculty names in the input are data labels — do not translate them, and do not write any sentence in Thai. Where the input records no English name, the platform does not hold one: refer to "this programme" rather than supplying a translation of your own, which would put a title into an accreditation draft that no KKU record contains.
+9. **Write in English.** The whole output is English-only analysis prose. Thai programme and faculty names in the input are data labels — do not translate them, and do not write any sentence in Thai. Where the input records no English name, the platform does not hold one: refer to "this programme" rather than supplying a translation of your own, which would put a title into an accreditation draft that no ${inst.shortNameEn} record contains.
 10. **No greetings, no closings, no filler.** Start with the first substantive sentence. Every sentence carries information.
 
 GROUNDING RULES:
 - Causal claims are hypotheses unless the input states the mechanism. Use "consistent with" or "may reflect"; never write "because X" when the input only shows X and Y are both true.
 - Freshness matters: where a figure's "as of" date is old relative to the others, say so rather than presenting it as current.
 - Do not aggregate across sub-criteria into a verdict about the criterion as a whole. Report per-sub-criterion what is shown, and let the reader judge.
-- You may not use knowledge of AUN-QA, Thai higher education, or KKU from outside this input to fill a gap. External context is not this prompt's job.
+- You may not use knowledge of AUN-QA, Thai higher education, or ${inst.shortNameEn} from outside this input to fill a gap. External context is not this prompt's job.
 
 CONFIDENCE RUBRIC (report one number):
   0.90-1.00  every key input channel present and mutually consistent

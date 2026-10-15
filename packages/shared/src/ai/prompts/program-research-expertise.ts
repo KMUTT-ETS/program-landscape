@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AiMessage } from '../types';
+import { getInstitution } from '../../institution';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // program-research-expertise.v1
@@ -175,7 +176,8 @@ function fmtQuartile(q: number | null): string {
 export function buildProgramResearchExpertiseMessages(
   input: ResearchExpertiseInput,
 ): AiMessage[] {
-  const system = `You are analysing the demonstrated research expertise of one KKU academic program, based on its faculty roster's publications over the last 10 years. This brief informs curriculum, recruitment/positioning, and research-strategy decisions — it must be precise, not impressive-sounding.
+  const inst = getInstitution();
+  const system = `You are analysing the demonstrated research expertise of one ${inst.shortNameEn} academic program, based on its faculty roster's publications over the last 10 years. This brief informs curriculum, recruitment/positioning, and research-strategy decisions — it must be precise, not impressive-sounding.
 
 HARD CONSTRAINTS:
 1. **Titles-only input — no abstracts.** You are shown paper titles, venues, years, citation counts, and journal quartile where available. You were NOT shown abstracts, methods sections, or findings. Never claim what a paper found, how it was conducted, or its methodological quality — you cannot know this from a title. Thematic clustering (what subject area a paper belongs to) is a title-supportable claim; findings/methods claims are not.

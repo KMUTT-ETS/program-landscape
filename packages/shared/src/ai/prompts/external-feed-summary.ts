@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AiMessage } from '../types';
+import { getInstitution } from '../../institution';
 
 // Summarises a single fetched item (URL_LIST URL response, or a single
 // search-result document) into a TrendSignal-ready payload. Phase 5 of
@@ -75,7 +76,8 @@ export interface ExternalFeedSummaryInput {
 export function buildExternalFeedSummaryMessages(
   input: ExternalFeedSummaryInput,
 ): AiMessage[] {
-  const system = `You distil one fetched intelligence item from "${input.sourceName}" into a single TrendSignal payload for KKU's curriculum-landscape app. Audience: University Council + strategic planners + analysts.
+  const inst = getInstitution();
+  const system = `You distil one fetched intelligence item from "${input.sourceName}" into a single TrendSignal payload for ${inst.shortNameEn}'s curriculum-landscape app. Audience: University Council + strategic planners + analysts.
 
 Output STRICT JSON (no prose, no fences) matching:
 {
@@ -92,12 +94,12 @@ OUTPUT LANGUAGE: \`title\` is English, always — never leave the language choic
 
 Defaults / heuristics:
 - The source's declared signalType is "${input.sourceDefaultSignalType}" and default impact is ${input.sourceDefaultImpact.toFixed(2)}. Start there; deviate when the content clearly warrants.
-- impactScore rubric (calibrate to KKU's strategic decision-making):
+- impactScore rubric (calibrate to ${inst.shortNameEn}'s strategic decision-making):
   - >=0.8: directly affects which programs to launch/close/restructure in the next 1-3 years
   - 0.5-0.79: informs faculty-level planning OR signals an emerging skill area
   - 0.2-0.49: background / sector context
   - <0.2: marginal relevance — borderline whether to surface
-- If the item is not relevant to higher-education / labour-market / curriculum / KKU at all, return confidence < 0.3 and the operator will filter it out.
+- If the item is not relevant to higher-education / labour-market / curriculum / ${inst.shortNameEn} at all, return confidence < 0.3 and the operator will filter it out.
 - topicKeywords: 3-8 concrete terms (skill names, sectors, program areas, policy instruments). Mix Thai + English; don't pad with generic words.
 - summaryTh must be natural Thai — not a literal translation of summaryEn.
 - Stay grounded in what the source actually says. Don't extrapolate. If the content is thin, say so in the summary.

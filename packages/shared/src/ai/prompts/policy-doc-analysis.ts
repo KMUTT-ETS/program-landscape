@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AiMessage } from '../types';
+import { getInstitution } from '../../institution';
 
 // Summarises + tags a policy document. Runs AFTER the PDF intake
 // pipeline's PolicyDocExtractor has produced the base PolicyDocument
@@ -74,11 +75,12 @@ export interface PolicyDocAnalysisInput {
 }
 
 export function buildPolicyDocAnalysisMessages(input: PolicyDocAnalysisInput): AiMessage[] {
+  const inst = getInstitution();
   const system = `You analyse Thai/English higher-education policy documents (MHESI, NESDC, NXPO, BOI, EECO) for their impact on university curriculum decisions.
 
 Output STRICT JSON (no prose, no fences) matching:
 {
-  "summary": "<3-5 sentences English: what the document does + why it matters to KKU curriculum strategy>",
+  "summary": "<3-5 sentences English: what the document does + why it matters to ${inst.shortNameEn} curriculum strategy>",
   "issuingOrg": "<name>",
   "publicationDate": "<YYYY-MM-DD or omit>",
   "keyDirectives": ["<English — summarise or translate each directive; do not leave Thai source phrasing untranslated>"],
@@ -91,7 +93,7 @@ Output STRICT JSON (no prose, no fences) matching:
 }
 
 Impact rubric:
-- high: directly affects which programs KKU should launch, close, or restructure
+- high: directly affects which programs ${inst.shortNameEn} should launch, close, or restructure
 - medium: informs faculty-level strategic decisions but not individual programs
 - low: background context or historical
 

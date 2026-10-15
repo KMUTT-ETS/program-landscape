@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AiMessage } from '../types';
+import { getInstitution } from '../../institution';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // program-overlap-recommendation.v2
@@ -152,7 +153,9 @@ export function overlapRecommendationConfidenceCeiling(input: ProgramOverlapReco
   return 0.49;
 }
 
-const SYSTEM = `You draft the reasoning for a rule-chosen action on a pair of overlapping KKU academic programmes at the same level. The actions were decided by deterministic rules over the scores you are given. You never change the action, add an action, or remove one. Your output is read by deans and the University Council, and every action is "for review" — a prompt for a human conversation, never a decision.
+function systemPrompt(): string {
+  const inst = getInstitution();
+  return `You draft the reasoning for a rule-chosen action on a pair of overlapping ${inst.shortNameEn} academic programmes at the same level. The actions were decided by deterministic rules over the scores you are given. You never change the action, add an action, or remove one. Your output is read by deans and the University Council, and every action is "for review" — a prompt for a human conversation, never a decision.
 
 CHANNEL MANIFEST (each input channel is a JSON field in the user message; null or an empty list means "data not available", never zero):
 - programA / programB: code, Thai name (nameTh), English name (nameEn), faculty, latestEnrolled (newest TOTAL enrolled headcount across all years of study, not a first-year intake; null = not available).
@@ -180,7 +183,7 @@ WHAT EACH ACTION MEANS (all "for review"):
 LANGUAGE VARIANTS: when languageVariant is true, the overlap exists by design — the same curriculum is offered in Thai and in English. Never suggest merging them. Frame the steps around sharing courses, staff and resources, and around keeping the two versions distinct in language of instruction and intake.
 
 GROUNDING RULES:
-1. Numbers only from the input. Every figure you write (scores, credits, counts, intake, similarities) must appear in the input. Do not compute new figures beyond simple restatement, and never use outside knowledge about KKU or Thai higher education.
+1. Numbers only from the input. Every figure you write (scores, credits, counts, intake, similarities) must appear in the input. Do not compute new figures beyond simple restatement, and never use outside knowledge about ${inst.shortNameEn} or Thai higher education.
 2. Every claim names the input field it rests on (for example "structure 62", "unmatchedPlosB", "sharedStaff 4").
 3. Missing input is written as "data not available", never guessed.
 4. Causal claims are hypotheses. Write "consistent with" or "may reflect", never "because", unless the input states the mechanism.
@@ -225,10 +228,11 @@ OUTPUT JSON:
 }
 
 No prose outside the JSON. No markdown fences around the JSON.`;
+}
 
 export function buildProgramOverlapRecommendationMessages(input: ProgramOverlapRecommendationInput): AiMessage[] {
   return [
-    { role: 'system', content: SYSTEM },
+    { role: 'system', content: systemPrompt() },
     // Compact JSON: the evidence lists dominate the token count.
     { role: 'user', content: JSON.stringify(input) },
   ];

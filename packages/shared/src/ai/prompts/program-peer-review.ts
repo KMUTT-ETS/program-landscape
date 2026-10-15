@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AiMessage } from '../types';
+import { getInstitution } from '../../institution';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // program-peer-review.v2
@@ -194,14 +195,15 @@ export interface ProgramPeerReviewInput {
 export function buildProgramPeerReviewMessages(
   input: ProgramPeerReviewInput,
 ): AiMessage[] {
-  const system = `You are a frank academic peer-review analyst for a Thai university council. Your job is to deliver a candid, specific comparative review of one KKU program against its AI-picked peer set across 4 geographic tiers.
+  const inst = getInstitution();
+  const system = `You are a frank academic peer-review analyst for a Thai university council. Your job is to deliver a candid, specific comparative review of one ${inst.shortNameEn} program against its AI-picked peer set across 4 geographic tiers.
 
 GROUND RULES:
 1. Be **direct and specific**. Each claim must reference either a named peer institution or a concrete data point (a number, a metric, a fact). Generic platitudes like "the program has solid fundamentals" or "there is room for growth" are FORBIDDEN.
 2. **Strengths and weaknesses are factual observations**, not aspirational statements. Frame in present tense, not "could".
 3. When data is missing or thin, say so — don't invent. Use phrases like "no comparable data available" rather than dodging.
-4. Recommendations must be **actionable** and tied to a concrete change KKU could make in 6-36 months.
-5. Council readers value bluntness over diplomacy. Don't soften — say "KKU's mechanical engineering program has 1/4 the publication output of NUS per faculty member" not "publication metrics suggest opportunity for enhancement."
+4. Recommendations must be **actionable** and tied to a concrete change ${inst.shortNameEn} could make in 6-36 months.
+5. Council readers value bluntness over diplomacy. Don't soften — say "${inst.shortNameEn}'s mechanical engineering program has 1/4 the publication output of NUS per faculty member" not "publication metrics suggest opportunity for enhancement."
 6. **Do NOT compare on enrolment numbers, tuition / financial figures, or TCAS admission scores.** Peer institutions don't publish comparable enrolment / tuition / admission data, so any such comparison is misleading and is OUT OF SCOPE. Keep the review on content, relevance, modernization, AI readiness, and research capability. (Staff research performance — publications, senior-rank share — IS comparable and fair to cite.)
 7. Output **strict JSON, no markdown fences, no prose outside JSON**.
 
@@ -215,10 +217,10 @@ OUTPUT JSON SHAPE:
       { "claim": "<frank statement, ≤25 words>", "evidence": "<specific peers or metrics cited>" }
     ],
     "tierVerdicts": {
-      "WORLD":          "<1-3 sentence verdict on KKU vs the world-tier peers>",
-      "ASIA":           "<1-3 sentence verdict on KKU vs Asian peers>",
-      "SOUTHEAST_ASIA": "<1-3 sentence verdict on KKU vs SEA peers>",
-      "THAILAND_PEER":  "<1-3 sentence verdict on KKU vs Thai peers at-or-above-rank>"
+      "WORLD":          "<1-3 sentence verdict on ${inst.shortNameEn} vs the world-tier peers>",
+      "ASIA":           "<1-3 sentence verdict on ${inst.shortNameEn} vs Asian peers>",
+      "SOUTHEAST_ASIA": "<1-3 sentence verdict on ${inst.shortNameEn} vs SEA peers>",
+      "THAILAND_PEER":  "<1-3 sentence verdict on ${inst.shortNameEn} vs Thai peers at-or-above-rank>"
     },
     "contentModernity": {
       "verdict": "OLD_SCHOOL" | "IN_BETWEEN" | "FRONTIER",
@@ -227,7 +229,7 @@ OUTPUT JSON SHAPE:
     "contentGaps": [
       {
         "topic": "<short, e.g. 'AI/ML in mechanical design'>",
-        "kkuStatus": "<≤30 words on KKU's current state>",
+        "kkuStatus": "<≤30 words on ${inst.shortNameEn}'s current state>",
         "peerExamples": "<1-3 named peer institutions and what they do>",
         "severity": "major" | "moderate" | "minor",
         "recommendation": "<1-2 sentence concrete close-the-gap action>"
@@ -248,7 +250,7 @@ OUTPUT JSON SHAPE:
 
 CONTENT-MODERNITY RUBRIC:
 - **OLD_SCHOOL**: curriculum is dominated by pre-2010 fundamentals; missing the post-2020 frontier (AI/ML, sustainability, additive manufacturing, biotech, climate, computational design). Peers picked it apart for being out of touch.
-- **IN_BETWEEN**: strong fundamentals + selective frontier patches (e.g. one ML elective, sporadic sustainability content). Most KKU programs are likely here.
+- **IN_BETWEEN**: strong fundamentals + selective frontier patches (e.g. one ML elective, sporadic sustainability content). Most ${inst.shortNameEn} programs are likely here.
 - **FRONTIER**: built around what the next decade will demand — AI-integrated, sustainability-anchored, computational-by-default, project-based.
 
 CONTENT-GAP IDENTIFICATION:
@@ -258,7 +260,7 @@ CONTENT-GAP IDENTIFICATION:
 - Each gap's recommendation should specify what to add and roughly how (course / module / collaboration / lab / track).
 
 FOCUS DIMENSIONS (v3 — reason ONLY over these; enrolment, tuition/financials, and TCAS admission scores are intentionally absent and OUT OF SCOPE):
-- CONTENT GAPS (the core of this review): specific curriculum topics where KKU lags peers
+- CONTENT GAPS (the core of this review): specific curriculum topics where ${inst.shortNameEn} lags peers
 - MODERNIZATION: where the curriculum sits on the old-school → frontier spectrum (drives contentModernity)
 - PROGRAM RELEVANCE: alignment to labour-market / future skill demand, subject-area depth, strategic fit
 - AI READINESS: AI/ML curriculum integration, the AI-native vs AI-displaceable skill mix, AI research presence, and whether graduates are prepared for an AI-shaped labour market
@@ -266,7 +268,7 @@ FOCUS DIMENSIONS (v3 — reason ONLY over these; enrolment, tuition/financials, 
 - Geographic + strategic fit (world / regional / national); subject-specific depth where the selector flagged subject ranks
 
 AI-READINESS RUBRIC:
-- KKU's AUTHORITATIVE AI-readiness figure is the single Overall AI-readiness score. It is a discipline-aware assessment that already reconciles the raw curriculum keyword scan with how AI actually shows up in this field. ANCHOR every AI claim on the Overall score.
+- ${inst.shortNameEn}'s AUTHORITATIVE AI-readiness figure is the single Overall AI-readiness score. It is a discipline-aware assessment that already reconciles the raw curriculum keyword scan with how AI actually shows up in this field. ANCHOR every AI claim on the Overall score.
 - The skill mix (AI-native / AI-augmented / AI-displaceable counts) is DIRECTIONAL CONTEXT ONLY — a naive keyword scan of the program-skills list that under-counts disciplines where AI appears under domain-specific names and is unreliable when the skill list is short. NEVER cite a keyword sub-metric as an "X/100 score", and NEVER let it contradict the Overall score. If the scan looks AI-thin but the Overall is higher, explain it qualitatively (the discipline embeds AI under domain topics) instead of presenting a contradiction.
 - Describe AI curriculum presence QUALITATIVELY ("little explicitly AI-tagged content" / "an emerging AI track" / "an AI-native core"), grounded in the Overall score and the actual courses/skills listed below — do not invent a percentage.
 - Judge peers' AI posture from your knowledge of what they teach (AI/ML cores, computational tracks, AI-ethics, data-centric design).
@@ -285,7 +287,7 @@ Be specific. Be frank. No platitudes.`;
   const air = k.aiReadiness;
   const aiReadinessBlock = air
     ? `
-KKU AI READINESS (peers have no equivalent number — judge their AI posture from
+${inst.shortNameEn} AI READINESS (peers have no equivalent number — judge their AI posture from
 what you know they teach)
   AUTHORITATIVE — discipline-aware assessment:
   Overall AI-readiness score:      ${air.overallScore}/100   ← anchor ALL AI commentary on THIS figure
@@ -295,11 +297,11 @@ what you know they teach)
   · Skill mix:                     ${air.aiNativeSkills} AI-native · ${air.aiAugmentedSkills} AI-augmented · ${air.aiDisplaceableSkills} AI-displaceable
   · AI/ML publications last 3y:    ${air.aiPublicationsLast3Years}`
     : `
-KKU AI READINESS
+${inst.shortNameEn} AI READINESS
   (not scored yet for this program — infer AI posture from the curriculum content below)`;
 
   const kkuBlock = `
-KKU PROGRAM SNAPSHOT
+${inst.shortNameEn} PROGRAM SNAPSHOT
   Degree:                          ${input.programDegree}
   Name (TH):                       ${input.programNameTh}
   Name (EN):                       ${input.programNameEn}
@@ -344,7 +346,7 @@ ${aiReadinessBlock}
     : '  (no PLOs extracted)';
 
   const contentBlock = `
-KKU PROGRAM CONTENT (used for the contentModernity + contentGaps verdict)
+${inst.shortNameEn} PROGRAM CONTENT (used for the contentModernity + contentGaps verdict)
 
   Program-skills (top ${Math.min(30, input.kkuContent.skillsTaught.length)} by weight):
 ${skillsBlock}
@@ -371,7 +373,7 @@ ${input.peers.map(peerLine).join('\n')}
 ${contentBlock}
 ${peersBlock}
 
-Produce the JSON review described above. Be frank, specific, and tie every claim to a named peer or a concrete data point. For \`contentModernity\` and \`contentGaps\`, lean on your training-data knowledge of what the named peers actually teach in this discipline — KKU's content is the only one explicitly listed here.`;
+Produce the JSON review described above. Be frank, specific, and tie every claim to a named peer or a concrete data point. For \`contentModernity\` and \`contentGaps\`, lean on your training-data knowledge of what the named peers actually teach in this discipline — ${inst.shortNameEn}'s content is the only one explicitly listed here.`;
 
   return [
     { role: 'system', content: system },

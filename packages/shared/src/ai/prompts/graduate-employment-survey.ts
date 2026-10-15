@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AiMessage } from '../types';
+import { getInstitution } from '../../institution';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // graduate-employment-survey.v1
@@ -89,7 +90,9 @@ export interface GraduateEmploymentSurveyInput {
   knownFacultyNamesTh?: string[];
 }
 
-const SYSTEM_PROMPT = `You are extracting structured per-program employment outcomes from a KKU annual graduate-employment survey report (Thai-language PDF). Your output drives the strategic-planning system used by the University Council.
+function systemPrompt(): string {
+  const inst = getInstitution();
+  return `You are extracting structured per-program employment outcomes from a ${inst.shortNameEn} annual graduate-employment survey report (Thai-language PDF). Your output drives the strategic-planning system used by the University Council.
 
 GROUND RULES:
 
@@ -109,7 +112,7 @@ GROUND RULES:
    average. Null when not reported.
 7. graduationYear = academic year of the surveyed cohort (CE). The
    report uses Buddhist Era — convert (BE - 543 = CE).
-8. surveyYear = the year KKU ran the survey (CE). Typically = graduation
+8. surveyYear = the year ${inst.shortNameEn} ran the survey (CE). Typically = graduation
    year + 1 because the survey runs the year after graduation.
 9. Preserve verbatim Thai program names — DO NOT normalise or translate.
    English names go in the separate \`programNameEn\` field, null when
@@ -144,10 +147,12 @@ BANNED PHRASES (do not use these words/phrases or their close paraphrases in any
 - "in today's rapidly evolving"
 
 Output: a single JSON object matching the schema below.`;
+}
 
 const USER_PROMPT = (input: GraduateEmploymentSurveyInput) => {
+  const inst = getInstitution();
   const facultyHint = input.knownFacultyNamesTh && input.knownFacultyNamesTh.length > 0
-    ? `\n\nCanonical KKU faculty Thai names (prefer these spellings):\n${input.knownFacultyNamesTh.map((n) => `  - ${n}`).join('\n')}`
+    ? `\n\nCanonical ${inst.shortNameEn} faculty Thai names (prefer these spellings):\n${input.knownFacultyNamesTh.map((n) => `  - ${n}`).join('\n')}`
     : '';
   return `Extract the per-program graduate-employment outcomes from this PDF.
 
@@ -191,7 +196,7 @@ export function buildGraduateEmploymentSurveyMessages(
   input: GraduateEmploymentSurveyInput,
 ): AiMessage[] {
   return [
-    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'system', content: systemPrompt() },
     { role: 'user', content: USER_PROMPT(input) },
   ];
 }

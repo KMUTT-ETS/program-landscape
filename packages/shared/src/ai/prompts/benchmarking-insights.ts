@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AiMessage } from '../types';
+import { getInstitution } from '../../institution';
 
 // ═════════════════════════════════════════════════════════════════════
 // Benchmarking insights (prompt 10)
@@ -61,11 +62,14 @@ const BANNED_PHRASES_BLOCK = `BANNED PHRASES (do not use these words/phrases or 
 - "in today's rapidly evolving"
 Also: do not open two bullets/items with the same sentence structure; do not force a rounder item count than the data supports.`;
 
-const GROUNDING_BLOCK = `GROUNDING RULES:
+function groundingBlock(): string {
+  const inst = getInstitution();
+  return `GROUNDING RULES:
 - Numbers in your output must be traceable to a value in the input snapshot below. Never invent or estimate a figure you were not given.
 - When a listed channel says "data not available" below, acknowledge the gap rather than writing around it as if the data existed.
 - Causal claims are hypotheses, not facts, unless the input states the mechanism. Use "consistent with" or "may reflect" — never assert "because X" when the input only shows X and Y are both true.
-- Peer-institution curriculum claims come from your general knowledge of these institutions, not from a KKU-held snapshot — that is a legitimate use of external context for a benchmarking prompt, but keep such claims general (what a subject area typically covers at a peer of that caliber) rather than asserting specific unverified facts about a named peer's current course list.`;
+- Peer-institution curriculum claims come from your general knowledge of these institutions, not from a ${inst.shortNameEn}-held snapshot — that is a legitimate use of external context for a benchmarking prompt, but keep such claims general (what a subject area typically covers at a peer of that caliber) rather than asserting specific unverified facts about a named peer's current course list.`;
+}
 
 // ── Output schemas ───────────────────────────────────────────────────
 const PeerSuggestionSchema = z.object({
@@ -189,9 +193,10 @@ export type BenchmarkingInsightsInput =
 
 // ── Prompt builder ──────────────────────────────────────────────────
 export function buildBenchmarkingInsightsMessages(input: BenchmarkingInsightsInput): AiMessage[] {
-  const systemBase = `You are a strategic benchmarking advisor for Khon Kaen University. Output STRICT JSON (no prose, no markdown fences). Write in English throughout — all user-facing text fields (rationale, narrative, summary) are analysis prose, not data labels, so they stay English even though program/skill names may be given in Thai alongside English.
+  const inst = getInstitution();
+  const systemBase = `You are a strategic benchmarking advisor for ${inst.nameEn}. Output STRICT JSON (no prose, no markdown fences). Write in English throughout — all user-facing text fields (rationale, narrative, summary) are analysis prose, not data labels, so they stay English even though program/skill names may be given in Thai alongside English.
 
-${GROUNDING_BLOCK}
+${groundingBlock()}
 
 ${CONFIDENCE_RUBRIC_BLOCK}
 
@@ -211,7 +216,7 @@ Match this output:
 
 Rubric: propose 3-6 peers not in existingPeerInstitutions. Match region constraint. Prefer peers with comparable subject focus + program level. Do NOT invent institutions you don't know.`;
 
-    const user = `[KKU program] ${input.programName.en} / ${input.programName.th} (level: ${input.programLevel})
+    const user = `[${inst.shortNameEn} program] ${input.programName.en} / ${input.programName.th} (level: ${input.programLevel})
 [Subject] ${input.subjectArea ?? 'unspecified'}
 [Region] ${input.region}
 [Existing peers] ${input.existingPeerInstitutions.join(', ') || '(none yet)'}
@@ -241,9 +246,9 @@ Match this output:
   }
 }
 
-Focus on concrete, actionable gaps. Urgency "high" only for skills with strong peer consensus (>half the peers teach it) that KKU lacks. whatPeersHave/whatKkuHas must be skill names copied from the input's peerSkillCoverage / kkuSkills lists — do not invent skill names not offered there.
+Focus on concrete, actionable gaps. Urgency "high" only for skills with strong peer consensus (>half the peers teach it) that ${inst.shortNameEn} lacks. whatPeersHave/whatKkuHas must be skill names copied from the input's peerSkillCoverage / kkuSkills lists — do not invent skill names not offered there.
 
-When GRADUATE OUTCOMES and/or LABOUR-MARKET DEMAND below are present, weigh them into your bridgingOpportunities and summary: a curriculum gap matters more when it lines up with weak employment outcomes or unmatched demanded skills, and matters less when KKU's current skill set is already landing strong outcomes. When either channel is "data not available," argue from skill coverage alone and say so — do not imply an outcomes/demand signal you were not given.`;
+When GRADUATE OUTCOMES and/or LABOUR-MARKET DEMAND below are present, weigh them into your bridgingOpportunities and summary: a curriculum gap matters more when it lines up with weak employment outcomes or unmatched demanded skills, and matters less when ${inst.shortNameEn}'s current skill set is already landing strong outcomes. When either channel is "data not available," argue from skill coverage alone and say so — do not imply an outcomes/demand signal you were not given.`;
 
     const outcomesLine = input.graduateOutcomes
       ? `Survey year ${input.graduateOutcomes.surveyYear}: employment rate ${input.graduateOutcomes.employmentRatePct.toFixed(1)}%, average salary ${input.graduateOutcomes.averageSalaryThb === null ? 'n/d' : `THB ${input.graduateOutcomes.averageSalaryThb.toFixed(0)}`}, sample size ${input.graduateOutcomes.sampleSize}`
@@ -253,7 +258,7 @@ When GRADUATE OUTCOMES and/or LABOUR-MARKET DEMAND below are present, weigh them
       : 'data not available';
 
     const user = `[Program] ${input.programName.en} / ${input.programName.th}
-[KKU skills]
+[${inst.shortNameEn} skills]
 ${input.kkuSkills.map((s) => `- ${s.nameEn} / ${s.nameTh}`).join('\n')}
 
 [Peer skill coverage — how many peer institutions teach each]
@@ -296,7 +301,7 @@ A low score (say <30) means the program is undifferentiated — don't dress it u
 
     const user = `[Program] ${input.programName.en} / ${input.programName.th}
 [Engine distinctiveness score] ${input.distinctivenessScore}/100
-[Unique KKU skills vs peers] ${input.distinctiveSkills.map((s) => `${s.nameEn}`).join(', ')}
+[Unique ${inst.shortNameEn} skills vs peers] ${input.distinctiveSkills.map((s) => `${s.nameEn}`).join(', ')}
 [Shared skills + peer count] ${input.sharedSkills.map((s) => `${s.nameEn}×${s.count}`).join(', ')}
 [Peer set] ${input.peerSetName}
 
@@ -327,9 +332,9 @@ Match this output:
 Council-facing. Acknowledge data gaps where relevant. Avoid hype — Council members notice.`;
 
   const user = `[Subject area] ${input.subjectArea}
-[KKU program count] ${input.kkuProgramCount}
+[${inst.shortNameEn} program count] ${input.kkuProgramCount}
 [Peer program count] ${input.peerProgramCount}
-[KKU latest percentile] ${input.kkuPercentileLatest ?? 'n/a'}
+[${inst.shortNameEn} latest percentile] ${input.kkuPercentileLatest ?? 'n/a'}
 
 [Ranking trends]
 ${input.rankingTrends.map((r) => `- ${r.institution} (${r.source}): ${r.trend}, latest rank ${r.latestRank}`).join('\n')}

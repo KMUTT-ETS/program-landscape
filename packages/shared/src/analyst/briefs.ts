@@ -6,6 +6,8 @@
 // PDF via existing templates so the output is Council-ready from day one.
 // ═════════════════════════════════════════════════════════════════════
 
+import { getInstitution } from '../institution';
+
 // v2 (2026-09-19) — three briefs named query_gaps dimensions that no
 // longer exist (opportunities / sectors) or a `region` argument the gap
 // map never had. A brief that asks for a retired dimension spends a tool
@@ -30,14 +32,16 @@ export interface BriefTemplate {
   requiresScopeArg: boolean;
 }
 
-export const ANALYST_BRIEFS: BriefTemplate[] = [
+export function analystBriefs(): BriefTemplate[] {
+  const inst = getInstitution();
+  return [
   {
     slug: 'state-of-the-portfolio',
     name: 'State of the portfolio — current quarter',
     descriptionEn: 'Full-portfolio health snapshot with dimension scores, trends, and call-outs for Council.',
-    descriptionTh: 'ภาพรวมสุขภาพของพอร์ตหลักสูตรทั้งหมดของ KKU — คะแนน 5 มิติ แนวโน้ม และประเด็นเด่น',
+    descriptionTh: `ภาพรวมสุขภาพของพอร์ตหลักสูตรทั้งหมดของ ${inst.shortNameEn} — คะแนน 5 มิติ แนวโน้ม และประเด็นเด่น`,
     prompt:
-      'สร้างรายงาน "State of the KKU Portfolio" ประจำไตรมาสปัจจุบัน ให้ครอบคลุม (1) สุขภาพโดยรวมของ 297 หลักสูตรด้วย health-score 5 มิติ, (2) ค่าผิดปกติ 5 อันดับ (ทั้งสูงและต่ำ), (3) แนวโน้มที่น่าสนใจในช่วง 90 วันล่าสุด, (4) สัญญาณเตือน 3 อย่าง. เรียกใช้เครื่องมือเพื่อดึงตัวเลขจริง ไม่แต่งขึ้น',
+      `สร้างรายงาน "State of the ${inst.shortNameEn} Portfolio" ประจำไตรมาสปัจจุบัน ให้ครอบคลุม (1) สุขภาพโดยรวมของ 297 หลักสูตรด้วย health-score 5 มิติ, (2) ค่าผิดปกติ 5 อันดับ (ทั้งสูงและต่ำ), (3) แนวโน้มที่น่าสนใจในช่วง 90 วันล่าสุด, (4) สัญญาณเตือน 3 อย่าง. เรียกใช้เครื่องมือเพื่อดึงตัวเลขจริง ไม่แต่งขึ้น`,
     preferredTools: ['query_programs', 'query_trends', 'query_gaps', 'get_methodology'],
     pdfTemplate: 'council-pack',
     requiresScopeArg: false,
@@ -59,7 +63,7 @@ export const ANALYST_BRIEFS: BriefTemplate[] = [
     descriptionEn: 'AI-ranked opportunities synthesising gap data + trends + peer benchmarks.',
     descriptionTh: '5 โอกาสเชิงกลยุทธ์สูงสุดประจำปีจากการวิเคราะห์ช่องว่างและแนวโน้ม',
     prompt:
-      'รวบรวมโอกาสเชิงกลยุทธ์ 5 อันดับแรกของ KKU ปีนี้ โดยอ้างอิงข้อมูลจาก query_gaps (dimension=white-space แล้วตามด้วย dimension=under-served), query_trends, และ compare_peers. สำหรับแต่ละโอกาส: (1) ขนาดความต้องการ (demandSharePct + จำนวนประกาศงาน), (2) ความสอดคล้องกับจุดแข็ง KKU, (3) ความเป็นไปได้ในการลงทุน, (4) risk ที่ต้องจับตา. อย่านับ dimension=supply-unknown เป็นโอกาส — นั่นคือสาขาที่ KKU มีหลักสูตรอยู่แล้วแต่ยังไม่มีตัวเลขผู้สำเร็จการศึกษา',
+      `รวบรวมโอกาสเชิงกลยุทธ์ 5 อันดับแรกของ ${inst.shortNameEn} ปีนี้ โดยอ้างอิงข้อมูลจาก query_gaps (dimension=white-space แล้วตามด้วย dimension=under-served), query_trends, และ compare_peers. สำหรับแต่ละโอกาส: (1) ขนาดความต้องการ (demandSharePct + จำนวนประกาศงาน), (2) ความสอดคล้องกับจุดแข็ง ${inst.shortNameEn}, (3) ความเป็นไปได้ในการลงทุน, (4) risk ที่ต้องจับตา. อย่านับ dimension=supply-unknown เป็นโอกาส — นั่นคือสาขาที่ ${inst.shortNameEn} มีหลักสูตรอยู่แล้วแต่ยังไม่มีตัวเลขผู้สำเร็จการศึกษา`,
     preferredTools: ['query_gaps', 'query_trends', 'compare_peers'],
     pdfTemplate: 'council-pack',
     requiresScopeArg: false,
@@ -89,10 +93,10 @@ export const ANALYST_BRIEFS: BriefTemplate[] = [
   {
     slug: 'northeast-strategic-alignment',
     name: 'Northeast Thailand strategic alignment',
-    descriptionEn: 'How KKU\'s portfolio aligns with Northeast (Isaan) development priorities.',
-    descriptionTh: 'ความสอดคล้องของพอร์ตหลักสูตร KKU กับยุทธศาสตร์ภาคอีสาน',
+    descriptionEn: `How ${inst.shortNameEn}'s portfolio aligns with Northeast (Isaan) development priorities.`,
+    descriptionTh: `ความสอดคล้องของพอร์ตหลักสูตร ${inst.shortNameEn} กับยุทธศาสตร์ภาคอีสาน`,
     prompt:
-      'วิเคราะห์ความสอดคล้องของหลักสูตร KKU กับยุทธศาสตร์ภาคอีสาน ใช้ query_gaps (dimension=map แล้วอ่านสัดส่วนจังหวัดในแต่ละแถว — ประกาศงานในภาคอีสาน), query_trends (signalType=POLICY), และ search_policy_docs สำหรับนโยบาย NESDC/NXPO ที่กล่าวถึงอีสาน. สรุป (1) จุดแข็งที่สอดคล้อง, (2) ช่องว่างที่ควรเติม, (3) นโยบายที่ควรติดตาม',
+      `วิเคราะห์ความสอดคล้องของหลักสูตร ${inst.shortNameEn} กับยุทธศาสตร์ภาคอีสาน ใช้ query_gaps (dimension=map แล้วอ่านสัดส่วนจังหวัดในแต่ละแถว — ประกาศงานในภาคอีสาน), query_trends (signalType=POLICY), และ search_policy_docs สำหรับนโยบาย NESDC/NXPO ที่กล่าวถึงอีสาน. สรุป (1) จุดแข็งที่สอดคล้อง, (2) ช่องว่างที่ควรเติม, (3) นโยบายที่ควรติดตาม`,
     preferredTools: ['query_gaps', 'query_trends', 'search_policy_docs'],
     pdfTemplate: 'council-pack',
     requiresScopeArg: false,
@@ -103,13 +107,14 @@ export const ANALYST_BRIEFS: BriefTemplate[] = [
     descriptionEn: '1-page deep dive per BCG or S-curve sector.',
     descriptionTh: 'การวิเคราะห์เชิงลึก 1 หน้าต่อภาค BCG หรือ S-curve',
     prompt:
-      'สร้างบทวิเคราะห์เชิงลึก 1 หน้าสำหรับภาคที่ระบุ. ใช้ query_gaps (dimension=map แล้วเลือกเฉพาะสาขาที่เกี่ยวข้องกับภาคนั้น) และ query_trends. ให้ครอบคลุม (1) ตัวชี้วัด headline, (2) ความคืบหน้า 3 ปี, (3) หลักสูตร KKU ที่เกี่ยวข้อง, (4) นโยบาย/แนวโน้มล่าสุด 3 ชิ้น',
+      `สร้างบทวิเคราะห์เชิงลึก 1 หน้าสำหรับภาคที่ระบุ. ใช้ query_gaps (dimension=map แล้วเลือกเฉพาะสาขาที่เกี่ยวข้องกับภาคนั้น) และ query_trends. ให้ครอบคลุม (1) ตัวชี้วัด headline, (2) ความคืบหน้า 3 ปี, (3) หลักสูตร ${inst.shortNameEn} ที่เกี่ยวข้อง, (4) นโยบาย/แนวโน้มล่าสุด 3 ชิ้น`,
     preferredTools: ['query_gaps', 'query_trends', 'query_programs', 'search_policy_docs'],
     pdfTemplate: 'council-pack',
     requiresScopeArg: false,
   },
 ];
+}
 
 export function getBriefTemplate(slug: string): BriefTemplate | undefined {
-  return ANALYST_BRIEFS.find((b) => b.slug === slug);
+  return analystBriefs().find((b) => b.slug === slug);
 }

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AiMessage } from '../types';
+import { getInstitution } from '../../institution';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // program-courses-extract.v2  (2026-05-25)
@@ -368,7 +369,8 @@ export function buildProgramCoursesExtractMessages(
     ? '(pattern matching ไม่พบรหัสที่ตรงรูปแบบ — โปรดสกัดด้วยตนเองจากเอกสาร)'
     : `(${input.candidateCodes.length} รหัส เช่น ${input.candidateCodes.slice(0, 6).join(', ')}, …)`;
 
-  const system = `คุณเป็นผู้สกัดข้อมูล "รหัสรายวิชา" จากส่วน "รายวิชา" ของเอกสารหลักสูตร (มคอ.2) มหาวิทยาลัยขอนแก่น
+  const inst = getInstitution();
+  const system = `คุณเป็นผู้สกัดข้อมูล "รหัสรายวิชา" จากส่วน "รายวิชา" ของเอกสารหลักสูตร (มคอ.2) ${inst.nameTh}
 
 ★ ขอบเขต (สำคัญ) ★
 ข้อความ user ที่จะให้คุณ คือ **เฉพาะส่วน "รายวิชา"** ของหลักสูตร (ตัดส่วนหน้าเอกสาร, คำอธิบายรายวิชา, และภาคผนวกทั้งหมดออกแล้ว)
