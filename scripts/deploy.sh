@@ -222,6 +222,21 @@ else
     || fail "data_sources sync failed — a new connector would be unresolvable; rollback recommended"
 fi
 
+# ── 6.4b. Seed the KKU organisation profile (KKU deployments only) ────
+# Spec §16: the organization_profile row must exist before traffic resumes.
+# This runs BEFORE the symlink swap for the same reason as 6.4: a failure
+# aborts inside the rollback-able region. The script is idempotent and never
+# overwrites an existing profile, so KKU can keep ORG_SEED_KKU=1 on every
+# deploy. Other installs leave it unset and configure /admin/organization.
+if [ "${ORG_SEED_KKU:-0}" = "1" ]; then
+  log "Seeding KKU organisation profile (ORG_SEED_KKU=1; no-op if it already exists)"
+  docker compose run --rm --entrypoint "" ingestion \
+    node /app/dist/scripts/org-seed-kku.js </dev/null \
+    || fail "KKU organisation seed failed — the profile row is required before traffic resumes; rollback recommended"
+else
+  log "ORG_SEED_KKU not set — skipping KKU organisation seed (other installs configure /admin/organization)"
+fi
+
 # ── 6.5. Drain the old release ───────────────────────────────────────
 # Before swapping the `current` symlink, ask the running containers to
 # drain. SIGTERM → flips the api/ingestion drain flag → `/api/v1/ready`

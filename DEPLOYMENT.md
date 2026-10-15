@@ -187,6 +187,12 @@ cd ~/program-landscape-1.0.0 && ./scripts/deploy.sh
 Integrity still holds: `docker load` verifies every layer digest, so a
 corrupted transfer fails there rather than silently deploying.
 
+**Organisation profile.** KKU's production deploys run
+`ORG_SEED_KKU=1 ./scripts/deploy.sh …`, which seeds the KKU organisation
+profile before traffic resumes (a no-op once it exists). Other installs leave
+`ORG_SEED_KKU` unset and fill in `/admin/organization` after first boot; the
+smoke test prints a warning, not a failure, until they do.
+
 `deploy.sh` is idempotent and covers:
 1. Loads images from `images.tar` (no Docker Hub pull needed).
 2. Stages release at `/opt/program-landscape/releases/1.0.0/`.
