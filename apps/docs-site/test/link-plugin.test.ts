@@ -91,4 +91,22 @@ describe('repoLinkPlugin rendering', () => {
     expect(html).toContain('<details><summary>More</summary>');
     expect(html).toContain('<!-- hidden note -->');
   });
+
+  it('escapes an unsafe tag nested inside a safe html block', () => {
+    const html = render('<div>\n<ProvenanceButton>\n</div>\n', 'docs/a.md');
+    expect(html).toContain('<div>');
+    expect(html).toContain('&lt;ProvenanceButton&gt;');
+    expect(html).toContain('</div>');
+  });
+
+  it('escapes only the unsafe tag inside a details block', () => {
+    const html = render('<details>\n<summary>x</summary>\nsee <Foo bar="1">\n</details>\n', 'docs/a.md');
+    expect(html).toContain('<details>');
+    expect(html).toContain('<summary>x</summary>');
+    expect(html).toContain('&lt;Foo bar=&quot;1&quot;&gt;');
+  });
+
+  it('leaves a comment containing a tag untouched', () => {
+    expect(render('<!-- <Foo> -->\n', 'docs/a.md')).toContain('<!-- <Foo> -->');
+  });
 });

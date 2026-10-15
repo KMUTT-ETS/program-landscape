@@ -55,12 +55,18 @@ export function classifyLink(href: string, pagePath: string, repoRoot: string): 
   return { kind: 'repo-path', repoRel };
 }
 
+/** Escape every tag that is not a lowercase SAFE_TAGS member; HTML comments pass through verbatim. */
 function escapeUnsafeHtml(token: Token, md: MarkdownIt): void {
-  const content = token.content;
-  if (content.trimStart().startsWith('<!--')) return;
-  const tag = /^\s*<\/?([A-Za-z][A-Za-z0-9-]*)/.exec(content)?.[1];
-  if (tag !== undefined && tag === tag.toLowerCase() && SAFE_TAGS.has(tag)) return;
-  token.content = md.utils.escapeHtml(content);
+  token.content = token.content
+    .split(/(<!--[\s\S]*?-->)/)
+    .map((part) =>
+      part.startsWith('<!--')
+        ? part
+        : part.replace(/<\/?([A-Za-z][A-Za-z0-9-]*)\b[^>]*>/g, (match, tag: string) =>
+            tag === tag.toLowerCase() && SAFE_TAGS.has(tag) ? match : md.utils.escapeHtml(match),
+          ),
+    )
+    .join('');
 }
 
 function rewriteInline(
