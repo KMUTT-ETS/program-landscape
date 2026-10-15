@@ -1,83 +1,89 @@
 /**
  * Institution identity — who this deployment is.
  *
- * The platform was built for Khon Kaen University and its name was
- * hardcoded wherever data is matched against "our" rows (TCAS admission
- * statistics, peer rankings, Scopus affiliation) and in the User-Agent
- * every outbound fetch sends. An adopting university sets these keys in
- * `.env`; unset, they fall back to KKU's values so the upstream
- * deployment behaves exactly as before.
+ * Read from the `organization_profile` row (an admin edits it at
+ * /admin/organization). Each process fills this cache with
+ * `loadOrganization()` from @kku/db — the api and the ingestion worker at
+ * boot, every CLI script at the top of main(). The readers here stay
+ * synchronous so AI prompt builders and connectors need no plumbing.
  *
- *   INSTITUTION_NAME_TH        must equal the `สถาบัน` column of the TCAS
- *                              sheets character for character (trimmed)
- *   INSTITUTION_NAME_EN        must equal the institution's name in the
- *                              ranking tables and its Scopus affiliation
- *   INSTITUTION_SHORT_NAME_EN  abbreviation used in AI prompts ("KKU")
- *   INSTITUTION_SHORT_NAME_TH  Thai abbreviation used in AI prompts ("มข.")
- *   INSTITUTION_CONTACT_EMAIL  sent in outbound User-Agents so a site
- *                              operator can reach us; falls back to
- *                              OPENALEX_MAILTO, else omitted
- *   APP_PUBLIC_URL             the deployment's public URL, also sent in
- *                              outbound User-Agents
- *
- * Same injectable-`env` shape as `resolveConnectorMode()` so tests never
- * touch process.env.
+ * There is deliberately NO fallback: reading before the cache is loaded,
+ * or when no row exists, throws. A white-label install must never quietly
+ * call itself Khon Kaen University.
  */
 
-export const DEFAULT_INSTITUTION_NAME_TH = 'มหาวิทยาลัยขอนแก่น';
-export const DEFAULT_INSTITUTION_NAME_EN = 'Khon Kaen University';
-export const DEFAULT_INSTITUTION_SHORT_NAME_EN = 'KKU';
-export const DEFAULT_INSTITUTION_SHORT_NAME_TH = 'มข.';
-export const DEFAULT_APP_PUBLIC_URL = 'https://program-landscape.kku.ac.th';
-
 export interface Institution {
+  /** Must equal the `สถาบัน` column of the TCAS sheets (trimmed). */
   nameTh: string;
+  /** Must equal the name in ranking tables and the Scopus affiliation. */
   nameEn: string;
   shortNameEn: string;
   shortNameTh: string;
-  /** null when neither INSTITUTION_CONTACT_EMAIL nor OPENALEX_MAILTO is set. */
+  regionTh: string | null;
+  regionEn: string | null;
+  /** Sent in outbound User-Agents; null omits it. */
   contactEmail: string | null;
+  /** Sent in outbound User-Agents. No trailing slash. */
   appUrl: string;
 }
 
-function readTrimmed(env: NodeJS.ProcessEnv, key: string): string | null {
-  const value = env[key]?.trim();
-  return value ? value : null;
+export class OrganizationNotLoadedError extends Error {
+  constructor() {
+    super(
+      'Organisation identity read before loadOrganization() ran in this process — ' +
+        'call `await loadOrganization()` at the entry point.',
+    );
+    this.name = 'OrganizationNotLoadedError';
+  }
 }
 
-export function getInstitution(env: NodeJS.ProcessEnv = process.env): Institution {
-  return {
-    nameTh: readTrimmed(env, 'INSTITUTION_NAME_TH') ?? DEFAULT_INSTITUTION_NAME_TH,
-    nameEn: readTrimmed(env, 'INSTITUTION_NAME_EN') ?? DEFAULT_INSTITUTION_NAME_EN,
-    shortNameEn: readTrimmed(env, 'INSTITUTION_SHORT_NAME_EN') ?? DEFAULT_INSTITUTION_SHORT_NAME_EN,
-    shortNameTh: readTrimmed(env, 'INSTITUTION_SHORT_NAME_TH') ?? DEFAULT_INSTITUTION_SHORT_NAME_TH,
-    contactEmail:
-      readTrimmed(env, 'INSTITUTION_CONTACT_EMAIL') ?? readTrimmed(env, 'OPENALEX_MAILTO'),
-    appUrl: readTrimmed(env, 'APP_PUBLIC_URL') ?? DEFAULT_APP_PUBLIC_URL,
-  };
+export class OrganizationNotConfiguredError extends Error {
+  constructor() {
+    super('Organisation is not configured yet — an administrator must fill in /admin/organization.');
+    this.name = 'OrganizationNotConfiguredError';
+  }
+}
+
+export class OrganizationVersionConflictError extends Error {
+  constructor() {
+    super('The organisation profile was changed by someone else — reload and try again.');
+    this.name = 'OrganizationVersionConflictError';
+  }
+}
+
+type CacheState = { loaded: false } | { loaded: true; inst: Institution | null };
+let cache: CacheState = { loaded: false };
+
+/** Called by @kku/db's loader. `null` means "loaded, no row". */
+export function setOrganizationCache(inst: Institution | null): void {
+  cache = { loaded: true, inst };
+}
+
+/** Test seam. `undefined` returns the cache to the never-loaded state. */
+export function setOrganizationForTest(inst: Institution | null | undefined): void {
+  cache = inst === undefined ? { loaded: false } : { loaded: true, inst };
+}
+
+export function getInstitution(): Institution {
+  if (!cache.loaded) throw new OrganizationNotLoadedError();
+  if (!cache.inst) throw new OrganizationNotConfiguredError();
+  return cache.inst;
 }
 
 /**
  * The honest identifying User-Agent for outbound fetches:
  * `Program-Landscape/1.0 (+<appUrl>; <contactEmail>)`, with an optional
- * purpose suffix on the product token (`Program-Landscape/1.0 bulk-pdf-load`).
- * Sites that refuse bot User-Agents (the curated report feeds) use a
- * browser string instead and do not call this.
+ * purpose suffix on the product token. Sites that refuse bot User-Agents
+ * (the curated report feeds) use a browser string instead.
  */
-export function outboundUserAgent(
-  purpose?: string,
-  env: NodeJS.ProcessEnv = process.env,
-): string {
-  const { appUrl, contactEmail } = getInstitution(env);
+export function outboundUserAgent(purpose?: string): string {
+  const { appUrl, contactEmail } = getInstitution();
   const product = purpose ? `Program-Landscape/1.0 ${purpose}` : 'Program-Landscape/1.0';
   const comment = contactEmail ? `+${appUrl}; ${contactEmail}` : `+${appUrl}`;
   return `${product} (${comment})`;
 }
 
 /** True when a source row's institution name is this deployment's (trimmed compare). */
-export function isOwnInstitution(
-  institutionName: string | null | undefined,
-  env: NodeJS.ProcessEnv = process.env,
-): boolean {
-  return institutionName?.trim() === getInstitution(env).nameTh;
+export function isOwnInstitution(institutionName: string | null | undefined): boolean {
+  return institutionName?.trim() === getInstitution().nameTh;
 }
