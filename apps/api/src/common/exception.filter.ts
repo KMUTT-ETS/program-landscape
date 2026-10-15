@@ -6,7 +6,12 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { ApiError, scrubString } from '@kku/shared';
+import {
+  ApiError,
+  OrganizationNotConfiguredError,
+  OrganizationVersionConflictError,
+  scrubString,
+} from '@kku/shared';
 import type { ApiFailure, SessionUser } from '@kku/shared';
 
 // Maps any thrown exception to the ApiFailure envelope. ApiError gives us
@@ -65,7 +70,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     res.status(status).json(body);
   }
 
-  private toEnvelope(e: unknown): { status: number; body: ApiFailure } {
+  private toEnvelope(thrown: unknown): { status: number; body: ApiFailure } {
+    let e = thrown;
+    if (e instanceof OrganizationNotConfiguredError) e = new ApiError('ORG_NOT_CONFIGURED', e.message);
+    else if (e instanceof OrganizationVersionConflictError) e = new ApiError('ORG_VERSION_CONFLICT', e.message);
     if (e instanceof ApiError) {
       const status = statusForCode(e.code);
       return {
@@ -180,6 +188,9 @@ export function statusForCode(code: string): number {
       return 400;
     case 'RATE_LIMITED':
       return 429;
+    case 'ORG_NOT_CONFIGURED':
+    case 'ORG_VERSION_CONFLICT':
+      return 409;
     case 'UPSTREAM_UNAVAILABLE':
     case 'AI_PROVIDER_ERROR':
       return 502;

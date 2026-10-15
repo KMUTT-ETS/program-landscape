@@ -48,6 +48,7 @@ import { BenchmarkingModule } from './benchmarking/benchmarking.module';
 import { AnalystModule } from './analyst/analyst.module';
 import { DecisionsModule } from './decisions/decisions.module';
 import { AdminModule } from './admin/admin.module';
+import { OrganizationModule } from './organization/organization.module';
 import { AdminDataSetupModule } from './admin-data-setup/admin-data-setup.module';
 import { EducationModule } from './education/education.module';
 import { StaffDashboardModule } from './staff-dashboard/staff.module';
@@ -123,6 +124,7 @@ import {
     AnalystModule,
     DecisionsModule,
     AdminModule,
+    OrganizationModule,
     AdminDataSetupModule,
     EducationModule,
     StaffDashboardModule,
