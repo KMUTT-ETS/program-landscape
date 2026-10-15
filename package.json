@@ -2,20 +2,21 @@
   "name": "program-landscape",
   "version": "0.0.0",
   "private": true,
-  "description": "KKU Curriculum Intelligence Platform \u00b7 Program Landscape \u2014 strategic decision-support for the University Council",
+  "description": "KKU Curriculum Intelligence Platform · Program Landscape — strategic decision-support for the University Council",
   "packageManager": "pnpm@10.33.1",
   "engines": {
     "node": ">=20.0.0",
     "pnpm": ">=9.0.0"
   },
   "scripts": {
-    "setup": "pnpm install && node scripts/link-env.mjs && pnpm db:up && pnpm minio:init && pnpm db:migrate && pnpm db:seed",
+    "setup": "pnpm install && node scripts/link-env.mjs && pnpm db:generate && pnpm db:up && pnpm minio:init && pnpm db:migrate && pnpm db:seed",
     "link-env": "node scripts/link-env.mjs",
     "minio:init": "node scripts/ensure-minio-buckets.mjs",
     "dev": "concurrently -n web,api,ingest -c blue,green,magenta \"pnpm --filter web dev\" \"pnpm --filter api start:dev\" \"pnpm --filter ingestion start:dev\"",
     "db:up": "docker compose up -d postgres redis minio gotenberg",
     "db:down": "docker compose down",
-    "db:reset": "docker compose down -v && pnpm db:up && pnpm minio:init && pnpm db:migrate && pnpm db:seed",
+    "db:reset": "docker compose down -v && pnpm db:up && pnpm minio:init && pnpm db:generate && pnpm db:migrate && pnpm db:seed",
+    "db:generate": "pnpm --filter @kku/db generate",
     "db:migrate": "pnpm --filter @kku/db prisma migrate deploy",
     "db:migrate:safe": "node scripts/pre-deploy-snapshot.mjs && pnpm --filter @kku/db prisma migrate deploy",
     "db:backup": "node scripts/pre-deploy-snapshot.mjs",
@@ -129,17 +130,18 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
+      "@google/genai",
       "@nestjs/core",
       "@prisma/client",
       "@prisma/engines",
       "@swc/core",
+      "canvas",
       "esbuild",
       "msgpackr-extract",
+      "oracledb",
       "prisma",
+      "protobufjs",
       "unrs-resolver"
-    ],
-    "patchedDependencies": {
-      "next@14.2.32": "patches/next@14.2.32.patch"
-    }
+    ]
   }
 }

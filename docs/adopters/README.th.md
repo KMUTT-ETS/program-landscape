@@ -197,7 +197,7 @@ pnpm setup
 pnpm dev
 ```
 
-`pnpm setup` คือคำสั่งลัดของ `pnpm install && node scripts/link-env.mjs && pnpm db:up && pnpm minio:init && pnpm db:migrate && pnpm db:seed` ถ้าขั้นไหนพัง ให้รันทีละคำสั่งเพื่อหาว่าติดตรงไหน
+`pnpm setup` คือคำสั่งลัดของ `pnpm install && node scripts/link-env.mjs && pnpm db:generate && pnpm db:up && pnpm minio:init && pnpm db:migrate && pnpm db:seed` ถ้าขั้นไหนพัง ให้รันทีละคำสั่งเพื่อหาว่าติดตรงไหน
 
 เมื่อรันขึ้นแล้ว:
 
@@ -295,7 +295,7 @@ scripts/       Release build, deploy, backup, restore, rollback, smoke test,
 
 `@next/env` ของ Next.js โหลด `.env` จาก **ไดเรกทอรีของโปรเจกต์ Next** (`apps/web/`) ไม่เคยโหลดจากรากของ monorepo กับดักเดียวกันนี้เล่นงาน `apps/api` และ `apps/ingestion` ด้วย
 
-`scripts/link-env.mjs` (`pnpm link-env` และเป็นส่วนหนึ่งของ `pnpm setup`) จะ symlink `.env` ที่รากไปยังไดเรกทอรีแอปทั้งสาม บน Windows ที่ไม่ได้เปิด Developer Mode สคริปต์จะถอยไปใช้การคัดลอกแทน — และสำเนา **จะไม่ตามการแก้ไข** `.env` ที่ราก ดังนั้นบน Windows ให้รัน `pnpm link-env` ซ้ำทุกครั้งหลังแก้ค่า env
+`scripts/link-env.mjs` (`pnpm link-env` และเป็นส่วนหนึ่งของ `pnpm setup`) จะ symlink `.env` ที่รากไปยังไดเรกทอรีแอปทั้งสาม และไปยัง `packages/db` ด้วย (Prisma CLI อ่าน `DATABASE_URL` จาก `packages/db/.env`) บน Windows ที่ไม่ได้เปิด Developer Mode สคริปต์จะถอยไปใช้การคัดลอกแทน — และสำเนา **จะไม่ตามการแก้ไข** `.env` ที่ราก ดังนั้นบน Windows ให้รัน `pnpm link-env` ซ้ำทุกครั้งหลังแก้ค่า env
 
 อาการเมื่อขาดไฟล์นี้เงียบและชวนเข้าใจผิด ดู [กับดักที่ 4](#กับดักที่-4-ไฟล์-env-ประจำแต่ละแอป-และความล้มเหลวเงียบของ-edge-middleware)
 

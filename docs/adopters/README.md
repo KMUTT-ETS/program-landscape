@@ -193,7 +193,7 @@ pnpm setup
 pnpm dev
 ```
 
-`pnpm setup` expands to `pnpm install && node scripts/link-env.mjs && pnpm db:up && pnpm minio:init && pnpm db:migrate && pnpm db:seed`. If any step fails, run them individually to isolate it.
+`pnpm setup` expands to `pnpm install && node scripts/link-env.mjs && pnpm db:generate && pnpm db:up && pnpm minio:init && pnpm db:migrate && pnpm db:seed`. If any step fails, run them individually to isolate it.
 
 Once running:
 
@@ -291,7 +291,7 @@ If you are adding a surface and it does not have these, it is not finished. This
 
 Next.js's `@next/env` loads `.env` from the **Next project directory** (`apps/web/`), never from the monorepo root. The same trap hits `apps/api` and `apps/ingestion`.
 
-`scripts/link-env.mjs` (`pnpm link-env`, also part of `pnpm setup`) symlinks the root `.env` into all three app directories. On Windows without Developer Mode it falls back to copying — and a copy **drifts** when you edit the root `.env`, so re-run `pnpm link-env` after every env change on Windows.
+`scripts/link-env.mjs` (`pnpm link-env`, also part of `pnpm setup`) symlinks the root `.env` into all three app directories and into `packages/db` (the Prisma CLI reads `DATABASE_URL` from `packages/db/.env`). On Windows without Developer Mode it falls back to copying — and a copy **drifts** when you edit the root `.env`, so re-run `pnpm link-env` after every env change on Windows.
 
 The failure mode when this is missing is silent and misleading. See [Trap 4](#trap-4-per-app-env-files-and-the-silent-edge-middleware-failure).
 
