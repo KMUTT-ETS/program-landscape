@@ -200,7 +200,7 @@ Once running:
 | URL | What |
 |---|---|
 | `http://localhost:3000` | Web (Next.js) |
-| `http://localhost:4000/healthz` | API liveness |
+| `http://localhost:4000/api/v1/healthz` | API liveness |
 | `http://localhost:4000/api/v1/ready` | API dependency health — probes Postgres, Redis, MinIO, Gotenberg, AI provider |
 | `http://localhost:9001` | MinIO console |
 | `http://localhost:3001` | Gotenberg |
@@ -285,7 +285,9 @@ If you are adding a surface and it does not have these, it is not finished. This
 | `CONNECTOR_MODE` | Global default connector mode. Leave at `mocked` initially |
 | `MINIO_*`, `REDIS_*`, `GOTENBERG_URL` | Local defaults in `.env.example` work with `pnpm db:up` |
 
-**Known gaps in `.env.example` you will hit.** `AI_PROVIDER`, `GOOGLE_AI_API_KEY`, `UNICON_DS2001_DB_*`, and `UNICON_DS1001_DB_*` are documented in `.env.prod.example` but **absent from `.env.example`**. The dev example has drifted behind the prod one. When a connector reports missing config, check `.env.prod.example` and `configFromEnv('<PREFIX>')` in the connector before assuming the key does not exist.
+**Known gaps in `.env.example` you will hit.** `UNICON_DS2001_DB_*` and `UNICON_DS1001_DB_*` are documented in `.env.prod.example` but **absent from `.env.example`**. When a connector reports missing config, check `.env.prod.example` and `configFromEnv('<PREFIX>')` in the connector before assuming the key does not exist.
+
+> `AI_PROVIDER` and `GOOGLE_AI_API_KEY` used to be missing here too; that gap is fixed. `.env.example` now ships `AI_PROVIDER=stub`, which is what lets `api` and `ingestion` boot without an LLM key (the code default, `google`, crashes both at boot when `GOOGLE_AI_API_KEY` is empty).
 
 ### Each app needs its own `.env` — this is not optional
 

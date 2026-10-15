@@ -204,7 +204,7 @@ pnpm dev
 | URL | คืออะไร |
 |---|---|
 | `http://localhost:3000` | เว็บ (Next.js) |
-| `http://localhost:4000/healthz` | ตรวจว่าโปรเซส API ยังมีชีวิตอยู่ |
+| `http://localhost:4000/api/v1/healthz` | ตรวจว่าโปรเซส API ยังมีชีวิตอยู่ |
 | `http://localhost:4000/api/v1/ready` | สุขภาพ dependency ของ API — ตรวจ Postgres, Redis, MinIO, Gotenberg และผู้ให้บริการ AI |
 | `http://localhost:9001` | คอนโซล MinIO |
 | `http://localhost:3001` | Gotenberg |
