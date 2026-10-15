@@ -1,0 +1,19 @@
+:root {
+  --vp-font-family-base: 'IBM Plex Sans Thai', 'IBM Plex Sans', system-ui, sans-serif;
+  --vp-font-family-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --vp-c-brand-1: #4f46e5;
+  --vp-c-brand-2: #4338ca;
+  --vp-c-brand-3: #3730a3;
+}
+
+.dark {
+  --vp-c-brand-1: #a5b4fc;
+  --vp-c-brand-2: #818cf8;
+  --vp-c-brand-3: #6366f1;
+}
+
+/* Links to repository files the site does not render (see src/link-plugin.ts). */
+.vp-doc code.repo-path::before {
+  content: '⧉ ';
+  opacity: 0.6;
+}
