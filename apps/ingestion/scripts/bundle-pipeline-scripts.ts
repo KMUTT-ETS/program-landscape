@@ -91,6 +91,11 @@ const TARGETS = [
   // program-overlap.v1 scoring + calibration. Operator-run on prod for the
   // full-portfolio run; the pipeline's phaseOV runs in-process.
   'programs-overlap.ts',
+  // Operator-run scripts that call outboundUserAgent() from @kku/shared, which
+  // plain node cannot load from node_modules; bundled so prod gets a
+  // self-contained file.
+  'bulk-pdf-load.ts',
+  'capture-kmitl-skill-mapping.ts',
 ];
 
 // Native modules + workspace artifacts that must stay external.

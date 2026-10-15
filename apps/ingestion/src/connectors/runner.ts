@@ -222,14 +222,12 @@ export class ConnectorRunner {
         recordsFailed: result.recordsFailed,
       };
     } catch (err) {
-      const isNonRetryable = err instanceof NonRetryableError || isOrganizationNotConfigured(err);
+      const orgMissing = isOrganizationNotConfigured(err);
+      const isNonRetryable = err instanceof NonRetryableError || orgMissing;
       const message = err instanceof Error ? err.message : String(err);
-      const code =
-        err instanceof NonRetryableError
-          ? err.code
-          : isOrganizationNotConfigured(err)
-            ? 'ORG_NOT_CONFIGURED'
-            : 'UNCAUGHT';
+      let code = 'UNCAUGHT';
+      if (err instanceof NonRetryableError) code = err.code;
+      else if (orgMissing) code = 'ORG_NOT_CONFIGURED';
 
       await prisma.ingestionRun.update({
         where: { id: run.id },
