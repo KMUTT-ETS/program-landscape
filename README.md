@@ -21,14 +21,17 @@ prompt 14. See `CLAUDE.md` → *Current status* for the full checklist.
 
 ```bash
 cp .env.example .env
-pnpm setup          # install deps, start infra, migrate, seed
+pnpm setup          # install deps, start infra, generate client, migrate, seed
 pnpm dev            # run web + api + ingestion in parallel
 ```
+
+Full walkthrough, including what to do after a fresh `git clone`:
+**[`docs/guides/fresh-checkout-setup.md`](docs/guides/fresh-checkout-setup.md)**.
 
 Then open:
 
 - `http://localhost:3000` — web (Next.js)
-- `http://localhost:4000/healthz` — api (NestJS)
+- `http://localhost:4000/api/v1/healthz` — api (NestJS)
 - `http://localhost:9001` — MinIO console
 - `http://localhost:3001` — Gotenberg (PDF generation)
 
@@ -36,11 +39,12 @@ Then open:
 
 | Command | Purpose |
 |---|---|
-| `pnpm setup` | install deps, start infra, migrate, seed |
+| `pnpm setup` | install deps, start infra, generate client, migrate, seed |
 | `pnpm dev` | run web + api + ingestion in parallel |
 | `pnpm db:up` | start postgres + redis + minio + gotenberg |
 | `pnpm db:down` | stop the infra containers |
-| `pnpm db:reset` | drop volumes + migrate + seed (dev only) |
+| `pnpm db:reset` | drop volumes + generate + migrate + seed (dev only) |
+| `pnpm db:generate` | regenerate the Prisma Client after schema changes |
 | `pnpm db:migrate` | apply pending Prisma migrations |
 | `pnpm db:seed` | seed without dropping |
 | `pnpm test` | run unit + integration tests across workspaces |
