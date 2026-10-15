@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
+import { getInstitution } from '@kku/shared';
 import type { ScopeLevel } from './scope';
 import { prisma } from './index';
 import { queryMetricByScope, type MetricRow } from './scope';
@@ -951,7 +952,7 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
       const peerRows = await prisma.tcasAdmissionStat.findMany({
         where: {
           entryYearBE: latestComplete.entryYearBE,
-          institutionName: { not: 'มหาวิทยาลัยขอนแก่น' },
+          institutionName: { not: getInstitution().nameTh },
           programmeName: { contains: subjectKey, mode: 'insensitive' },
           quota: { gt: 0 },
           ...realDataWhere(),
@@ -1690,7 +1691,7 @@ async function scoreOutcomesProgram(programId: string, oRow: MetricRow | null): 
         entryYearBE: kkuTcas.entryYearBE,
         round: kkuTcas.round,
         minScorePass1: { not: null },
-        institutionName: { not: 'มหาวิทยาลัยขอนแก่น' },
+        institutionName: { not: getInstitution().nameTh },
         programmeName: { contains: subjectKey, mode: 'insensitive' },
         ...realDataWhere(),
       },

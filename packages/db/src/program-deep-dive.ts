@@ -1,6 +1,7 @@
 import { Prisma, type ProgramLifecycleVerdict } from '@prisma/client';
 import { z } from 'zod';
 import {
+  getInstitution,
   ProgramResearchExpertiseSchema,
   type ProgramResearchExpertise,
 } from '@kku/shared';
@@ -2228,7 +2229,7 @@ export async function programTcasStats(
         programmeName: kkuLatest.programmeName,
         entryYearBE: latestEntryYearBE,
         round: latestRound,
-        institutionName: { not: 'มหาวิทยาลัยขอนแก่น' },
+        institutionName: { not: getInstitution().nameTh },
         ...realDataWhere(),
       },
       orderBy: [{ applicants: 'desc' }],
@@ -2243,7 +2244,7 @@ export async function programTcasStats(
       where: {
         entryYearBE: latestEntryYearBE,
         round: latestRound,
-        institutionName: { not: 'มหาวิทยาลัยขอนแก่น' },
+        institutionName: { not: getInstitution().nameTh },
         ...realDataWhere(),
         // Crude pre-filter to keep the row volume sane — anything
         // whose programmeName contains the signature substring.
@@ -2361,8 +2362,6 @@ function aggregateRows(rows: Array<{
   };
 }
 
-const KKU_INSTITUTION_NAME_TH = 'มหาวิทยาลัยขอนแก่น';
-
 export async function facultyTcasStats(
   facultyId: string,
 ): Promise<FacultyTcasStats | null> {
@@ -2372,10 +2371,11 @@ export async function facultyTcasStats(
   });
   if (!faculty) return null;
   const facultyNameTh = faculty.nameTh;
+  const ownNameTh = getInstitution().nameTh;
 
   // Latest year present in the dataset for THIS faculty.
   const latestRow = await prisma.tcasAdmissionStat.findFirst({
-    where: { facultyName: facultyNameTh, institutionName: KKU_INSTITUTION_NAME_TH, ...realDataWhere() },
+    where: { facultyName: facultyNameTh, institutionName: ownNameTh, ...realDataWhere() },
     orderBy: [{ entryYearBE: 'desc' }, { round: 'desc' }],
     select: { entryYearBE: true },
   });
@@ -2401,10 +2401,10 @@ export async function facultyTcasStats(
       minScorePass1: true,
     },
   });
-  const kkuRows = allRows.filter((r) => r.institutionName === KKU_INSTITUTION_NAME_TH);
+  const kkuRows = allRows.filter((r) => r.institutionName === ownNameTh);
   const peerByInst = new Map<string, typeof allRows>();
   for (const r of allRows) {
-    if (r.institutionName === KKU_INSTITUTION_NAME_TH) continue;
+    if (r.institutionName === ownNameTh) continue;
     const arr = peerByInst.get(r.institutionName) ?? [];
     arr.push(r);
     peerByInst.set(r.institutionName, arr);
@@ -2426,8 +2426,9 @@ export async function facultyTcasStats(
 }
 
 export async function universityTcasStats(): Promise<UniversityTcasStats | null> {
+  const ownNameTh = getInstitution().nameTh;
   const latestRow = await prisma.tcasAdmissionStat.findFirst({
-    where: { institutionName: KKU_INSTITUTION_NAME_TH, ...realDataWhere() },
+    where: { institutionName: ownNameTh, ...realDataWhere() },
     orderBy: [{ entryYearBE: 'desc' }, { round: 'desc' }],
     select: { entryYearBE: true },
   });
@@ -2451,10 +2452,10 @@ export async function universityTcasStats(): Promise<UniversityTcasStats | null>
       minScorePass1: true,
     },
   });
-  const kkuRows = allRows.filter((r) => r.institutionName === KKU_INSTITUTION_NAME_TH);
+  const kkuRows = allRows.filter((r) => r.institutionName === ownNameTh);
   const peerByInst = new Map<string, typeof allRows>();
   for (const r of allRows) {
-    if (r.institutionName === KKU_INSTITUTION_NAME_TH) continue;
+    if (r.institutionName === ownNameTh) continue;
     const arr = peerByInst.get(r.institutionName) ?? [];
     arr.push(r);
     peerByInst.set(r.institutionName, arr);

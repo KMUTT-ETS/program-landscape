@@ -48,6 +48,7 @@ import { prisma, type PrismaClient } from '@kku/db';
 import {
   buildDirectToken,
   buildKmitlHeaders,
+  outboundUserAgent,
   type Connector,
   type ConnectorContext,
   type HealthStatus,
@@ -144,7 +145,7 @@ export class KmitlSkillMappingRealConnector extends ApiConnector implements Conn
     const token = buildDirectToken(this.credentials());
     const headers = {
       ...buildKmitlHeaders(token),
-      'User-Agent': 'kku-curriculum-landscape/1.0 (mailto:denpong@kku.ac.th)',
+      'User-Agent': outboundUserAgent(),
     };
     let res: Response;
     try {

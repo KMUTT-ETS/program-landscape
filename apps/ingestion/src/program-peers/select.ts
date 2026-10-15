@@ -1,6 +1,7 @@
 import { prisma, activeRevisionIdFor, type ProgramLevel, type PeerTier } from '@kku/db';
 import {
   buildProgramPeerSelectionMessages,
+  getInstitution,
   ProgramPeerSelectionSchema,
   PROGRAM_PEER_SELECTION_VERSION,
   type AiService,
@@ -77,7 +78,7 @@ export async function selectProgramPeers(params: SelectPeersParams): Promise<Sel
 
   // Pull candidates, exclude KKU itself.
   const allCandidates = await prisma.rankedUniversity.findMany({
-    where: { rankingYear, name: { not: 'Khon Kaen University' } },
+    where: { rankingYear, name: { not: getInstitution().nameEn } },
     orderBy: [{ region: 'asc' }, { qsWorldRank: 'asc' }],
   });
   if (allCandidates.length === 0) {

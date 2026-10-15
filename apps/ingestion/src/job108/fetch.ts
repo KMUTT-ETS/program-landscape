@@ -16,11 +16,11 @@
  * but this guard does not depend on that having run). `JOB108_BASE_URL`
  * derives from `JOB108_ORIGIN` so the two cannot drift apart.
  */
+
+import { outboundUserAgent } from '@kku/shared';
+
 export const JOB108_ORIGIN = 'https://www.job-108.com';
 export const JOB108_BASE_URL = JOB108_ORIGIN;
-
-export const JOB108_USER_AGENT =
-  'KKU-ProgramLandscape/1.0 (+https://program-landscape.kku.ac.th; denpong@kku.ac.th)';
 
 /** One request per this many milliseconds. Politeness, not a limit we were given. */
 export const JOB108_REQUEST_SPACING_MS = 2_000;
@@ -64,7 +64,7 @@ export async function fetchJob108Page(url: string): Promise<string> {
   const timer = setTimeout(() => controller.abort(), JOB108_TIMEOUT_MS);
   try {
     const res = await fetch(url, {
-      headers: { 'User-Agent': JOB108_USER_AGENT, Accept: 'text/html,application/xhtml+xml,application/xml' },
+      headers: { 'User-Agent': outboundUserAgent(), Accept: 'text/html,application/xhtml+xml,application/xml' },
       signal: controller.signal,
     });
     if (!res.ok) throw new Job108FetchError(url, res.status, `HTTP ${res.status} for ${url}`);

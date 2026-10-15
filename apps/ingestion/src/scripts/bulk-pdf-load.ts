@@ -34,6 +34,16 @@ import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
+// Same shape as outboundUserAgent() in packages/shared/src/institution.ts.
+// Inlined because this script imports nothing from the workspace, so it
+// runs as a plain compiled file on the prod server.
+function outboundUserAgent(purpose: string): string {
+  const appUrl = process.env.APP_PUBLIC_URL?.trim() || 'https://program-landscape.kku.ac.th';
+  const contact =
+    process.env.INSTITUTION_CONTACT_EMAIL?.trim() || process.env.OPENALEX_MAILTO?.trim();
+  return `Program-Landscape/1.0 ${purpose} (+${appUrl}${contact ? `; ${contact}` : ''})`;
+}
+
 interface ManifestEntry {
   sourceSlug: string;
   url: string;
@@ -124,8 +134,7 @@ for (const entry of entries) {
     console.log(`${prefix} fetch ${entry.url}`);
     const resp = await fetch(entry.url, {
       headers: {
-        'user-agent':
-          'program-landscape/bulk-pdf-load (+https://program-landscape.kku.ac.th)',
+        'user-agent': outboundUserAgent('bulk-pdf-load'),
       },
       signal: AbortSignal.timeout(60_000),
     });

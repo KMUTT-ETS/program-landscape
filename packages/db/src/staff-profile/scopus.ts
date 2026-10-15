@@ -23,6 +23,7 @@
 // empty arrays so the rest of the pipeline (kkuscholar fallback,
 // external DOI lookups) can still pick up the slack.
 
+import { getInstitution } from '@kku/shared';
 import type {
   AuthorPosition,
   KkuScholarPublication,
@@ -55,7 +56,7 @@ export async function resolveScopusAuthorId(input: {
   const key = process.env.KKU_SCOPUS_API_KEY;
   if (!key || !input.surnameEn || !input.givenEn) return null;
 
-  const affiliation = input.affiliation ?? 'Khon Kaen University';
+  const affiliation = input.affiliation ?? getInstitution().nameEn;
   // Scopus author-search query DSL: AUTHLAST + AUTHFIRST + AFFIL.
   // Quotation handles spaces in affiliation strings.
   const query = `AUTHLAST(${input.surnameEn}) AND AUTHFIRST(${input.givenEn}) AND AFFIL("${affiliation}")`;
