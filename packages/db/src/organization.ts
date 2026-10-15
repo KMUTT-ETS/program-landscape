@@ -1,0 +1,129 @@
+import { z } from 'zod';
+import type { OrganizationProfile, PrismaClient } from '@prisma/client';
+import {
+  OrganizationVersionConflictError,
+  setOrganizationCache,
+  type Institution,
+  type OrganizationIdentityInput,
+} from '@kku/shared';
+import { prisma } from './index';
+
+// The organisation this installation serves — see
+// docs/superpowers/specs/2026-10-15-white-label-organization-design.md §4.
+// Every process calls loadOrganization() once at its entry point; @kku/shared's
+// synchronous getInstitution() then reads the cache this fills.
+
+const SINGLETON_ID = 'default';
+
+export type OrgClient = Pick<PrismaClient, 'organizationProfile' | 'tcasAdmissionStat' | '$queryRaw'>;
+
+let loadedVersion: number | null = null;
+
+export function profileToInstitution(row: OrganizationProfile): Institution {
+  return {
+    nameTh: row.nameTh,
+    nameEn: row.nameEn,
+    shortNameTh: row.shortNameTh,
+    shortNameEn: row.shortNameEn,
+    regionTh: row.regionTh,
+    regionEn: row.regionEn,
+    contactEmail: row.contactEmail,
+    appUrl: row.appUrl,
+  };
+}
+
+/** The product name is fixed; only the tagline carries the organisation. */
+export function organizationTagline(shortNameEn: string): string {
+  return `${shortNameEn} Curriculum Intelligence Platform`;
+}
+
+export async function getOrganizationProfile(client: OrgClient = prisma): Promise<OrganizationProfile | null> {
+  return client.organizationProfile.findUnique({ where: { id: SINGLETON_ID } });
+}
+
+/** Reads the row and fills the shared cache. Returns null when no row exists. */
+export async function loadOrganization(client: OrgClient = prisma): Promise<Institution | null> {
+  const row = await getOrganizationProfile(client);
+  const inst = row ? profileToInstitution(row) : null;
+  setOrganizationCache(inst);
+  loadedVersion = row?.version ?? null;
+  return inst;
+}
+
+/**
+ * Long-running processes only. Polls the row every `intervalMs` and reloads
+ * when its version moved. A failed poll keeps the last good identity — a
+ * database blip must not turn every AI call into "not configured".
+ */
+export function startOrganizationRefresh(client: OrgClient = prisma, intervalMs = 60_000): () => void {
+  const timer = setInterval(() => {
+    void getOrganizationProfile(client)
+      .then((row) => {
+        const version = row?.version ?? null;
+        if (version === loadedVersion) return;
+        setOrganizationCache(row ? profileToInstitution(row) : null);
+        loadedVersion = version;
+      })
+      .catch((err: unknown) => {
+        console.warn(`[organization] refresh failed, keeping last identity: ${(err as Error).message}`);
+      });
+  }, intervalMs);
+  timer.unref?.();
+  return () => clearInterval(timer);
+}
+
+/**
+ * Creates the profile (expectedVersion null) or updates it under an
+ * optimistic lock. Throws OrganizationVersionConflictError when someone else
+ * saved first. Refreshes this process's cache immediately.
+ */
+export async function saveOrganizationIdentity(
+  input: OrganizationIdentityInput,
+  userId: string,
+  client: OrgClient = prisma,
+): Promise<OrganizationProfile> {
+  const { expectedVersion, ...fields } = input;
+  if (expectedVersion === null) {
+    try {
+      await client.organizationProfile.create({ data: { id: SINGLETON_ID, ...fields, updatedBy: userId } });
+    } catch (err) {
+      if ((err as { code?: string }).code === 'P2002') throw new OrganizationVersionConflictError();
+      throw err;
+    }
+  } else {
+    const { count } = await client.organizationProfile.updateMany({
+      where: { id: SINGLETON_ID, version: expectedVersion },
+      data: { ...fields, updatedBy: userId, version: { increment: 1 } },
+    });
+    if (count === 0) throw new OrganizationVersionConflictError();
+  }
+  const row = await getOrganizationProfile(client);
+  if (!row) throw new Error('organization_profile row vanished after save');
+  setOrganizationCache(profileToInstitution(row));
+  loadedVersion = row.version;
+  return row;
+}
+
+export interface TcasNameMatch {
+  exactRows: number;
+  suggestions: { name: string; rows: number; similarity: number }[];
+}
+
+const SuggestionRows = z.array(
+  z.object({ name: z.string(), rows: z.number().int(), similarity: z.number() }),
+);
+
+/** Backs the admin form's "does this match TCAS?" helper. Read-only. */
+export async function tcasInstitutionMatches(name: string, client: OrgClient = prisma): Promise<TcasNameMatch> {
+  const trimmed = name.trim();
+  const exactRows = await client.tcasAdmissionStat.count({ where: { institutionName: trimmed } });
+  const raw = await client.$queryRaw`
+    SELECT institution_name AS name,
+           COUNT(*)::int AS rows,
+           MAX(similarity(institution_name, ${trimmed}))::float8 AS similarity
+    FROM tcas_admission_stats
+    GROUP BY institution_name
+    ORDER BY similarity DESC
+    LIMIT 5`;
+  return { exactRows, suggestions: SuggestionRows.parse(raw) };
+}

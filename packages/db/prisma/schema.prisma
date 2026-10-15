@@ -5930,6 +5930,30 @@ model SystemSetting {
   @@map("system_settings")
 }
 
+/// Singleton: the organisation this installation serves. `id` is always
+/// 'default'. Edited at /admin/organization; read through the boot-loaded
+/// cache in packages/db/src/organization.ts. Phase 1 holds identity only —
+/// brand and legal columns arrive in later phases of the white-label spec.
+model OrganizationProfile {
+  id           String   @id @default("default")
+  /// Must equal the TCAS `สถาบัน` spelling exactly.
+  nameTh       String   @map("name_th")
+  nameEn       String   @map("name_en")
+  shortNameTh  String   @map("short_name_th")
+  shortNameEn  String   @map("short_name_en")
+  regionTh     String?  @map("region_th")
+  regionEn     String?  @map("region_en")
+  /// Outbound User-Agent contact only — never shown publicly.
+  contactEmail String?  @map("contact_email")
+  appUrl       String   @map("app_url")
+  /// Bumped on every save; cache refresh + optimistic lock.
+  version      Int      @default(1)
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  updatedBy    String?  @map("updated_by")
+
+  @@map("organization_profile")
+}
+
 /// Aggregate cube for the Student DQ dashboard — one row per
 /// (faculty × program × cohort). Deliberately aggregate-only: the DQ
 /// export carries student names and ids, and NONE of them are persisted.
