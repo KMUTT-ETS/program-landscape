@@ -107,7 +107,7 @@ export interface EnvSection {
 const SECTION = /^#\s*-{2,}\s*(.+?)\s*-{2,}\s*$/;
 const ASSIGN = /^([A-Z][A-Z0-9_]*)=(.*)$/;
 const COMMENTED_ASSIGN = /^#\s?([A-Z][A-Z0-9_]*)=(.*)$/;
-const RULE_LINE = /^[─━═\-]+$/;
+const RULE_LINE = /^[─━═-]+$/;
 
 export function isSecretKey(key: string): boolean {
   return /SECRET|PASSWORD|KEY|TOKEN/i.test(key);
