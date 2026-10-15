@@ -1,5 +1,6 @@
-import { Queue, Worker, QueueEvents, type ConnectionOptions, type WorkerOptions } from 'bullmq';
+import { Queue, Worker, QueueEvents, UnrecoverableError, type ConnectionOptions, type WorkerOptions } from 'bullmq';
 import { Logger } from '@nestjs/common';
+import { OrganizationNotConfiguredError } from '@kku/shared';
 import type { ProgramPipelinePhase, Role, ScholarTrigger } from '@kku/shared';
 import type { AiJobHandler } from './handlers';
 
@@ -247,16 +248,21 @@ export function createAiJobsWorker(
       const handler = handlers[kind];
       if (!handler) throw new Error(`No handler registered for ${kind}`);
       logger.log(`Handling ${kind} entityId=${entityId} trigger=${trigger}`);
-      const outcome = await handler({
-        entityId,
-        trigger,
-        triggeredByUserId: triggeredByUserId ?? null,
-        pipelinePhases,
-        pipelineForce,
-        scholarTrigger,
-        scholarActorRole,
-      });
-      return outcome;
+      try {
+        return await handler({
+          entityId,
+          trigger,
+          triggeredByUserId: triggeredByUserId ?? null,
+          pipelinePhases,
+          pipelineForce,
+          scholarTrigger,
+          scholarActorRole,
+        });
+      } catch (err) {
+        // No organisation profile yet: retrying cannot help, so fail once.
+        if (err instanceof OrganizationNotConfiguredError) throw new UnrecoverableError(err.message);
+        throw err;
+      }
     },
     {
       connection: redisConnection(config.redisUrl),
