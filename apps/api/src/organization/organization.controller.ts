@@ -1,5 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { Request } from 'express';
 import { z } from 'zod';
 import {
   ApiError,
@@ -63,15 +64,20 @@ export class OrganizationAdminController {
 
   @Post('assets/:kind')
   @Authorized('settings:configure')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_ASSET_BYTES + 1 } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_ASSET_BYTES + 1, files: 1, fields: 0, parts: 2 } }))
   @AuditLog({ action: 'organization.asset_upload', entityType: 'OrganizationProfile' })
   async uploadAsset(
     @Param(new ZodValidationPipe(AssetKindParam)) p: z.infer<typeof AssetKindParam>,
     @UploadedFile() file: Express.Multer.File | undefined,
     @AuthSession() user: SessionUser,
+    @Req() req: Request,
   ) {
     if (!file) throw new ApiError('VALIDATION_FAILED', 'No file uploaded (field "file").');
-    return this.service.uploadAsset(p.kind, file.buffer, user.userId);
+    const result = await this.service.uploadAsset(p.kind, file.buffer, user.userId);
+    // The audit interceptor logs req.body (empty for multipart): record the facts there.
+    // `storageKey`, not `key`: the interceptor redacts any field starting with "key".
+    req.body = result.asset;
+    return result;
   }
 
   @Delete('assets/:kind')
@@ -80,8 +86,11 @@ export class OrganizationAdminController {
   async removeAsset(
     @Param(new ZodValidationPipe(AssetKindParam)) p: z.infer<typeof AssetKindParam>,
     @AuthSession() user: SessionUser,
+    @Req() req: Request,
   ) {
-    return this.service.removeAsset(p.kind, user.userId);
+    const result = await this.service.removeAsset(p.kind, user.userId);
+    req.body = { kind: p.kind };
+    return result;
   }
 
   @Get('tcas-match')

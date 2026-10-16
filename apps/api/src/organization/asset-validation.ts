@@ -9,18 +9,36 @@ const MIN_FAVICON = 32;
 const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 export function pngSize(bytes: Buffer): { width: number; height: number } | null {
-  if (bytes.length < 24 || !bytes.subarray(0, 8).equals(PNG_SIG) || bytes.toString('ascii', 12, 16) !== 'IHDR') {
+  if (
+    bytes.length < 24 ||
+    !bytes.subarray(0, 8).equals(PNG_SIG) ||
+    bytes.readUInt32BE(8) !== 13 ||
+    bytes.toString('ascii', 12, 16) !== 'IHDR'
+  ) {
     return null;
   }
-  return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+  const width = bytes.readUInt32BE(16);
+  const height = bytes.readUInt32BE(20);
+  return width >= 1 && height >= 1 ? { width, height } : null;
 }
 
+// Logos need no entities, so any character reference is rejected: it is the
+// way every other rule below would be obfuscated.
 const SVG_FORBIDDEN: Array<[RegExp, string]> = [
-  [/<script/i, 'scripts'],
+  [/<[\w-]*:?script[\s>/]/i, 'scripts'],
+  [/<(?:[\w-]+:)?(?:iframe|embed|object|set|animate\w*|handler|listener)[\s>/]/i, 'embedded or animated active elements'],
   [/<foreignObject/i, 'foreignObject'],
-  [/\son[a-z]+\s*=/i, 'event-handler attributes'],
+  [/[\s/"']on[a-z]+\s*=/i, 'event-handler attributes'],
   [/javascript:/i, 'javascript: URLs'],
-  [/(?:xlink:)?href\s*=\s*["'](?!#|data:image\/)[^"']*["']/i, 'external links'],
+  [/@import/i, 'CSS imports'],
+  [/url\(\s*['"]?\s*(?!#)/i, 'CSS url() references to anything but a fragment'],
+  [/data:image\/svg\+xml/i, 'nested SVG data URLs'],
+  [/&#/, 'character references'],
+  [/&(?!amp;|lt;|gt;|quot;|apos;)[a-z][a-z0-9]*;/i, 'entity references'],
+  [
+    /(?:xlink:)?href\s*=\s*(?:["'](?!#|data:image\/(?:png|jpe?g|gif|webp))[^"']*["']|(?!["'#])[^\s>]+)/i,
+    'external links',
+  ],
 ];
 
 function looksLikeSvg(bytes: Buffer): boolean {
@@ -55,5 +73,9 @@ export function validateBrandAsset(kind: BrandAssetKind, bytes: Buffer): AssetVe
     return { ok: true, ext: 'svg', contentType: 'image/svg+xml' };
   }
 
+  const head = bytes.toString('utf8', 0, Math.min(bytes.length, 1024));
+  if (/<!DOCTYPE/i.test(head) && /<svg/i.test(head)) {
+    return { ok: false, reason: 'SVG files with a DOCTYPE are not allowed — re-export the logo without it.' };
+  }
   return { ok: false, reason: 'Upload a PNG or SVG file.' };
 }
