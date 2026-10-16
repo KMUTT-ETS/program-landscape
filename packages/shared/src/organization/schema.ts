@@ -32,6 +32,23 @@ export const OrganizationIdentityInputSchema = z.object({
 });
 export type OrganizationIdentityInput = z.infer<typeof OrganizationIdentityInputSchema>;
 
+export const BRAND_ASSET_KINDS = ['logo-light', 'logo-dark', 'favicon'] as const;
+export type BrandAssetKind = (typeof BRAND_ASSET_KINDS)[number];
+
+const hexOrNull = z
+  .string()
+  .trim()
+  .nullish()
+  .transform((v) => (v ? v.toLowerCase() : null))
+  .pipe(z.string().regex(/^#[0-9a-f]{6}$/, 'expected #rrggbb').nullable());
+
+export const OrganizationBrandInputSchema = z.object({
+  primaryColor: hexOrNull,
+  secondaryColor: hexOrNull,
+  expectedVersion: z.number().int().positive(),
+});
+export type OrganizationBrandInput = z.infer<typeof OrganizationBrandInputSchema>;
+
 /** What GET /api/v1/organization returns to anyone, signed in or not. */
 export type OrganizationPublicView =
   | { configured: false }
@@ -43,4 +60,9 @@ export type OrganizationPublicView =
       shortNameEn: string;
       tagline: string;
       version: number;
+      logoLightUrl: string | null;
+      logoDarkUrl: string | null;
+      faviconUrl: string | null;
+      primaryColor: string | null;
+      secondaryColor: string | null;
     };

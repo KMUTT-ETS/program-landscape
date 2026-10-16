@@ -1,11 +1,15 @@
 import { z } from 'zod';
-import type { OrganizationProfile, PrismaClient } from '@prisma/client';
+import { Prisma, type OrganizationProfile, type PrismaClient } from '@prisma/client';
 import {
   OrganizationVersionConflictError,
   getOrganizationCacheGeneration,
   isOrganizationLoaded,
   setOrganizationCache,
+  OrganizationNotConfiguredError,
+  type BrandAssetKind,
+  type BrandTokens,
   type Institution,
+  type OrganizationBrandInput,
   type OrganizationIdentityInput,
 } from '@kku/shared';
 import { prisma } from './index';
@@ -176,4 +180,65 @@ export async function tcasInstitutionMatches(name: string, client: OrgClient = p
     ORDER BY similarity DESC
     LIMIT 5`;
   return { exactRows, suggestions: SuggestionRows.parse(raw) };
+}
+
+export const ASSET_COLUMN: Record<BrandAssetKind, 'logoLightKey' | 'logoDarkKey' | 'faviconKey'> = {
+  'logo-light': 'logoLightKey',
+  'logo-dark': 'logoDarkKey',
+  favicon: 'faviconKey',
+};
+
+export function brandAssetUrls(
+  row: Pick<OrganizationProfile, 'logoLightKey' | 'logoDarkKey' | 'faviconKey' | 'version'>,
+): { logoLightUrl: string | null; logoDarkUrl: string | null; faviconUrl: string | null } {
+  const url = (kind: BrandAssetKind, key: string | null) => (key ? `/brand/${kind}?v=${row.version}` : null);
+  return {
+    logoLightUrl: url('logo-light', row.logoLightKey),
+    logoDarkUrl: url('logo-dark', row.logoDarkKey),
+    faviconUrl: url('favicon', row.faviconKey),
+  };
+}
+
+async function reloadAfterWrite(client: OrgClient): Promise<OrganizationProfile> {
+  const row = await getOrganizationProfile(client);
+  if (!row) throw new OrganizationNotConfiguredError();
+  applyRow(row);
+  return row;
+}
+
+/** Saves brand colours and their derived tokens under the version lock. */
+export async function saveOrganizationBrand(
+  input: OrganizationBrandInput,
+  brandTokensJson: BrandTokens | null,
+  userId: string,
+  client: OrgClient = prisma,
+): Promise<OrganizationProfile> {
+  if (!(await getOrganizationProfile(client))) throw new OrganizationNotConfiguredError();
+  const { count } = await client.organizationProfile.updateMany({
+    where: { id: SINGLETON_ID, version: input.expectedVersion },
+    data: {
+      primaryColor: input.primaryColor,
+      secondaryColor: input.secondaryColor,
+      brandTokensJson: brandTokensJson === null ? Prisma.JsonNull : (brandTokensJson as unknown as Prisma.InputJsonValue),
+      updatedBy: userId,
+      version: { increment: 1 },
+    },
+  });
+  if (count === 0) throw new OrganizationVersionConflictError();
+  return reloadAfterWrite(client);
+}
+
+/** Sets or clears one asset key; always bumps version so cached URLs bust. */
+export async function setOrganizationAsset(
+  kind: BrandAssetKind,
+  key: string | null,
+  userId: string,
+  client: OrgClient = prisma,
+): Promise<OrganizationProfile> {
+  const { count } = await client.organizationProfile.updateMany({
+    where: { id: SINGLETON_ID },
+    data: { [ASSET_COLUMN[kind]]: key, updatedBy: userId, version: { increment: 1 } },
+  });
+  if (count === 0) throw new OrganizationNotConfiguredError();
+  return reloadAfterWrite(client);
 }

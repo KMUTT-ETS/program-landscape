@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { OrganizationIdentityInputSchema } from '../src';
+import { OrganizationBrandInputSchema, OrganizationIdentityInputSchema } from '../src';
 
 const base = {
   nameTh: 'มหาวิทยาลัยตัวอย่าง',
@@ -43,5 +43,18 @@ describe('OrganizationIdentityInputSchema', () => {
   it('requires expectedVersion to be null or a positive integer', () => {
     expect(OrganizationIdentityInputSchema.safeParse({ ...base, expectedVersion: 0 }).success).toBe(false);
     expect(OrganizationIdentityInputSchema.parse({ ...base, expectedVersion: 3 }).expectedVersion).toBe(3);
+  });
+});
+
+describe('OrganizationBrandInputSchema', () => {
+  it('lower-cases hex and turns a cleared colour into null', () => {
+    expect(
+      OrganizationBrandInputSchema.parse({ primaryColor: '#F26522', secondaryColor: '', expectedVersion: 2 }),
+    ).toEqual({ primaryColor: '#f26522', secondaryColor: null, expectedVersion: 2 });
+  });
+
+  it('rejects a non-hex colour and a missing version', () => {
+    expect(OrganizationBrandInputSchema.safeParse({ primaryColor: 'orange', secondaryColor: null, expectedVersion: 1 }).success).toBe(false);
+    expect(OrganizationBrandInputSchema.safeParse({ primaryColor: null, secondaryColor: null }).success).toBe(false);
   });
 });

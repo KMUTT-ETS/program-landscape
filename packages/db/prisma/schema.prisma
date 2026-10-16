@@ -5946,6 +5946,15 @@ model OrganizationProfile {
   /// Outbound User-Agent contact only — never shown publicly.
   contactEmail String?  @map("contact_email")
   appUrl       String   @map("app_url")
+  /// MinIO object keys in bucket MINIO_BUCKET_BRANDING (default "branding"); null = built-in mark.
+  logoLightKey    String?  @map("logo_light_key")
+  logoDarkKey     String?  @map("logo_dark_key")
+  faviconKey      String?  @map("favicon_key")
+  /// #rrggbb as entered (lower-case); null = product default palette.
+  primaryColor    String?  @map("primary_color")
+  secondaryColor  String?  @map("secondary_color")
+  /// Derived OKLCH tokens {light:{…},dark:{…}} computed at save time (spec §5.2).
+  brandTokensJson Json?    @map("brand_tokens_json")
   /// Bumped on every save; cache refresh + optimistic lock.
   version      Int      @default(1)
   updatedAt    DateTime @updatedAt @map("updated_at")

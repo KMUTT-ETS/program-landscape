@@ -7,11 +7,14 @@ import {
   setOrganizationForTest,
 } from '@kku/shared';
 import {
+  brandAssetUrls,
   ensureOrganizationLoaded,
   loadOrganization,
   organizationTagline,
   profileToInstitution,
+  saveOrganizationBrand,
   saveOrganizationIdentity,
+  setOrganizationAsset,
   startOrganizationRefresh,
   type OrgClient,
 } from '../src/organization';
@@ -20,6 +23,8 @@ type Row = {
   id: string; nameTh: string; nameEn: string; shortNameTh: string; shortNameEn: string;
   regionTh: string | null; regionEn: string | null; contactEmail: string | null; appUrl: string;
   version: number; updatedAt: Date; updatedBy: string | null;
+  logoLightKey: string | null; logoDarkKey: string | null; faviconKey: string | null;
+  primaryColor: string | null; secondaryColor: string | null; brandTokensJson: unknown;
 };
 
 const ROW: Row = {
@@ -35,6 +40,12 @@ const ROW: Row = {
   version: 1,
   updatedAt: new Date('2026-10-15T00:00:00Z'),
   updatedBy: null,
+  logoLightKey: null,
+  logoDarkKey: null,
+  faviconKey: null,
+  primaryColor: null,
+  secondaryColor: null,
+  brandTokensJson: null,
 };
 
 function fakeClient(initial: Row | null) {
@@ -48,8 +59,8 @@ function fakeClient(initial: Row | null) {
         return { ...row };
       }),
       updateMany: vi.fn(
-        async ({ where, data }: { where: { version: number }; data: Partial<Row> & { version: { increment: number } } }) => {
-          if (!row || row.version !== where.version) return { count: 0 };
+        async ({ where, data }: { where: { version?: number }; data: Partial<Row> & { version: { increment: number } } }) => {
+          if (!row || (where.version !== undefined && row.version !== where.version)) return { count: 0 };
           const { version: _v, ...rest } = data;
           row = { ...row, ...rest, version: row.version + 1, updatedAt: new Date() };
           return { count: 1 };
@@ -210,5 +221,55 @@ describe('ensureOrganizationLoaded', () => {
     await expect(ensureOrganizationLoaded(client)).rejects.toThrow('ECONNREFUSED');
     await ensureOrganizationLoaded(client);
     expect(getInstitution().nameEn).toBe('Example University');
+  });
+});
+
+describe('saveOrganizationBrand', () => {
+  it('stores colours and tokens under the version lock', async () => {
+    const { client } = fakeClient(ROW);
+    const tokens = { light: { 'accent-default': '70.0% 0.150 45' }, dark: {} } as unknown as Parameters<typeof saveOrganizationBrand>[1];
+    const saved = await saveOrganizationBrand({ primaryColor: '#f26522', secondaryColor: null, expectedVersion: 1 }, tokens, 'u1', client);
+    expect(saved.version).toBe(2);
+    expect(saved.primaryColor).toBe('#f26522');
+    expect(saved.brandTokensJson).toEqual(tokens);
+    await expect(
+      saveOrganizationBrand({ primaryColor: null, secondaryColor: null, expectedVersion: 1 }, null, 'u2', client),
+    ).rejects.toBeInstanceOf(OrganizationVersionConflictError);
+  });
+
+  it('refuses when no profile exists', async () => {
+    const { client } = fakeClient(null);
+    await expect(
+      saveOrganizationBrand({ primaryColor: null, secondaryColor: null, expectedVersion: 1 }, null, 'u1', client),
+    ).rejects.toBeInstanceOf(OrganizationNotConfiguredError);
+  });
+});
+
+describe('setOrganizationAsset', () => {
+  it('sets and clears a key, bumping the version each time', async () => {
+    const { client } = fakeClient(ROW);
+    const a = await setOrganizationAsset('logo-light', 'logo-light/abc.png', 'u1', client);
+    expect(a.logoLightKey).toBe('logo-light/abc.png');
+    expect(a.version).toBe(2);
+    const b = await setOrganizationAsset('logo-light', null, 'u1', client);
+    expect(b.logoLightKey).toBeNull();
+    expect(b.version).toBe(3);
+  });
+
+  it('refuses when no profile exists', async () => {
+    const { client } = fakeClient(null);
+    await expect(setOrganizationAsset('favicon', 'favicon/x.png', 'u1', client)).rejects.toBeInstanceOf(
+      OrganizationNotConfiguredError,
+    );
+  });
+});
+
+describe('brandAssetUrls', () => {
+  it('returns version-stamped same-origin URLs only for assets that exist', () => {
+    expect(brandAssetUrls({ logoLightKey: 'k', logoDarkKey: null, faviconKey: 'f', version: 7 })).toEqual({
+      logoLightUrl: '/brand/logo-light?v=7',
+      logoDarkUrl: null,
+      faviconUrl: '/brand/favicon?v=7',
+    });
   });
 });
