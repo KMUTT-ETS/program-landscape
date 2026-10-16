@@ -58,6 +58,8 @@ Then open:
 | `pnpm storybook` | shadcn/ui component Storybook |
 | `pnpm clean` | remove `node_modules` / `dist` / `.next` / `coverage` |
 
+The manual site renders `docs/` in place. A new doc must be added to `apps/docs-site/.vitepress/sidebar.ts` (or to `EXCLUDED` in `apps/docs-site/src/manifest.ts`), or `pnpm docs:build` fails; per-source specs under `docs/data-sources/` are picked up automatically.
+
 ## Layout
 
 ```
