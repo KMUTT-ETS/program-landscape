@@ -50,7 +50,7 @@ function runbookFiles(): string[] {
       // that appears only in a historical plan is not documented for an
       // operator, and resting coverage on one would make the ratchet depend on
       // a document nobody maintains.
-      if (name === 'node_modules' || name === '.git' || name === 'superpowers') continue;
+      if (name === 'node_modules' || name === '.git' || name === 'superpowers' || name === '_generated') continue;
       if (statSync(full).isDirectory()) walk(full);
       else if (name.endsWith('.md') || name.endsWith('.sh')) out.push(full);
     }
