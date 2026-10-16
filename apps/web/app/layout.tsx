@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import localFont from 'next/font/local';
 import { Providers } from './providers';
+import { brandMetadata, brandingForRequest } from '@/lib/branding';
 import './globals.css';
 
 // 2026-05-02 redesign: typography pairing — Sarabun primary.
@@ -49,22 +50,24 @@ const mono = localFont({
   display: 'swap',
 });
 
-export const metadata: Metadata = {
-  title: {
-    default: 'Program Landscape — KKU Curriculum Intelligence Platform',
-    template: '%s — KKU Curriculum Intelligence Platform',
-  },
-  description:
-    'Program Landscape · a KKU Curriculum Intelligence Platform module — strategic decision-support for the University Council.',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return brandMetadata(await brandingForRequest());
+}
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const branding = await brandingForRequest();
   return (
     <html
       lang="en"
       className={`${bodyLatin.variable} ${bodyThai.variable} ${mono.variable}`}
       suppressHydrationWarning
     >
+      <head>
+        {branding?.css ? (
+          // Values are whitelisted token names + strict OKLCH triplets (brandCss) — never raw DB text.
+          <style id="org-brand" dangerouslySetInnerHTML={{ __html: branding.css }} />
+        ) : null}
+      </head>
       <body>
         <Providers>{children}</Providers>
       </body>
