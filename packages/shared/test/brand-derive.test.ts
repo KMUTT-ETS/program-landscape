@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveBrandTokens, oklchToHex } from '../src/brand';
+import { deriveBrandTokens, oklchToHex, type BrandTokenName } from '../src/brand';
 
 // Today's coral and cardinal, from packages/design/src/css/tokens.css.
 const CORAL = oklchToHex({ l: 0.7, c: 0.15, h: 45 });
@@ -12,37 +12,44 @@ function parse(v: string | undefined): { L: number; C: number; H: number } {
 }
 
 describe('deriveBrandTokens', () => {
-  it('reproduces today\'s coral accent steps (lightness exact, chroma within 0.006)', () => {
-    const { tokens, ok } = deriveBrandTokens(CORAL, null);
+  // Every accent and cardinal token, both modes, from tokens.css: [mode, name, L, C, H].
+  const TODAY: Array<['light' | 'dark', BrandTokenName, number, number, number]> = [
+    ['light', 'accent-default', 70.0, 0.15, 45],
+    ['light', 'accent-hover', 76.0, 0.14, 48],
+    ['light', 'accent-active', 62.0, 0.165, 40],
+    ['light', 'accent-subtle', 95.5, 0.04, 50],
+    ['light', 'accent-fg', 22.0, 0.05, 35],
+    ['dark', 'accent-default', 53.0, 0.18, 38],
+    ['dark', 'accent-hover', 48.0, 0.19, 35],
+    ['dark', 'accent-active', 43.0, 0.195, 32],
+    ['dark', 'accent-subtle', 30.0, 0.06, 50],
+    ['dark', 'accent-fg', 99.0, 0.005, 70],
+    ['light', 'brand-cardinal', 44.0, 0.165, 20],
+    ['light', 'brand-cardinal-hover', 48.5, 0.165, 20],
+    ['light', 'brand-cardinal-subtle', 95.0, 0.018, 20],
+    ['dark', 'brand-cardinal', 62.0, 0.175, 20],
+    ['dark', 'brand-cardinal-hover', 66.5, 0.175, 20],
+    ['dark', 'brand-cardinal-subtle', 25.0, 0.05, 20],
+  ];
+
+  it('reproduces every accent and cardinal token of today in both modes (L exact, C ±0.006, H ±1°)', () => {
+    const { tokens, ok } = deriveBrandTokens(CORAL, CARDINAL);
     expect(ok).toBe(true);
-    const expected: Array<[keyof typeof tokens.light, 'light' | 'dark', number, number]> = [
-      ['accent-default', 'light', 70.0, 0.15],
-      ['accent-hover', 'light', 76.0, 0.14],
-      ['accent-active', 'light', 62.0, 0.165],
-      ['accent-subtle', 'light', 95.5, 0.04],
-      ['accent-default', 'dark', 53.0, 0.18],
-      ['accent-hover', 'dark', 48.0, 0.19],
-      ['accent-active', 'dark', 43.0, 0.195],
-      ['accent-subtle', 'dark', 30.0, 0.06],
-    ];
-    for (const [name, mode, L, C] of expected) {
+    for (const [mode, name, L, C, H] of TODAY) {
       const t = parse(tokens[mode][name]);
       expect(t.L, `${mode} ${name} L`).toBe(L);
       expect(Math.abs(t.C - C), `${mode} ${name} C`).toBeLessThanOrEqual(0.006);
+      const dh = Math.abs(((t.H - H + 540) % 360) - 180);
+      expect(dh, `${mode} ${name} H (got ${t.H}, want ${H})`).toBeLessThanOrEqual(1);
     }
-    expect(parse(tokens.light['accent-fg']).L).toBe(22.0); // dark text on pastel
-    expect(parse(tokens.dark['accent-fg']).L).toBe(99.0); // light text in dark mode
   });
 
-  it('reproduces today\'s cardinal steps', () => {
-    const { tokens, ok } = deriveBrandTokens(CORAL, CARDINAL);
-    expect(ok).toBe(true);
-    expect(parse(tokens.light['brand-cardinal']).L).toBe(44.0);
-    expect(parse(tokens.light['brand-cardinal-hover']).L).toBe(48.5);
-    expect(parse(tokens.light['brand-cardinal-subtle']).L).toBe(95.0);
-    expect(parse(tokens.dark['brand-cardinal']).L).toBe(62.0);
-    expect(Math.abs(parse(tokens.dark['brand-cardinal']).C - 0.175)).toBeLessThanOrEqual(0.006);
-    expect(parse(tokens.dark['brand-cardinal-subtle']).L).toBe(25.0);
+  it('wraps hue offsets modulo 360', () => {
+    const { tokens } = deriveBrandTokens(oklchToHex({ l: 0.7, c: 0.15, h: 2 }), null);
+    // dark active is -13 degrees: 2 - 13 wraps to about 349.
+    const h = parse(tokens.dark['accent-active']).H;
+    expect(h).toBeGreaterThan(340);
+    expect(h).toBeLessThan(360);
   });
 
   it('omits the cardinal tokens when no secondary colour is given', () => {

@@ -8,8 +8,9 @@ import { normalisePath } from '../src/usage';
 // is classified — the cost of adding a page is one entry in MODULE_BY_SEGMENT.
 
 const APP_DIR = path.join(__dirname, '..', '..', '..', 'apps', 'web', 'app');
-// Not recorded: API handlers, and the pages a signed-out visitor sees.
-const IGNORED = new Set(['api', 'signin', 'no-access', 'styleguide']);
+// Not recorded: API handlers, the pages a signed-out visitor sees, and
+// `brand` — the /brand/<asset> logo and favicon route, an asset, not a page.
+const IGNORED = new Set(['api', 'brand', 'signin', 'no-access', 'styleguide']);
 
 // A route group — `(legal)` — is not a URL segment: its children ARE the
 // top-level routes. Recurse through it rather than skipping it, or the three

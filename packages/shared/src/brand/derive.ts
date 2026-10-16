@@ -1,8 +1,9 @@
 import { HEX_COLOR, clampToGamut, contrastRatio, formatOklch, hexToOklch, type Oklch } from './color';
 
 // The admin picks a hue; the system picks the lightness. Each step below is
-// the lightness (and chroma multiplier) of today's coral / cardinal tokens in
-// packages/design/src/css/tokens.css, so a coral input reproduces them.
+// the lightness, chroma multiplier and hue offset (degrees from the input hue)
+// of today's coral / cardinal tokens in packages/design/src/css/tokens.css, so
+// a coral input reproduces them in both modes.
 // Spec: docs/superpowers/specs/2026-10-15-white-label-organization-design.md §5.
 
 export type BrandTokenName =
@@ -40,33 +41,33 @@ export interface BrandCheck {
 }
 
 type Mode = 'light' | 'dark';
-type Step = { l: number; cx: number };
+type Step = { l: number; cx: number; dh: number };
 
 const PRIMARY_STEPS: Record<Mode, Record<'accent-default' | 'accent-hover' | 'accent-active' | 'accent-subtle', Step>> = {
   light: {
-    'accent-default': { l: 0.7, cx: 1 },
-    'accent-hover': { l: 0.76, cx: 0.93 },
-    'accent-active': { l: 0.62, cx: 1.1 },
-    'accent-subtle': { l: 0.955, cx: 0.27 },
+    'accent-default': { l: 0.7, cx: 1, dh: 0 },
+    'accent-hover': { l: 0.76, cx: 0.93, dh: 3 },
+    'accent-active': { l: 0.62, cx: 1.1, dh: -5 },
+    'accent-subtle': { l: 0.955, cx: 0.27, dh: 5 },
   },
   dark: {
-    'accent-default': { l: 0.53, cx: 1.2 },
-    'accent-hover': { l: 0.48, cx: 1.27 },
-    'accent-active': { l: 0.43, cx: 1.3 },
-    'accent-subtle': { l: 0.3, cx: 0.4 },
+    'accent-default': { l: 0.53, cx: 1.2, dh: -7 },
+    'accent-hover': { l: 0.48, cx: 1.27, dh: -10 },
+    'accent-active': { l: 0.43, cx: 1.3, dh: -13 },
+    'accent-subtle': { l: 0.3, cx: 0.4, dh: 5 },
   },
 };
 
 const SECONDARY_STEPS: Record<Mode, Record<'brand-cardinal' | 'brand-cardinal-hover' | 'brand-cardinal-subtle', Step>> = {
   light: {
-    'brand-cardinal': { l: 0.44, cx: 1 },
-    'brand-cardinal-hover': { l: 0.485, cx: 1 },
-    'brand-cardinal-subtle': { l: 0.95, cx: 0.11 },
+    'brand-cardinal': { l: 0.44, cx: 1, dh: 0 },
+    'brand-cardinal-hover': { l: 0.485, cx: 1, dh: 0 },
+    'brand-cardinal-subtle': { l: 0.95, cx: 0.11, dh: 0 },
   },
   dark: {
-    'brand-cardinal': { l: 0.62, cx: 1.06 },
-    'brand-cardinal-hover': { l: 0.665, cx: 1.06 },
-    'brand-cardinal-subtle': { l: 0.25, cx: 0.3 },
+    'brand-cardinal': { l: 0.62, cx: 1.06, dh: 0 },
+    'brand-cardinal-hover': { l: 0.665, cx: 1.06, dh: 0 },
+    'brand-cardinal-subtle': { l: 0.25, cx: 0.3, dh: 0 },
   },
 };
 
@@ -82,7 +83,12 @@ const MODES: Mode[] = ['light', 'dark'];
 
 // Not gamut-clamped: tokens.css itself holds out-of-sRGB chroma (e.g. dark accent 0.180) and the
 // browser gamut-maps oklch() at paint time. Contrast maths clamps internally.
-const step = (base: Oklch, s: Step): Oklch => ({ l: s.l, c: base.c * s.cx, h: base.h });
+const wrapHue = (h: number): number => ((h % 360) + 360) % 360;
+const step = (base: Oklch, s: Step): Oklch => ({ l: s.l, c: base.c * s.cx, h: wrapHue(base.h + s.dh) });
+
+/** Hue offsets of the two text candidates for accent-fg (tokens.css: 35 and 70 against coral 45). */
+const FG_DARK_DH = -10;
+const FG_LIGHT_DH = 25;
 
 function parseInput(label: string, hex: string, errors: string[]): Oklch | null {
   if (!HEX_COLOR.test(hex)) {
@@ -115,8 +121,8 @@ export function deriveBrandTokens(
       for (const [name, s] of Object.entries(steps) as [keyof typeof steps, Step][]) {
         tokens[mode][name] = formatOklch(step(primary, s));
       }
-      const dark: Oklch = clampToGamut({ l: 0.22, c: Math.min(0.05, primary.c), h: primary.h });
-      const light: Oklch = { l: 0.99, c: 0.005, h: primary.h };
+      const dark: Oklch = clampToGamut({ l: 0.22, c: Math.min(0.05, primary.c), h: wrapHue(primary.h + FG_DARK_DH) });
+      const light: Oklch = { l: 0.99, c: 0.005, h: wrapHue(primary.h + FG_LIGHT_DH) };
       const fg = contrastRatio(dark, def) >= contrastRatio(light, def) ? dark : light;
       tokens[mode]['accent-fg'] = formatOklch(fg);
       const ratio = contrastRatio(fg, def);
