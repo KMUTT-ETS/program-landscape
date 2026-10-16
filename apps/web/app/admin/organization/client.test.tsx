@@ -2,6 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { OrganizationClient } from './client';
@@ -24,6 +28,7 @@ describe('OrganizationClient', () => {
             id: 'default', nameTh: 'มหาวิทยาลัยตัวอย่าง', nameEn: 'Example University', shortNameTh: 'มต.',
             shortNameEn: 'EXU', regionTh: null, regionEn: null, contactEmail: null,
             appUrl: 'https://landscape.example.ac.th', version: 3, updatedAt: '2026-10-15T00:00:00Z', updatedBy: null,
+            logoLightKey: null, logoDarkKey: null, faviconKey: null, primaryColor: null, secondaryColor: null,
           },
         }}
         loadError={null}

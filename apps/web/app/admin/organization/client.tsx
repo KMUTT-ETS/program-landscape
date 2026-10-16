@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button, Badge } from '@kku/ui';
 import { Building2, AlertTriangle } from 'lucide-react';
 import { readSaveResponse } from './save-response';
+import { BrandTab } from './brand-tab';
 
 export interface OrganizationProfileDto {
   id: string;
@@ -19,6 +21,11 @@ export interface OrganizationProfileDto {
   version: number;
   updatedAt: string;
   updatedBy: string | null;
+  logoLightKey: string | null;
+  logoDarkKey: string | null;
+  faviconKey: string | null;
+  primaryColor: string | null;
+  secondaryColor: string | null;
 }
 export interface AdminOrganizationResponse {
   profile: OrganizationProfileDto | null;
@@ -66,6 +73,13 @@ export function OrganizationClient({
   const [form, setForm] = useState<FormState>(toForm(initial?.profile ?? null));
   const [saving, setSaving] = useState(false);
   const [tcas, setTcas] = useState<TcasMatch | null>(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tab = searchParams?.get('tab') === 'brand' && profile ? 'brand' : 'identity';
+
+  function selectTab(next: 'identity' | 'brand') {
+    router.replace(next === 'brand' ? '?tab=brand' : '?tab=identity');
+  }
 
   async function checkTcas() {
     if (!form.nameTh.trim()) return;
@@ -126,6 +140,31 @@ export function OrganizationClient({
         </div>
       )}
 
+      <div role="tablist" className="flex items-center gap-2 border-b border-default">
+        {(['identity', 'brand'] as const).map((t) => {
+          const disabled = t === 'brand' && !profile;
+          return (
+            <button
+              key={t}
+              type="button"
+              role="tab"
+              aria-selected={tab === t}
+              disabled={disabled}
+              onClick={() => selectTab(t)}
+              className={`-mb-px border-b-2 px-3 py-2 text-sm disabled:opacity-50 ${
+                tab === t ? 'border-accent-default font-medium' : 'border-transparent text-text-secondary'
+              }`}
+            >
+              {t === 'identity' ? 'Identity' : 'Brand'}
+            </button>
+          );
+        })}
+        {!profile && <span className="text-xs text-text-tertiary">Save the identity first.</span>}
+      </div>
+
+      {tab === 'brand' && profile && <BrandTab profile={profile} onSaved={setProfile} />}
+
+      {tab === 'identity' && (
       <form
         className="flex flex-col gap-4"
         onSubmit={(e) => {
@@ -176,6 +215,7 @@ export function OrganizationClient({
           </Button>
         </div>
       </form>
+      )}
     </div>
   );
 }
