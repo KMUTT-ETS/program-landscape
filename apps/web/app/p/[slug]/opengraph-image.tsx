@@ -1,6 +1,7 @@
 import { ImageResponse } from 'next/og';
 import { prisma } from '@kku/db';
 import { getProfileData } from '@/lib/profile-data';
+import { brandingForRequest } from '@/lib/branding';
 
 // OG card emitted on link previews (Slack, LINE, X, WhatsApp).
 // 1200×630 — the standard OG dimensions. Generated on each request
@@ -16,7 +17,7 @@ import { getProfileData } from '@/lib/profile-data';
 /* eslint-disable no-restricted-syntax -- satori cannot resolve CSS variables; see note above */
 
 export const runtime = 'nodejs';
-export const alt = 'KKU academic profile';
+export const alt = 'Academic profile';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -25,6 +26,9 @@ export default async function OgImage({ params }: { params: { slug: string } }) 
     where: { publicProfileSlug: params.slug },
     select: { id: true, publicProfileEnabled: true },
   });
+
+  const branding = await brandingForRequest();
+  const orgName = branding?.nameEn ?? 'Program Landscape';
 
   if (!user || !user.publicProfileEnabled) {
     return new ImageResponse(
@@ -41,7 +45,7 @@ export default async function OgImage({ params }: { params: { slug: string } }) 
             fontSize: 48,
           }}
         >
-          KKU Program Landscape
+          {branding ? `${branding.shortNameEn} Program Landscape` : 'Program Landscape'}
         </div>
       ),
       size,
@@ -49,9 +53,9 @@ export default async function OgImage({ params }: { params: { slug: string } }) 
   }
 
   const profile = await getProfileData(user.id);
-  const fullName = profile?.basic.fullNameEn ?? 'KKU profile';
+  const fullName = profile?.basic.fullNameEn ?? 'Staff profile';
   const rank = profile?.basic.rankLabelEn ?? '';
-  const faculty = profile?.basic.facultyNameEn ?? 'Khon Kaen University';
+  const faculty = profile?.basic.facultyNameEn ?? orgName;
   const dept = profile?.basic.departmentNameEn ?? '';
 
   return new ImageResponse(
@@ -77,7 +81,7 @@ export default async function OgImage({ params }: { params: { slug: string } }) 
             fontWeight: 600,
           }}
         >
-          Khon Kaen University
+          {orgName}
         </div>
         <div
           style={{

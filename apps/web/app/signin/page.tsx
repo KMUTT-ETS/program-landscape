@@ -122,7 +122,7 @@ export default async function SignInPage() {
           </div>
           <div className="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[11px] leading-relaxed text-text-tertiary">
             <span className="text-text-secondary font-medium whitespace-nowrap">
-              © {new Date().getFullYear()} Khon Kaen University · Conceived by Dr. Denpong Soodphakdee
+              © {new Date().getFullYear()} {branding?.nameEn ?? 'Program Landscape'} · Conceived by Dr. Denpong Soodphakdee
             </span>
             <span className="whitespace-nowrap">
               · Vice President for Education and Digital

@@ -40,7 +40,6 @@ import { HeroBanner, type HeroBannerStat } from '@/components/hero-banner';
 // and is one click away via the sidebar.
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Home' };
 
 const ROLE_LABEL: Record<string, string> = {
   SUPER_ADMIN: 'Super admin',

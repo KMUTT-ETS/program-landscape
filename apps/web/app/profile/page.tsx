@@ -153,6 +153,7 @@ export default async function ProfilePage() {
       <ProfileView
         profile={profile}
         userEmail={user.email}
+        orgName={branding ? { th: branding.nameTh, en: branding.nameEn } : null}
         logoLightUrl={branding?.hasOwnLogo ? branding.logoLightUrl : null}
         logoDarkUrl={branding?.hasOwnLogo ? branding.logoDarkUrl : null}
         teachingEvaluation={teachingEvaluation}
