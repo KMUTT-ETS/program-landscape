@@ -2,6 +2,7 @@ import { SignInForm } from './sign-in-form';
 import { prisma } from '@kku/db';
 import { SignalsFeed, type FeedItem } from './signals-feed';
 import { fetchTodaysHeadlines, type NewsItem } from '@/lib/news/today';
+import { ProductMark } from '@/components/brand/product-mark-component';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,7 +82,7 @@ export default async function SignInPage() {
       <section className="relative bg-surface-1 flex flex-col md:min-h-screen">
         <header className="w-full px-6 pt-8 sm:px-10 sm:pt-10 md:px-16 md:pt-12">
           <div className="flex items-center gap-2.5">
-            <BrandMark />
+            <ProductMark />
             <span className="text-[14px] font-medium tracking-tight text-text-primary">
               Program Landscape
             </span>
@@ -234,16 +235,4 @@ function shuffle<T>(arr: T[]): T[] {
     a[j] = ai;
   }
   return a;
-}
-
-// Compact brand mark — four bubbles in 2×2 (BCG-matrix nod).
-function BrandMark() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden className="shrink-0">
-      <circle cx="6" cy="6" r="2.6" className="fill-accent-default" opacity="0.6" />
-      <circle cx="16" cy="6" r="3.6" className="fill-accent-default" />
-      <circle cx="6" cy="16" r="2.0" className="fill-accent-default" opacity="0.4" />
-      <circle cx="16" cy="16" r="2.6" className="fill-accent-default" opacity="0.7" />
-    </svg>
-  );
 }
