@@ -2,7 +2,7 @@ import { SignInForm } from './sign-in-form';
 import { prisma } from '@kku/db';
 import { SignalsFeed, type FeedItem } from './signals-feed';
 import { fetchTodaysHeadlines, type NewsItem } from '@/lib/news/today';
-import { OrgLogo } from '@/components/brand/org-logo';
+import { ProductMark } from '@/components/brand/product-mark-component';
 import { brandingForRequest } from '@/lib/branding';
 
 export const dynamic = 'force-dynamic';
@@ -84,7 +84,8 @@ export default async function SignInPage() {
       <section className="relative bg-surface-1 flex flex-col md:min-h-screen">
         <header className="w-full px-6 pt-8 sm:px-10 sm:pt-10 md:px-16 md:pt-12">
           <div className="flex items-center gap-2.5">
-            <OrgLogo branding={branding} width={22} height={22} />
+            {/* The product's own mark beside its wordmark; the organisation is named in the sentence and footer. */}
+            <ProductMark size={22} />
             <span className="text-[14px] font-medium tracking-tight text-text-primary">
               Program Landscape
             </span>

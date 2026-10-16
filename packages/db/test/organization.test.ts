@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax -- hex values here are brand-colour test data, not UI colours */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   KKU_REFERENCE_ORGANIZATION,

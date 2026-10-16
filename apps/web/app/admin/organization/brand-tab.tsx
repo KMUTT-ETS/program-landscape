@@ -158,7 +158,7 @@ export function BrandTab({
     <div className="flex flex-col gap-8">
       <section className="flex flex-col gap-4">
         <h2 className="text-base font-semibold">Colours</h2>
-        <ColourField label="Primary colour" value={primary} onChange={setPrimary} />
+        <ColourField label="Primary colour" value={primary} onChange={setPrimary} onClear={() => setPrimary('')} />
         <ColourField label="Secondary colour" value={secondary} onChange={setSecondary} onClear={() => setSecondary('')} />
 
         <ul className="flex flex-col gap-1">
@@ -181,10 +181,11 @@ export function BrandTab({
 
         <div className="flex flex-col gap-3">
           <span className="text-sm text-text-secondary">Preview</span>
-          <div className="rounded-md border border-default bg-surface-0 p-3">
+          {/* Each preview pins its own theme so it shows that mode whatever the page is in. */}
+          <div data-theme="light" className="rounded-md border border-default bg-surface-0 p-3">
             <Preview style={scopeStyle(derived.tokens.light)} />
           </div>
-          <div data-theme="dark" className="rounded-md bg-surface-0 p-3">
+          <div data-theme="dark" className="rounded-md border border-default bg-surface-0 p-3">
             <Preview style={scopeStyle(derived.tokens.dark)} />
           </div>
         </div>

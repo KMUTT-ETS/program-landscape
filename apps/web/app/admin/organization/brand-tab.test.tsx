@@ -33,4 +33,17 @@ describe('BrandTab', () => {
     expect(html).toMatch(/Favicon/);
     expect((html.match(/>Remove</g) ?? []).length).toBe(1);
   });
+
+  it('offers a Clear button for each colour that is set', () => {
+    const html = renderToStaticMarkup(
+      <BrandTab profile={{ ...base, primaryColor: '#f26522', secondaryColor: '#9e1b32' }} onSaved={() => {}} />,
+    );
+    expect((html.match(/>Clear</g) ?? []).length).toBe(2);
+  });
+
+  it('previews light mode in its own light-theme scope, like the dark one', () => {
+    const html = renderToStaticMarkup(<BrandTab profile={{ ...base, primaryColor: '#f26522' }} onSaved={() => {}} />);
+    expect(html).toMatch(/data-theme="light"[^>]*bg-surface-0/);
+    expect(html).toMatch(/data-theme="dark"[^>]*bg-surface-0/);
+  });
 });

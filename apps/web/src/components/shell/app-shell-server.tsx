@@ -17,7 +17,7 @@ import { OrgLogo } from '@/components/brand/org-logo';
 import { SetupBanner } from '@/components/brand/setup-banner';
 
 // Server component. 2026-04-24 redesign — the sidebar is now the
-// brand-home: KKU monogram + wordmark at the top, module tiles in the
+// brand-home: organisation logo + wordmark at the top, module tiles in the
 // middle, user chip at the bottom. The top bar is a slim 56px strip
 // holding breadcrumb + scope + search + utility cluster.
 

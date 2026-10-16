@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax -- hex values here are brand-colour test data, not UI colours */
 import { describe, expect, it } from 'vitest';
 import { deriveBrandTokens, oklchToHex, type BrandTokenName } from '../src/brand';
 
