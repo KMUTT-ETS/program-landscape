@@ -7,6 +7,7 @@ import {
   setOrganizationForTest,
 } from '@kku/shared';
 import {
+  assetToken,
   brandAssetUrls,
   ensureOrganizationLoaded,
   loadOrganization,
@@ -264,12 +265,28 @@ describe('setOrganizationAsset', () => {
   });
 });
 
+describe('assetToken', () => {
+  it('pins an uploaded asset to its content: version plus the first 12 hex of its sha256 key', () => {
+    expect(assetToken(7, `logo-light/${'ab12'.repeat(16)}.png`)).toBe('7-ab12ab12ab12');
+  });
+
+  it('is the bare version when there is no key', () => {
+    expect(assetToken(7, null)).toBe('7');
+  });
+
+  it('is the bare version for a key that does not carry a sha256', () => {
+    expect(assetToken(7, 'k')).toBe('7');
+  });
+});
+
 describe('brandAssetUrls', () => {
-  it('returns version-stamped same-origin URLs only for assets that exist', () => {
-    expect(brandAssetUrls({ logoLightKey: 'k', logoDarkKey: null, faviconKey: 'f', version: 7 })).toEqual({
-      logoLightUrl: '/brand/logo-light?v=7',
+  it('returns content-stamped same-origin URLs only for assets that exist', () => {
+    const k = `logo-light/${'c0ffee'.repeat(10)}${'0'.repeat(4)}.png`;
+    const f = `favicon/${'1234567890ab'.repeat(5)}abcd.png`;
+    expect(brandAssetUrls({ logoLightKey: k, logoDarkKey: null, faviconKey: f, version: 7 })).toEqual({
+      logoLightUrl: '/brand/logo-light?v=7-c0ffeec0ffee',
       logoDarkUrl: null,
-      faviconUrl: '/brand/favicon?v=7',
+      faviconUrl: '/brand/favicon?v=7-1234567890ab',
     });
   });
 });

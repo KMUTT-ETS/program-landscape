@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { ASSET_COLUMN, getOrganizationProfile } from '@kku/db';
+import { ASSET_COLUMN, assetToken, getOrganizationProfile } from '@kku/db';
 import { BRAND_ASSET_KINDS, type BrandAssetKind } from '@kku/shared';
 import { readBrandAsset } from '@/lib/branding-storage';
 import { brandAssetResponse } from '@/lib/brand-asset-response';
@@ -21,6 +21,7 @@ export async function GET(req: Request, context: { params: Promise<{ asset: stri
   return brandAssetResponse({
     asset: stored,
     requestedVersion: new URL(req.url).searchParams.get('v'),
-    currentVersion: row?.version ?? null,
+    // `immutable` only when the URL names this exact content (version + sha256 prefix).
+    currentVersion: row ? assetToken(row.version, key) : null,
   });
 }

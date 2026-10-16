@@ -9,18 +9,14 @@ const mocks = vi.hoisted(() => ({
   setOrganizationAsset: vi.fn(),
 }));
 
-vi.mock('@kku/db', () => ({
+// The real brandAssetUrls / organizationTagline: the public URLs are part of the contract under test.
+vi.mock('@kku/db', async (orig) => ({
+  ...(await orig<typeof import('@kku/db')>()),
   getOrganizationProfile: mocks.getOrganizationProfile,
   saveOrganizationIdentity: mocks.saveOrganizationIdentity,
   tcasInstitutionMatches: mocks.tcasInstitutionMatches,
   saveOrganizationBrand: mocks.saveOrganizationBrand,
   setOrganizationAsset: mocks.setOrganizationAsset,
-  brandAssetUrls: (row: { logoLightKey: string | null; logoDarkKey: string | null; faviconKey: string | null; version: number }) => ({
-    logoLightUrl: row.logoLightKey ? `/brand/logo-light?v=${row.version}` : null,
-    logoDarkUrl: row.logoDarkKey ? `/brand/logo-dark?v=${row.version}` : null,
-    faviconUrl: row.faviconKey ? `/brand/favicon?v=${row.version}` : null,
-  }),
-  organizationTagline: (s: string) => `${s} Curriculum Intelligence Platform`,
 }));
 
 import { OrganizationService } from '../src/organization/organization.service';
@@ -29,7 +25,7 @@ const ROW = {
   id: 'default', nameTh: 'มหาวิทยาลัยตัวอย่าง', nameEn: 'Example University', shortNameTh: 'มต.',
   shortNameEn: 'EXU', regionTh: null, regionEn: null, contactEmail: 'landscape@example.ac.th',
   appUrl: 'https://landscape.example.ac.th', version: 4,
-  logoLightKey: 'logo-light/a.png', logoDarkKey: null, faviconKey: null, primaryColor: '#f26522', secondaryColor: null, brandTokensJson: null,
+  logoLightKey: `logo-light/${'5e'.repeat(32)}.png`, logoDarkKey: null, faviconKey: null, primaryColor: '#f26522', secondaryColor: null, brandTokensJson: null,
   updatedAt: new Date(), updatedBy: 'u1',
 };
 
@@ -47,7 +43,7 @@ describe('OrganizationService.publicView', () => {
     expect(view).toEqual({
       configured: true, nameTh: ROW.nameTh, nameEn: ROW.nameEn, shortNameTh: 'มต.', shortNameEn: 'EXU',
       tagline: 'EXU Curriculum Intelligence Platform', version: 4,
-      logoLightUrl: '/brand/logo-light?v=4', logoDarkUrl: null, faviconUrl: null, primaryColor: '#f26522', secondaryColor: null,
+      logoLightUrl: '/brand/logo-light?v=4-5e5e5e5e5e5e', logoDarkUrl: null, faviconUrl: null, primaryColor: '#f26522', secondaryColor: null,
     });
     expect(JSON.stringify(view)).not.toContain('example.ac.th');
   });

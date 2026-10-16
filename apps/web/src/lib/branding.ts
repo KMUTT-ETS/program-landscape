@@ -1,6 +1,6 @@
 import { cache } from 'react';
 import { unstable_noStore as noStore } from 'next/cache';
-import { brandAssetUrls, getOrganizationProfile, organizationTagline } from '@kku/db';
+import { assetToken, getOrganizationProfile, organizationTagline } from '@kku/db';
 import { brandCss } from '@kku/shared/brand';
 
 type OrganizationProfile = NonNullable<Awaited<ReturnType<typeof getOrganizationProfile>>>;
@@ -20,8 +20,10 @@ export interface Branding {
 }
 
 export function toBranding(row: OrganizationProfile): Branding {
-  const urls = brandAssetUrls(row);
-  const v = `?v=${row.version}`;
+  const url = (kind: 'logo-light' | 'logo-dark' | 'favicon', key: string | null) =>
+    `/brand/${kind}?v=${assetToken(row.version, key)}`;
+  const light = row.logoLightKey ? url('logo-light', row.logoLightKey) : null;
+  const dark = row.logoDarkKey ? url('logo-dark', row.logoDarkKey) : null;
   return {
     nameTh: row.nameTh,
     nameEn: row.nameEn,
@@ -29,10 +31,12 @@ export function toBranding(row: OrganizationProfile): Branding {
     shortNameEn: row.shortNameEn,
     tagline: organizationTagline(row.shortNameEn),
     version: row.version,
-    logoLightUrl: `/brand/logo-light${v}`,
-    logoDarkUrl: `/brand/logo-dark${v}`,
-    faviconUrl: `/brand/favicon${v}`,
-    hasOwnLogo: urls.logoLightUrl !== null || urls.logoDarkUrl !== null,
+    // One uploaded logo serves both themes: the missing variant would
+    // otherwise be the currentColor product mark, which is black inside <img>.
+    logoLightUrl: light ?? dark ?? url('logo-light', null),
+    logoDarkUrl: dark ?? light ?? url('logo-dark', null),
+    faviconUrl: url('favicon', row.faviconKey),
+    hasOwnLogo: light !== null || dark !== null,
     css: brandCss(row.brandTokensJson),
   };
 }

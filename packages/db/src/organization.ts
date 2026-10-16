@@ -188,10 +188,23 @@ export const ASSET_COLUMN: Record<BrandAssetKind, 'logoLightKey' | 'logoDarkKey'
   favicon: 'faviconKey',
 };
 
+/**
+ * The `?v=` cache-buster for a brand asset. An uploaded asset's key is
+ * `<kind>/<sha256>.<ext>`, so the token carries its content: after a DB restore
+ * a version number can repeat with different bytes, and a version-only token
+ * would let browsers keep the old `immutable` copy for a year. No key (or a key
+ * without a hash) → the bare version.
+ */
+export function assetToken(version: number, key: string | null): string {
+  const hash = key ? /\/([0-9a-f]{12})[0-9a-f]*\.[a-z0-9]+$/.exec(key)?.[1] : undefined;
+  return hash ? `${version}-${hash}` : String(version);
+}
+
 export function brandAssetUrls(
   row: Pick<OrganizationProfile, 'logoLightKey' | 'logoDarkKey' | 'faviconKey' | 'version'>,
 ): { logoLightUrl: string | null; logoDarkUrl: string | null; faviconUrl: string | null } {
-  const url = (kind: BrandAssetKind, key: string | null) => (key ? `/brand/${kind}?v=${row.version}` : null);
+  const url = (kind: BrandAssetKind, key: string | null) =>
+    key ? `/brand/${kind}?v=${assetToken(row.version, key)}` : null;
   return {
     logoLightUrl: url('logo-light', row.logoLightKey),
     logoDarkUrl: url('logo-dark', row.logoDarkKey),
