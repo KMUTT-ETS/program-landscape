@@ -28,7 +28,7 @@ state usually names it.
 | Executive snapshot — verdict, narrative, AI readiness | most of the rows below, plus the narrative and readiness assessments | [pipeline](#step-5--run-the-pipeline-on-one-programme) phases 6 and 7 |
 | Admissions — TCAS funnel and round-3 detail | TCAS admission statistics linked to the programme | [TCAS](#tcas-admissions) |
 | Students — cohorts, lifecycle | cohort and alumni-status rows | pipeline phase 4 — see [Registrar](#registrar-enrolment-cohorts-alumni-status) |
-| Students — demographic outlook | youth-cohort projections | [Thailand demographics](#thailand-demographics) |
+| Students — demographic outlook | youth-cohort projections, and the programme's latest intake | [Thailand demographics](#thailand-demographics) and [Registrar](#registrar-enrolment-cohorts-alumni-status) |
 | Outcomes | graduate outcome records | no connector exists yet — see [Graduate outcomes](#graduate-outcomes) |
 | Curriculum & Faculty — skills, courses | the programme's curriculum PDF, digested and approved | pipeline phases 1, 2, 2b |
 | Curriculum & Faculty — skills, demand side | labour-market skill demand | [Labour-market skills](#labour-market-skills) |
@@ -98,9 +98,9 @@ institution-specific sources need a connector adapted to your systems first — 
 [Institution-specific sources](#institution-specific-sources-adapt-the-connector-first).
 
 Verify any source the same way: open `/admin/data-sources/<slug>` and look for a
-**SUCCEEDED** run with a non-zero record count, and check the source is not
-marked `mocked`. A run can succeed with zero records, and a mocked run succeeds
-while writing nothing, so read both.
+**SUCCEEDED** run with a non-zero record count, and read the run's metadata. A
+run can succeed with zero records, and a mocked run succeeds while writing
+nothing.
 
 ### TCAS admissions
 
@@ -136,7 +136,10 @@ while writing nothing, so read both.
   pnpm demographics:seed
   ```
 
-- **Verify:** the Demographic outlook section appears on a programme.
+- **Verify:** the Demographic outlook section appears on a programme. It also
+  needs the programme's latest intake, which comes from the
+  [registrar](#registrar-enrolment-cohorts-alumni-status) enrolment figures, so it
+  can stay empty until that source is loaded.
 - **Not applicable** outside Thailand.
 
 ### Labour-market skills
@@ -175,11 +178,13 @@ and code mappings. You must adapt the connector for each source before running i
 
 **Nothing in this tutorial seeds mock data.** In the default `mocked` mode a
 connector is a stub that writes nothing to the database — its run metadata says
-`mocked — no DB writes` — and anything it did write would be filtered out of the
-page because its data source is marked mocked. The danger is that such a run
-still shows **SUCCEEDED** with a non-zero record count. If you run a source's
-connector before adapting it, you get a green run and an empty section. Open the
-run at `/admin/data-sources/<slug>` and confirm the mode is `real`, not `mocked`.
+`mocked — no DB writes`. The danger is that such a run still shows
+**SUCCEEDED** with a non-zero record count. If you run a source's connector before
+adapting it, you get a green run and an empty section. Open the run at
+`/admin/data-sources/<slug>` and read its metadata: a real run of a reference
+connector says `connectorMode: real`, a mocked one says `mocked — no DB writes`.
+The `data_sources` flag cannot tell you, because the catalogue already marks the
+reference sources as real.
 
 For each source, work through these steps in order:
 
@@ -222,9 +227,10 @@ you can see the shape of the work. They run only after the steps above.
 
 ### Registrar: enrolment, cohorts, alumni status
 
-- **Feeds:** the Students section (cohort distribution, lifecycle, alumni-status
-  buckets), the enrolment figures behind Financials and the health score, and
-  pipeline phase 4.
+- **Feeds:** the connector loads enrolment and demographic counts per programme
+  and entry year, which the Demographic outlook, the per-student financial
+  figures and the health score read. The Students section's cohort and alumni
+  charts come from pipeline phase 4, a separate set of scripts.
 - **Tier:** reads your own system, so it must be written against it. The
   reference deployment's connector (`kku-registry`) reads an Oracle warehouse and
   is the template to copy, including its rule to aggregate at the source so
@@ -247,6 +253,8 @@ you can see the shape of the work. They run only after the steps above.
   `programs:link-financials`) query the reference deployment's registrar and HR
   views directly. At another institution, adapt them or run the pipeline with
   `--skip=phase4` and fill those tables another way.
+- **Step by step:** [Adapt the registrar connector](./adapt-the-registrar-connector.md)
+  walks through this source from schema discovery to a verified run.
 - **More:** [registrar source spec](../data-sources/kku-registry.md),
   [Adopter guide, Tier 3](../adopters/README.md#tier-3--must-be-rewritten-per-institution),
   [the connector contract](../adopters/README.md#9-the-connector-contract-and-how-to-write-one).

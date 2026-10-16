@@ -36,6 +36,7 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
       items: [
         { text: 'Overview', link: '/tutorials/README' },
         { text: 'Get Program Deep-Dive working', link: '/tutorials/program-deep-dive' },
+        { text: 'Adapt the registrar connector', link: '/tutorials/adapt-the-registrar-connector' },
       ],
     },
     {
