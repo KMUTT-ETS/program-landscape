@@ -1,9 +1,20 @@
-import { Body, Controller, Get, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { z } from 'zod';
-import { OrganizationIdentityInputSchema, type OrganizationIdentityInput, type SessionUser } from '@kku/shared';
+import {
+  ApiError,
+  BRAND_ASSET_KINDS,
+  OrganizationBrandInputSchema,
+  OrganizationIdentityInputSchema,
+  type OrganizationBrandInput,
+  type OrganizationIdentityInput,
+  type SessionUser,
+} from '@kku/shared';
 import { AuditLog, AuthSession, Authorized, Provenance, Public, ZodValidationPipe } from '../common';
+import { MAX_ASSET_BYTES } from './asset-validation';
 import { OrganizationService } from './organization.service';
 
+const AssetKindParam = z.object({ kind: z.enum(BRAND_ASSET_KINDS) });
 const TcasMatchQuery = z.object({ name: z.string().trim().min(1).max(200) });
 
 @Controller('/organization')
@@ -38,6 +49,39 @@ export class OrganizationAdminController {
     @AuthSession() user: SessionUser,
   ) {
     return this.service.save(body, user.userId);
+  }
+
+  @Put('brand')
+  @Authorized('settings:configure')
+  @AuditLog({ action: 'organization.brand_update', entityType: 'OrganizationProfile' })
+  async putBrand(
+    @Body(new ZodValidationPipe(OrganizationBrandInputSchema)) body: OrganizationBrandInput,
+    @AuthSession() user: SessionUser,
+  ) {
+    return this.service.saveBrand(body, user.userId);
+  }
+
+  @Post('assets/:kind')
+  @Authorized('settings:configure')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_ASSET_BYTES + 1 } }))
+  @AuditLog({ action: 'organization.asset_upload', entityType: 'OrganizationProfile' })
+  async uploadAsset(
+    @Param(new ZodValidationPipe(AssetKindParam)) p: z.infer<typeof AssetKindParam>,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @AuthSession() user: SessionUser,
+  ) {
+    if (!file) throw new ApiError('VALIDATION_FAILED', 'No file uploaded (field "file").');
+    return this.service.uploadAsset(p.kind, file.buffer, user.userId);
+  }
+
+  @Delete('assets/:kind')
+  @Authorized('settings:configure')
+  @AuditLog({ action: 'organization.asset_remove', entityType: 'OrganizationProfile' })
+  async removeAsset(
+    @Param(new ZodValidationPipe(AssetKindParam)) p: z.infer<typeof AssetKindParam>,
+    @AuthSession() user: SessionUser,
+  ) {
+    return this.service.removeAsset(p.kind, user.userId);
   }
 
   @Get('tcas-match')
