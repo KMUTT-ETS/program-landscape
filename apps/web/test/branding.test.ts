@@ -16,6 +16,9 @@ const ROW = {
   updatedAt: new Date(), updatedBy: null,
 } as never;
 
+const noStoreMock = vi.hoisted(() => vi.fn());
+vi.mock('next/cache', () => ({ unstable_noStore: noStoreMock }));
+
 describe('toBranding', () => {
   it('always points at the /brand route, stamped with the version, and builds safe CSS', () => {
     const b = toBranding(ROW);
@@ -39,6 +42,7 @@ describe('brandingForRequest', () => {
   it('returns null instead of throwing when the database is unreachable (next build, outages)', async () => {
     const { brandingForRequest } = await import('../src/lib/branding');
     await expect(brandingForRequest()).resolves.toBeNull();
+    expect(noStoreMock).toHaveBeenCalled();
   });
 });
 

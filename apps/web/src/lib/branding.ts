@@ -1,4 +1,5 @@
 import { cache } from 'react';
+import { unstable_noStore as noStore } from 'next/cache';
 import { brandAssetUrls, getOrganizationProfile, organizationTagline } from '@kku/db';
 import { brandCss } from '@kku/shared/brand';
 
@@ -42,6 +43,8 @@ export function toBranding(row: OrganizationProfile): Branding {
  * then renders the product defaults instead of crashing every page.
  */
 export const brandingForRequest = cache(async (): Promise<Branding | null> => {
+  // Branding is per-request data: never let a build-time prerender freeze the fallback.
+  noStore();
   try {
     const row = await getOrganizationProfile();
     return row ? toBranding(row) : null;
