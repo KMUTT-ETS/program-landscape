@@ -192,3 +192,59 @@ describe('runGather', () => {
     expect(() => runGather(root)).toThrow('package.json has no scripts');
   });
 });
+
+describe('env page parsing edge cases', () => {
+  const text = [
+    '# ──────────────────',
+    '# ── Alpha ──────────────────────────────────',
+    'A_ONE=1',
+    '# ── Beta ──',
+    '# Enables the dev-only provider. REFUSES to load if',
+    '# NODE_ENV=production. In prod, KKU SSO is the only path.',
+    'B_FLAG=false',
+    'B_HOST=REPLACE_ME  # Oracle SCAN host',
+    'B_MODE=real             # prompt 14 note',
+    'B_QUOTED="abc#def"',
+    "B_PW2='x #y'",
+    'B_REDIS=redis://:s3cret@cache:6379/0',
+    '',
+  ].join('\n');
+  const sections = parseEnvExample(text);
+  const all = sections.flatMap((s) => s.entries);
+
+  it('accepts "# ── Name ──" headers with a long trailing rule', () => {
+    expect(sections.map((s) => s.title)).toEqual(['Alpha', 'Beta']);
+    expect(sections[0]?.entries.map((e) => e.key)).toEqual(['A_ONE']);
+  });
+
+  it('does not turn a pure rule line into a section', () => {
+    expect(sections.map((s) => s.title)).not.toContain('General');
+    expect(sections.every((s) => /[A-Za-z]/.test(s.title))).toBe(true);
+  });
+
+  it('moves an unquoted inline comment out of the value and into the comment', () => {
+    const host = all.find((e) => e.key === 'B_HOST');
+    expect(host?.value).toBe('REPLACE_ME');
+    expect(host?.comment).toContain('Oracle SCAN host');
+    expect(all.find((e) => e.key === 'B_MODE')?.value).toBe('real');
+  });
+
+  it('keeps a quoted value containing # intact', () => {
+    expect(all.find((e) => e.key === 'B_QUOTED')?.value).toBe('"abc#def"');
+    expect(displayValue('X_NAME', '"abc#def"')).toBe('"abc#def"');
+    const q = parseEnvExample("# --- S ---\nX_NAME='x #y'\n");
+    expect(q[0]?.entries[0]?.value).toBe("'x #y'");
+    expect(q[0]?.entries[0]?.comment).toBe('');
+  });
+
+  it('keeps prose containing KEY=value as comment text, not an entry', () => {
+    expect(all.map((e) => e.key)).not.toContain('NODE_ENV');
+    const flag = all.find((e) => e.key === 'B_FLAG');
+    expect(flag?.comment).toContain('REFUSES to load');
+    expect(flag?.comment).toContain('NODE_ENV=production. In prod, KKU SSO is the only path.');
+  });
+
+  it('masks a URL credential with an empty username', () => {
+    expect(displayValue('REDIS_URL', 'redis://:s3cret@cache:6379/0')).toBe('redis://:****@cache:6379/0');
+  });
+});

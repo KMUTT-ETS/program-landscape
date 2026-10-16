@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vitepress';
@@ -10,7 +11,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..', '..', '..');
 const docsDir = path.join(repoRoot, 'docs');
 
-const vitepressEntry = fileURLToPath(import.meta.resolve('vitepress'));
+const vitepressEntry = createRequire(import.meta.url).resolve('vitepress');
 
 /**
  * Pages live in docs/, outside this package, where pnpm's strict layout makes `vue` unresolvable.

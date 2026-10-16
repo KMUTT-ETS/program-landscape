@@ -104,7 +104,7 @@ export interface EnvSection {
   entries: EnvEntry[];
 }
 
-const SECTION = /^#\s*-{2,}\s*(.+?)\s*-{2,}\s*$/;
+const SECTION = /^#\s*[-─━═]{2,}\s*(.+?)\s*[-─━═]{2,}\s*$/;
 const ASSIGN = /^([A-Z][A-Z0-9_]*)=(.*)$/;
 const COMMENTED_ASSIGN = /^#\s?([A-Z][A-Z0-9_]*)=(.*)$/;
 const RULE_LINE = /^[─━═-]+$/;
@@ -116,7 +116,7 @@ export function isSecretKey(key: string): boolean {
 /** Value as shown on the page: secret keys blank, `scheme://user:pass@` credentials masked. */
 export function displayValue(key: string, value: string): string {
   if (isSecretKey(key)) return '';
-  return value.replace(/(:\/\/[^/:@\s]+:)[^/@\s]+@/g, '$1****@');
+  return value.replace(/(:\/\/[^/:@\s]*:)[^/@\s]+@/g, '$1****@');
 }
 
 export function parseEnvExample(text: string): EnvSection[] {
@@ -133,7 +133,7 @@ export function parseEnvExample(text: string): EnvSection[] {
       continue;
     }
     const section = SECTION.exec(line);
-    if (section) {
+    if (section && /[^-─━═\s]/.test(section[1] ?? '')) {
       flush();
       current = { title: section[1] ?? '', entries: [] };
       pending = [];
@@ -144,14 +144,27 @@ export function parseEnvExample(text: string): EnvSection[] {
     const match = assign ?? commented;
     if (match) {
       const key = match[1] ?? '';
-      current.entries.push({
-        key,
-        value: displayValue(key, match[2] ?? ''),
-        comment: pending.join(' '),
-        optional: commented !== null,
-      });
-      pending = [];
-      continue;
+      let value = (match[2] ?? '').trim();
+      let note = '';
+      // Loaders cut an unquoted value at " #"; a quoted value keeps any "#" (documented trap).
+      if (!/^["']/.test(value)) {
+        const inline = /\s+#\s*(.*)$/.exec(value);
+        if (inline) {
+          note = inline[1] ?? '';
+          value = value.slice(0, inline.index).trim();
+        }
+      }
+      const isProse = commented !== null && !/^["']/.test(value) && /\s/.test(value);
+      if (!isProse) {
+        current.entries.push({
+          key,
+          value: displayValue(key, value),
+          comment: [...pending, ...(note === '' ? [] : [note])].join(' '),
+          optional: commented !== null,
+        });
+        pending = [];
+        continue;
+      }
     }
     if (line.startsWith('#')) {
       const t = line.replace(/^#+\s?/, '').trim();

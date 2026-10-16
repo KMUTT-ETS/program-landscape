@@ -51,4 +51,14 @@ describe('findRetiredNames', () => {
       { kind: 'retired-name', detail: '/architecture contains retired name "Curriculum Compass"' },
     ]);
   });
+
+  it('flags the Thai retired codename and the former title', () => {
+    const html = new Map([
+      ['/a', '<p>ทักษทัศน์ platform</p>'],
+      ['/b', '<p>KKU Curriculum Landscape</p>'],
+    ]);
+    const details = findRetiredNames(html).map((p) => p.detail);
+    expect(details).toContain('/a contains retired name "ทักษทัศน์"');
+    expect(details).toContain('/b contains retired name "KKU Curriculum Landscape"');
+  });
 });
