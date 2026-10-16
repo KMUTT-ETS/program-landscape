@@ -100,6 +100,7 @@
 //   pnpm programs:pipeline <code> --only=phase5    # peers only
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { organizationErrorForExitCode, scriptExitCode } from '../lib/organization-exit';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -132,6 +133,7 @@ import { loadOrganization,
   IS_CANONICAL_PROGRAM,
 } from '@kku/db';
 import {
+  getInstitution,
   isProgramPipelinePhase,
   PROGRAM_PIPELINE_PHASES,
   S3Storage,
@@ -296,6 +298,8 @@ async function runApprovePending(programId: string): Promise<{ ms: number; ok: b
   child.stdout.on('data', (d) => { out += d.toString(); });
   child.stderr.on('data', (d) => { out += d.toString(); });
   const exitCode: number = await new Promise((resolve) => child.on('exit', (c) => resolve(c ?? 1)));
+  const orgError = organizationErrorForExitCode(exitCode);
+  if (orgError) throw orgError;
   const ms = Date.now() - t0;
   return { ms, ok: exitCode === 0, notes: exitCode === 0 ? 'approved + materialised' : `exit=${exitCode}` };
 }
@@ -821,6 +825,8 @@ async function runChildScript(
   child.stdout.on('data', () => { /* swallow — we summarise at the end */ });
   child.stderr.on('data', () => { /* same */ });
   const exitCode: number = await new Promise((resolve) => child.on('exit', (c) => resolve(c ?? 1)));
+  const orgError = organizationErrorForExitCode(exitCode);
+  if (orgError) throw orgError;
   return { name: scriptFile, ok: exitCode === 0, ms: Date.now() - t0 };
 }
 
@@ -849,6 +855,12 @@ function resolveSiblingScript(baseName: string): { path: string; kind: 'ts' | 'j
 
 async function main(): Promise<void> {
   await loadOrganization();
+  // Fail once, up front: every AI phase names the institution, and each phase
+  // swallows its own errors, so without this an unconfigured install would
+  // run the whole pipeline and fail phase by phase. Throws
+  // OrganizationNotConfiguredError → exit 78 → the spawning ai-jobs handler
+  // marks the job unrecoverable instead of reporting a generic failure.
+  getInstitution();
   const args = parseArgs(process.argv.slice(2));
   const programs = await resolveProgramIds(args);
 
@@ -916,6 +928,6 @@ async function main(): Promise<void> {
 main()
   .catch((e) => {
     console.error(e);
-    process.exit(1);
+    process.exit(scriptExitCode(e));
   })
   .finally(() => prisma.$disconnect());

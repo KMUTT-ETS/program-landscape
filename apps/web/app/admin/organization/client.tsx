@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button, Badge } from '@kku/ui';
 import { Building2, AlertTriangle } from 'lucide-react';
+import { readSaveResponse } from './save-response';
 
 export interface OrganizationProfileDto {
   id: string;
@@ -68,8 +69,12 @@ export function OrganizationClient({
 
   async function checkTcas() {
     if (!form.nameTh.trim()) return;
-    const res = await fetch(`/api/admin-organization/tcas-match?name=${encodeURIComponent(form.nameTh)}`);
-    if (res.ok) setTcas((await res.json()).data as TcasMatch);
+    try {
+      const res = await fetch(`/api/admin-organization/tcas-match?name=${encodeURIComponent(form.nameTh)}`);
+      if (res.ok) setTcas((await res.json()).data as TcasMatch);
+    } catch {
+      // The TCAS hint is advisory; a network error just leaves it blank.
+    }
   }
 
   async function save() {
@@ -80,13 +85,13 @@ export function OrganizationClient({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ ...form, expectedVersion: profile?.version ?? null }),
       });
-      const json = await res.json();
-      if (res.status === 409 && json.error?.code === 'ORG_VERSION_CONFLICT') {
+      const out = await readSaveResponse(res);
+      if (res.status === 409 && out.errorCode === 'ORG_VERSION_CONFLICT') {
         toast.error('Someone else changed the organisation — reload the page and try again.');
         return;
       }
-      if (!res.ok) throw new Error(json.error?.message ?? `Save failed (${res.status})`);
-      const next = json.data.profile as OrganizationProfileDto;
+      if (out.errorMessage !== null) throw new Error(out.errorMessage);
+      const next = (out.body as { profile: OrganizationProfileDto }).profile;
       setProfile(next);
       setForm(toForm(next));
       toast.success('Organisation saved. Other services pick it up within a minute.');
@@ -138,7 +143,11 @@ export function OrganizationClient({
               value={form[f.key]}
               required={f.required}
               type={f.key === 'contactEmail' ? 'email' : f.key === 'appUrl' ? 'url' : 'text'}
-              onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+              onChange={(e) => {
+                setForm({ ...form, [f.key]: e.target.value });
+                // A TCAS badge describes the old Thai name; drop it until re-checked.
+                if (f.key === 'nameTh') setTcas(null);
+              }}
               onBlur={f.key === 'nameTh' ? () => void checkTcas() : undefined}
               className="rounded-md border border-default bg-surface-1 px-2 py-1"
             />

@@ -1,3 +1,4 @@
+import { organizationErrorForExitCode } from '../lib/organization-exit';
 import { spawn } from 'node:child_process';
 import { mkdirSync, createWriteStream, existsSync } from 'node:fs';
 import path from 'node:path';
@@ -434,6 +435,10 @@ export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobH
         });
       });
 
+      // 78 = the child stopped on a missing organisation profile; rethrow
+      // so runAiJobHandler fails the job once (UnrecoverableError).
+      const pipelineOrgError = organizationErrorForExitCode(exitCode);
+      if (pipelineOrgError) throw pipelineOrgError;
       if (exitCode === 0) {
         logger.log(`RUN_PROGRAM_PIPELINE ${program.code} succeeded`);
         return { status: 'SUCCEEDED', message: `pipeline finished; log=${logPath}` };
@@ -549,6 +554,8 @@ export function buildHandlers(deps: AiJobHandlersDeps): Record<AiJobKind, AiJobH
         });
       });
 
+      const offeringsOrgError = organizationErrorForExitCode(exitCode);
+      if (offeringsOrgError) throw offeringsOrgError;
       if (exitCode === 0) {
         logger.log('RUN_CLASS_OFFERINGS_LINK succeeded');
         return { status: 'SUCCEEDED', message: `class-offerings refreshed; log=${logPath}` };

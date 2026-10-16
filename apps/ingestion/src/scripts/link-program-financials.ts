@@ -23,6 +23,7 @@
 //   pnpm programs:link-financials <code|mhesi|sequenceNo|id>
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { scriptExitCode } from '../lib/organization-exit';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -409,6 +410,6 @@ async function main(): Promise<void> {
 main()
   .catch((err) => {
     console.error(err);
-    process.exit(1);
+    process.exit(scriptExitCode(err));
   })
   .finally(() => prisma.$disconnect());

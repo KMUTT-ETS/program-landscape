@@ -17,6 +17,7 @@
 //   pnpm programs:link-alumni --all [--limit=N]          # bulk
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { scriptExitCode } from '../lib/organization-exit';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -292,6 +293,6 @@ async function main(): Promise<void> {
 main()
   .catch((e) => {
     console.error(e);
-    process.exit(1);
+    process.exit(scriptExitCode(e));
   })
   .finally(() => prisma.$disconnect());

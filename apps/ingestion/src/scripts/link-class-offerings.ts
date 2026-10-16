@@ -28,6 +28,7 @@
 //   pnpm programs:link-class-offerings --since-year=2567   # bachelor/etc only
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { scriptExitCode } from '../lib/organization-exit';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -358,7 +359,7 @@ async function main(): Promise<void> {
 main()
   .catch((err) => {
     console.error(err);
-    process.exit(1);
+    process.exit(scriptExitCode(err));
   })
   .finally(async () => {
     await prisma.$disconnect();

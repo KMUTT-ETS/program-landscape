@@ -25,6 +25,7 @@
 // retained for audit; the UI shows "latest assessment" via DISTINCT ON.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { scriptExitCode } from '../lib/organization-exit';
 import { existsSync, readFileSync, appendFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 
@@ -730,6 +731,6 @@ async function main(): Promise<void> {
 main()
   .catch((err) => {
     console.error('[risks-assess] failed:', err);
-    process.exit(1);
+    process.exit(scriptExitCode(err));
   })
   .finally(() => prisma.$disconnect());
