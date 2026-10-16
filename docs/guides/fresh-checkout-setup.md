@@ -303,6 +303,7 @@ pnpm clean        # remove node_modules / build outputs; re-run `pnpm setup` aft
 
 ## 12. Where to go next
 
+- `docs/tutorials/program-deep-dive.md` — fill a programme's Deep-Dive with real content, step by step.
 - `README.md` — project overview and script index.
 - `docs/adopters/README.md` §5–7 — first run, codebase layout, configuration, for adopters.
 - `docs/architecture.md` — system design.
