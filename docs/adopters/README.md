@@ -286,6 +286,8 @@ If you are adding a surface and it does not have these, it is not finished. This
 | *(none — moved)* | Institution identity is set in the app at **/admin/organization** (names, short names, region, contact email, public URL). The Thai name must match the TCAS สถาบัน column exactly; the form checks it for you. |
 | `MINIO_*`, `REDIS_*`, `GOTENBERG_URL` | Local defaults in `.env.example` work with `pnpm db:up` |
 
+Brand colours and logos are set on the **Brand** tab of the same page (`/admin/organization?tab=brand`). The app derives light and dark shades from your two colours and checks they stay readable.
+
 **Known gaps in `.env.example` you will hit.** `UNICON_DS2001_DB_*` and `UNICON_DS1001_DB_*` are documented in `.env.prod.example` but **absent from `.env.example`**. When a connector reports missing config, check `.env.prod.example` and `configFromEnv('<PREFIX>')` in the connector before assuming the key does not exist.
 
 > `AI_PROVIDER` and `GOOGLE_AI_API_KEY` used to be missing here too; that gap is fixed. `.env.example` now ships `AI_PROVIDER=stub`, which is what lets `api` and `ingestion` boot without an LLM key (the code default, `google`, crashes both at boot when `GOOGLE_AI_API_KEY` is empty).

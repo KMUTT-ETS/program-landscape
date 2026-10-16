@@ -199,6 +199,8 @@ exists and stops before the swap when it does not — re-run with
 `ORG_SEED_KKU=1` (KKU) or `ORG_ALLOW_UNCONFIGURED=1` (other installs, then fill
 in `/admin/organization` after the deploy).
 
+`ORG_SEED_KKU=1` also fills KKU's logos, favicon and colours into the brand fields that are still empty (logos go to the MinIO `branding` bucket); it never overwrites anything an admin set.
+
 `deploy.sh` is idempotent and covers:
 1. Loads images from `images.tar` (no Docker Hub pull needed).
 2. Stages release at `/opt/program-landscape/releases/1.0.0/`.

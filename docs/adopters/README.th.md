@@ -290,6 +290,8 @@ scripts/       Release build, deploy, backup, restore, rollback, smoke test,
 | *(ย้ายแล้ว)* | ตั้งค่าข้อมูลสถาบันในแอปที่ **/admin/organization** (ชื่อ ชื่อย่อ ภูมิภาค อีเมลติดต่อ URL สาธารณะ) ชื่อภาษาไทยต้องตรงกับคอลัมน์ สถาบัน ของ TCAS ทุกตัวอักษร ฟอร์มจะตรวจให้ |
 | `MINIO_*`, `REDIS_*`, `GOTENBERG_URL` | ค่าตั้งต้นสำหรับเครื่อง local ใน `.env.example` ใช้ได้เลยกับ `pnpm db:up` |
 
+สีและโลโก้ของแบรนด์ตั้งได้ที่แท็บ **Brand** ของหน้าเดียวกัน (`/admin/organization?tab=brand`) แอปจะสร้างเฉดสีสำหรับโหมดสว่างและมืดจากสีทั้งสองให้ และตรวจว่ายังอ่านได้ชัด
+
 **ช่องว่างใน `.env.example` ที่จะเจอแน่ ๆ** คีย์ `AI_PROVIDER`, `GOOGLE_AI_API_KEY`, `UNICON_DS2001_DB_*` และ `UNICON_DS1001_DB_*` มีบันทึกไว้ใน `.env.prod.example` แต่ **ไม่มีใน `.env.example`** ไฟล์ตัวอย่างฝั่ง dev ตามฝั่ง prod ไม่ทัน เวลา connector รายงานว่าค่าตั้งค่าขาด ให้ไปดู `.env.prod.example` และ `configFromEnv('<PREFIX>')` ในตัว connector ก่อน อย่าเพิ่งสรุปว่าคีย์นั้นไม่มีอยู่จริง
 
 ### แต่ละแอปต้องมี `.env` ของตัวเอง — ข้อนี้ไม่ใช่ทางเลือก

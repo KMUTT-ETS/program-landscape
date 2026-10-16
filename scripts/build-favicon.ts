@@ -41,7 +41,7 @@ async function main() {
   // tab strips so neither pure-black nor pure-white reads ideally;
   // the black logo on transparent is the broadest fit).
   await buildSquareFavicon(
-    path.join(root, 'apps/web/public/brand/kku-logo-light.png'),
+    path.join(root, 'apps/ingestion/assets/kku/kku-logo-light.png'),
     path.join(root, 'apps/web/app/icon.png'),
   );
 }
