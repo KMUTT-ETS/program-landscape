@@ -41,8 +41,10 @@ async function main() {
   // tab strips so neither pure-black nor pure-white reads ideally;
   // the black logo on transparent is the broadest fit).
   await buildSquareFavicon(
-    path.join(root, 'apps/ingestion/assets/kku/kku-logo-light.png'),
-    path.join(root, 'apps/web/app/icon.png'),
+    path.join(root, 'apps', 'ingestion', 'assets', 'kku', 'kku-logo-light.png'),
+    // The KKU favicon the org-seed-kku script uploads; the web app serves
+    // whatever favicon the organisation profile holds via /brand/favicon.
+    path.join(root, 'apps', 'ingestion', 'assets', 'kku', 'favicon.png'),
   );
 }
 

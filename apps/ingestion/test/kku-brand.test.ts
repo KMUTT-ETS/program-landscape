@@ -77,4 +77,22 @@ describe('fillKkuBrand', () => {
       'log:brand: colours set',
     ]);
   });
+
+  it('skips an asset whose upload fails and still uploads the rest and sets colours', async () => {
+    const { calls, deps } = mk();
+    const putObject = async (k: string) => {
+      if (k === 'logo-dark') throw new Error('bucket unreachable');
+      return `${k}/abc.png`;
+    };
+    await fillKkuBrand({ version: 3, ...EMPTY }, { ...deps, putObject });
+    expect(calls).toEqual([
+      'asset:logo-light:logo-light/abc.png',
+      'log:brand: logo-light uploaded',
+      'log:brand: logo-dark upload failed — skipped (bucket unreachable)',
+      'asset:favicon:favicon/abc.png',
+      'log:brand: favicon uploaded',
+      'colours:v5',
+      'log:brand: colours set',
+    ]);
+  });
 });

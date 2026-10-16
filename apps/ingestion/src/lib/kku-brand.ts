@@ -51,25 +51,31 @@ export interface KkuBrandFillDeps {
   log: (line: string) => void;
 }
 
-/** Fills only the null brand fields of the profile; returns the lines it logged. */
+/**
+ * Fills only the null brand fields of the profile, logging one line per step.
+ * A failing asset (unreadable, storage error) is logged and skipped so a
+ * storage outage never aborts the deploy; the colours are still set.
+ */
 export async function fillKkuBrand(row: KkuBrandRow, deps: KkuBrandFillDeps): Promise<void> {
   const plan = planKkuBrandFill(row);
   let version = row.version;
-  let filled = 0;
 
   if (plan.assets.length > 0 && !deps.putObject) {
     deps.log('brand: object storage not configured — logos skipped');
-  } else {
+  } else if (deps.putObject) {
     for (const kind of plan.assets) {
-      const bytes = deps.readFile(KKU_ASSET_FILES[kind]);
-      if (!bytes) {
-        deps.log(`brand: ${kind} file not found — skipped`);
-        continue;
+      try {
+        const bytes = deps.readFile(KKU_ASSET_FILES[kind]);
+        if (!bytes) {
+          deps.log(`brand: ${kind} file not found — skipped`);
+          continue;
+        }
+        const key = await deps.putObject(kind, bytes);
+        version = (await deps.setAsset(kind, key)).version;
+        deps.log(`brand: ${kind} uploaded`);
+      } catch (e) {
+        deps.log(`brand: ${kind} upload failed — skipped (${e instanceof Error ? e.message : String(e)})`);
       }
-      const key = await deps.putObject!(kind, bytes);
-      version = (await deps.setAsset(kind, key)).version;
-      deps.log(`brand: ${kind} uploaded`);
-      filled++;
     }
   }
 
@@ -87,9 +93,8 @@ export async function fillKkuBrand(row: KkuBrandRow, deps: KkuBrandFillDeps): Pr
         derived.tokens,
       );
       deps.log('brand: colours set');
-      filled++;
     }
   }
 
-  if (filled === 0 && plan.assets.length === 0 && !plan.colours) deps.log('brand: nothing to fill');
+  if (plan.assets.length === 0 && !plan.colours) deps.log('brand: nothing to fill');
 }
