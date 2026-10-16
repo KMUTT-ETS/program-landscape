@@ -222,19 +222,43 @@ else
     || fail "data_sources sync failed — a new connector would be unresolvable; rollback recommended"
 fi
 
-# ── 6.4b. Seed the KKU organisation profile (KKU deployments only) ────
+# ── 6.4b. Organisation profile (seed for KKU, check on upgrades) ──────
 # Spec §16: the organization_profile row must exist before traffic resumes.
 # This runs BEFORE the symlink swap for the same reason as 6.4: a failure
-# aborts inside the rollback-able region. The script is idempotent and never
-# overwrites an existing profile, so KKU can keep ORG_SEED_KKU=1 on every
-# deploy. Other installs leave it unset and configure /admin/organization.
+# aborts inside the rollback-able region.
+#   ORG_SEED_KKU=1          KKU's own deployment: seed the KKU profile. The
+#                           script is idempotent and never overwrites an
+#                           existing profile, so KKU keeps it on every deploy.
+#   upgrade (current exists) and no ORG_SEED_KKU: `--check` probes for the
+#                           row (exit 0 present, 3 missing) and the deploy
+#                           STOPS when it is missing — an upgrade must not go
+#                           live unconfigured. ORG_ALLOW_UNCONFIGURED=1
+#                           overrides that with a warning.
+#   first deploy (no current): warn only; the operator fills in
+#                           /admin/organization after first boot.
 if [ "${ORG_SEED_KKU:-0}" = "1" ]; then
   log "Seeding KKU organisation profile (ORG_SEED_KKU=1; no-op if it already exists)"
   docker compose run --rm --entrypoint "" ingestion \
     node /app/dist/scripts/org-seed-kku.js </dev/null \
     || fail "KKU organisation seed failed — the profile row is required before traffic resumes; rollback recommended"
+elif [ -L "$CURRENT_LINK" ] || [ -e "$CURRENT_LINK" ]; then
+  log "Checking the organisation profile exists (upgrade)"
+  org_rc=0
+  docker compose run --rm --entrypoint "" ingestion \
+    node /app/dist/scripts/org-seed-kku.js --check </dev/null || org_rc=$?
+  if [ "$org_rc" = "0" ]; then
+    log "Organisation profile present"
+  elif [ "$org_rc" = "3" ]; then
+    if [ "${ORG_ALLOW_UNCONFIGURED:-0}" = "1" ]; then
+      log "WARNING: no organisation profile — continuing because ORG_ALLOW_UNCONFIGURED=1. AI features and outbound fetches stay unavailable until an admin fills in /admin/organization."
+    else
+      fail "No organisation profile — this release would go live unconfigured. KKU: re-run with ORG_SEED_KKU=1. Other installs: re-run with ORG_ALLOW_UNCONFIGURED=1, then fill in /admin/organization after the deploy."
+    fi
+  else
+    fail "Organisation profile check failed (exit $org_rc) — see the output above; rollback recommended"
+  fi
 else
-  log "ORG_SEED_KKU not set — skipping KKU organisation seed (other installs configure /admin/organization)"
+  log "WARNING: first deploy and ORG_SEED_KKU not set — fill in /admin/organization after first boot (KKU: set ORG_SEED_KKU=1)"
 fi
 
 # ── 6.5. Drain the old release ───────────────────────────────────────
