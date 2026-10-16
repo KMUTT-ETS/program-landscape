@@ -303,9 +303,10 @@ pnpm clean        # remove node_modules / build outputs; re-run `pnpm setup` aft
 
 ## 12. Where to go next
 
-- `README.md` — project overview and script index.
-- `docs/adopters/README.md` §5–7 — first run, codebase layout, configuration, for adopters.
-- `docs/architecture.md` — system design.
-- `docs/evaluation-pipeline.md` — how the scoring modules interlock (read before changing anything cross-module).
-- `docs/dev-database-safety.md` — protecting the shared dev database.
+- [Tutorial: get Program Deep-Dive working](../tutorials/program-deep-dive.md) — fill a programme's Deep-Dive with real content, step by step.
+- [README](../../README.md) — project overview and script index.
+- [Adopter guide](../adopters/README.md) §5–7 — first run, codebase layout, configuration, for adopters.
+- [Architecture](../architecture.md) — system design.
+- [Evaluation pipeline](../evaluation-pipeline.md) — how the scoring modules interlock (read before changing anything cross-module).
+- [Dev database safety](../dev-database-safety.md) — protecting the shared dev database.
 - `prompts/WINDOWS-DEV.md` — Windows/WSL2 specifics.
