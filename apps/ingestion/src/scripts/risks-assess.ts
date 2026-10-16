@@ -25,6 +25,7 @@
 // retained for audit; the UI shows "latest assessment" via DISTINCT ON.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { scriptExitCode } from '../lib/organization-exit';
 import { existsSync, readFileSync, appendFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 
@@ -47,7 +48,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import {
+import { loadOrganization,
   prisma,
   loadProgramRiskInputs,
   programFunnelRoundRows,
@@ -476,6 +477,7 @@ async function ensureIndicatorCatalog(): Promise<void> {
 // ── Main ────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
+  await loadOrganization();
   console.log(`[risks-assess] mode=${dryRun ? 'DRY-RUN' : 'APPLY'}, ai=${noAi ? 'OFF' : 'ON'}`);
   console.log(`[risks-assess] log → ${LOG_PATH}\n`);
 
@@ -729,6 +731,6 @@ async function main(): Promise<void> {
 main()
   .catch((err) => {
     console.error('[risks-assess] failed:', err);
-    process.exit(1);
+    process.exit(scriptExitCode(err));
   })
   .finally(() => prisma.$disconnect());

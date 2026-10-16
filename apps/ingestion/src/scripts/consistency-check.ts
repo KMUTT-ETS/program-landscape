@@ -24,7 +24,7 @@
 //   pnpm consistency:check --threshold 15
 // ─────────────────────────────────────────────────────────────────────────────
 
-import {
+import { loadOrganization,
   prisma,
   computeHealthScores,
   realDataWhere,
@@ -56,6 +56,7 @@ interface ProgramContribution {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const args = parseArgs(process.argv.slice(2));
   const computedAt = new Date();
 

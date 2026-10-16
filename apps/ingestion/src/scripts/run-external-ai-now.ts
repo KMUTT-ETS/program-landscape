@@ -4,11 +4,12 @@
 // Usage: pnpm tsx apps/ingestion/src/scripts/run-external-ai-now.ts <slug>
 
 import 'dotenv/config';
-import { prisma, runExternalAiSource } from '@kku/db';
+import { loadOrganization, prisma, runExternalAiSource } from '@kku/db';
 import { BrowserService } from '../external-ai/browser';
 import { createIngestionAiService } from '../lib/ai-service';
 
 async function main() {
+  await loadOrganization();
   const slug = process.argv[2];
   if (!slug) {
     console.error('Usage: tsx run-external-ai-now.ts <slug>');

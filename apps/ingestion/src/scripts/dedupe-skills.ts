@@ -44,7 +44,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import {
+import { loadOrganization,
   prisma,
   normaliseSkillName,
   planChildRemap,
@@ -239,6 +239,7 @@ async function mergeGroup(plan: MergePlan, totals: Totals): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const apply = process.argv.includes('--apply');
   const limitArg = process.argv.indexOf('--limit');
   const limit = limitArg === -1 ? null : Number(process.argv[limitArg + 1]);

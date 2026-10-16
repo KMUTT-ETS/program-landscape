@@ -86,6 +86,9 @@ const nextConfig = {
   outputFileTracingRoot: new URL('../../', import.meta.url).pathname,
   experimental: {
     typedRoutes: true,
+    // Runs instrumentation.ts at server boot — it loads the organisation
+    // profile into this process's identity cache (white-label, 2026-10-15).
+    instrumentationHook: true,
     // Critical: mark `@prisma/client` as an external server package so Next
     // loads it from disk at RUNTIME (single instance) instead of bundling it
     // separately per Webpack context (rsc / action-browser / etc).

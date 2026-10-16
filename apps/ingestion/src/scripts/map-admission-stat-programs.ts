@@ -37,7 +37,7 @@ function loadDotEnv(envPath: string): void {
 }
 
 import { z } from 'zod';
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 import { type AiMessage } from '@kku/shared';
 import { createIngestionAiService } from '../lib/ai-service';
 
@@ -87,6 +87,7 @@ const LlmSchema = z.object({
 });
 
 async function main() {
+  await loadOrganization();
   const apply = process.argv.includes('--apply');
   const useLlm = process.argv.includes('--llm');
 

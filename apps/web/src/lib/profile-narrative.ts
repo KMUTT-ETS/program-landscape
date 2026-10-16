@@ -10,21 +10,43 @@ import {
   buildExpertiseNarrativeMessages,
   ExpertiseNarrativeSchema,
   EXPERTISE_NARRATIVE_VERSION,
+  OrganizationNotConfiguredError,
+  OrganizationNotLoadedError,
   type AiProviderId,
   type ExpertiseNarrative,
   type ExpertiseNarrativeInput,
 } from '@kku/shared';
-import { PrismaAiInferenceRecorder, getAiModelOverrideStore } from '@kku/db';
+import {
+  PrismaAiInferenceRecorder,
+  ensureOrganizationLoaded,
+  getAiModelOverrideStore,
+} from '@kku/db';
 
 interface AiCallContext {
   userId: string;
   facultyMemberId: string | null;
 }
 
+export interface ExpertiseNarrativeResult {
+  narrative: ExpertiseNarrative;
+  /**
+   * False when the placeholder came from a missing or unloaded organisation
+   * profile. That failure is transient (an admin fills in
+   * /admin/organization, or the next request loads it), so the route must
+   * not persist the placeholder — it would stick until the prompt version
+   * moves.
+   */
+  cacheable: boolean;
+}
+
+function isOrganizationError(err: unknown): boolean {
+  return err instanceof OrganizationNotConfiguredError || err instanceof OrganizationNotLoadedError;
+}
+
 export async function generateExpertiseNarrative(
   input: ExpertiseNarrativeInput,
   context: AiCallContext,
-): Promise<ExpertiseNarrative> {
+): Promise<ExpertiseNarrativeResult> {
   const providerId = (process.env.AI_PROVIDER ?? 'google') as AiProviderId;
   const apiKeys = {
     google: process.env.GOOGLE_AI_API_KEY,
@@ -37,7 +59,17 @@ export async function generateExpertiseNarrative(
     (providerId === 'openrouter' && !!apiKeys.openrouter);
 
   if (!hasKey) {
-    return placeholderNarrative(input);
+    return { narrative: placeholderNarrative(input), cacheable: true };
+  }
+
+  // The prompt names the institution. Loads the profile if this process has
+  // not (instrumentation.ts normally has); a failure here is an
+  // organisation failure, so the placeholder is returned uncached.
+  try {
+    await ensureOrganizationLoaded();
+  } catch (err) {
+    console.error('expertise-narrative: organisation profile could not be loaded', err);
+    return { narrative: placeholderNarrative(input), cacheable: false };
   }
 
   const recorder = new PrismaAiInferenceRecorder();
@@ -76,14 +108,14 @@ export async function generateExpertiseNarrative(
       },
       ExpertiseNarrativeSchema,
     );
-    return result.parsed;
+    return { narrative: result.parsed, cacheable: true };
   } catch (err) {
     // AI call failed — return the placeholder rather than a 500 so the
     // profile page degrades gracefully. The error is surfaced to the
     // caller through console.error; the AiInference row (if any was
     // started) carries the failure for the audit log.
     console.error('expertise-narrative generation failed', err);
-    return placeholderNarrative(input);
+    return { narrative: placeholderNarrative(input), cacheable: !isOrganizationError(err) };
   }
 }
 

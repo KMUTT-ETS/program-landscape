@@ -9,7 +9,7 @@ export default defineConfig({
     include: ['test/**/*.test.ts'],
     environment: 'node',
     testTimeout: 30_000,
-    setupFiles: ['reflect-metadata'],
+    setupFiles: ['reflect-metadata', './test/setup-organization.ts'],
   },
   plugins: [
     swc.vite({

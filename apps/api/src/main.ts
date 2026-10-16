@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
+import { loadOrganization, startOrganizationRefresh } from '@kku/db';
 import { assertLogLevelSafe, markDraining } from '@kku/shared';
 import { AppModule } from './app.module';
 
@@ -19,6 +20,12 @@ assertLogLevelSafe();
 };
 
 async function bootstrap() {
+  // Organisation identity (white-label). A missing profile must not stop the
+  // api booting — the admin needs the app up to fill it in; identity-dependent
+  // calls answer 409 ORG_NOT_CONFIGURED until then.
+  const org = await loadOrganization();
+  if (!org) console.warn('[organization] no organisation profile — /admin/organization to set one up');
+  startOrganizationRefresh();
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   // Swap Nest's default logger for the pino logger from the module.
   app.useLogger(app.get(Logger));

@@ -33,7 +33,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 import { selectProgramPeers } from '../program-peers/select';
 import { generateProgramPeerReview } from '../program-peers/review';
 import { createIngestionAiService } from '../lib/ai-service';
@@ -93,6 +93,7 @@ async function resolveProgramIds(args: CliArgs): Promise<string[]> {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const args = parseArgs(process.argv.slice(2));
   const programIds = await resolveProgramIds(args);
   console.log(`Programs to process: ${programIds.length}\n`);

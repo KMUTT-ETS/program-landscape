@@ -85,12 +85,18 @@ const TARGETS = [
   // connector reaches production with no row and every script that resolves it
   // by slug dies, which is how the v1.9.8 rollout stalled on 2026-09-30.
   'sync-data-sources.ts',
+  'org-seed-kku.ts',
   // program-overlap.v1 data prep (PLO table, course descriptions, market
   // profiles, embeddings). Operator-run on prod before the first overlap run.
   'programs-overlap-prep.ts',
   // program-overlap.v1 scoring + calibration. Operator-run on prod for the
   // full-portfolio run; the pipeline's phaseOV runs in-process.
   'programs-overlap.ts',
+  // Operator-run scripts that call outboundUserAgent() from @kku/shared, which
+  // plain node cannot load from node_modules; bundled so prod gets a
+  // self-contained file.
+  'bulk-pdf-load.ts',
+  'capture-kmitl-skill-mapping.ts',
 ];
 
 // Native modules + workspace artifacts that must stay external.

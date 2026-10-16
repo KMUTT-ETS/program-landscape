@@ -22,7 +22,7 @@
 // page-view roll-up-then-delete rule lives in `@kku/db/usage-retention`.
 // This file is the operator-facing entry point.
 
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 import {
   computeRetentionCutoffs,
   DEFAULT_WINDOWS,
@@ -33,6 +33,7 @@ import {
 } from '@kku/db';
 
 async function main(): Promise<void> {
+  await loadOrganization();
   // Dry-run unless --apply is given (house rule: every operator script is
   // read-only by default). Unknown flags are rejected rather than ignored —
   // a mistyped `--dryrun` must never become a delete.

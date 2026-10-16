@@ -1,10 +1,11 @@
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 
 // One-shot: delete connector/monitor/seed-origin TrendSignals (all mock while
 // the 9 signal connectors still run in mock mode) so the real connector runs
 // repopulate the radar with real signals. Keeps real external-AI-source signals
 // and document-backed signals. Dry-run by default; pass --apply to delete.
 async function main(): Promise<void> {
+  await loadOrganization();
   const apply = process.argv.includes('--apply');
 
   const docSignalIds = (

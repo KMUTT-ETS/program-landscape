@@ -13,7 +13,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { execSync } from 'node:child_process';
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 
 interface Snapshot {
   total: number;
@@ -170,6 +170,7 @@ function render(s: Snapshot): void {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const watch = process.argv.includes('--watch');
   if (!watch) {
     render(await snapshot());

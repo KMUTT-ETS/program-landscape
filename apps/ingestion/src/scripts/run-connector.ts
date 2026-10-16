@@ -14,6 +14,7 @@
 // Exits non-zero on failure so it slots into shell scripts cleanly.
 // ────────────────────────────────────────────────────────────────────────────
 
+import { loadOrganization } from '@kku/db';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -59,6 +60,7 @@ Exit codes: 0 success, 2 failed run, 3 invocation error.
 `.trim();
 
 async function main(): Promise<number> {
+  await loadOrganization();
   const slug = process.argv[2];
   if (!slug || slug.startsWith('-')) {
     console.error(HELP);

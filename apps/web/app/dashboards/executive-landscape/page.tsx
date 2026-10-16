@@ -1,7 +1,14 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { auth } from '@/lib/auth';
-import { HEALTH_SCORE_VERSION, getBenchmarkingOverview, getDashboardOverview, prisma, type DashboardOverview } from '@kku/db';
+import {
+  HEALTH_SCORE_VERSION,
+  ensureOrganizationLoaded,
+  getBenchmarkingOverview,
+  getDashboardOverview,
+  prisma,
+  type DashboardOverview,
+} from '@kku/db';
 import {
   Card,
   CardHeader,
@@ -36,6 +43,9 @@ export default async function ExecutiveLandscapePage({ searchParams }: { searchP
     redirect('/signin');
   }
   const user = session.user as SessionUser;
+  // Faculty/program-scoped overviews score TCAS peers against this
+  // institution's name (health-score.ts). Self-heals a skipped boot load.
+  await ensureOrganizationLoaded();
 
   // Scope-aware home page. Admin-grade + UNIVERSITY_USER see the full
   // 297-program rollup; FACULTY_USER sees their faculty's slice;

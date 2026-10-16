@@ -22,6 +22,8 @@ import { decodeJwt } from '@/lib/auth/jwt-codec';
 
 const PUBLIC_PATHS = [
   /^\/signin(\/|$)/,
+  // Brand assets — the sign-in page and favicon load them before a session exists.
+  /^\/brand\/(logo-light|logo-dark|favicon)$/,
   /^\/api\/auth(\/|$)/,
   // Public profile pages (per-user opt-in). The page itself enforces
   // the "is this slug public?" check against the DB; the middleware

@@ -77,7 +77,7 @@ import {
   parseSitemap,
   type SitemapEntry,
 } from '@kku/shared';
-import {
+import { loadOrganization,
   prisma,
   hashPage,
   heldAnnouncementLastmods,
@@ -248,6 +248,7 @@ async function applyBackfill(due: SitemapEntry[], runId: string): Promise<{ load
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const parsed = parseBackfillArgs(process.argv.slice(2));
   if (!parsed.ok) {
     console.error(parsed.error);

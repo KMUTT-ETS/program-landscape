@@ -287,10 +287,10 @@ scripts/       Release build, deploy, backup, restore, rollback, smoke test,
 | `AI_PROVIDER` | `google` (ค่าตั้งต้น) / `anthropic` / `stub` การใช้ tool-use (AI Analyst) ต้องเป็น `anthropic` |
 | `GOOGLE_AI_API_KEY` / `ANTHROPIC_API_KEY` | ต้องมีอย่างน้อยหนึ่งตัว ส่วน provider `stub` ทำงานได้โดยไม่ต้องมีคีย์เลย |
 | `CONNECTOR_MODE` | โหมดตั้งต้นของ connector ทุกตัว ช่วงแรกปล่อยไว้ที่ `mocked` |
-| `INSTITUTION_NAME_TH`, `INSTITUTION_NAME_EN` | **ตั้งเป็นชื่อสถาบันของท่าน** หากไม่ตั้ง ระบบจะใช้ค่าของ มข. และ connector TCAS, deep-dive และ health-score จะถือว่าแถวของ มข. เป็น "ของเรา" ชื่อภาษาไทยต้องตรงกับคอลัมน์ `สถาบัน` ในไฟล์ TCAS ทุกตัวอักษร ชื่อภาษาอังกฤษต้องตรงกับชื่อในตารางการจัดอันดับ ดู `packages/shared/src/institution.ts` |
-| `INSTITUTION_SHORT_NAME_EN`, `INSTITUTION_SHORT_NAME_TH` | ชื่อย่อของสถาบัน (ของ มข. คือ `KKU` / `มข.`) prompt ของ AI และ brief ของ AI Analyst ทุกตัวอ้างชื่อสถาบันจากค่านี้และชื่อเต็มทั้งสอง หากไม่ตั้ง AI จะเขียนบทวิเคราะห์ราวกับเป็นของ มข. |
-| `INSTITUTION_CONTACT_EMAIL`, `APP_PUBLIC_URL` | ใส่ใน User-Agent ของการดึงข้อมูลออกภายนอก (World Bank, TCAS, job-108, KMITL) ควรใช้อีเมลกลางของทีม |
+| *(ย้ายแล้ว)* | ตั้งค่าข้อมูลสถาบันในแอปที่ **/admin/organization** (ชื่อ ชื่อย่อ ภูมิภาค อีเมลติดต่อ URL สาธารณะ) ชื่อภาษาไทยต้องตรงกับคอลัมน์ สถาบัน ของ TCAS ทุกตัวอักษร ฟอร์มจะตรวจให้ |
 | `MINIO_*`, `REDIS_*`, `GOTENBERG_URL` | ค่าตั้งต้นสำหรับเครื่อง local ใน `.env.example` ใช้ได้เลยกับ `pnpm db:up` |
+
+สีและโลโก้ของแบรนด์ตั้งได้ที่แท็บ **Brand** ของหน้าเดียวกัน (`/admin/organization?tab=brand`) แอปจะสร้างเฉดสีสำหรับโหมดสว่างและมืดจากสีทั้งสองให้ และตรวจว่ายังอ่านได้ชัด
 
 **ช่องว่างใน `.env.example` ที่จะเจอแน่ ๆ** คีย์ `AI_PROVIDER`, `GOOGLE_AI_API_KEY`, `UNICON_DS2001_DB_*` และ `UNICON_DS1001_DB_*` มีบันทึกไว้ใน `.env.prod.example` แต่ **ไม่มีใน `.env.example`** ไฟล์ตัวอย่างฝั่ง dev ตามฝั่ง prod ไม่ทัน เวลา connector รายงานว่าค่าตั้งค่าขาด ให้ไปดู `.env.prod.example` และ `configFromEnv('<PREFIX>')` ในตัว connector ก่อน อย่าเพิ่งสรุปว่าคีย์นั้นไม่มีอยู่จริง
 

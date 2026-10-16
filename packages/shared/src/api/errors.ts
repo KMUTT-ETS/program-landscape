@@ -11,6 +11,8 @@ export const API_ERROR_CODES = [
   'RATE_LIMITED',
   'UPSTREAM_UNAVAILABLE',
   'AI_PROVIDER_ERROR',
+  'ORG_NOT_CONFIGURED',
+  'ORG_VERSION_CONFLICT',
   'INTERNAL',
 ] as const;
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];

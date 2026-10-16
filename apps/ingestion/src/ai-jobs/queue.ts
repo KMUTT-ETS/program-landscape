@@ -1,5 +1,6 @@
-import { Queue, Worker, QueueEvents, type ConnectionOptions, type WorkerOptions } from 'bullmq';
+import { Queue, Worker, QueueEvents, UnrecoverableError, type ConnectionOptions, type WorkerOptions } from 'bullmq';
 import { Logger } from '@nestjs/common';
+import { OrganizationNotConfiguredError } from '@kku/shared';
 import type { ProgramPipelinePhase, Role, ScholarTrigger } from '@kku/shared';
 import type { AiJobHandler } from './handlers';
 
@@ -226,6 +227,23 @@ export function aiJobsWorkerOptions(config: AiJobsConfig): Pick<WorkerOptions, '
   };
 }
 
+/**
+ * Runs one handler for the Worker. No organisation profile yet: retrying
+ * cannot help, so it becomes an UnrecoverableError (fails once). Everything
+ * else passes through so BullMQ's backoff still applies.
+ */
+export async function runAiJobHandler(
+  handler: AiJobHandler,
+  ctx: Parameters<AiJobHandler>[0],
+): ReturnType<AiJobHandler> {
+  try {
+    return await handler(ctx);
+  } catch (err) {
+    if (err instanceof OrganizationNotConfiguredError) throw new UnrecoverableError(err.message);
+    throw err;
+  }
+}
+
 export function createAiJobsWorker(
   config: AiJobsConfig,
   handlers: Record<AiJobKind, AiJobHandler>,
@@ -247,7 +265,7 @@ export function createAiJobsWorker(
       const handler = handlers[kind];
       if (!handler) throw new Error(`No handler registered for ${kind}`);
       logger.log(`Handling ${kind} entityId=${entityId} trigger=${trigger}`);
-      const outcome = await handler({
+      return runAiJobHandler(handler, {
         entityId,
         trigger,
         triggeredByUserId: triggeredByUserId ?? null,
@@ -256,7 +274,6 @@ export function createAiJobsWorker(
         scholarTrigger,
         scholarActorRole,
       });
-      return outcome;
     },
     {
       connection: redisConnection(config.redisUrl),

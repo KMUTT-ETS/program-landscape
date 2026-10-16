@@ -810,6 +810,14 @@ function buildGroups({
         : undefined,
     },
     {
+      href: '/admin/organization',
+      label: 'Organisation',
+      description:
+        'Your institution’s names, short names, region, contact email and public URL — used for TCAS matching, AI text and outbound requests.',
+      icon: <Building2 className="size-icon-xl" />,
+      roles: ADMIN_GRADE,
+    },
+    {
       href: '/admin/app/academic-year',
       label: 'Academic year',
       description:

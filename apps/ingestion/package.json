@@ -13,7 +13,8 @@
     "job108:backfill": "tsx src/scripts/job108-backfill.ts",
     "job108:calibrate": "tsx src/scripts/job108-calibrate.ts",
     "programs:overlap-prep": "tsx src/scripts/programs-overlap-prep.ts",
-    "programs:overlap": "tsx src/scripts/programs-overlap.ts"
+    "programs:overlap": "tsx src/scripts/programs-overlap.ts",
+    "org:seed-kku": "tsx src/scripts/org-seed-kku.ts"
   },
   "dependencies": {
     "@kku/db": "workspace:*",

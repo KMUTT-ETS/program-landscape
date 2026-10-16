@@ -33,11 +33,12 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 
 import { deriveJobThai } from '../jobthai/refresh';
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const apply = process.argv.includes('--apply');
   const skipSkills = process.argv.includes('--skip-skills');
   const t0 = Date.now();

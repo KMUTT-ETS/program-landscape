@@ -23,6 +23,7 @@
 //   pnpm programs:link-financials <code|mhesi|sequenceNo|id>
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { scriptExitCode } from '../lib/organization-exit';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -45,7 +46,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, refreshMetricViews, type ProgramLevel, Prisma } from '@kku/db';
+import { loadOrganization, prisma, refreshMetricViews, type ProgramLevel, Prisma } from '@kku/db';
 import { withScriptRun } from '../lib/script-run';
 import {
   withConnection as oracleWithConnection,
@@ -395,6 +396,7 @@ async function mainInner(args: ReturnType<typeof parseArgs>, runId: string): Pro
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const args = parseArgs(process.argv.slice(2));
   // Per-program financials derive from kku-finance (tuition Oracle view) +
   // kku-hr (per-staff salary MSSQL view). Attribute the synthetic run to
@@ -408,6 +410,6 @@ async function main(): Promise<void> {
 main()
   .catch((err) => {
     console.error(err);
-    process.exit(1);
+    process.exit(scriptExitCode(err));
   })
   .finally(() => prisma.$disconnect());

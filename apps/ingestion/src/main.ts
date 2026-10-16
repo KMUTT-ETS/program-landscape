@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
+import { loadOrganization, startOrganizationRefresh } from '@kku/db';
 import { assertLogLevelSafe, markDraining } from '@kku/shared';
 import { AppModule } from './app.module';
 
@@ -8,6 +9,12 @@ import { AppModule } from './app.module';
 assertLogLevelSafe();
 
 async function bootstrap() {
+  // Organisation identity (white-label). A missing profile must not stop the
+  // process booting — the admin needs the app up to fill it in; identity-dependent
+  // calls fail with ORG_NOT_CONFIGURED until then.
+  const org = await loadOrganization();
+  if (!org) console.warn('[organization] no organisation profile — /admin/organization to set one up');
+  startOrganizationRefresh();
   const app = await NestFactory.createApplicationContext(AppModule, {
     bufferLogs: true,
   });

@@ -42,7 +42,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 
 interface UniSeed {
   name: string;
@@ -128,6 +128,7 @@ const UNIVERSITIES: UniSeed[] = [
 ];
 
 async function main(): Promise<void> {
+  await loadOrganization();
   let upserted = 0;
   for (const u of UNIVERSITIES) {
     await prisma.rankedUniversity.upsert({

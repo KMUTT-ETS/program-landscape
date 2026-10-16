@@ -28,12 +28,13 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 import { S3Storage } from '@kku/shared';
 import { runImdRankingsExtract } from '../imd-rankings-extract/run';
 import { createIngestionAiService } from '../lib/ai-service';
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const args = process.argv.slice(2);
   const pdfId = args.find((a) => !a.startsWith('--')) ?? null;
   const force = args.includes('--force');

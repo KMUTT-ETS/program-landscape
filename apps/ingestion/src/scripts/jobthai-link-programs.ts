@@ -33,11 +33,12 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, JOBTHAI_MIN_POSTINGS_FOR_SIGNAL, MAX_PROGRAMMES_PER_FIELD, latestJobThaiScopedRunId } from '@kku/db';
+import { loadOrganization, prisma, JOBTHAI_MIN_POSTINGS_FOR_SIGNAL, MAX_PROGRAMMES_PER_FIELD, latestJobThaiScopedRunId } from '@kku/db';
 
 import { planJobThaiLinks, writeJobThaiLinks } from '../jobthai/refresh';
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const apply = process.argv.includes('--apply');
   const inspectIdx = process.argv.indexOf('--inspect');
   const inspectN = inspectIdx === -1 ? 0 : Number(process.argv[inspectIdx + 1] ?? 12);

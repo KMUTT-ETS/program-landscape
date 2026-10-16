@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { cookies } from 'next/headers';
 import { AppShell, LeftNav, TopBar, NAV_PREFERENCE_COOKIE, navVariantFromCookie } from '@kku/ui';
-import type { SessionUser } from '@kku/shared';
+import { can, type SessionUser } from '@kku/shared';
 import { appNavSectionsFor } from '@/lib/app-nav';
 import { fetchScopeEntities } from '@/lib/app-entities';
 import { UsageRecorder } from '@/components/usage-recorder';
@@ -12,9 +12,12 @@ import { TopBarBreadcrumb } from './top-bar-breadcrumb';
 import { ImpersonationBanner } from './impersonation-banner';
 import { IMPERSONATION_COOKIE, tryDecodeImpersonation } from '@/lib/auth/impersonation';
 import { resolveUserChrome } from '@/lib/display-name';
+import { brandingForRequest } from '@/lib/branding';
+import { OrgLogo } from '@/components/brand/org-logo';
+import { SetupBanner } from '@/components/brand/setup-banner';
 
 // Server component. 2026-04-24 redesign — the sidebar is now the
-// brand-home: KKU monogram + wordmark at the top, module tiles in the
+// brand-home: organisation logo + wordmark at the top, module tiles in the
 // middle, user chip at the bottom. The top bar is a slim 56px strip
 // holding breadcrumb + scope + search + utility cluster.
 
@@ -25,7 +28,7 @@ export async function AuthedAppShell({
   user: SessionUser;
   children: React.ReactNode;
 }) {
-  const [entities, cookieStore, chrome] = await Promise.all([
+  const [entities, cookieStore, chrome, branding] = await Promise.all([
     fetchScopeEntities(),
     cookies(),
     // Avatar URL + rank-prefixed Thai/English name. `chrome.name` is
@@ -34,6 +37,7 @@ export async function AuthedAppShell({
     // `chrome.avatarUrl` is null when no photo uploaded — initials
     // render instead.
     resolveUserChrome(user.userId).catch(() => ({ name: null, avatarUrl: null })),
+    brandingForRequest(),
   ]);
   const impersonation = tryDecodeImpersonation(cookieStore.get(IMPERSONATION_COOKIE)?.value);
   // Sidebar collapse state, resolved here rather than after hydration so
@@ -42,32 +46,13 @@ export async function AuthedAppShell({
 
   const brand = (
     <>
-      {/* KKU logo — theme-aware. Both variants are rendered; CSS
-          shows the right one based on `data-theme="dark"` on <html>.
-          Source: /home/denpong/KKULogo (Cabinet-mandated official
-          logo set). Hard-locked to fit the 50×30 placeholder:
-          explicit h/w on both placeholder AND image, plus
-          object-contain + overflow-hidden so nothing escapes. */}
+      {/* Organisation logo (theme-aware pair) or the product mark until
+          one is uploaded. Fixed 30x50 box so nothing escapes. */}
       <div
         className="relative flex h-[50px] w-[30px] shrink-0 items-center justify-center overflow-hidden"
-        title="KKU Curriculum Intelligence Platform · Program Landscape"
+        title={branding?.tagline ?? 'Program Landscape'}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/brand/kku-logo-light.png"
-          alt="KKU"
-          width={30}
-          height={50}
-          className="block h-[50px] w-[30px] object-contain dark:hidden"
-        />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/brand/kku-logo-dark.png"
-          alt="KKU"
-          width={30}
-          height={50}
-          className="hidden h-[50px] w-[30px] object-contain dark:block"
-        />
+        <OrgLogo branding={branding} width={30} height={50} className="h-[50px] w-[30px]" />
       </div>
       {/* `kku-nav-collapsible` — the wordmark is what the icon rail
           drops; the logo tile above stays. See tokens.css. */}
@@ -76,7 +61,7 @@ export async function AuthedAppShell({
           Program Landscape
         </span>
         <span className="mt-1.5 truncate text-[10.5px] font-semibold uppercase tracking-[0.14em] text-accent-default">
-          KKU Curriculum Intelligence
+          {branding ? `${branding.shortNameEn} Curriculum Intelligence` : 'Curriculum Intelligence'}
         </span>
       </div>
     </>
@@ -112,6 +97,7 @@ export async function AuthedAppShell({
           entities={entities}
         />
       )}
+      {!branding && <SetupBanner canConfigure={can(user, 'settings:configure')} />}
       {children}
     </AppShell>
   );

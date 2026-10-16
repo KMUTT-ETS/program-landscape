@@ -34,7 +34,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 
 const KKU_PROGRAMS_DIR = '/home/denpong/kku_programs';
 const LEVEL_DIR_TO_ENUM: Record<string, string> = {
@@ -125,6 +125,7 @@ function findCandidates(majorName: string, orphans: DiskPdf[], facultyDir: strin
 // ── Main ───────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const allDiskPdfs = await walkDisk();
   console.log(`PDFs on disk: ${allDiskPdfs.length}`);
 

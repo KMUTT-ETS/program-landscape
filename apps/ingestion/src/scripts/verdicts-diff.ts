@@ -25,7 +25,7 @@
 //   pnpm verdicts:diff --bucket FLIPPED      # filter output to one bucket
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 
 // ── Thresholds — change with care; the bands are calibration choices ──
 const HEALTH_BAND_BOUNDARIES = [40, 65] as const;
@@ -123,6 +123,7 @@ async function resolveSnapshotTimestamps(args: CliArgs): Promise<{ from: Date; t
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const args = parseArgs(process.argv.slice(2));
   const { from, to } = await resolveSnapshotTimestamps(args);
 

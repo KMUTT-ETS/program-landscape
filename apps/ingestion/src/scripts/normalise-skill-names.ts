@@ -58,7 +58,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, recordAliasDecision, relinkUsingAliases, type SkillAliasSourceContext, findSkillByNormalisedName } from '@kku/db';
+import { loadOrganization, prisma, recordAliasDecision, relinkUsingAliases, type SkillAliasSourceContext, findSkillByNormalisedName } from '@kku/db';
 import {
   buildSkillNormaliserMessages,
   SkillNormaliserBatchSchema,
@@ -384,6 +384,7 @@ async function runForSource(
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const args = parseArgs(process.argv.slice(2));
   console.log('Skill-name normaliser');
   console.log(`  source=${args.source} limit=${args.limit ?? '∞'} batchSize=${args.batchSize} dryRun=${args.dryRun} autoPromote=${args.autoPromote}`);

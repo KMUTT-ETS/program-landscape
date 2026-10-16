@@ -6,7 +6,13 @@ import type {
   IngestionRunTrigger,
   NormalizedRecord,
 } from '@kku/shared';
+import { OrganizationNotConfiguredError } from '@kku/shared';
 import { NonRetryableError } from './base';
+
+/** A fresh install with no organisation profile: retrying cannot help until an admin fills it in. */
+export function isOrganizationNotConfigured(err: unknown): boolean {
+  return err instanceof OrganizationNotConfiguredError;
+}
 
 // ConnectorRunner is the single entry point for executing a connector.
 // The BullMQ worker calls it for scheduled jobs; the /pdf/run-now admin
@@ -216,9 +222,12 @@ export class ConnectorRunner {
         recordsFailed: result.recordsFailed,
       };
     } catch (err) {
-      const isNonRetryable = err instanceof NonRetryableError;
+      const orgMissing = isOrganizationNotConfigured(err);
+      const isNonRetryable = err instanceof NonRetryableError || orgMissing;
       const message = err instanceof Error ? err.message : String(err);
-      const code = err instanceof NonRetryableError ? err.code : 'UNCAUGHT';
+      let code = 'UNCAUGHT';
+      if (err instanceof NonRetryableError) code = err.code;
+      else if (orgMissing) code = 'ORG_NOT_CONFIGURED';
 
       await prisma.ingestionRun.update({
         where: { id: run.id },

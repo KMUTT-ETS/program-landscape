@@ -28,6 +28,7 @@
 //   pnpm programs:link-class-offerings --since-year=2567   # bachelor/etc only
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { scriptExitCode } from '../lib/organization-exit';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -49,7 +50,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, Prisma } from '@kku/db';
+import { loadOrganization, prisma, Prisma } from '@kku/db';
 import { withScriptRun } from '../lib/script-run';
 import {
   withConnection as oracleWithConnection,
@@ -124,6 +125,7 @@ function parseArgs(argv: string[]): CliArgs {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const args = parseArgs(process.argv.slice(2));
   console.log(`Mode: ${args.apply ? 'APPLY' : 'DRY RUN'}${args.sinceYear ? ` · since BE ${args.sinceYear}` : ''}`);
 
@@ -357,7 +359,7 @@ async function main(): Promise<void> {
 main()
   .catch((err) => {
     console.error(err);
-    process.exit(1);
+    process.exit(scriptExitCode(err));
   })
   .finally(async () => {
     await prisma.$disconnect();

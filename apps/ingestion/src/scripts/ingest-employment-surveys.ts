@@ -38,7 +38,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 import { withScriptRun } from '../lib/script-run';
 import { createIngestionAiService } from '../lib/ai-service';
 import {
@@ -83,6 +83,7 @@ function normaliseForMatch(s: string): string {
 }
 
 async function main() {
+  await loadOrganization();
   const args = process.argv.slice(2);
   const pdfs = pickPdfs(args);
   console.log(`━━━ Ingesting ${pdfs.length} employment-survey PDF(s) ━━━\n`);

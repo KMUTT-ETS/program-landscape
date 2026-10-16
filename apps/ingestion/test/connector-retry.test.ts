@@ -40,6 +40,7 @@ vi.mock('@kku/db', () => ({
 }));
 
 import { ConnectorRunner } from '../src/connectors/runner';
+import { OrganizationNotConfiguredError } from '@kku/shared';
 import { NonRetryableError } from '../src/connectors/base/base-connector';
 import type {
   Connector,
@@ -146,6 +147,23 @@ describe('ConnectorRunner — retry contract (BullMQ interplay)', () => {
     expect(updateCall.data.status).toBe('FAILED');
     // Generic errors get the UNCAUGHT code so the operator can grep them.
     expect(updateCall.data.errorCode).toBe('UNCAUGHT');
+    expect(mocks.dataSourceUpdate).not.toHaveBeenCalled();
+  });
+
+  it('OrganizationNotConfiguredError: marks FAILED ORG_NOT_CONFIGURED + returns (no retry)', async () => {
+    const conn = new StubConnector(async () => {
+      throw new OrganizationNotConfiguredError();
+    });
+    const runner = new ConnectorRunner(new Map([[conn.slug, conn]]));
+
+    const outcome = await runner.run({ dataSourceSlug: 'stub', trigger: 'SCHEDULED' });
+
+    expect(outcome.status).toBe('FAILED');
+    const updateCall = mocks.runUpdate.mock.calls[0]?.[0] as {
+      data: { status: string; errorCode: string };
+    };
+    expect(updateCall.data.status).toBe('FAILED');
+    expect(updateCall.data.errorCode).toBe('ORG_NOT_CONFIGURED');
     expect(mocks.dataSourceUpdate).not.toHaveBeenCalled();
   });
 

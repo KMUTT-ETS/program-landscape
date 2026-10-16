@@ -20,7 +20,7 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { Prisma, prisma } from '@kku/db';
+import { loadOrganization, Prisma, prisma } from '@kku/db';
 
 interface CliArgs {
   list: boolean;
@@ -211,6 +211,7 @@ async function commitLabel(extractionId: string, outDir: string, who: string | n
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const args = parseArgs(process.argv.slice(2));
 
   try {

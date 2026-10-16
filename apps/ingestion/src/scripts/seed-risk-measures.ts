@@ -45,7 +45,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, Prisma, RISK_SCORING_VERSION } from '@kku/db';
+import { loadOrganization, prisma, Prisma, RISK_SCORING_VERSION } from '@kku/db';
 
 const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run');
@@ -214,6 +214,7 @@ function buildMeasures(row: AssessmentRow): Measure[] {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   console.log(`[seed-measures] mode=${dryRun ? 'DRY-RUN' : 'APPLY'}${replace ? ' (replacing existing)' : ''}${onlyEmpty ? ' (only-empty)' : ''}`);
 
   // SAFETY: $queryRawUnsafe with a fully hardcoded SQL string (no user

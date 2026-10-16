@@ -66,7 +66,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, activeRevisionIdFor } from '@kku/db';
+import { loadOrganization, prisma, activeRevisionIdFor } from '@kku/db';
 import { CourseCategorySchema, type CourseCategory } from '@kku/shared';
 import { withScriptRun } from '../lib/script-run';
 import { normaliseCourseCode } from '../lib/course-code';
@@ -102,6 +102,7 @@ function parseArgs(argv: string[]): { apply: boolean; force: boolean } {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const args = parseArgs(process.argv.slice(2));
   console.log(`Mode: ${args.apply ? 'APPLY' : 'DRY RUN'}${args.force ? ' (--force: guard DISABLED)' : ''}`);
 

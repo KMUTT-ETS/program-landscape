@@ -47,7 +47,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 
 interface FacultyTreeRow {
   id: number;
@@ -79,6 +79,7 @@ function extractThaiName(aliasDefault: string): string {
 }
 
 async function main(): Promise<number> {
+  await loadOrganization();
   const dryRun = process.argv.includes('--dry-run');
 
   if (!existsSync(FIXTURE_PATH)) {

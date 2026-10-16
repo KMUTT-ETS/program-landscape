@@ -1,4 +1,5 @@
 #!/usr/bin/env tsx
+import { loadOrganization } from '@kku/db';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 function loadDotEnv(envPath: string): void {
@@ -17,6 +18,7 @@ function loadDotEnv(envPath: string): void {
 loadDotEnv(path.resolve(process.cwd(), '.env'));
 import { configFromEnv, query, withConnection } from '../lib/oracle-client';
 async function main() {
+  await loadOrganization();
   await withConnection(configFromEnv('KKU_REGISTRY_DB'), async (conn) => {
     // Is PLAN_PER_YEAR constant across rounds within a (CURR_ID, ACADYEAR)?
     const variation = await query<{ N: number }>(conn,

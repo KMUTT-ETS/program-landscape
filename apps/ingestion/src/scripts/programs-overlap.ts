@@ -34,7 +34,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import {
+import { loadOrganization,
   prisma,
   cosine,
   loadOverlapProgrammes,
@@ -278,6 +278,7 @@ async function calibrateLevel(level: ProgramLevel, faculty: ReadonlyMap<string, 
 // ── Main ────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
+  await loadOrganization();
   let args: OverlapCliArgs;
   try {
     args = parseOverlapArgs(process.argv.slice(2));

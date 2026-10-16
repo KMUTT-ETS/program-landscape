@@ -53,7 +53,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, type ProgramLevel, type ProgramStatus } from '@kku/db';
+import { loadOrganization, prisma, type ProgramLevel, type ProgramStatus } from '@kku/db';
 
 const SHEET_URL =
   'https://docs.google.com/spreadsheets/d/1d_JxDNNCtgnFEwRAhmQy64npYYRAAclAdwNK_pYFsEg/export?format=csv&gid=0';
@@ -397,6 +397,7 @@ async function seedProgramsFromCsv(rows: SheetRow[]): Promise<SeedReport> {
 // ─── Main orchestrator ───────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const mode = WIPE ? 'WIPE+RECREATE' : DRY_RUN ? 'DRY RUN (smart-merge)' : 'SMART-MERGE (writes)';
   console.log(`Mode: ${mode}`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');

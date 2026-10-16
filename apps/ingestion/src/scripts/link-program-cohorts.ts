@@ -20,6 +20,7 @@
 //   pnpm programs:link-cohorts --all --dry-run                # preview only
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { scriptExitCode } from '../lib/organization-exit';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -45,7 +46,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, type ProgramLevel } from '@kku/db';
+import { loadOrganization, prisma, type ProgramLevel } from '@kku/db';
 import { withScriptRun } from '../lib/script-run';
 import { OracleSession, configFromEnv as oracleConfigFromEnv } from '../lib/oracle-client';
 
@@ -219,6 +220,7 @@ async function processProgram(
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const args = parseArgs(process.argv.slice(2));
   console.log(`Mode: ${args.apply ? 'APPLY' : 'DRY RUN'}`);
 
@@ -296,7 +298,7 @@ async function main(): Promise<void> {
 main()
   .catch((err) => {
     console.error(err);
-    process.exit(1);
+    process.exit(scriptExitCode(err));
   })
   .finally(async () => {
     await prisma.$disconnect();

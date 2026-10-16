@@ -36,7 +36,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, programLifecycleVerdict } from '@kku/db';
+import { loadOrganization, prisma, programLifecycleVerdict } from '@kku/db';
 
 interface CliArgs {
   programArg: string | null;
@@ -91,6 +91,7 @@ async function resolveTargets(args: CliArgs): Promise<Array<{ id: string; code: 
 }
 
 async function main() {
+  await loadOrganization();
   const args = parseArgs(process.argv.slice(2));
   const targets = await resolveTargets(args);
 

@@ -2,6 +2,8 @@ import { SignInForm } from './sign-in-form';
 import { prisma } from '@kku/db';
 import { SignalsFeed, type FeedItem } from './signals-feed';
 import { fetchTodaysHeadlines, type NewsItem } from '@/lib/news/today';
+import { ProductMark } from '@/components/brand/product-mark-component';
+import { brandingForRequest } from '@/lib/branding';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +35,7 @@ export default async function SignInPage() {
       process.env.KKU_SSO_REDIRECT_URI,
   );
   const localAuthEnabled = process.env.ENABLE_LOCAL_AUTH === 'true';
+  const branding = await brandingForRequest();
 
   // News fetch (parallel), with TrendSignal fallback so the right pane
   // is always populated during dev / offline.
@@ -81,7 +84,8 @@ export default async function SignInPage() {
       <section className="relative bg-surface-1 flex flex-col md:min-h-screen">
         <header className="w-full px-6 pt-8 sm:px-10 sm:pt-10 md:px-16 md:pt-12">
           <div className="flex items-center gap-2.5">
-            <BrandMark />
+            {/* The product's own mark beside its wordmark; the organisation is named in the sentence and footer. */}
+            <ProductMark size={22} />
             <span className="text-[14px] font-medium tracking-tight text-text-primary">
               Program Landscape
             </span>
@@ -94,7 +98,7 @@ export default async function SignInPage() {
               Sign in
             </h1>
             <p className="mt-2 text-[13px] text-text-secondary leading-relaxed">
-              Use your KKU institutional account. Access is scoped to your role.
+              Use your {branding ? `${branding.shortNameEn} ` : ''}institutional account. Access is scoped to your role.
             </p>
 
             <div className="mt-7">
@@ -119,7 +123,7 @@ export default async function SignInPage() {
           </div>
           <div className="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[11px] leading-relaxed text-text-tertiary">
             <span className="text-text-secondary font-medium whitespace-nowrap">
-              © {new Date().getFullYear()} Khon Kaen University · Conceived by Dr. Denpong Soodphakdee
+              © {new Date().getFullYear()} {branding?.nameEn ?? 'Program Landscape'} · Conceived by Dr. Denpong Soodphakdee
             </span>
             <span className="whitespace-nowrap">
               · Vice President for Education and Digital
@@ -234,16 +238,4 @@ function shuffle<T>(arr: T[]): T[] {
     a[j] = ai;
   }
   return a;
-}
-
-// Compact brand mark — four bubbles in 2×2 (BCG-matrix nod).
-function BrandMark() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden className="shrink-0">
-      <circle cx="6" cy="6" r="2.6" className="fill-accent-default" opacity="0.6" />
-      <circle cx="16" cy="6" r="3.6" className="fill-accent-default" />
-      <circle cx="6" cy="16" r="2.0" className="fill-accent-default" opacity="0.4" />
-      <circle cx="16" cy="16" r="2.6" className="fill-accent-default" opacity="0.7" />
-    </svg>
-  );
 }

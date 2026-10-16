@@ -165,7 +165,7 @@ df -h .                                            # ~9 GB free: archive + unpac
 sha256sum -c program-landscape-1.0.0.tar.zst.sha256
 tar --zstd -xf program-landscape-1.0.0.tar.zst
 cd program-landscape-1.0.0
-./scripts/deploy.sh
+ORG_SEED_KKU=1 ./scripts/deploy.sh                 # KKU's own server; other installs omit ORG_SEED_KKU
 ```
 
 ### Alternative: stream the images, skip the archive entirely
@@ -180,12 +180,26 @@ ssh kku-prod 'docker load' < dist/releases/program-landscape-1.0.0/images.tar
 rsync -a --partial --exclude images.tar \
   dist/releases/program-landscape-1.0.0/ kku-prod:~/program-landscape-1.0.0/
 
-# on the server
-cd ~/program-landscape-1.0.0 && ./scripts/deploy.sh
+# on the server (KKU; other installs omit ORG_SEED_KKU)
+cd ~/program-landscape-1.0.0 && ORG_SEED_KKU=1 ./scripts/deploy.sh
 ```
 
 Integrity still holds: `docker load` verifies every layer digest, so a
 corrupted transfer fails there rather than silently deploying.
+
+**Organisation profile.** KKU's production deploys run
+`ORG_SEED_KKU=1 ./scripts/deploy.sh …`, which seeds the KKU organisation
+profile before traffic resumes (a no-op once it exists; the one-time seed
+carries the old `INSTITUTION_CONTACT_EMAIL` / `OPENALEX_MAILTO` value over as
+the User-Agent contact email). Other installs leave `ORG_SEED_KKU` unset and
+fill in `/admin/organization` after first boot; the smoke test prints a
+warning, not a failure, until they do. **On an upgrade** (a `current` release
+already exists) without `ORG_SEED_KKU=1`, `deploy.sh` checks that the profile
+exists and stops before the swap when it does not — re-run with
+`ORG_SEED_KKU=1` (KKU) or `ORG_ALLOW_UNCONFIGURED=1` (other installs, then fill
+in `/admin/organization` after the deploy).
+
+`ORG_SEED_KKU=1` also fills KKU's logos, favicon and colours into the brand fields that are still empty (logos go to the MinIO `branding` bucket); it never overwrites anything an admin set.
 
 `deploy.sh` is idempotent and covers:
 1. Loads images from `images.tar` (no Docker Hub pull needed).

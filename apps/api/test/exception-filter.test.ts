@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BadRequestException, Logger, NotFoundException, type ArgumentsHost } from '@nestjs/common';
-import { ApiError } from '@kku/shared';
+import {
+  ApiError,
+  OrganizationNotConfiguredError,
+  OrganizationNotLoadedError,
+  OrganizationVersionConflictError,
+} from '@kku/shared';
 import {
   GlobalExceptionFilter,
   MALFORMED_JSON_MESSAGE,
@@ -87,5 +92,23 @@ describe('GlobalExceptionFilter — log scrubbing', () => {
     const { logged } = run(new ApiError('INTERNAL', `lookup failed for ${RAW_ID} ${'x'.repeat(300)}`));
     expect(logged).not.toContain(RAW_ID);
     expect(logged).toContain('[REDACTED:THAI_ID]');
+  });
+});
+
+describe('GlobalExceptionFilter — organisation errors', () => {
+  it('maps a missing profile to 409 ORG_NOT_CONFIGURED', () => {
+    const { status, body } = run(new OrganizationNotConfiguredError());
+    expect(status).toBe(409);
+    expect(body.error.code).toBe('ORG_NOT_CONFIGURED');
+  });
+
+  it('maps a stale save to 409 ORG_VERSION_CONFLICT', () => {
+    const { status, body } = run(new OrganizationVersionConflictError());
+    expect(status).toBe(409);
+    expect(body.error.code).toBe('ORG_VERSION_CONFLICT');
+  });
+
+  it('keeps a never-loaded cache a 500 — it is a code defect', () => {
+    expect(run(new OrganizationNotLoadedError()).status).toBe(500);
   });
 });

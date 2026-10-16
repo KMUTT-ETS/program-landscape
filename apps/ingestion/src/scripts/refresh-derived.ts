@@ -48,7 +48,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, programLifecycleVerdict } from '@kku/db';
+import { loadOrganization, prisma, programLifecycleVerdict } from '@kku/db';
 
 const MV_NAMES = [
   'mv_program_metrics',
@@ -113,6 +113,7 @@ async function recomputeLifecycleSnapshots(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const args = parseArgs(process.argv.slice(2));
   const t0 = Date.now();
 

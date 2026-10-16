@@ -36,6 +36,7 @@
 // emails or other PII.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { loadOrganization } from '@kku/db';
 import { existsSync, readFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -410,6 +411,7 @@ metadata; no PII.
 `.trim();
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const subcommand = process.argv[2];
   if (!subcommand) {
     console.error(HELP);

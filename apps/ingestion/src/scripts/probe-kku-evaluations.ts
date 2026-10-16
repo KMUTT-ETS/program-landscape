@@ -30,6 +30,7 @@
 //   pnpm evaluations:probe schema                 (single section)
 // ───────────────────────────────────────────────────────────────────────
 
+import { loadOrganization } from '@kku/db';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -529,6 +530,7 @@ async function runPiiAudit(
 
 // ── main ────────────────────────────────────────────────────────────────
 async function main(): Promise<void> {
+  await loadOrganization();
   const sections = (process.argv[2] ?? 'all').toLowerCase();
   const wanted = new Set(
     sections === 'all'

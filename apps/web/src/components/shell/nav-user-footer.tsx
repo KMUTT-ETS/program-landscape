@@ -1,12 +1,14 @@
 import Link from 'next/link';
 import { resolveReleaseVersion } from '@/lib/release-version';
+import { brandingForRequest } from '@/lib/branding';
 
 // Sidebar footer credits. After the 2026-05-09 chrome consolidation
 // (account/theme/sign-out moved into the top-bar dropdown) the only
 // thing left in the sidebar footer is this signature block — kept
 // intentionally always-visible at the bottom of the nav.
 
-export function NavCredits() {
+export async function NavCredits() {
+  const branding = await brandingForRequest();
   const year = new Date().getFullYear();
   // Resolved at request time, not baked in — this is a server component.
   // In prod that is RELEASE_VERSION from the container environment; in dev
@@ -18,7 +20,7 @@ export function NavCredits() {
       {/* justify-between, not a gap: the year and the version are both
           numbers and read as one run when only whitespace separates them. */}
       <div className="flex items-baseline justify-between gap-2 font-medium text-nav-fg/80">
-        <span>© {year} Khon Kaen University</span>
+        <span>© {year} {branding?.nameEn ?? 'Program Landscape'}</span>
         {release && (
           <span className="font-tabular shrink-0 text-nav-fg-muted" title={`Release ${release}`}>
             v{release}

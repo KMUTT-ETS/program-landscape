@@ -58,7 +58,7 @@ export async function POST(): Promise<NextResponse> {
   // Resolve facultyMemberId for the AiInference source-id.
   const facultyMemberId = await resolveFacultyMemberId(user.userId);
 
-  const narrative = await generateExpertiseNarrative(
+  const { narrative, cacheable } = await generateExpertiseNarrative(
     { education, publicationTitles: titles },
     { userId: user.userId, facultyMemberId },
   );
@@ -66,42 +66,46 @@ export async function POST(): Promise<NextResponse> {
   // Persist (upsert by userId + methodVersion) so subsequent profile
   // loads serve from cache. Confidence=0 indicates the placeholder
   // path (no AI key); we still cache it so the page doesn't auto-fire
-  // a guaranteed-empty regeneration on every visit.
-  try {
-    // narrativeTh is intentionally omitted — expertise-narrative.v3 no
-    // longer generates Thai analysis prose (docs/prompt-standard.md);
-    // the column is nullable as of migration
-    // 20260817130000_expertise_narrative_th_nullable and v3+ rows leave
-    // it null. Historical v1/v2 rows (different methodVersion, so a
-    // different upsert key) keep their Thai content untouched.
-    await prisma.userExpertiseNarrative.upsert({
-      where: {
-        userId_methodVersion: {
+  // a guaranteed-empty regeneration on every visit. A placeholder caused by
+  // a missing/unloaded organisation profile is NOT cached (cacheable=false):
+  // that failure is transient and must not stick to the user's profile.
+  if (cacheable) {
+    try {
+      // narrativeTh is intentionally omitted — expertise-narrative.v3 no
+      // longer generates Thai analysis prose (docs/prompt-standard.md);
+      // the column is nullable as of migration
+      // 20260817130000_expertise_narrative_th_nullable and v3+ rows leave
+      // it null. Historical v1/v2 rows (different methodVersion, so a
+      // different upsert key) keep their Thai content untouched.
+      await prisma.userExpertiseNarrative.upsert({
+        where: {
+          userId_methodVersion: {
+            userId: user.userId,
+            methodVersion: EXPERTISE_NARRATIVE_VERSION,
+          },
+        },
+        update: {
+          narrativeEn: narrative.narrativeEn,
+          expertiseKeywordsTh: narrative.expertiseKeywordsTh,
+          expertiseKeywordsEn: narrative.expertiseKeywordsEn,
+          confidence: narrative.confidence,
+          generatedAt: new Date(),
+        },
+        create: {
           userId: user.userId,
           methodVersion: EXPERTISE_NARRATIVE_VERSION,
+          narrativeEn: narrative.narrativeEn,
+          expertiseKeywordsTh: narrative.expertiseKeywordsTh,
+          expertiseKeywordsEn: narrative.expertiseKeywordsEn,
+          confidence: narrative.confidence,
         },
-      },
-      update: {
-        narrativeEn: narrative.narrativeEn,
-        expertiseKeywordsTh: narrative.expertiseKeywordsTh,
-        expertiseKeywordsEn: narrative.expertiseKeywordsEn,
-        confidence: narrative.confidence,
-        generatedAt: new Date(),
-      },
-      create: {
-        userId: user.userId,
-        methodVersion: EXPERTISE_NARRATIVE_VERSION,
-        narrativeEn: narrative.narrativeEn,
-        expertiseKeywordsTh: narrative.expertiseKeywordsTh,
-        expertiseKeywordsEn: narrative.expertiseKeywordsEn,
-        confidence: narrative.confidence,
-      },
-    });
-  } catch (err) {
-    // Cache write failed — return the narrative anyway. Subsequent
-    // visits will retry the generation; the user still sees a result
-    // on this visit.
-    console.error('[profile-narrative] failed to persist:', err);
+      });
+    } catch (err) {
+      // Cache write failed — return the narrative anyway. Subsequent
+      // visits will retry the generation; the user still sees a result
+      // on this visit.
+      console.error('[profile-narrative] failed to persist:', err);
+    }
   }
 
   return NextResponse.json({

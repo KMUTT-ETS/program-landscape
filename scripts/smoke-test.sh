@@ -41,6 +41,17 @@ check "GET $BASE_HTTP/ → 301" \
 check "GET $BASE_HTTPS/api/v1/ready → status=ok" \
   "curl -fsS -k --http1.1 -H 'Host: program-landscape.kku.ac.th' -m 15 '$BASE_HTTPS/api/v1/ready' | grep -q '\"status\":\"ok\"'"
 
+# ── Organisation identity is seeded ───────────────────────────────────
+# Never a failure: a fresh non-KKU install legitimately has no profile until
+# its admin fills in /admin/organization (the API answers 409 then, so the
+# body is read without -f). Reachability is already covered by /ready above.
+ORG_BODY="$(curl -sS -k --http1.1 -H 'Host: program-landscape.kku.ac.th' -m 10 "$BASE_HTTPS/api/v1/organization" 2>/dev/null || true)"
+if echo "$ORG_BODY" | grep -q '"configured":true'; then
+  ok "GET $BASE_HTTPS/api/v1/organization → configured"
+else
+  printf '  \033[1;33mWARNING: organisation profile not configured — fill in /admin/organization (KKU: deploy with ORG_SEED_KKU=1)\033[0m\n'
+fi
+
 # ── API public auth route ─────────────────────────────────────────────
 check "GET $BASE_HTTPS/api/auth/providers → 200" \
   "curl -fsS -k --http1.1 -H 'Host: program-landscape.kku.ac.th' -m 10 -o /dev/null -w '%{http_code}' '$BASE_HTTPS/api/auth/providers' | grep -qx 200"

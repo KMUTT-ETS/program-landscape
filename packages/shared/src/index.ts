@@ -20,6 +20,7 @@ export * from './dq/module-skills';
 export * from './aunqa/criteria';
 export * from './identity';
 export * from './institution';
+export * from './organization';
 export * from './net';
 export * from './observability';
 export * from './resilience';
@@ -46,3 +47,5 @@ export const ScopeParamsSchema = z.object({
 });
 export type ScopeParams = z.infer<typeof ScopeParamsSchema>;
 export * from './staff-profile';
+
+export * from './brand';

@@ -15,6 +15,7 @@
 //   pnpm programs:approve-pending --reviewer <email>        # override default
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { scriptExitCode } from '../lib/organization-exit';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -37,7 +38,7 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { prisma, materialiseProgramDigest } from '@kku/db';
+import { loadOrganization, prisma, materialiseProgramDigest } from '@kku/db';
 
 const args = process.argv.slice(2);
 function flag(name: string): string | undefined {
@@ -58,6 +59,7 @@ interface RowOutcome {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const reviewer = await prisma.user.findUnique({
     where: { email: REVIEWER_EMAIL },
     select: { id: true, email: true },
@@ -138,6 +140,6 @@ async function main(): Promise<void> {
 main()
   .catch((err) => {
     console.error(err);
-    process.exit(1);
+    process.exit(scriptExitCode(err));
   })
   .finally(() => prisma.$disconnect());

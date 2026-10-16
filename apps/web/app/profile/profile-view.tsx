@@ -45,7 +45,7 @@ const T = {
     pageTitle: 'โปรไฟล์ของฉัน',
     pageSubtitle: 'ประวัติและผลงานทางวิชาการ',
     publicHeaderTitle: 'ประวัติและผลงานทางวิชาการ',
-    publicHeaderSubtitle: 'มหาวิทยาลัยขอนแก่น',
+    publicHeaderSubtitle: '',
     notProvisioned:
       'ยังไม่พบบันทึกบุคลากรของคุณในระบบ — ระบบจะเชื่อมโยงข้อมูลจากฝ่ายทรัพยากรบุคคลในการเข้าใช้งานครั้งถัดไป หากปัญหายังคงอยู่กรุณาติดต่อผู้ดูแลระบบ',
     sectionAbout: 'สรุปความเชี่ยวชาญ',
@@ -100,7 +100,7 @@ const T = {
     pageTitle: 'My profile',
     pageSubtitle: 'Academic resume and research record',
     publicHeaderTitle: 'Academic Resume and Research Record',
-    publicHeaderSubtitle: 'Khon Kaen University',
+    publicHeaderSubtitle: '',
     notProvisioned:
       'Your staff record is not yet linked in the system — it will be reconciled from HR on your next sign-in. Contact your administrator if the issue persists.',
     sectionAbout: 'Expertise summary',
@@ -166,6 +166,9 @@ export function ProfileView({
   scholarSlot = null,
   teachingEvaluation = null,
   grants = 'unavailable',
+  logoLightUrl = null,
+  logoDarkUrl = null,
+  orgName = null,
 }: {
   profile: ProfileData | null;
   userEmail: string;
@@ -184,6 +187,11 @@ export function ProfileView({
   teachingEvaluation?: TeachingEvaluationSummary | null | 'unavailable';
   // Owner-only grants summary; same rules as teachingEvaluation above.
   grants?: GrantsPanelState;
+  // Organisation logo URLs for the hero mark; null hides it.
+  logoLightUrl?: string | null;
+  logoDarkUrl?: string | null;
+  // Organisation name for the public header subtitle; null omits it.
+  orgName?: { th: string; en: string } | null;
 }) {
   const [lang, setLang] = React.useState<Lang>('en');
   const t = T[lang];
@@ -193,7 +201,7 @@ export function ProfileView({
       <>
         <PageHeader
           title={publicMode ? t.publicHeaderTitle : t.pageTitle}
-          subtitle={publicMode ? t.publicHeaderSubtitle : t.pageSubtitle}
+          subtitle={publicMode ? (orgName?.[lang] ?? undefined) : t.pageSubtitle}
           actions={<LangToggle lang={lang} onChange={setLang} />}
         />
         <Section>
@@ -241,7 +249,7 @@ export function ProfileView({
     <>
       <PageHeader
         title={publicMode ? t.publicHeaderTitle : t.pageTitle}
-        subtitle={publicMode ? t.publicHeaderSubtitle : t.pageSubtitle}
+        subtitle={publicMode ? (orgName?.[lang] ?? undefined) : t.pageSubtitle}
         actions={<LangToggle lang={lang} onChange={setLang} />}
       />
 
@@ -259,6 +267,8 @@ export function ProfileView({
         talent={profile.talent}
         t={t}
         publicMode={publicMode}
+        logoLightUrl={logoLightUrl}
+        logoDarkUrl={logoDarkUrl}
       />
 
       <ExpertiseNarrativeSection
@@ -326,6 +336,8 @@ function ProfileHero({
   talent,
   t,
   publicMode = false,
+  logoLightUrl = null,
+  logoDarkUrl = null,
 }: {
   fullName: string;
   rankLabel: string;
@@ -340,6 +352,8 @@ function ProfileHero({
   talent: ProfileData['talent'];
   t: (typeof T)[Lang];
   publicMode?: boolean;
+  logoLightUrl?: string | null;
+  logoDarkUrl?: string | null;
 }) {
   const initials = fullName
     .replace(/^(ผศ\.|รศ\.|ศ\.|ดร\.|อ\.|Asst\.|Assoc\.|Prof\.|Dr\.|Lect\.)\s*/gi, '')
@@ -364,11 +378,12 @@ function ProfileHero({
         aria-hidden
         className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-accent-default/10 blur-3xl"
       />
-      {/* KKU logo — top-right corner, theme-aware. Both image
+      {/* Organisation logo — top-right corner, theme-aware. Both image
           variants are rendered; CSS shows the right one based on
           the active theme. The dark variant uses Tailwind's `dark:`
           modifier which resolves against `data-theme="dark"` on
           <html> (configured in tailwind preset). */}
+      {logoLightUrl && logoDarkUrl && (
       <div
         aria-hidden
         className="pointer-events-none absolute right-5 top-5 z-10 flex items-start"
@@ -377,7 +392,7 @@ function ProfileHero({
             would add an optimizer round-trip for no gain. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/brand/kku-logo-light.png"
+          src={logoLightUrl}
           alt=""
           width={42}
           height={75}
@@ -387,13 +402,14 @@ function ProfileHero({
             would add an optimizer round-trip for no gain. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/brand/kku-logo-dark.png"
+          src={logoDarkUrl}
           alt=""
           width={42}
           height={75}
           className="hidden h-20 w-auto opacity-90 dark:block"
         />
       </div>
+      )}
       <div className="relative flex flex-col gap-7 p-7 md:flex-row md:items-start">
         {/* Avatar — 216×216 (240 × 0.9). Hero anchor sized to feel
             substantial without crowding the text. Both parent and

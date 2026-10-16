@@ -30,19 +30,11 @@
 // Designed to run on the prod server (where MinIO + Postgres live) or
 // on a staging box. The API must be reachable at $API_URL.
 
+import { loadOrganization } from '@kku/db';
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
-
-// Same shape as outboundUserAgent() in packages/shared/src/institution.ts.
-// Inlined because this script imports nothing from the workspace, so it
-// runs as a plain compiled file on the prod server.
-function outboundUserAgent(purpose: string): string {
-  const appUrl = process.env.APP_PUBLIC_URL?.trim() || 'https://program-landscape.kku.ac.th';
-  const contact =
-    process.env.INSTITUTION_CONTACT_EMAIL?.trim() || process.env.OPENALEX_MAILTO?.trim();
-  return `Program-Landscape/1.0 ${purpose} (+${appUrl}${contact ? `; ${contact}` : ''})`;
-}
+import { outboundUserAgent } from '@kku/shared';
 
 interface ManifestEntry {
   sourceSlug: string;
@@ -127,6 +119,7 @@ const results: Result[] = [];
 let completed = 0;
 
 async function main(): Promise<void> {
+  await loadOrganization();
 for (const entry of entries) {
   completed++;
   const prefix = `[${completed}/${entries.length}] ${entry.sourceSlug}`;

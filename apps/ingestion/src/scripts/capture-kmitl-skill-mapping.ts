@@ -28,19 +28,11 @@
 // before credentials are issued. Full implementation lands in Phase B.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { loadOrganization } from '@kku/db';
 import { existsSync, readFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-
-// Same shape as outboundUserAgent() in packages/shared/src/institution.ts.
-// Inlined because this script imports nothing from the workspace, so it
-// runs as a plain compiled file on the prod server.
-function outboundUserAgent(purpose: string): string {
-  const appUrl = process.env.APP_PUBLIC_URL?.trim() || 'https://program-landscape.kku.ac.th';
-  const contact =
-    process.env.INSTITUTION_CONTACT_EMAIL?.trim() || process.env.OPENALEX_MAILTO?.trim();
-  return `Program-Landscape/1.0 ${purpose} (+${appUrl}${contact ? `; ${contact}` : ''})`;
-}
+import { outboundUserAgent } from '@kku/shared';
 
 loadDotEnv(path.resolve(process.cwd(), '.env'));
 
@@ -205,6 +197,7 @@ const SUBCOMMANDS: Record<string, (c: Credentials) => Promise<void>> = {
 };
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const sub = process.argv[2];
   if (!sub) {
     console.error('Usage: pnpm kmitl:capture <subcommand>');

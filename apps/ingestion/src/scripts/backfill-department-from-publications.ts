@@ -23,7 +23,7 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 import { configFromEnv, query, withConnection } from '../lib/postgres-client';
 
 loadDotEnv(path.resolve(process.cwd(), '.env'));
@@ -47,6 +47,7 @@ function loadDotEnv(envPath: string): void {
 const apply = process.argv.includes('--apply');
 
 async function main(): Promise<void> {
+  await loadOrganization();
   console.log(`[backfill-departments] mode=${apply ? 'APPLY' : 'DRY-RUN'}`);
 
   // 1. Load kkupub-prefixed FacultyMember rows that lack departmentId.

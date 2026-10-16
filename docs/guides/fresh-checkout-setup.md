@@ -172,10 +172,9 @@ it.
 ### Loading the first public data sources
 
 Four sources need no credentials and can be loaded straight away. **Before
-running them at an institution other than KKU, set `INSTITUTION_NAME_TH`,
-`INSTITUTION_NAME_EN` and `INSTITUTION_CONTACT_EMAIL` in `.env`** (see
-`.env.example`): the names decide which TCAS rows count as yours, and the
-email goes into the User-Agent these connectors send.
+running them at an institution other than KKU, first fill in /admin/organization**
+(sign in as an admin). The Thai name there must match TCAS exactly; the form
+shows how many TCAS rows it matches.
 
 ```bash
 # 1. World Bank — six Thailand indicators, last 10 years → Trends Radar

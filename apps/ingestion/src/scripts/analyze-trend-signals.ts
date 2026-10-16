@@ -1,4 +1,4 @@
-import { prisma } from '@kku/db';
+import { loadOrganization, prisma } from '@kku/db';
 import { analyzeTrendSignal } from '../trend-signals/analyze';
 import { createIngestionAiService } from '../lib/ai-service';
 
@@ -8,6 +8,7 @@ import { createIngestionAiService } from '../lib/ai-service';
 //   pnpm trends:analyze --all --only-empty  # only signals not yet analysed
 
 async function main() {
+  await loadOrganization();
   const argv = process.argv.slice(2);
   const all = argv.includes('--all');
   const onlyEmpty = argv.includes('--only-empty');

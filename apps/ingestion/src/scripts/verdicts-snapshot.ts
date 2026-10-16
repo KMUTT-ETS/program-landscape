@@ -22,7 +22,7 @@
 //   pnpm verdicts:snapshot --program <code-or-id>
 // ─────────────────────────────────────────────────────────────────────────────
 
-import {
+import { loadOrganization,
   prisma,
   computeHealthScores,
   programLifecycleVerdict,
@@ -47,6 +47,7 @@ function parseArgs(argv: string[]): CliArgs {
 }
 
 async function main(): Promise<void> {
+  await loadOrganization();
   const args = parseArgs(process.argv.slice(2));
 
   const where: Prisma.ProgramWhereInput = {

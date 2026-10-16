@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { prisma } from '@kku/db';
 import { getProfileData } from '@/lib/profile-data';
+import { brandingForRequest } from '@/lib/branding';
 import { ProfileView } from '../../profile/profile-view';
 
 // Public profile page — same content as /profile, no chrome.
@@ -41,9 +42,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (!user) {
     return { title: 'Profile not found' };
   }
-  const profile = await getProfileData(user.id);
-  const fullName = profile?.basic.fullNameEn ?? 'KKU profile';
-  const facultyName = profile?.basic.facultyNameEn ?? 'Khon Kaen University';
+  const [profile, branding] = await Promise.all([getProfileData(user.id), brandingForRequest()]);
+  const fullName = profile?.basic.fullNameEn ?? 'Staff profile';
+  const facultyName = profile?.basic.facultyNameEn ?? branding?.nameEn ?? 'Program Landscape';
   return {
     title: `${fullName} · ${facultyName}`,
     description: `Academic profile of ${fullName} at ${facultyName}.`,
@@ -62,6 +63,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
 
   const profile = await getProfileData(user.id);
   if (!profile) notFound();
+  const branding = await brandingForRequest();
 
   return (
     <ProfileView
@@ -70,6 +72,9 @@ export default async function PublicProfilePage({ params }: PageProps) {
       // the type stays satisfied.
       userEmail=""
       publicMode
+      orgName={branding ? { th: branding.nameTh, en: branding.nameEn } : null}
+      logoLightUrl={branding?.hasOwnLogo ? branding.logoLightUrl : null}
+      logoDarkUrl={branding?.hasOwnLogo ? branding.logoDarkUrl : null}
     />
   );
 }
