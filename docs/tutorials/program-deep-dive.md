@@ -4,7 +4,7 @@
 section it can — first for one programme, then for the whole portfolio.
 
 **Starting point.** A running local instance from
-[Fresh checkout setup](../guides/fresh-checkout-setup) (stack up, signed in as an
+[Fresh checkout setup](../guides/fresh-checkout-setup.md) (stack up, signed in as an
 admin). Every command below runs from the repo root.
 
 **Time and cost.** About an hour for the one-programme path, plus however long
@@ -39,7 +39,7 @@ state usually names it.
 | Benchmarking | AI-selected peers and review | pipeline phase 5 |
 
 The full table-by-table map is in
-[Evaluation pipeline §7.1](../evaluation-pipeline#71-by-table--who-reads-it).
+[Evaluation pipeline §7.1](../evaluation-pipeline.md#71-by-table--who-reads-it).
 
 ## Step 1 — Configure an AI provider
 
@@ -53,7 +53,7 @@ GOOGLE_AI_API_KEY=<your key>
 
 Restart `pnpm dev` after changing it. Leave `AI_PROVIDER=stub` if you only want
 to look at the deterministic sections. Usage policy and logging for AI calls are in
-[AI governance](../ai-governance).
+[AI governance](../ai-governance.md).
 
 ## Step 2 — Create the programme rows
 
@@ -68,8 +68,8 @@ repository's `pnpm programs:seed-from-sheet` is the reference deployment's seed
 for its own master sheet: it reads a fixed sheet URL and is not a general importer.
 
 How a curriculum PDF becomes programme data is described in
-[PDF ingestion](../pdf-ingestion) and in the
-[Adopter guide](../adopters/README#10-programme-documents-and-the-ai-digest-pipeline).
+[PDF ingestion](../pdf-ingestion.md) and in the
+[Adopter guide](../adopters/README.md#10-programme-documents-and-the-ai-digest-pipeline).
 
 ## Step 3 — Attach a curriculum PDF to existing programmes
 
@@ -89,20 +89,23 @@ loaded. This step walks through the sources Deep-Dive reads, easiest first. For
 each one: what it feeds, what to configure, and how to know it worked.
 
 How hard each source is for you depends on its tier in the
-[Adopter guide](../adopters/README#8-data-integration--the-four-tiers-of-adoption-effort):
+[Adopter guide](../adopters/README.md#8-data-integration--the-four-tiers-of-adoption-effort):
 public and national sources work as they are, while the sources that read an
 institution's own systems — registrar, HR, finance, research — must be written
 against yours. Until a source is wired, the sections it feeds stay empty. That is
-the intended behaviour, and there is no mock-data fallback.
+the intended behaviour, and there is no mock-data fallback. The four
+institution-specific sources need a connector adapted to your systems first — see
+[Institution-specific sources](#institution-specific-sources-adapt-the-connector-first).
 
 Verify any source the same way: open `/admin/data-sources/<slug>` and look for a
-**SUCCEEDED** run with a non-zero record count. A run can succeed with zero
-records, so read the count.
+**SUCCEEDED** run with a non-zero record count, and check the source is not
+marked `mocked`. A run can succeed with zero records, and a mocked run succeeds
+while writing nothing, so read both.
 
 ### TCAS admissions
 
 - **Feeds:** the Admissions section (funnel and round-3 score detail) and the
-  attractiveness drivers of the [health score](../methodologies/health-score).
+  attractiveness drivers of the [health score](../methodologies/health-score.md).
 - **Tier:** national, same for every Thai institution; no credentials.
 - **Configure:** nothing beyond `/admin/organization`. The Thai institution name
   must match the national TCAS data exactly; the form shows the match count.
@@ -118,8 +121,8 @@ records, so read the count.
   metadata.
 - **Not applicable** outside Thailand.
 - **More:** [Fresh checkout setup — loading the first public data
-  sources](../guides/fresh-checkout-setup#loading-the-first-public-data-sources),
-  [TCAS source spec](../data-sources/tcas).
+  sources](../guides/fresh-checkout-setup.md#loading-the-first-public-data-sources),
+  [TCAS source spec](../data-sources/tcas.md).
 
 ### Thailand demographics
 
@@ -159,8 +162,63 @@ records, so read the count.
   a sample-size caveat.
 - **Expect** most of the provider's skill names not to match your skill taxonomy
   on the first run; the unmatched names are listed in the run metadata for review.
-- **More:** [labour-market source spec](../data-sources/kmitl-skill-mapping),
-  [Adopter guide, Tier 2](../adopters/README#tier-2--shared-national-and-external-sources-same-for-everyone).
+- **More:** [labour-market source spec](../data-sources/kmitl-skill-mapping.md),
+  [Adopter guide, Tier 2](../adopters/README.md#tier-2--shared-national-and-external-sources-same-for-everyone).
+
+### Institution-specific sources: adapt the connector first
+
+The next four sources — registrar, staff roster, research, finance — read your
+own systems. **The repository ships no ready-made connector for them.** What it
+ships is the reference deployment's connectors (`kku-registry`, `kku-hr`,
+`kku-research`, `kku-finance`), which contain that institution's SQL, table names
+and code mappings. You must adapt the connector for each source before running it.
+
+**Nothing in this tutorial seeds mock data.** In the default `mocked` mode a
+connector is a stub that writes nothing to the database — its run metadata says
+`mocked — no DB writes` — and anything it did write would be filtered out of the
+page because its data source is marked mocked. The danger is that such a run
+still shows **SUCCEEDED** with a non-zero record count. If you run a source's
+connector before adapting it, you get a green run and an empty section. Open the
+run at `/admin/data-sources/<slug>` and confirm the mode is `real`, not `mocked`.
+
+For each source, work through these steps in order:
+
+1. **Prepare.** Fill in the source's spec, put credentials in your secret store,
+   and capture a sample payload as a test fixture. The per-source session
+   playbook and its pre-session checklist are in the
+   [connector session template](../../prompts/14-integration-session-template.md).
+2. **Adapt the connector.** Edit
+   `apps/ingestion/src/connectors/sources/<slug>/connector.ts` (and its
+   `transforms.ts`) for your system: the SQL projection, the mapping from your
+   system's identifiers to your programmes and staff, and the status codes.
+   Keep the three safeguards the reference connectors share: aggregate at the
+   source so per-person rows never leave the database, refuse to load when the
+   source returns zero rows (a snapshot replace would otherwise wipe the table),
+   and stamp every row with the run id (see
+   [the `realDataWhere` trap](../adopters/README.md#trap-2-realdatawhere--empty-sections-with-rows-in-the-database)).
+3. **Register and switch it on.** Pair your real class with the mock in
+   `apps/ingestion/src/connectors/registry.ts`, set `CONNECTOR_<SLUG>_MODE=real`
+   (slug uppercased, non-alphanumerics to `_`) and restart the ingestion worker.
+   Setting the flag without registering a real class falls back to the mock
+   with a warning.
+4. **Keep the two flags in step.** The `data_sources` row has independent
+   `status` and `mocked` columns; both must be updated. Run
+   `pnpm data-sources:audit` after every flip.
+5. **Run and prove it.** `pnpm connector:run <slug>` runs the same code as the
+   worker. The playbook's exit criterion is at least three successful runs with
+   zero failures, and a recorded row-count fingerprint.
+
+Plan on one to three weeks per source, most of it spent getting read access. The
+full contract (`healthCheck`, `fetch`, `transform`, `load`) and the reasoning
+are in [the connector contract](../adopters/README.md#9-the-connector-contract-and-how-to-write-one).
+The adopter guide also lists the UniCon DS feeds as the nearly-portable starting
+point for Thai universities
+([Tier 1](../adopters/README.md#tier-1--works-nearly-as-is-the-mhesi-unicon-ds-family));
+they load their own tables, so check which sections you need actually read them
+before relying on them.
+
+The commands under each source below are the **reference deployment's**, shown so
+you can see the shape of the work. They run only after the steps above.
 
 ### Registrar: enrolment, cohorts, alumni status
 
@@ -171,10 +229,10 @@ records, so read the count.
   reference deployment's connector (`kku-registry`) reads an Oracle warehouse and
   is the template to copy, including its rule to aggregate at the source so
   per-student rows never leave the database.
-- **Configure (reference deployment):** the five `KKU_REGISTRY_DB_*` keys and
+- **Reference configuration:** the five `KKU_REGISTRY_DB_*` keys and
   `CONNECTOR_KKU_REGISTRY_MODE=real`. The registrar's text names have no stable
   programme code, so they are bridged to programmes through an explicit mapping
-  table:
+  table. Your connector will need an equivalent bridge:
 
   ```bash
   pnpm registry:seed-mappings
@@ -189,9 +247,9 @@ records, so read the count.
   `programs:link-financials`) query the reference deployment's registrar and HR
   views directly. At another institution, adapt them or run the pipeline with
   `--skip=phase4` and fill those tables another way.
-- **More:** [registrar source spec](../data-sources/kku-registry),
-  [Adopter guide, Tier 3](../adopters/README#tier-3--must-be-rewritten-per-institution),
-  [the connector contract](../adopters/README#9-the-connector-contract-and-how-to-write-one).
+- **More:** [registrar source spec](../data-sources/kku-registry.md),
+  [Adopter guide, Tier 3](../adopters/README.md#tier-3--must-be-rewritten-per-institution),
+  [the connector contract](../adopters/README.md#9-the-connector-contract-and-how-to-write-one).
 
 ### Staff roster (HR)
 
@@ -202,7 +260,7 @@ records, so read the count.
 - **Tier:** reads your own system; written per institution. The reference
   connector (`kku-hr`) shows the pattern: hash identifiers at the boundary,
   suppress small groups server-side, and read only the columns you need.
-- **Configure (reference deployment):** the `KKU_HR_DB_*` keys,
+- **Reference configuration:** the `KKU_HR_DB_*` keys,
   `CONNECTOR_KKU_HR_MODE=real`, then:
 
   ```bash
@@ -212,8 +270,8 @@ records, so read the count.
 
 - **Your data-protection officer must approve the projection independently.**
   Another institution's approval does not transfer — see
-  [PDPA and governance](../pdpa).
-- **More:** [HR source spec](../data-sources/kku-hr).
+  [PDPA and governance](../pdpa.md).
+- **More:** [HR source spec](../data-sources/kku-hr.md).
 
 ### Research outputs
 
@@ -222,19 +280,22 @@ records, so read the count.
 - **Order matters:** load the staff roster first. Publications are matched to
   roster members by name, and unmatched authors are kept with no person attached.
 - **Tier:** depends on where your publications live. The reference connector
-  (`kku-research`) reads an internal publications mirror; the earlier public-API
-  approach is documented in its spec.
-- **More:** [research source spec](../data-sources/kku-research).
+  (`kku-research`) reads an internal publications mirror, so adapt it as above;
+  the earlier public-API approach (OpenAlex and Scopus) is documented in its spec
+  and is the usual starting point if you have no internal mirror.
+- **Reference run:** `pnpm connector:run kku-research`, after adapting.
+- **More:** [research source spec](../data-sources/kku-research.md).
 
 ### Finance: tuition and budget
 
 - **Feeds:** the Financials section and the financial drivers of the health score.
 - **Tier:** reads your own systems; written per institution. The reference
-  connector (`kku-finance`) reads tuition and budget in one run.
+  connector (`kku-finance`) reads tuition and budget in one run
+  (`pnpm connector:run kku-finance`, after adapting).
 - **Treat the output as preview-quality.** Cost allocation is unfinished even in
   the reference deployment and is marked as preview until its governance
-  sign-off. See [Cost allocation](../methodologies/cost-allocation).
-- **More:** [finance source spec](../data-sources/kku-finance).
+  sign-off. See [Cost allocation](../methodologies/cost-allocation.md).
+- **More:** [finance source spec](../data-sources/kku-finance.md).
 
 ### Graduate outcomes
 
@@ -284,7 +345,7 @@ programme against same-level siblings, so the Overlap section stays hidden until
 at least one sibling reaches the display threshold.
 
 The scoring each phase feeds is described in the
-[Evaluation pipeline](../evaluation-pipeline).
+[Evaluation pipeline](../evaluation-pipeline.md).
 
 ## Step 6 — Check the result
 
@@ -322,7 +383,7 @@ pnpm programs:overlap-prep --apply
 pnpm programs:overlap --apply
 ```
 
-The method is in [Programme overlap](../methodologies/program-overlap).
+The method is in [Programme overlap](../methodologies/program-overlap.md).
 
 ## When a section is empty but the rows exist
 
@@ -330,14 +391,14 @@ Almost always the provenance filter. Rows count only when they carry an
 `ingestion_run_id` whose data source has `mocked = false`; a legacy row with a
 NULL run id, or a source whose `mocked` flag was never cleared, silently
 disappears from the page. Check both. The triage SQL is in the
-[project contract](../_generated/project-contract) (search for `realDataWhere`),
+[project contract](../../CLAUDE.md) (search for `realDataWhere`),
 and the trap is explained in the
-[Adopter guide](../adopters/README#trap-2-realdatawhere--empty-sections-with-rows-in-the-database).
+[Adopter guide](../adopters/README.md#trap-2-realdatawhere--empty-sections-with-rows-in-the-database).
 
 ## Where to go next
 
-- [Evaluation pipeline](../evaluation-pipeline) — how the scorers interlock.
-- [Health score](../methodologies/health-score) and
-  [Programme health & lifecycle](../methodologies/program-health-and-lifecycle).
-- [Source catalogue](../data-sources/README) — every source and its status.
-- [PDF ingestion](../pdf-ingestion) — what happens to an attached curriculum PDF.
+- [Evaluation pipeline](../evaluation-pipeline.md) — how the scorers interlock.
+- [Health score](../methodologies/health-score.md) and
+  [Programme health & lifecycle](../methodologies/program-health-and-lifecycle.md).
+- [Source catalogue](../data-sources/README.md) — every source and its status.
+- [PDF ingestion](../pdf-ingestion.md) — what happens to an attached curriculum PDF.
