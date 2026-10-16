@@ -47,3 +47,5 @@ export const ScopeParamsSchema = z.object({
 });
 export type ScopeParams = z.infer<typeof ScopeParamsSchema>;
 export * from './staff-profile';
+
+export * from './brand';
