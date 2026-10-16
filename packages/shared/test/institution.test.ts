@@ -1,9 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   KKU_REFERENCE_ORGANIZATION,
   OrganizationNotConfiguredError,
   OrganizationNotLoadedError,
   getInstitution,
+  getOrganizationCacheGeneration,
+  isOrganizationLoaded,
   isOwnInstitution,
   outboundUserAgent,
   setOrganizationCache,
@@ -61,5 +63,28 @@ describe('isOwnInstitution', () => {
     expect(isOwnInstitution(' มหาวิทยาลัยตัวอย่าง ')).toBe(true);
     expect(isOwnInstitution('มหาวิทยาลัยขอนแก่น')).toBe(false);
     expect(isOwnInstitution(null)).toBe(false);
+  });
+});
+
+describe('cache shared across module copies in one process', () => {
+  it('a second copy of the module sees the identity the first copy loaded', async () => {
+    // Next.js bundles @kku/shared into the web server while @kku/db loads it
+    // from node_modules — two module instances in one process. The cache
+    // lives on globalThis so both see the same identity.
+    setOrganizationCache(EXAMPLE);
+    vi.resetModules();
+    const copy = await import('../src/institution');
+    expect(copy.getInstitution()).toEqual(EXAMPLE);
+    copy.setOrganizationForTest(undefined);
+    expect(() => getInstitution()).toThrow(OrganizationNotLoadedError);
+    expect(copy.isOrganizationLoaded()).toBe(false);
+  });
+
+  it('bumps the generation on every cache write', () => {
+    const before = getOrganizationCacheGeneration();
+    setOrganizationCache(EXAMPLE);
+    setOrganizationCache(null);
+    expect(getOrganizationCacheGeneration()).toBe(before + 2);
+    expect(isOrganizationLoaded()).toBe(true);
   });
 });

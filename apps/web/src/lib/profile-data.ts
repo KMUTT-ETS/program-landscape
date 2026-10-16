@@ -7,6 +7,7 @@
 import {
   buildStaffProfile,
   emptyResearchSummary,
+  ensureOrganizationLoaded,
   getStaffGrants,
   getStaffPublicationsSnapshot,
   getStaffTeachingEvaluation,
@@ -41,6 +42,9 @@ const PAGE_COURSE_LIMIT = 10;
  * not yet provisioned" placeholder in that case.
  */
 export async function getProfileData(userId: string): Promise<ProfileData | null> {
+  // buildStaffProfile resolves the Scopus author by this institution's
+  // affiliation name. Self-heals a skipped boot-time load.
+  await ensureOrganizationLoaded();
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {

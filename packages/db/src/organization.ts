@@ -2,6 +2,8 @@ import { z } from 'zod';
 import type { OrganizationProfile, PrismaClient } from '@prisma/client';
 import {
   OrganizationVersionConflictError,
+  getOrganizationCacheGeneration,
+  isOrganizationLoaded,
   setOrganizationCache,
   type Institution,
   type OrganizationIdentityInput,
@@ -17,7 +19,37 @@ const SINGLETON_ID = 'default';
 
 export type OrgClient = Pick<PrismaClient, 'organizationProfile' | 'tcasAdmissionStat' | '$queryRaw'>;
 
-let loadedVersion: number | null = null;
+/**
+ * Loader state lives on globalThis beside @kku/shared's cache (same reason:
+ * the Next.js server can hold two copies of these modules in one process).
+ */
+interface OrganizationLoaderState {
+  /** Version of the row the cache was last filled from. */
+  loadedVersion: number | null;
+  /** The in-flight first load shared by ensureOrganizationLoaded() callers. */
+  ensuring: Promise<void> | null;
+}
+
+const LOADER_STATE_KEY = Symbol.for('program-landscape.organization.loader');
+
+type GlobalWithLoader = typeof globalThis & { [LOADER_STATE_KEY]?: OrganizationLoaderState };
+
+function loaderState(): OrganizationLoaderState {
+  const g = globalThis as GlobalWithLoader;
+  let state = g[LOADER_STATE_KEY];
+  if (!state) {
+    state = { loadedVersion: null, ensuring: null };
+    g[LOADER_STATE_KEY] = state;
+  }
+  return state;
+}
+
+function applyRow(row: OrganizationProfile | null): Institution | null {
+  const inst = row ? profileToInstitution(row) : null;
+  setOrganizationCache(inst);
+  loaderState().loadedVersion = row?.version ?? null;
+  return inst;
+}
 
 export function profileToInstitution(row: OrganizationProfile): Institution {
   return {
@@ -44,10 +76,26 @@ export async function getOrganizationProfile(client: OrgClient = prisma): Promis
 /** Reads the row and fills the shared cache. Returns null when no row exists. */
 export async function loadOrganization(client: OrgClient = prisma): Promise<Institution | null> {
   const row = await getOrganizationProfile(client);
-  const inst = row ? profileToInstitution(row) : null;
-  setOrganizationCache(inst);
-  loadedVersion = row?.version ?? null;
-  return inst;
+  return applyRow(row);
+}
+
+/**
+ * Loads the profile once per process if nothing has loaded it yet; a no-op
+ * otherwise. Concurrent callers share one load; a failed load is forgotten so
+ * the next call retries. Request handlers whose code path reads the identity
+ * await this, so a skipped or failed boot-time load heals on first use.
+ */
+export async function ensureOrganizationLoaded(client: OrgClient = prisma): Promise<void> {
+  if (isOrganizationLoaded()) return;
+  const state = loaderState();
+  if (!state.ensuring) {
+    state.ensuring = loadOrganization(client)
+      .then(() => undefined)
+      .finally(() => {
+        state.ensuring = null;
+      });
+  }
+  await state.ensuring;
 }
 
 /**
@@ -57,12 +105,15 @@ export async function loadOrganization(client: OrgClient = prisma): Promise<Inst
  */
 export function startOrganizationRefresh(client: OrgClient = prisma, intervalMs = 60_000): () => void {
   const timer = setInterval(() => {
+    const startedAt = getOrganizationCacheGeneration();
     void getOrganizationProfile(client)
       .then((row) => {
+        // A save or another load wrote the cache while this read was in
+        // flight; its result is newer than ours, so ours must not win.
+        if (getOrganizationCacheGeneration() !== startedAt) return;
         const version = row?.version ?? null;
-        if (version === loadedVersion) return;
-        setOrganizationCache(row ? profileToInstitution(row) : null);
-        loadedVersion = version;
+        if (version === loaderState().loadedVersion) return;
+        applyRow(row);
       })
       .catch((err: unknown) => {
         console.warn(`[organization] refresh failed, keeping last identity: ${(err as Error).message}`);
@@ -99,8 +150,7 @@ export async function saveOrganizationIdentity(
   }
   const row = await getOrganizationProfile(client);
   if (!row) throw new Error('organization_profile row vanished after save');
-  setOrganizationCache(profileToInstitution(row));
-  loadedVersion = row.version;
+  applyRow(row);
   return row;
 }
 

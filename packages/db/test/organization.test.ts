@@ -7,6 +7,7 @@ import {
   setOrganizationForTest,
 } from '@kku/shared';
 import {
+  ensureOrganizationLoaded,
   loadOrganization,
   organizationTagline,
   profileToInstitution,
@@ -153,5 +154,61 @@ describe('startOrganizationRefresh', () => {
     await vi.advanceTimersByTimeAsync(1000);
     expect(getInstitution().nameEn).toBe('Example University');
     stop();
+  });
+});
+
+describe('startOrganizationRefresh — stale poll', () => {
+  it('does not overwrite a save that landed while the poll was reading', async () => {
+    vi.useFakeTimers();
+    const { client, raw } = fakeClient(ROW);
+    await loadOrganization(client);
+    const stop = startOrganizationRefresh(client, 1000);
+    // The poll's read is held open; it resolves with the pre-save row (v1
+    // renamed elsewhere would still be "old" relative to the save below).
+    let releasePoll: (row: Row) => void = () => undefined;
+    raw.organizationProfile.findUnique.mockImplementationOnce(
+      () => new Promise<Row>((resolve) => (releasePoll = resolve)),
+    );
+    await vi.advanceTimersByTimeAsync(1000);
+    // A save lands while the poll is in flight.
+    await saveOrganizationIdentity(
+      {
+        nameTh: 'มหาวิทยาลัยตัวอย่าง', nameEn: 'Saved University', shortNameTh: 'มต.', shortNameEn: 'EXU',
+        regionTh: null, regionEn: null, contactEmail: null, appUrl: 'https://landscape.example.ac.th',
+        expectedVersion: 1,
+      },
+      'u1',
+      client,
+    );
+    // The poll now returns a stale snapshot with a different version.
+    releasePoll({ ...ROW, nameEn: 'Stale Poll University', version: 7 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getInstitution().nameEn).toBe('Saved University');
+    stop();
+  });
+});
+
+describe('ensureOrganizationLoaded', () => {
+  it('loads from the client when the cache was never loaded, then reads succeed', async () => {
+    const { client, raw } = fakeClient(ROW);
+    expect(() => getInstitution()).toThrow();
+    await ensureOrganizationLoaded(client);
+    expect(getInstitution().nameEn).toBe('Example University');
+    expect(raw.organizationProfile.findUnique).toHaveBeenCalledTimes(1);
+  });
+
+  it('is a no-op once loaded and shares one in-flight load across callers', async () => {
+    const { client, raw } = fakeClient(ROW);
+    await Promise.all([ensureOrganizationLoaded(client), ensureOrganizationLoaded(client)]);
+    await ensureOrganizationLoaded(client);
+    expect(raw.organizationProfile.findUnique).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries on the next call after a failed load', async () => {
+    const { client, raw } = fakeClient(ROW);
+    raw.organizationProfile.findUnique.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    await expect(ensureOrganizationLoaded(client)).rejects.toThrow('ECONNREFUSED');
+    await ensureOrganizationLoaded(client);
+    expect(getInstitution().nameEn).toBe('Example University');
   });
 });

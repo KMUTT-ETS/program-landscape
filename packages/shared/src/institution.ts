@@ -52,19 +52,62 @@ export class OrganizationVersionConflictError extends Error {
 }
 
 type CacheState = { loaded: false } | { loaded: true; inst: Institution | null };
-let cache: CacheState = { loaded: false };
+
+/**
+ * The cache lives on globalThis, not in module scope. Next.js bundles
+ * @kku/shared into the web server while @kku/db loads its own copy from
+ * node_modules, so one process can hold two instances of this module.
+ * Keyed by a registered symbol, every copy reads and writes the same state.
+ * `generation` moves on every write so a slow reader (the refresh poll) can
+ * tell that its result is already stale.
+ */
+interface OrganizationCacheRecord {
+  cache: CacheState;
+  generation: number;
+}
+
+const ORGANIZATION_CACHE_KEY = Symbol.for('program-landscape.organization');
+
+type GlobalWithOrganization = typeof globalThis & { [ORGANIZATION_CACHE_KEY]?: OrganizationCacheRecord };
+
+function cacheRecord(): OrganizationCacheRecord {
+  const g = globalThis as GlobalWithOrganization;
+  let record = g[ORGANIZATION_CACHE_KEY];
+  if (!record) {
+    record = { cache: { loaded: false }, generation: 0 };
+    g[ORGANIZATION_CACHE_KEY] = record;
+  }
+  return record;
+}
+
+function writeCache(cache: CacheState): void {
+  const record = cacheRecord();
+  record.cache = cache;
+  record.generation += 1;
+}
 
 /** Called by @kku/db's loader. `null` means "loaded, no row". */
 export function setOrganizationCache(inst: Institution | null): void {
-  cache = { loaded: true, inst };
+  writeCache({ loaded: true, inst });
 }
 
 /** Test seam. `undefined` returns the cache to the never-loaded state. */
 export function setOrganizationForTest(inst: Institution | null | undefined): void {
-  cache = inst === undefined ? { loaded: false } : { loaded: true, inst };
+  writeCache(inst === undefined ? { loaded: false } : { loaded: true, inst });
+}
+
+/** True once a loader has run in this process (with or without a row). */
+export function isOrganizationLoaded(): boolean {
+  return cacheRecord().cache.loaded;
+}
+
+/** Increments on every cache write; lets a slow loader detect a newer write. */
+export function getOrganizationCacheGeneration(): number {
+  return cacheRecord().generation;
 }
 
 export function getInstitution(): Institution {
+  const { cache } = cacheRecord();
   if (!cache.loaded) throw new OrganizationNotLoadedError();
   if (!cache.inst) throw new OrganizationNotConfiguredError();
   return cache.inst;
