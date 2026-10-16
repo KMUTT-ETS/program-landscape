@@ -242,6 +242,16 @@ See `prompts/WINDOWS-DEV.md` for Windows dev setup. See prompt 13b (and `DEPLOYM
 - `docs/auth/kku-sso.md` — KKU SSO configuration
 - `docs/methodologies/` — per-metric methodology with versions
 
+## Documentation site (`apps/docs-site`)
+
+The docs site (VitePress) has no content of its own. It renders `docs/**/*.md` plus a few root files copied by `gather.ts`; the allow/deny lists live in `apps/docs-site/src/manifest.ts` (`EXCLUDED`, `GATHERED`). **Every code change must be checked for docs impact before it is called done:**
+
+- **Behaviour, API, methodology, connector, data-source or deploy-procedure change** → update the matching page under `docs/` (e.g. `docs/methodologies/`, `docs/data-sources/<slug>.md`, `DEPLOYMENT.md`) in the same commit. Never edit `docs/_generated/` (gitignored output).
+- **New doc file** → check `manifest.ts`: it is rendered unless listed in `EXCLUDED`. Working notes (specs, plans) go under `docs/superpowers/`, which is excluded.
+- **Renamed or moved doc** → fix inbound links; `pnpm docs:build` runs `check-site.ts` and fails on dead links and on retired product names (allowlist in `manifest.ts`).
+- If nothing needs updating, say so in the commit or PR description ("docs: no impact").
+- Run `pnpm docs:build` when `docs/`, `manifest.ts` or a gathered file changed.
+
 ## Current status
 
 > **Update this section after every major session.** This is how Claude Code knows where the project stands when you return.
