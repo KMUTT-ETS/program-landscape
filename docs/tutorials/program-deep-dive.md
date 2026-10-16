@@ -7,12 +7,11 @@ section it can — first for one programme, then for the whole portfolio.
 [Fresh checkout setup](../guides/fresh-checkout-setup) (stack up, signed in as an
 admin). Every command below runs from the repo root.
 
-**Time and cost.** About an hour for the one-programme path. AI spend is roughly
-**USD 0.80 per programme** across all phases (the per-phase figures come from
-`PROGRAM_PHASE_META` in `packages/shared/src/pipeline/program-phases.ts` and are
-approximations). A full run costs about USD 0.80 times your number of
-programmes — a few hundred programmes is in the low hundreds of dollars — so run
-one programme first.
+**Time and cost.** About an hour for the one-programme path, plus however long
+your data-source access takes. AI spend is roughly **USD 0.80 per programme**
+across all phases (the per-phase figures come from `PROGRAM_PHASE_META` in
+`packages/shared/src/pipeline/program-phases.ts` and are approximations), so run
+one programme before a full run.
 
 **Before you start, set your institution's identity** at `/admin/organization`
 (names, short names, region). Admissions data is matched on the Thai institution
@@ -26,20 +25,21 @@ state usually names it.
 
 | Section on the page | Needs | Filled by |
 |---|---|---|
-| Executive snapshot — verdict, narrative, AI readiness | most of the rows below, plus the narrative and readiness assessments | pipeline phases 6 and 7 |
-| Admissions — TCAS funnel and round-3 detail | TCAS admission statistics linked to the programme | `tcas` connector |
-| Students — cohorts, lifecycle | cohort and alumni-status rows | pipeline phase 4 (your registrar connector) |
-| Students — demographic outlook | youth-cohort projections | `pnpm demographics:seed` |
-| Outcomes | graduate outcome surveys | survey upload, or an alumni connector |
+| Executive snapshot — verdict, narrative, AI readiness | most of the rows below, plus the narrative and readiness assessments | [pipeline](#step-5--run-the-pipeline-on-one-programme) phases 6 and 7 |
+| Admissions — TCAS funnel and round-3 detail | TCAS admission statistics linked to the programme | [TCAS](#tcas-admissions) |
+| Students — cohorts, lifecycle | cohort and alumni-status rows | pipeline phase 4 — see [Registrar](#registrar-enrolment-cohorts-alumni-status) |
+| Students — demographic outlook | youth-cohort projections | [Thailand demographics](#thailand-demographics) |
+| Outcomes | graduate outcome records | no connector exists yet — see [Graduate outcomes](#graduate-outcomes) |
 | Curriculum & Faculty — skills, courses | the programme's curriculum PDF, digested and approved | pipeline phases 1, 2, 2b |
-| Curriculum & Faculty — faculty | the staff roster | phase 1 plus your HR connector |
-| Curriculum & Faculty — research expertise, revision | staff publications | your research connector, pipeline phases RE and CR |
-| Overlap | same-level pair scores | `programs:overlap-prep`, pipeline phase OV |
-| Financials | tuition and cost rows | pipeline phase 4 (your finance connector) — preview-quality |
+| Curriculum & Faculty — skills, demand side | labour-market skill demand | [Labour-market skills](#labour-market-skills) |
+| Curriculum & Faculty — faculty | a staff roster, matched to the staff named in the curriculum PDF | [Staff roster](#staff-roster-hr) |
+| Curriculum & Faculty — research expertise, revision | staff publications | [Research outputs](#research-outputs), pipeline phases RE and CR |
+| Overlap | same-level pair scores | pipeline phase OV |
+| Financials | tuition and cost rows | pipeline phase 4 — see [Finance](#finance-tuition-and-budget); preview-quality |
 | Benchmarking | AI-selected peers and review | pipeline phase 5 |
 
 The full table-by-table map is in
-[Evaluation pipeline §7.1](../evaluation-pipeline).
+[Evaluation pipeline §7.1](../evaluation-pipeline#71-by-table--who-reads-it).
 
 ## Step 1 — Configure an AI provider
 
@@ -52,7 +52,8 @@ GOOGLE_AI_API_KEY=<your key>
 ```
 
 Restart `pnpm dev` after changing it. Leave `AI_PROVIDER=stub` if you only want
-to look at the deterministic sections.
+to look at the deterministic sections. Usage policy and logging for AI calls are in
+[AI governance](../ai-governance).
 
 ## Step 2 — Create the programme rows
 
@@ -66,6 +67,10 @@ load them with your own seed instead and attach the files in Step 3. The
 repository's `pnpm programs:seed-from-sheet` is the reference deployment's seed
 for its own master sheet: it reads a fixed sheet URL and is not a general importer.
 
+How a curriculum PDF becomes programme data is described in
+[PDF ingestion](../pdf-ingestion) and in the
+[Adopter guide](../adopters/README#10-programme-documents-and-the-ai-digest-pipeline).
+
 ## Step 3 — Attach a curriculum PDF to existing programmes
 
 Open `/admin/programs?view=pipeline`. The **missing-pdf** bucket lists
@@ -77,31 +82,175 @@ its fuzzy one after it mislinked about 30 programmes, and it should not be
 rebuilt. `pnpm pdf:bulk-load` is for policy and report PDFs by URL, not for
 linking programmes.
 
-## Step 4 — Load the data feeds
+## Step 4 — Configure the data sources
 
 Open `/admin/data-setup` ("Feed the system"). It shows, per category, how much is
-loaded. Two feeds need no credentials and are Thailand-wide, so they work for any
-Thai institution:
+loaded. This step walks through the sources Deep-Dive reads, easiest first. For
+each one: what it feeds, what to configure, and how to know it worked.
 
-```bash
-pnpm demographics:seed          # Thailand youth-cohort projections
-pnpm connector:run tcas         # TCAS round-3 admission statistics
-```
+How hard each source is for you depends on its tier in the
+[Adopter guide](../adopters/README#8-data-integration--the-four-tiers-of-adoption-effort):
+public and national sources work as they are, while the sources that read an
+institution's own systems — registrar, HR, finance, research — must be written
+against yours. Until a source is wired, the sections it feeds stay empty. That is
+the intended behaviour, and there is no mock-data fallback.
 
-Run `tcas` again after Step 2. Rows link to a programme only when its faculty and
-programme `nameTh` match the spelling in the national TCAS data exactly; unmatched
-rows are kept with no programme and are listed in the run metadata. Outside
-Thailand these two feeds do not apply, and the Admissions and demographic
-sections stay empty.
+Verify any source the same way: open `/admin/data-sources/<slug>` and look for a
+**SUCCEEDED** run with a non-zero record count. A run can succeed with zero
+records, so read the count.
 
-The institutional feeds — registrar (cohorts, alumni status), HR (staff roster),
-finance (tuition and cost) and research (publications) — read your own systems,
-so each needs a connector written against them and database credentials. Until a
-connector is wired its sections stay empty, which is the intended behaviour.
-Which sources exist, their status, and how to wire one are in the
-[Source catalogue](../data-sources/README) and the
-[Adopter guide](../adopters/README). Check any run at
-`/admin/data-sources/<slug>`.
+### TCAS admissions
+
+- **Feeds:** the Admissions section (funnel and round-3 score detail) and the
+  attractiveness drivers of the [health score](../methodologies/health-score).
+- **Tier:** national, same for every Thai institution; no credentials.
+- **Configure:** nothing beyond `/admin/organization`. The Thai institution name
+  must match the national TCAS data exactly; the form shows the match count.
+- **Run:**
+
+  ```bash
+  pnpm connector:run tcas
+  ```
+
+- **Then:** run it again after your programmes exist. Rows link to a programme
+  only when its faculty and programme `nameTh` match the national spelling
+  exactly; unmatched rows are kept with no programme and listed in the run
+  metadata.
+- **Not applicable** outside Thailand.
+- **More:** [Fresh checkout setup — loading the first public data
+  sources](../guides/fresh-checkout-setup#loading-the-first-public-data-sources),
+  [TCAS source spec](../data-sources/tcas).
+
+### Thailand demographics
+
+- **Feeds:** the demographic outlook, and the demographic-resilience part of the
+  health score.
+- **Tier:** national; nothing to configure.
+- **Run:** a seed script, not a connector — the figures are in the script and
+  nothing is downloaded:
+
+  ```bash
+  pnpm demographics:seed
+  ```
+
+- **Verify:** the Demographic outlook section appears on a programme.
+- **Not applicable** outside Thailand.
+
+### Labour-market skills
+
+- **Feeds:** the demand side of the Skills section, the relevance drivers of the
+  health score, and pipeline phase 3 (careers and demand match).
+- **Tier:** shared external source; you need your own credentials.
+- **Configure:** request a client ID and secret key from the provider, then set
+  the three `KMITL_SKILL_MAPPING_*` keys (`BASE_URL`, `CLIENT_ID`, `SECRET_KEY`)
+  and `CONNECTOR_KMITL_SKILL_MAPPING_MODE=real` in your root environment file.
+  Wrap any value containing `#` in single quotes: an unquoted `#` truncates the
+  value silently.
+- **Check the credentials, then load:**
+
+  ```bash
+  pnpm kmitl:capture ping
+  pnpm connector:run kmitl-skill-mapping
+  ```
+
+- **Two rules for how you present it.** The data is LinkedIn data subscribed by
+  MHESI and only hosted by KMITL — never label it "KMITL data". And the
+  Thailand × job-postings slice is a thin sample, so any figure built on it needs
+  a sample-size caveat.
+- **Expect** most of the provider's skill names not to match your skill taxonomy
+  on the first run; the unmatched names are listed in the run metadata for review.
+- **More:** [labour-market source spec](../data-sources/kmitl-skill-mapping),
+  [Adopter guide, Tier 2](../adopters/README#tier-2--shared-national-and-external-sources-same-for-everyone).
+
+### Registrar: enrolment, cohorts, alumni status
+
+- **Feeds:** the Students section (cohort distribution, lifecycle, alumni-status
+  buckets), the enrolment figures behind Financials and the health score, and
+  pipeline phase 4.
+- **Tier:** reads your own system, so it must be written against it. The
+  reference deployment's connector (`kku-registry`) reads an Oracle warehouse and
+  is the template to copy, including its rule to aggregate at the source so
+  per-student rows never leave the database.
+- **Configure (reference deployment):** the five `KKU_REGISTRY_DB_*` keys and
+  `CONNECTOR_KKU_REGISTRY_MODE=real`. The registrar's text names have no stable
+  programme code, so they are bridged to programmes through an explicit mapping
+  table:
+
+  ```bash
+  pnpm registry:seed-mappings
+  pnpm connector:run kku-registry
+  ```
+
+- **Watch for:** with an empty mapping table the run still reports success but
+  loads zero records, and every row lands in the run's `unmappedSamples` list.
+  That list is your worklist.
+- **Phase 4 is not portable.** The pipeline's cohort, alumni and financial
+  linking scripts (`programs:link-cohorts`, `programs:link-alumni`,
+  `programs:link-financials`) query the reference deployment's registrar and HR
+  views directly. At another institution, adapt them or run the pipeline with
+  `--skip=phase4` and fill those tables another way.
+- **More:** [registrar source spec](../data-sources/kku-registry),
+  [Adopter guide, Tier 3](../adopters/README#tier-3--must-be-rewritten-per-institution),
+  [the connector contract](../adopters/README#9-the-connector-contract-and-how-to-write-one).
+
+### Staff roster (HR)
+
+- **Feeds:** the Faculty part of Curriculum & Faculty, the capability drivers of
+  the health score, and the matching of publications to people.
+- **Why it matters:** pipeline phase 1 reads the staff named in the curriculum
+  PDF; the roster is what those names are matched against.
+- **Tier:** reads your own system; written per institution. The reference
+  connector (`kku-hr`) shows the pattern: hash identifiers at the boundary,
+  suppress small groups server-side, and read only the columns you need.
+- **Configure (reference deployment):** the `KKU_HR_DB_*` keys,
+  `CONNECTOR_KKU_HR_MODE=real`, then:
+
+  ```bash
+  pnpm hr:seed-mappings
+  pnpm connector:run kku-hr
+  ```
+
+- **Your data-protection officer must approve the projection independently.**
+  Another institution's approval does not transfer — see
+  [PDPA and governance](../pdpa).
+- **More:** [HR source spec](../data-sources/kku-hr).
+
+### Research outputs
+
+- **Feeds:** research expertise and curriculum revision (phases RE and CR), the
+  publications driver of the health score, and the AI-readiness research signal.
+- **Order matters:** load the staff roster first. Publications are matched to
+  roster members by name, and unmatched authors are kept with no person attached.
+- **Tier:** depends on where your publications live. The reference connector
+  (`kku-research`) reads an internal publications mirror; the earlier public-API
+  approach is documented in its spec.
+- **More:** [research source spec](../data-sources/kku-research).
+
+### Finance: tuition and budget
+
+- **Feeds:** the Financials section and the financial drivers of the health score.
+- **Tier:** reads your own systems; written per institution. The reference
+  connector (`kku-finance`) reads tuition and budget in one run.
+- **Treat the output as preview-quality.** Cost allocation is unfinished even in
+  the reference deployment and is marked as preview until its governance
+  sign-off. See [Cost allocation](../methodologies/cost-allocation).
+- **More:** [finance source spec](../data-sources/kku-finance).
+
+### Graduate outcomes
+
+The Outcomes section reads graduate-outcome records. No connector fills them yet,
+even in the reference deployment (the alumni source is a stub), so this section is
+expected to be empty until your institution supplies the data. Do not read an
+empty Outcomes section as a failed setup.
+
+### What you can skip
+
+You do not need every source to get a useful Deep-Dive. With only the curriculum
+PDFs, the AI provider and the two national feeds (TCAS, demographics), these
+sections work: Executive snapshot (partly), Admissions, Demographic outlook,
+Skills, Courses, Overlap and Benchmarking. Add the registrar, staff roster,
+research and finance sources to fill Students, Faculty, research expertise and
+Financials.
 
 ## Step 5 — Run the pipeline on one programme
 
@@ -116,7 +265,7 @@ pnpm programs:pipeline <code>
 Useful variations:
 
 ```bash
-pnpm programs:pipeline <code> --skip=phase4   # registrar/finance connectors not wired yet
+pnpm programs:pipeline <code> --skip=phase4   # registrar/finance links not wired
 pnpm programs:pipeline <code> --only=phase5   # peers only
 ```
 
@@ -134,12 +283,15 @@ it scores, so a single-programme run needs no separate prep step. It compares th
 programme against same-level siblings, so the Overlap section stays hidden until
 at least one sibling reaches the display threshold.
 
+The scoring each phase feeds is described in the
+[Evaluation pipeline](../evaluation-pipeline).
+
 ## Step 6 — Check the result
 
 Open `/programs`, pick the programme, and walk the section rail. Compare each
 section with the table at the top. An empty section is expected when its source
-is missing — that is the intended behaviour, not a failure. There is no mock-data
-fallback; if you see numbers you cannot trace, investigate rather than trust them.
+is missing — that is the intended behaviour, not a failure. If you see numbers you
+cannot trace, investigate rather than trust them.
 
 ## Step 7 — Scale to the portfolio
 
@@ -170,17 +322,22 @@ pnpm programs:overlap-prep --apply
 pnpm programs:overlap --apply
 ```
 
+The method is in [Programme overlap](../methodologies/program-overlap).
+
 ## When a section is empty but the rows exist
 
 Almost always the provenance filter. Rows count only when they carry an
 `ingestion_run_id` whose data source has `mocked = false`; a legacy row with a
 NULL run id, or a source whose `mocked` flag was never cleared, silently
 disappears from the page. Check both. The triage SQL is in the
-[project contract](../_generated/project-contract) (search for `realDataWhere`).
+[project contract](../_generated/project-contract) (search for `realDataWhere`),
+and the trap is explained in the
+[Adopter guide](../adopters/README#trap-2-realdatawhere--empty-sections-with-rows-in-the-database).
 
 ## Where to go next
 
 - [Evaluation pipeline](../evaluation-pipeline) — how the scorers interlock.
 - [Health score](../methodologies/health-score) and
   [Programme health & lifecycle](../methodologies/program-health-and-lifecycle).
+- [Source catalogue](../data-sources/README) — every source and its status.
 - [PDF ingestion](../pdf-ingestion) — what happens to an attached curriculum PDF.
