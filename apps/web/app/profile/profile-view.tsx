@@ -166,6 +166,8 @@ export function ProfileView({
   scholarSlot = null,
   teachingEvaluation = null,
   grants = 'unavailable',
+  logoLightUrl = null,
+  logoDarkUrl = null,
 }: {
   profile: ProfileData | null;
   userEmail: string;
@@ -184,6 +186,9 @@ export function ProfileView({
   teachingEvaluation?: TeachingEvaluationSummary | null | 'unavailable';
   // Owner-only grants summary; same rules as teachingEvaluation above.
   grants?: GrantsPanelState;
+  // Organisation logo URLs for the hero mark; null hides it.
+  logoLightUrl?: string | null;
+  logoDarkUrl?: string | null;
 }) {
   const [lang, setLang] = React.useState<Lang>('en');
   const t = T[lang];
@@ -259,6 +264,8 @@ export function ProfileView({
         talent={profile.talent}
         t={t}
         publicMode={publicMode}
+        logoLightUrl={logoLightUrl}
+        logoDarkUrl={logoDarkUrl}
       />
 
       <ExpertiseNarrativeSection
@@ -326,6 +333,8 @@ function ProfileHero({
   talent,
   t,
   publicMode = false,
+  logoLightUrl = null,
+  logoDarkUrl = null,
 }: {
   fullName: string;
   rankLabel: string;
@@ -340,6 +349,8 @@ function ProfileHero({
   talent: ProfileData['talent'];
   t: (typeof T)[Lang];
   publicMode?: boolean;
+  logoLightUrl?: string | null;
+  logoDarkUrl?: string | null;
 }) {
   const initials = fullName
     .replace(/^(ผศ\.|รศ\.|ศ\.|ดร\.|อ\.|Asst\.|Assoc\.|Prof\.|Dr\.|Lect\.)\s*/gi, '')
@@ -369,6 +380,7 @@ function ProfileHero({
           the active theme. The dark variant uses Tailwind's `dark:`
           modifier which resolves against `data-theme="dark"` on
           <html> (configured in tailwind preset). */}
+      {logoLightUrl && logoDarkUrl && (
       <div
         aria-hidden
         className="pointer-events-none absolute right-5 top-5 z-10 flex items-start"
@@ -377,7 +389,7 @@ function ProfileHero({
             would add an optimizer round-trip for no gain. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/brand/kku-logo-light.png"
+          src={logoLightUrl}
           alt=""
           width={42}
           height={75}
@@ -387,13 +399,14 @@ function ProfileHero({
             would add an optimizer round-trip for no gain. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/brand/kku-logo-dark.png"
+          src={logoDarkUrl}
           alt=""
           width={42}
           height={75}
           className="hidden h-20 w-auto opacity-90 dark:block"
         />
       </div>
+      )}
       <div className="relative flex flex-col gap-7 p-7 md:flex-row md:items-start">
         {/* Avatar — 216×216 (240 × 0.9). Hero anchor sized to feel
             substantial without crowding the text. Both parent and

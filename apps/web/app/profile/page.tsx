@@ -8,6 +8,7 @@ import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { getMyGrants, getMyTeachingEvaluation, getProfileData } from '@/lib/profile-data';
 import { ShareCard } from '@/components/profile/share-card';
 import { getScholarStatusAction } from '@/lib/actions/scholar';
+import { brandingForRequest } from '@/lib/branding';
 import { ProfileView } from './profile-view';
 import {
   ScholarPanel,
@@ -105,6 +106,8 @@ export default async function ProfilePage() {
     scholarSources = { googleScholar, libraryIndex: total - googleScholar };
   }
 
+  const branding = await brandingForRequest();
+
   const initial: PublicProfileState = {
     enabled: share?.publicProfileEnabled ?? false,
     slug: share?.publicProfileSlug ?? null,
@@ -150,6 +153,8 @@ export default async function ProfilePage() {
       <ProfileView
         profile={profile}
         userEmail={user.email}
+        logoLightUrl={branding?.hasOwnLogo ? branding.logoLightUrl : null}
+        logoDarkUrl={branding?.hasOwnLogo ? branding.logoDarkUrl : null}
         teachingEvaluation={teachingEvaluation}
         grants={grants}
         scholarSlot={

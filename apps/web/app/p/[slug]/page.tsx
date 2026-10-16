@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { prisma } from '@kku/db';
 import { getProfileData } from '@/lib/profile-data';
+import { brandingForRequest } from '@/lib/branding';
 import { ProfileView } from '../../profile/profile-view';
 
 // Public profile page — same content as /profile, no chrome.
@@ -62,6 +63,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
 
   const profile = await getProfileData(user.id);
   if (!profile) notFound();
+  const branding = await brandingForRequest();
 
   return (
     <ProfileView
@@ -70,6 +72,8 @@ export default async function PublicProfilePage({ params }: PageProps) {
       // the type stays satisfied.
       userEmail=""
       publicMode
+      logoLightUrl={branding?.hasOwnLogo ? branding.logoLightUrl : null}
+      logoDarkUrl={branding?.hasOwnLogo ? branding.logoDarkUrl : null}
     />
   );
 }
