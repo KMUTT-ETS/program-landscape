@@ -10,6 +10,7 @@ import type {
   ImportRow,
 } from '../types';
 import { yearColumn } from './enrollment';
+import { programmeYearPrefill } from './prefill';
 import { PROVENANCE_SELECT, claimsRow } from './provenance';
 
 // Tier 1. The Deep-Dive's graduate outcome section and the employment
@@ -111,6 +112,9 @@ export const graduateOutcomesDataset: ImportDataset = {
     kind: 'upsert',
     match: { kind: 'unique', columns: ['programmeCode', 'graduationYear', 'surveyYear'] },
   },
+  // The survey year is left blank on purpose: it cannot be guessed, and a
+  // guessed one is worse than an empty cell because it looks like an answer.
+  prefill: programmeYearPrefill({ yearKey: 'graduationYear', extraKeys: ['surveyYear'] }),
 
   rowRules: [
     {

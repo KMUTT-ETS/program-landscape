@@ -9,6 +9,7 @@ import type {
   ImportLoadResult,
   ImportRow,
 } from '../types';
+import { programmeYearPrefill } from './prefill';
 import { PROVENANCE_SELECT, claimsRow } from './provenance';
 
 // Tier 1. Feeds the Deep-Dive's cohort and demographic-outlook sections,
@@ -102,6 +103,7 @@ export const enrollmentDataset: ImportDataset = {
     kind: 'upsert',
     match: { kind: 'unique', columns: ['programmeCode', 'academicYear'] },
   },
+  prefill: programmeYearPrefill({ yearKey: 'academicYear' }),
 
   rowRules: [
     {

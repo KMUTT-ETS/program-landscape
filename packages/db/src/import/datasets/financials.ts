@@ -10,6 +10,7 @@ import type {
   ImportRow,
 } from '../types';
 import { yearColumn } from './enrollment';
+import { programmeYearPrefill } from './prefill';
 import { PROVENANCE_SELECT, claimsRow } from './provenance';
 
 // Tier 1. Revenue only.
@@ -83,6 +84,7 @@ export const financialsDataset: ImportDataset = {
     kind: 'upsert',
     match: { kind: 'unique', columns: ['programmeCode', 'academicYear'] },
   },
+  prefill: programmeYearPrefill({ yearKey: 'academicYear' }),
 
   load: async (ctx: ImportLoadContext, rows: readonly ImportRow[]): Promise<ImportLoadResult> => {
     const codes = [...new Set(rows.map((r) => String(r.programmeCode)))];
