@@ -3,7 +3,9 @@ import * as path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { IMPORT_DATASETS, getImportDataset, listImportDatasets } from '../src/import';
+import { SOURCE_CATALOG } from '@kku/shared';
+
+import { IMPORT_DATASETS, getImportDataset, importDataSourceSlug, listImportDatasets } from '../src/import';
 
 // Structural invariants over the declaration registry.
 //
@@ -90,6 +92,27 @@ describe('import registry', () => {
 
   it('throws for an unknown slug, naming it', () => {
     expect(() => getImportDataset('definitely-not-a-dataset')).toThrow(/definitely-not-a-dataset/);
+  });
+
+  it('has a non-mocked catalog entry for every dataset', () => {
+    // A dataset with no DataSource row loads successfully and is then
+    // invisible to realDataWhere() — an upload that reports success and
+    // renders nothing. A mocked one fails the same way.
+    for (const d of IMPORT_DATASETS) {
+      const slug = importDataSourceSlug(d.slug);
+      const entry = SOURCE_CATALOG.find((e) => e.slug === slug);
+      expect(entry, `no catalog entry "${slug}" for dataset "${d.slug}"`).toBeDefined();
+      expect(entry?.mocked, `${slug} must not be mocked`).toBe(false);
+      expect(entry?.inputFormat).toBe('XLSX');
+    }
+  });
+
+  it('has no orphaned xlsx-* catalog entry', () => {
+    const slugs = new Set(IMPORT_DATASETS.map((d) => importDataSourceSlug(d.slug)));
+    for (const entry of SOURCE_CATALOG) {
+      if (!entry.slug.startsWith('xlsx-')) continue;
+      expect(slugs, `catalog has "${entry.slug}" but no dataset declares it`).toContain(entry.slug);
+    }
   });
 
   it('never imports xlsx into packages/db', () => {

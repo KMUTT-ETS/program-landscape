@@ -38,6 +38,9 @@ const DELIBERATELY_OTHER = new Set([
   'external_ai_source.create',
   'external_ai_source.delete',
   'external_ai_source.set_status',
+  // Clearing an imported dataset. Destructive administration rather than
+  // usage the dashboard reports; the AuditLog row is the record that matters.
+  'import.start_over',
   'external_ai_source.update',
   'gap_brief.disagreement',
   'ingestion.bulk_status',

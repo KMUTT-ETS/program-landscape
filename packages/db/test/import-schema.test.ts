@@ -83,8 +83,16 @@ describe('provenance columns', () => {
     }
   });
 
-  it('leaves existing rows unstamped, so connectors and seeds are unaffected', async () => {
-    const stamped = await prisma.faculty.count({ where: { ingestionRunId: { not: null } } });
-    expect(stamped).toBe(0);
+  it('keeps the column optional, so connectors and seeds need no change', async () => {
+    // The property the migration must preserve is that a row can still be
+    // written with no provenance at all. Counting stamped rows globally
+    // would be a claim about the whole database that any other suite
+    // creating an imported row legitimately invalidates.
+    const row = await prisma.faculty.create({
+      data: { code: 'SCHEMA-TEST-UNSTAMPED', nameTh: 'x', nameEn: 'x' },
+      select: { id: true, ingestionRunId: true },
+    });
+    expect(row.ingestionRunId).toBeNull();
+    await prisma.faculty.delete({ where: { id: row.id } });
   });
 });

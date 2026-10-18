@@ -555,6 +555,46 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'Externally funded research and academic-service projects with lead + co-investigators (MySQL views T_external_fund_View_landscape + coproject_landscape). Daily snapshot replace. Lead citizen id hashed in SQL.',
     mocked: false,
   },
+
+  // ── Spreadsheet import (xlsx-*) ────────────────────────────────────────────
+  // One per importable dataset, so uploaded rows carry provenance that
+  // realDataWhere() accepts. These MUST stay in step with IMPORT_DATASETS in
+  // packages/db/src/import/registry.ts; a test there asserts the
+  // correspondence, because a dataset with no source row loads successfully
+  // and is then invisible on every Council surface.
+  //
+  // mocked: false is load-bearing. scheduleEnabled: false because an upload
+  // is the trigger — there is nothing for a cadence to wake.
+  {
+    slug: 'xlsx-faculties',
+    name: 'Faculties (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes: 'Faculties uploaded through /admin/data-setup. Adopter-facing path for installations with no registrar connector.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-departments',
+    name: 'Departments (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes: 'Departments uploaded through /admin/data-setup.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-programmes',
+    name: 'Programmes (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes: 'Programmes uploaded through /admin/data-setup. Imported rows are assigned a sequence number so they are canonical.',
+    mocked: false,
+  },
 ] as const;
 
 export function getCatalogEntry(slug: string): SourceCatalogEntry | undefined {
