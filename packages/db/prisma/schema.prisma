@@ -414,13 +414,19 @@ enum IngestionRunStatus {
 // ══════════════════════════════════════════════════════════════════════════
 
 model Faculty {
-  id        String      @id @default(cuid())
-  code      String      @unique
-  nameTh    String      @map("name_th")
-  nameEn    String      @map("name_en")
-  kind      FacultyKind @default(ACADEMIC)
-  createdAt DateTime    @default(now()) @map("created_at")
-  updatedAt DateTime    @updatedAt @map("updated_at")
+  id             String      @id @default(cuid())
+  code           String      @unique
+  nameTh         String      @map("name_th")
+  nameEn         String      @map("name_en")
+  kind           FacultyKind @default(ACADEMIC)
+  /// Set only by the spreadsheet importer, so start-over can tell its own
+  /// rows from seeded or connector-written ones. realDataWhere() is never
+  /// applied to this table, so a null changes nothing about visibility.
+  ingestionRunId String?     @map("ingestion_run_id")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  ingestionRun IngestionRun? @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
 
   departments            Department[]
   programs               Program[]
@@ -441,19 +447,23 @@ model Faculty {
   admissionCampaignStats AdmissionCampaignStat[]
 
   @@index([code])
+  @@index([ingestionRunId])
   @@map("faculties")
 }
 
 model Department {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  nameTh    String   @map("name_th")
-  nameEn    String   @map("name_en")
-  facultyId String   @map("faculty_id")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id             String   @id @default(cuid())
+  code           String   @unique
+  nameTh         String   @map("name_th")
+  nameEn         String   @map("name_en")
+  facultyId      String   @map("faculty_id")
+  /// Set only by the spreadsheet importer. See Faculty.ingestionRunId.
+  ingestionRunId String?  @map("ingestion_run_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   faculty             Faculty               @relation(fields: [facultyId], references: [id], onDelete: Restrict)
+  ingestionRun        IngestionRun?         @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
   programs            Program[]
   users               User[]
   facultyMembers      FacultyMember[]
@@ -462,6 +472,7 @@ model Department {
   facultyCompensation FacultyCompensation[]
 
   @@index([facultyId])
+  @@index([ingestionRunId])
   @@map("departments")
 }
 
@@ -534,16 +545,19 @@ model Program {
   activeRevisionId String?          @unique @map("active_revision_id")
   activeRevision   ProgramRevision? @relation("ProgramActiveRevision", fields: [activeRevisionId], references: [id], onDelete: SetNull)
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  /// Set only by the spreadsheet importer. See Faculty.ingestionRunId.
+  ingestionRunId String?  @map("ingestion_run_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
-  faculty    Faculty     @relation(fields: [facultyId], references: [id], onDelete: Restrict)
-  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  faculty      Faculty       @relation(fields: [facultyId], references: [id], onDelete: Restrict)
+  department   Department?   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  ingestionRun IngestionRun? @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
 
   curricula             Curriculum[]
   courses               Course[]
-  programJobThaiLinks      ProgramJobThaiLink[]
-  programJobFields         ProgramJobField[]
+  programJobThaiLinks   ProgramJobThaiLink[]
+  programJobFields      ProgramJobField[]
   programSkills         ProgramSkill[]
   programFaculties      ProgramFaculty[]
   programUsers          User[]                        @relation("ProgramUserScope")
@@ -581,13 +595,14 @@ model Program {
   revisions             ProgramRevision[]
   learningOutcomes      ProgramLearningOutcome[]
   marketProfile         ProgramMarketProfile?
-  overlapPairsA         ProgramOverlapPair[]     @relation("OverlapPairA")
-  overlapPairsB         ProgramOverlapPair[]     @relation("OverlapPairB")
+  overlapPairsA         ProgramOverlapPair[]          @relation("OverlapPairA")
+  overlapPairsB         ProgramOverlapPair[]          @relation("OverlapPairB")
 
   @@index([facultyId])
   @@index([departmentId])
   @@index([status])
   @@index([level])
+  @@index([ingestionRunId])
   @@map("programs")
 }
 
@@ -729,6 +744,7 @@ model User {
   pageViewDays             PageViewDaily[]
   uploadedPdfs             PdfDocument[]            @relation("PdfUploader")
   jobThaiBatches           JobThaiBatch[]
+  importBatches            ImportBatch[]
   reviewedExtractions      PdfExtraction[]          @relation("ExtractionReviewer")
   reviewedAiExtractions    AiExtraction[]           @relation("AiExtractionReviewer")
   goldLabelledExtractions  AiExtraction[]           @relation("AiExtractionGoldLabeller")
@@ -850,12 +866,12 @@ model UserPublicationsCache {
 // The Scholar runner invalidates a row by backdating fetched_at to the epoch
 // (PUBLICATIONS_CACHE_INVALIDATED_MS); readers treat that value as a miss.
 model StaffPublicationsCache {
-  id              String        @id @default(cuid())
-  facultyMemberId String        @unique @map("faculty_member_id")
-  payloadJson     Json          @map("payload_json")
-  paperCount      Int           @map("paper_count")
-  fetchedAt       DateTime      @default(now()) @map("fetched_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
+  id              String   @id @default(cuid())
+  facultyMemberId String   @unique @map("faculty_member_id")
+  payloadJson     Json     @map("payload_json")
+  paperCount      Int      @map("paper_count")
+  fetchedAt       DateTime @default(now()) @map("fetched_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   facultyMember FacultyMember @relation(fields: [facultyMemberId], references: [id], onDelete: Cascade)
 
@@ -1556,11 +1572,15 @@ model FacultyMember {
   /// list of these emails — that's how a class section is linked back to
   /// its teaching staff for the teaching-workload dashboard.
   kkuEmail              String?     @unique @map("kku_email")
+  /// Set only by the spreadsheet importer. See Faculty.ingestionRunId.
+  /// The HR connectors do NOT stamp it; a null simply means "not imported".
+  ingestionRunId        String?     @map("ingestion_run_id")
   createdAt             DateTime    @default(now()) @map("created_at")
   updatedAt             DateTime    @updatedAt @map("updated_at")
 
   faculty               Faculty                     @relation(fields: [facultyId], references: [id], onDelete: Restrict)
   department            Department?                 @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  ingestionRun          IngestionRun?               @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
   programFaculties      ProgramFaculty[]
   researchOutputs       ResearchOutput[]
   classOfferingTeachers ClassOfferingTeacher[]
@@ -1577,6 +1597,7 @@ model FacultyMember {
   @@index([facultyId])
   @@index([departmentId])
   @@index([isActive])
+  @@index([ingestionRunId])
   @@map("faculty_members")
 }
 
@@ -1975,49 +1996,49 @@ model JobPosting {
   updatedAt      DateTime                     @updatedAt @map("updated_at")
 
   // ── JobThai file-drop fields (2026-09-13) ──────────────────────────
-  jobThaiBatchId   String?                   @map("jobthai_batch_id")
-  jobCategory      String?                   @map("job_category")
-  jobSubcategory   String?                   @map("job_subcategory")
-  businessType     String?                   @map("business_type")
-  qualificationRaw String?                   @map("qualification_raw") @db.Text
+  jobThaiBatchId      String?                   @map("jobthai_batch_id")
+  jobCategory         String?                   @map("job_category")
+  jobSubcategory      String?                   @map("job_subcategory")
+  businessType        String?                   @map("business_type")
+  qualificationRaw    String?                   @map("qualification_raw") @db.Text
   /// Normalised fields of study the posting asks for. The sentinel
   /// '*ANY*' means the posting said ทุกสาขา (any field) — a real and
   /// common category, not an extraction failure.
-  requiredFieldsRaw String[]                 @map("required_fields_raw")
+  requiredFieldsRaw   String[]                  @map("required_fields_raw")
   /// The LOWEST level stated, because "ปวช., ปวส.- ปริญญาตรี" means a ปวช
   /// holder is acceptable. The floor is what the text means.
-  minEducationLevel JobRequiredEducationLevel @default(UNSPECIFIED) @map("min_education_level")
+  minEducationLevel   JobRequiredEducationLevel @default(UNSPECIFIED) @map("min_education_level")
   /// True when postedDate came from the batch receipt date rather than the
   /// source. The 2026-09 JobThai drop carries no date column; they can
   /// supply one, and the parser accepts it the moment they do.
-  postedDateEstimated Boolean                @default(false) @map("posted_date_estimated")
+  postedDateEstimated Boolean                   @default(false) @map("posted_date_estimated")
 
   /// Seats offered for this position-type (`จำนวน N ตำแหน่ง` / `อัตรา`).
   /// STORED AND DISPLAYED, NEVER WEIGHTED into a demand share: JobThai
   /// carries no headcount column, so weighting public seats against private
   /// adverts of unknown size would over-weight the public side by an
   /// unknowable factor. Null on every JobThai row.
-  positionCount        Int?                      @map("position_count")
+  positionCount        Int?      @map("position_count")
   /// Application closing date, where the announcement states one. Public
   /// rows only. Lets the counting window be re-cut without refetching.
   /// Deliberately denormalised from the parent announcement: the gap map
   /// filters postings by date on every read and should not join to do it.
-  applicationCloseDate DateTime?                 @map("application_close_date") @db.Date
+  applicationCloseDate DateTime? @map("application_close_date") @db.Date
 
   /// Provenance. job_postings predates the ingestion_run_id convention and
   /// had no such column, so nothing written here could ever pass
   /// realDataWhere() — the same class of gap that left 6,224
   /// program_demand_matches invisible. Added 2026-09-13 with the first
   /// connector that actually writes to this table.
-  ingestionRunId   String?           @map("ingestion_run_id")
+  ingestionRunId String? @map("ingestion_run_id")
 
   // ── job-108 public-sector fields (2026-09-20) ──────────────────────
-  job108AnnouncementId String?             @map("job108_announcement_id")
+  job108AnnouncementId String? @map("job108_announcement_id")
 
-  sourcePdf          PdfDocument?         @relation(fields: [sourcePdfId], references: [id], onDelete: SetNull)
-  jobThaiBatch       JobThaiBatch?        @relation(fields: [jobThaiBatchId], references: [id], onDelete: Cascade)
-  ingestionRun       IngestionRun?        @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
-  job108Announcement Job108Announcement?  @relation(fields: [job108AnnouncementId], references: [id], onDelete: Cascade)
+  sourcePdf          PdfDocument?        @relation(fields: [sourcePdfId], references: [id], onDelete: SetNull)
+  jobThaiBatch       JobThaiBatch?       @relation(fields: [jobThaiBatchId], references: [id], onDelete: Cascade)
+  ingestionRun       IngestionRun?       @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
+  job108Announcement Job108Announcement? @relation(fields: [job108AnnouncementId], references: [id], onDelete: Cascade)
   jobPostingSkills   JobPostingSkill[]
 
   @@unique([source, externalId])
@@ -2060,6 +2081,51 @@ model JobThaiBatch {
   @@map("jobthai_batches")
 }
 
+/// One uploaded spreadsheet. The file is retained in object storage and this
+/// row is the only thing that names it — filename, uploader, date — so
+/// start-over marks batches CLEARED rather than deleting them. Without the
+/// row the stored object is an orphan under a hash-named key, and the replay
+/// path that justifies start-over stops working.
+model ImportBatch {
+  id               String            @id @default(cuid())
+  /// Matches an ImportDataset.slug in packages/db/src/import/registry.ts.
+  datasetSlug      String            @map("dataset_slug")
+  filename         String
+  /// SHA-256 of the uploaded bytes. Unique PER DATASET, not globally: the
+  /// same workbook may legitimately be uploaded to two datasets.
+  contentHash      String            @map("content_hash")
+  storageKey       String            @map("storage_key")
+  fileSize         Int               @map("file_size")
+  rowCount         Int               @default(0) @map("row_count")
+  status           ImportBatchStatus @default(PENDING)
+  errorMessage     String?           @map("error_message") @db.Text
+  uploadedByUserId String?           @map("uploaded_by_user_id")
+  ingestionRunId   String?           @map("ingestion_run_id")
+  /// Set when start-over cleared this batch's rows. The row survives so the
+  /// file stays listable and re-uploadable.
+  clearedAt        DateTime?         @map("cleared_at")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+
+  uploadedBy   User?         @relation(fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  ingestionRun IngestionRun? @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
+
+  @@unique([datasetSlug, contentHash])
+  @@index([datasetSlug, createdAt])
+  @@index([ingestionRunId])
+  @@map("import_batches")
+}
+
+/// PENDING -> LOADING -> SUCCEEDED | FAILED. CLEARED is terminal and means
+/// start-over removed the rows this batch wrote; the row itself stays.
+enum ImportBatchStatus {
+  PENDING
+  LOADING
+  SUCCEEDED
+  FAILED
+  CLEARED
+}
+
 enum Job108AnnouncementStatus {
   PENDING
   EXTRACTED
@@ -2073,33 +2139,33 @@ enum Job108AnnouncementStatus {
 /// An announcement bundles several position-types, each with its own field
 /// list and seat count, so one row here fans out to several JobPosting rows.
 model Job108Announcement {
-  id             String                   @id @default(cuid())
+  id                   String                   @id @default(cuid())
   /// The site's own id, e.g. `id20256`. Stable across refetches.
-  announcementId String                   @unique @map("announcement_id")
-  url            String
+  announcementId       String                   @unique @map("announcement_id")
+  url                  String
   /// SHA-256 of the fetched bytes. Diagnostic only, and deliberately NOT
   /// unique: the refetch gate is `sourceLastmod`, and these pages carry ads
   /// and a "published N days ago" widget, so an unchanged announcement can
   /// hash differently between fetches while several withdrawn ones can hash
   /// identically to the same removal template.
-  contentHash    String                   @map("content_hash")
+  contentHash          String                   @map("content_hash")
   /// Nullable because `status = FAILED` rows are stored deliberately: a page
   /// that did not parse still belongs in the ledger with its error. Requiring
   /// a title would mean inventing one to persist the failure.
-  title          String?
-  agencyName     String?                  @map("agency_name")
-  publishedDate  DateTime?                @map("published_date") @db.Date
-  applicationOpenDate  DateTime?          @map("application_open_date") @db.Date
-  applicationCloseDate DateTime?          @map("application_close_date") @db.Date
+  title                String?
+  agencyName           String?                  @map("agency_name")
+  publishedDate        DateTime?                @map("published_date") @db.Date
+  applicationOpenDate  DateTime?                @map("application_open_date") @db.Date
+  applicationCloseDate DateTime?                @map("application_close_date") @db.Date
   /// Sitemap `lastmod` at the time we fetched. An entry no newer than this
   /// is never refetched.
-  sourceLastmod  DateTime?                @map("source_lastmod") @db.Date
-  fetchedAt      DateTime                 @default(now()) @map("fetched_at")
-  status         Job108AnnouncementStatus @default(PENDING)
-  parseError     String?                  @map("parse_error") @db.Text
-  ingestionRunId String?                  @map("ingestion_run_id")
-  createdAt      DateTime                 @default(now()) @map("created_at")
-  updatedAt      DateTime                 @updatedAt @map("updated_at")
+  sourceLastmod        DateTime?                @map("source_lastmod") @db.Date
+  fetchedAt            DateTime                 @default(now()) @map("fetched_at")
+  status               Job108AnnouncementStatus @default(PENDING)
+  parseError           String?                  @map("parse_error") @db.Text
+  ingestionRunId       String?                  @map("ingestion_run_id")
+  createdAt            DateTime                 @default(now()) @map("created_at")
+  updatedAt            DateTime                 @updatedAt @map("updated_at")
 
   ingestionRun IngestionRun? @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
   postings     JobPosting[]
@@ -3434,47 +3500,54 @@ model IngestionRun {
   metadata          Json?
   createdAt         DateTime            @default(now()) @map("created_at")
 
-  dataSource                 DataSource                  @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
-  triggeredBy                User?                       @relation("IngestionTriggeredBy", fields: [triggeredByUserId], references: [id], onDelete: SetNull)
-  staffEducationHistories    StaffEducationHistory[]
-  staffProgramAssignments    StaffProgramAssignment[]
-  studentProgramRecords      StudentProgramRecord[]
-  staffMasterRecords         StaffMasterRecord[]
-  staffCompensationCubes     StaffCompensationCube[]
+  dataSource                    DataSource                     @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+  triggeredBy                   User?                          @relation("IngestionTriggeredBy", fields: [triggeredByUserId], references: [id], onDelete: SetNull)
+  staffEducationHistories       StaffEducationHistory[]
+  staffProgramAssignments       StaffProgramAssignment[]
+  studentProgramRecords         StudentProgramRecord[]
+  staffMasterRecords            StaffMasterRecord[]
+  staffCompensationCubes        StaffCompensationCube[]
   // Metric/fact tables added by migration 20260511120000_data_quality_provenance.
   // Each metric row's ingestion_run_id traces back to the originating
   // connector run, enabling per-row provenance + mock-filter at the
   // query layer (see packages/db/src/data-quality.ts).
-  enrollmentMetrics          EnrollmentMetric[]
-  studentDemographics        StudentDemographic[]
-  tcasAdmissionStats         TcasAdmissionStat[]
-  alumniCohortStatuses       AlumniCohortStatus[]
-  studentCohortDistributions StudentCohortDistribution[]
-  financialMetrics           FinancialMetric[]
-  graduateOutcomes           GraduateOutcome[]
-  researchOutputs            ResearchOutput[]
-  facultyCompensations       FacultyCompensation[]
+  enrollmentMetrics             EnrollmentMetric[]
+  studentDemographics           StudentDemographic[]
+  tcasAdmissionStats            TcasAdmissionStat[]
+  alumniCohortStatuses          AlumniCohortStatus[]
+  studentCohortDistributions    StudentCohortDistribution[]
+  financialMetrics              FinancialMetric[]
+  graduateOutcomes              GraduateOutcome[]
+  researchOutputs               ResearchOutput[]
+  facultyCompensations          FacultyCompensation[]
   researchServiceProjects       ResearchServiceProject[]
   researchServiceProjectMembers ResearchServiceProjectMember[]
-  facultyBudgets             FacultyBudget[]
-  kmitlCareers               KmitlCareer[]
-  kmitlCareerSkillDemands    KmitlCareerSkillDemand[]
-  kmitlSkillGrowths          KmitlSkillGrowth[]
-  tcasAdmissionFunnels       TcasAdmissionFunnel[]
-  programDemandMatches       ProgramDemandMatch[]
-  jobThaiBatches             JobThaiBatch[]
-  jobPostings                JobPosting[]
-  job108Announcements        Job108Announcement[]
-  programJobThaiLinks        ProgramJobThaiLink[]
-  jobFieldTaxonomies         JobFieldTaxonomy[]
-  programJobFields           ProgramJobField[]
-  classOfferings             ClassOffering[]
-  programCourses             ProgramCourse[]
-  evaluationQuestions        EvaluationQuestion[]
-  evaluationResponses        EvaluationResponseSummary[]
-  admissionCampaignStats     AdmissionCampaignStat[]
-  dqStudentCubes             DqStudentCube[]
-  dqModuleCubes              DqModuleCube[]
+  facultyBudgets                FacultyBudget[]
+  kmitlCareers                  KmitlCareer[]
+  kmitlCareerSkillDemands       KmitlCareerSkillDemand[]
+  kmitlSkillGrowths             KmitlSkillGrowth[]
+  tcasAdmissionFunnels          TcasAdmissionFunnel[]
+  programDemandMatches          ProgramDemandMatch[]
+  jobThaiBatches                JobThaiBatch[]
+  importBatches                 ImportBatch[]
+  // Spreadsheet-import provenance. Nullable on all four: a null means the
+  // row was seeded or written by a connector, not imported.
+  importedFaculties             Faculty[]
+  importedDepartments           Department[]
+  importedPrograms              Program[]
+  importedFacultyMembers        FacultyMember[]
+  jobPostings                   JobPosting[]
+  job108Announcements           Job108Announcement[]
+  programJobThaiLinks           ProgramJobThaiLink[]
+  jobFieldTaxonomies            JobFieldTaxonomy[]
+  programJobFields              ProgramJobField[]
+  classOfferings                ClassOffering[]
+  programCourses                ProgramCourse[]
+  evaluationQuestions           EvaluationQuestion[]
+  evaluationResponses           EvaluationResponseSummary[]
+  admissionCampaignStats        AdmissionCampaignStat[]
+  dqStudentCubes                DqStudentCube[]
+  dqModuleCubes                 DqModuleCube[]
 
   @@index([dataSourceId, createdAt])
   @@index([status])
@@ -4682,17 +4755,17 @@ model EvaluationResponseSummary {
 // `courseCode` is normalised the same way as ClassOffering.courseCode
 // (whitespace stripped, upper) so the natural join key matches.
 model ProgramCourse {
-  id                String          @id @default(cuid())
-  programId         String          @map("program_id")
+  id                 String                       @id @default(cuid())
+  programId          String                       @map("program_id")
   /// Whitespace-stripped, upper-cased course code, matching
   /// ClassOffering.courseCode (e.g., "EN241100").
-  courseCode        String          @map("course_code")
+  courseCode         String                       @map("course_code")
   /// As-extracted course code (preserves the digest's original form,
   /// usually with spaces like "EN 241 100").
-  courseCodeRaw     String          @map("course_code_raw")
-  courseNameTh      String?         @map("course_name_th")
-  courseNameEn      String?         @map("course_name_en")
-  credits           Int?
+  courseCodeRaw      String                       @map("course_code_raw")
+  courseNameTh       String?                      @map("course_name_th")
+  courseNameEn       String?                      @map("course_name_en")
+  credits            Int?
   /// The หมวด grouping this course sits under. Written by both
   /// program_courses writers (program-courses-extract/run.ts and
   /// materialise-program-courses.ts).
@@ -4708,27 +4781,27 @@ model ProgramCourse {
   ///   UNKNOWN  — ran, but the curriculum headings did not place the
   ///              course. Always the case for the extractor's regex
   ///              name-fallback path, which never reads หมวด headings.
-  category          CourseCategory? @map("category")
+  category           CourseCategory?              @map("category")
   /// program-overlap.v1: course description + CLOs copied from the latest
   /// approved PROGRAM_DIGEST (matched on normalised code). NULL when the digest
   /// did not list the course (it caps at 80 per programme).
-  descriptionTh      String?   @map("description_th") @db.Text
-  learningOutcomesTh String[]  @default([]) @map("learning_outcomes_th")
+  descriptionTh      String?                      @map("description_th") @db.Text
+  learningOutcomesTh String[]                     @default([]) @map("learning_outcomes_th")
   /// Embedding of name + description + CLOs (major courses only), 1536-d,
   /// L2-normalised. Written via raw SQL only.
   embedding          Unsupported("vector(1536)")?
   /// sha256 of the text that produced `embedding`; re-embed only on change.
-  embeddingTextHash  String?   @map("embedding_text_hash")
+  embeddingTextHash  String?                      @map("embedding_text_hash")
   /// Method version of the PROGRAM_DIGEST extractor that produced
   /// this row — lets a methodology bump re-flow new courses without
   /// wiping older curricula whose digests haven't been re-run yet.
-  methodVersion     String          @map("method_version")
-  refreshedAt       DateTime        @default(now()) @updatedAt @map("refreshed_at")
-  ingestionRunId    String?         @map("ingestion_run_id")
+  methodVersion      String                       @map("method_version")
+  refreshedAt        DateTime                     @default(now()) @updatedAt @map("refreshed_at")
+  ingestionRunId     String?                      @map("ingestion_run_id")
   /// Which curriculum revision produced this row. NULL is the pre-feature
   /// baseline — it agrees by construction with Program.activeRevisionId
   /// also being NULL.
-  programRevisionId String?         @map("program_revision_id")
+  programRevisionId  String?                      @map("program_revision_id")
 
   program         Program          @relation(fields: [programId], references: [id], onDelete: Cascade)
   ingestionRun    IngestionRun?    @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
@@ -4767,17 +4840,17 @@ enum OverlapRunStatus {
 /// program-overlap.v1 — one PLO of a programme, from the latest
 /// PROGRAM_SKILLS_DETAILED extraction.
 model ProgramLearningOutcome {
-  id                 String           @id @default(cuid())
-  programId          String           @map("program_id")
-  program            Program          @relation(fields: [programId], references: [id], onDelete: Cascade)
+  id                 String                       @id @default(cuid())
+  programId          String                       @map("program_id")
+  program            Program                      @relation(fields: [programId], references: [id], onDelete: Cascade)
   ordinal            Int
-  textTh             String           @map("text_th") @db.Text
-  textNormalised     String           @map("text_normalised") @db.Text
-  programRevisionId  String?          @map("program_revision_id")
-  sourceExtractionId String           @map("source_extraction_id")
+  textTh             String                       @map("text_th") @db.Text
+  textNormalised     String                       @map("text_normalised") @db.Text
+  programRevisionId  String?                      @map("program_revision_id")
+  sourceExtractionId String                       @map("source_extraction_id")
   embedding          Unsupported("vector(1536)")?
-  embeddingTextHash  String?          @map("embedding_text_hash")
-  createdAt          DateTime         @default(now()) @map("created_at")
+  embeddingTextHash  String?                      @map("embedding_text_hash")
+  createdAt          DateTime                     @default(now()) @map("created_at")
 
   @@unique([programId, ordinal])
   @@index([programId])
@@ -4787,12 +4860,12 @@ model ProgramLearningOutcome {
 /// program-overlap.v1 — the programme's market-facing text (degree names,
 /// recruitment summary, careers) and its embedding.
 model ProgramMarketProfile {
-  programId  String   @id @map("program_id")
-  program    Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
-  text       String   @db.Text
-  textHash   String   @map("text_hash")
-  embedding  Unsupported("vector(1536)")?
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  programId String                       @id @map("program_id")
+  program   Program                      @relation(fields: [programId], references: [id], onDelete: Cascade)
+  text      String                       @db.Text
+  textHash  String                       @map("text_hash")
+  embedding Unsupported("vector(1536)")?
+  updatedAt DateTime                     @updatedAt @map("updated_at")
 
   @@map("program_market_profiles")
 }
@@ -4825,32 +4898,32 @@ model ProgramOverlapRun {
 }
 
 model ProgramOverlapPair {
-  id                 String                         @id @default(cuid())
-  runId              String                         @map("run_id")
-  run                ProgramOverlapRun              @relation(fields: [runId], references: [id], onDelete: Cascade)
+  id                 String                        @id @default(cuid())
+  runId              String                        @map("run_id")
+  run                ProgramOverlapRun             @relation(fields: [runId], references: [id], onDelete: Cascade)
   level              ProgramLevel
-  programAId         String                         @map("program_a_id")
-  programA           Program                        @relation("OverlapPairA", fields: [programAId], references: [id], onDelete: Cascade)
-  programBId         String                         @map("program_b_id")
-  programB           Program                        @relation("OverlapPairB", fields: [programBId], references: [id], onDelete: Cascade)
+  programAId         String                        @map("program_a_id")
+  programA           Program                       @relation("OverlapPairA", fields: [programAId], references: [id], onDelete: Cascade)
+  programBId         String                        @map("program_b_id")
+  programB           Program                       @relation("OverlapPairB", fields: [programBId], references: [id], onDelete: Cascade)
   structure          Float?
   content            Float?
   outcome            Float?
-  overlapIndex       Float?                         @map("overlap_index")
-  containmentAInB    Float?                         @map("containment_a_in_b")
-  containmentBInA    Float?                         @map("containment_b_in_a")
+  overlapIndex       Float?                        @map("overlap_index")
+  containmentAInB    Float?                        @map("containment_a_in_b")
+  containmentBInA    Float?                        @map("containment_b_in_a")
   band               OverlapBand
-  sharedCredits      Float                          @default(0) @map("shared_credits")
-  equivCredits       Float                          @default(0) @map("equiv_credits")
-  sharedStaff        Int                            @default(0) @map("shared_staff")
-  marketSimilarity   Float?                         @map("market_similarity")
-  languageVariant    Boolean                        @default(false) @map("language_variant")
-  actions            OverlapAction[]                @default([])
-  primaryAction      OverlapAction?                 @map("primary_action")
-  evidenceJson       Json                           @map("evidence_json")
-  evidenceHash       String                         @map("evidence_hash")
-  methodologyVersion String                         @map("methodology_version")
-  createdAt          DateTime                       @default(now()) @map("created_at")
+  sharedCredits      Float                         @default(0) @map("shared_credits")
+  equivCredits       Float                         @default(0) @map("equiv_credits")
+  sharedStaff        Int                           @default(0) @map("shared_staff")
+  marketSimilarity   Float?                        @map("market_similarity")
+  languageVariant    Boolean                       @default(false) @map("language_variant")
+  actions            OverlapAction[]               @default([])
+  primaryAction      OverlapAction?                @map("primary_action")
+  evidenceJson       Json                          @map("evidence_json")
+  evidenceHash       String                        @map("evidence_hash")
+  methodologyVersion String                        @map("methodology_version")
+  createdAt          DateTime                      @default(now()) @map("created_at")
   recommendation     ProgramOverlapRecommendation?
 
   @@unique([runId, programAId, programBId])
@@ -5935,17 +6008,17 @@ model SystemSetting {
 /// cache in packages/db/src/organization.ts. Phase 1 holds identity only —
 /// brand and legal columns arrive in later phases of the white-label spec.
 model OrganizationProfile {
-  id           String   @id @default("default")
+  id              String   @id @default("default")
   /// Must equal the TCAS `สถาบัน` spelling exactly.
-  nameTh       String   @map("name_th")
-  nameEn       String   @map("name_en")
-  shortNameTh  String   @map("short_name_th")
-  shortNameEn  String   @map("short_name_en")
-  regionTh     String?  @map("region_th")
-  regionEn     String?  @map("region_en")
+  nameTh          String   @map("name_th")
+  nameEn          String   @map("name_en")
+  shortNameTh     String   @map("short_name_th")
+  shortNameEn     String   @map("short_name_en")
+  regionTh        String?  @map("region_th")
+  regionEn        String?  @map("region_en")
   /// Outbound User-Agent contact only — never shown publicly.
-  contactEmail String?  @map("contact_email")
-  appUrl       String   @map("app_url")
+  contactEmail    String?  @map("contact_email")
+  appUrl          String   @map("app_url")
   /// MinIO object keys in bucket MINIO_BUCKET_BRANDING (default "branding"); null = built-in mark.
   logoLightKey    String?  @map("logo_light_key")
   logoDarkKey     String?  @map("logo_dark_key")
@@ -5956,9 +6029,9 @@ model OrganizationProfile {
   /// Derived OKLCH tokens {light:{…},dark:{…}} computed at save time (spec §5.2).
   brandTokensJson Json?    @map("brand_tokens_json")
   /// Bumped on every save; cache refresh + optimistic lock.
-  version      Int      @default(1)
-  updatedAt    DateTime @updatedAt @map("updated_at")
-  updatedBy    String?  @map("updated_by")
+  version         Int      @default(1)
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  updatedBy       String?  @map("updated_by")
 
   @@map("organization_profile")
 }
@@ -6141,24 +6214,24 @@ model ScholarBindAttempt {
 
   /// Whose staff record the profile was being attached to. NOT necessarily
   /// the actor — kept as the subject so the daily cap is per person bound.
-  userId String @map("user_id")
+  userId           String             @map("user_id")
   /// Null when the account resolved to no single staff record, which is a
   /// refusal that happens before any page is fetched.
-  facultyMemberId String? @map("faculty_member_id")
+  facultyMemberId  String?            @map("faculty_member_id")
   /// The URL a human pasted, as pasted. Kept verbatim rather than normalised
   /// because "what did they actually type" is the question asked when a bind
   /// keeps failing.
-  url String @db.Text
+  url              String             @db.Text
   /// Profile id parsed out of the URL, when it parsed at all.
-  scholarProfileId String? @map("scholar_profile_id")
+  scholarProfileId String?            @map("scholar_profile_id")
   outcome          ScholarBindOutcome
   /// The name the profile displayed, on a successful bind.
-  profileName String? @map("profile_name")
+  profileName      String?            @map("profile_name")
   /// Credits ScrapingBee billed for the verification page. Recorded on every
   /// outcome including REFUSED — that is the whole point of the table.
-  creditsUsed Int     @default(0) @map("credits_used")
-  errorText   String? @map("error_text") @db.Text
-  createdAt   DateTime @default(now()) @map("created_at")
+  creditsUsed      Int                @default(0) @map("credits_used")
+  errorText        String?            @map("error_text") @db.Text
+  createdAt        DateTime           @default(now()) @map("created_at")
 
   user          User           @relation("ScholarBindSubject", fields: [userId], references: [id], onDelete: Cascade)
   facultyMember FacultyMember? @relation("ScholarBindFacultyMember", fields: [facultyMemberId], references: [id], onDelete: SetNull)
@@ -6272,32 +6345,32 @@ enum ResearchServiceMemberRole {
 
 model ResearchServiceProject {
   /// Deterministic `rsp-<proposal_id>` so links survive the daily replace.
-  id                  String                     @id
-  sourceProposalId    Int                        @unique @map("source_proposal_id")
-  sourceProposalKey   String                     @unique @map("source_proposal_key")
-  titleTh             String                     @map("title_th")
-  titleEn             String?                    @map("title_en")
+  id                  String                         @id
+  sourceProposalId    Int                            @unique @map("source_proposal_id")
+  sourceProposalKey   String                         @unique @map("source_proposal_key")
+  titleTh             String                         @map("title_th")
+  titleEn             String?                        @map("title_en")
   type                ResearchServiceProjectType
-  typeRaw             String                     @map("type_raw")
-  fiscalYearBe        Int                        @map("fiscal_year_be")
-  projectBudgetYearBe Int?                       @map("project_budget_year_be")
-  startDate           DateTime?                  @map("start_date")
-  endDate             DateTime?                  @map("end_date")
+  typeRaw             String                         @map("type_raw")
+  fiscalYearBe        Int                            @map("fiscal_year_be")
+  projectBudgetYearBe Int?                           @map("project_budget_year_be")
+  startDate           DateTime?                      @map("start_date")
+  endDate             DateTime?                      @map("end_date")
   /// Whole-project budget (THB). Never split among people or faculties.
-  budgetThb           BigInt?                    @map("budget_thb")
-  funderName          String?                    @map("funder_name")
+  budgetThb           BigInt?                        @map("budget_thb")
+  funderName          String?                        @map("funder_name")
   keywords            String?
-  workflowStatus      String                     @map("workflow_status")
-  leadUnitName        String                     @map("lead_unit_name")
+  workflowStatus      String                         @map("workflow_status")
+  leadUnitName        String                         @map("lead_unit_name")
   /// Resolved faculty Thai name (matched lead's faculty, else lead_unit_name).
-  leadFacultyName     String                     @map("lead_faculty_name")
-  facultyId           String?                    @map("faculty_id")
-  acroRaw             String?                    @map("acro_raw")
-  pmuOkrRaw           String?                    @map("pmu_okr_raw")
-  submittedAt         DateTime?                  @map("submitted_at")
-  acceptedAt          DateTime?                  @map("accepted_at")
-  ingestionRunId      String                     @map("ingestion_run_id")
-  ingestionRun        IngestionRun               @relation(fields: [ingestionRunId], references: [id])
+  leadFacultyName     String                         @map("lead_faculty_name")
+  facultyId           String?                        @map("faculty_id")
+  acroRaw             String?                        @map("acro_raw")
+  pmuOkrRaw           String?                        @map("pmu_okr_raw")
+  submittedAt         DateTime?                      @map("submitted_at")
+  acceptedAt          DateTime?                      @map("accepted_at")
+  ingestionRunId      String                         @map("ingestion_run_id")
+  ingestionRun        IngestionRun                   @relation(fields: [ingestionRunId], references: [id])
   members             ResearchServiceProjectMember[]
 
   @@index([fiscalYearBe])
