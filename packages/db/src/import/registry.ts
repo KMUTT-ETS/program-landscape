@@ -9,6 +9,7 @@ import { facultiesDataset } from './datasets/faculties';
 import { financialsDataset } from './datasets/financials';
 import { graduateOutcomesDataset } from './datasets/graduate-outcomes';
 import { programmesDataset } from './datasets/programmes';
+import { researchDataset } from './datasets/research';
 import { staffDataset } from './datasets/staff';
 import type { ImportDataset } from './types';
 
@@ -33,6 +34,7 @@ export const IMPORT_DATASETS: readonly ImportDataset[] = [
   staffDataset,
   compensationDataset,
   budgetsDataset,
+  researchDataset,
 ];
 
 export function listImportDatasets(): readonly ImportDataset[] {

@@ -173,6 +173,11 @@ export class ImportService implements OnModuleInit {
       } else if (slug === 'programmes') {
         const rows = await prisma.program.findMany({ select: { code: true } });
         references.set(slug, new Set(rows.map((r) => r.code)));
+      } else if (slug === 'faculty-members') {
+        // The first reference that is not a `code` column: staff are named
+        // by the employer-assigned code the adopter chose.
+        const rows = await prisma.facultyMember.findMany({ select: { employeeCode: true } });
+        references.set(slug, new Set(rows.map((r) => r.employeeCode)));
       }
     }
     return references;

@@ -691,6 +691,18 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'A division need not be a faculty; the faculty link is optional and only decides whether the figure rolls up.',
     mocked: false,
   },
+  {
+    slug: 'xlsx-research-outputs',
+    name: 'Publications (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Research outputs uploaded through /admin/data-setup, one row per paper per author. ' +
+      'Shares research_outputs with the publications connectors; matching is by DOI, falling back to title and year within one person.',
+    mocked: false,
+  },
 ] as const;
 
 export function getCatalogEntry(slug: string): SourceCatalogEntry | undefined {

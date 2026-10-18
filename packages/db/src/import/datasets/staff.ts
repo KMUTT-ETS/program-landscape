@@ -148,6 +148,10 @@ export const staffDataset: ImportDataset = {
     kind: 'upsert',
     match: { kind: 'unique', columns: ['employeeCode'] },
   },
+  // Publications cascade from a staff member, so clearing the roster would
+  // take them with it. Declared here rather than in the staff task because
+  // the registry refuses a dependent that does not exist yet.
+  dependents: ['research-outputs'],
 
   load: async (ctx: ImportLoadContext, rows: readonly ImportRow[]): Promise<ImportLoadResult> => {
     const facultyCodes = [...new Set(rows.map((r) => String(r.facultyCode)))];
