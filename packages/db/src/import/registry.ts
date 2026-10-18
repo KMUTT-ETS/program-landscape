@@ -7,6 +7,7 @@ import { facultiesDataset } from './datasets/faculties';
 import { financialsDataset } from './datasets/financials';
 import { graduateOutcomesDataset } from './datasets/graduate-outcomes';
 import { programmesDataset } from './datasets/programmes';
+import { staffDataset } from './datasets/staff';
 import type { ImportDataset } from './types';
 
 // The one place a dataset becomes importable. Adding a dataset is adding a
@@ -27,6 +28,7 @@ export const IMPORT_DATASETS: readonly ImportDataset[] = [
   graduateOutcomesDataset,
   studentCohortsDataset,
   alumniCohortsDataset,
+  staffDataset,
 ];
 
 export function listImportDatasets(): readonly ImportDataset[] {

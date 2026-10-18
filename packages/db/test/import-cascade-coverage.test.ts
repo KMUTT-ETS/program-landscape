@@ -4,6 +4,10 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  FACULTY_CASCADE_CHILDREN,
+  FACULTY_CASCADE_CHILDREN_UNREACHABLE,
+} from '../src/import/datasets/faculties';
+import {
   CASCADE_CHILDREN,
   CASCADE_CHILDREN_UNREACHABLE,
 } from '../src/import/datasets/programmes';
@@ -17,8 +21,13 @@ import {
 
 const SCHEMA = path.join(__dirname, '..', 'prisma', 'schema.prisma');
 
-/** Models with an `onDelete: Cascade` relation into Program. */
-function cascadeChildrenOfProgram(): string[] {
+/**
+ * Models with an `onDelete: Cascade` relation into `parent`.
+ *
+ * `fieldPattern` matches the scalar field naming the parent row — which is
+ * not always one name: ProgramOverlapPair holds programAId and programBId.
+ */
+function cascadeChildrenOf(fieldPattern: RegExp): string[] {
   const source = readFileSync(SCHEMA, 'utf8');
   const models = [...source.matchAll(/^model (\w+) \{([\s\S]*?)^\}/gm)];
   const found = new Set<string>();
@@ -27,20 +36,21 @@ function cascadeChildrenOfProgram(): string[] {
     const name = match[1];
     const body = match[2];
     if (!name || !body) continue;
-    // Any relation whose scalar field names a Program row. Covers programId
-    // and the two-ended case (ProgramOverlapPair's programAId/programBId).
     const relations = /@relation\([^)]*fields: \[(\w+)\][^)]*references: \[id\][^)]*onDelete:\s*(\w+)/g;
     let relation: RegExpExecArray | null;
     while ((relation = relations.exec(body)) !== null) {
       const field = relation[1] ?? '';
       const onDelete = relation[2];
       if (onDelete !== 'Cascade') continue;
-      if (!/^program[A-Z]?Id$/.test(field)) continue;
+      if (!fieldPattern.test(field)) continue;
       found.add(name);
     }
   }
   return [...found].sort();
 }
+
+const cascadeChildrenOfProgram = (): string[] => cascadeChildrenOf(/^program[A-Z]?Id$/);
+const cascadeChildrenOfFaculty = (): string[] => cascadeChildrenOf(/^facultyId$/);
 
 describe('the programmes start-over guard covers every cascade', () => {
   it('finds the cascade children in the schema at all', () => {
@@ -87,6 +97,41 @@ describe('the programmes start-over guard covers every cascade', () => {
 
   it('gives every unreachable entry a stated reason', () => {
     for (const child of CASCADE_CHILDREN_UNREACHABLE) {
+      expect(child.reason.length, child.model).toBeGreaterThan(20);
+    }
+  });
+});
+
+describe('the faculties start-over guard covers every cascade', () => {
+  // Faculty is the second parent a dataset hangs off, and its children are
+  // a different shape: only three CASCADE, while FacultyMember, Department
+  // and Program are RESTRICT — those turn a delete into a raw foreign-key
+  // error rather than silent loss, which is why they are blockers too.
+
+  it('finds Faculty\'s cascade children in the schema at all', () => {
+    const children = cascadeChildrenOfFaculty();
+    expect(children.length).toBeGreaterThan(0);
+    expect(children).toContain('FacultyCompensation');
+  });
+
+  it('accounts for every one of them', () => {
+    const declared = new Set([
+      ...FACULTY_CASCADE_CHILDREN.map((c) => c.model),
+      ...FACULTY_CASCADE_CHILDREN_UNREACHABLE.map((c) => c.model),
+    ]);
+    const missing = cascadeChildrenOfFaculty().filter((m) => !declared.has(m));
+    expect(missing, 'Faculty cascade children with no entry in faculties.ts').toEqual([]);
+  });
+
+  it('gives every blocker a label that reads after a count', () => {
+    for (const child of FACULTY_CASCADE_CHILDREN) {
+      expect(child.label.length, child.model).toBeGreaterThan(4);
+      expect(child.label, child.model).not.toBe(child.model);
+    }
+  });
+
+  it('gives every unreachable entry a stated reason', () => {
+    for (const child of FACULTY_CASCADE_CHILDREN_UNREACHABLE) {
       expect(child.reason.length, child.model).toBeGreaterThan(20);
     }
   });

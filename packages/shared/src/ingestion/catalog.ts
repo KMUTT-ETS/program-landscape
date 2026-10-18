@@ -655,6 +655,18 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'The sheet asks for a Common Era year; the stored figure is Buddhist era.',
     mocked: false,
   },
+  {
+    slug: 'xlsx-faculty-members',
+    name: 'Staff (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Teaching-staff roster uploaded through /admin/data-setup. Carries names and an employer-assigned code; ' +
+      'no date of birth and no national ID, in any form.',
+    mocked: false,
+  },
 ] as const;
 
 export function getCatalogEntry(slug: string): SourceCatalogEntry | undefined {

@@ -1,4 +1,4 @@
-import type { FacultyKind, PrismaClient } from '@prisma/client';
+import type { FacultyKind, Prisma, PrismaClient } from '@prisma/client';
 
 import type { ImportDataset, ImportLoadContext, ImportLoadResult, ImportRow } from '../types';
 
@@ -9,6 +9,53 @@ import type { ImportDataset, ImportLoadContext, ImportLoadResult, ImportRow } fr
 // way an adopting university can get started without editing code.
 
 const KINDS = ['ACADEMIC', 'ADMIN', 'INSTITUTE', 'RESEARCH_CENTER'] as const;
+
+// ── What a start-over on this dataset would destroy ──────────────────────
+//
+// Faculty's children come in three flavours and all three matter:
+//
+//  - CASCADE (FacultySkill, CrossScopeDivergenceSnapshot, FacultyCompensation)
+//    are emptied silently. Compensation is the one that hurts: aggregate
+//    salary figures nobody can reconstruct from the import.
+//  - RESTRICT (FacultyMember, Department, Program) turn the delete into a
+//    raw foreign-key error — a 500 with nothing cleared and no sentence an
+//    operator can act on.
+//  - SET NULL (FacultyBudget, ClassOffering, and others) survive, but lose
+//    the link that makes them roll up to anything.
+//
+// All three deserve a refusal naming what is in the way. The CASCADE list is
+// checked against the schema by test/import-cascade-coverage.test.ts; the
+// rest are here because losing them quietly is just as bad.
+
+interface FacultyCascadeChild {
+  /** Prisma model name. Matched against schema.prisma by the structural test. */
+  model: string;
+  label: string;
+  count: (tx: Prisma.TransactionClient, runIds: readonly string[]) => Promise<number>;
+}
+
+/** Children whose rows block a start-over on faculties while any exist. */
+export const FACULTY_CASCADE_CHILDREN: readonly FacultyCascadeChild[] = [
+  // Cascade — silently emptied.
+  { model: 'FacultyCompensation', label: 'compensation figures', count: (t, r) => t.facultyCompensation.count({ where: byFaculty(r) }) },
+  { model: 'FacultySkill', label: 'faculty skill rollups', count: (t, r) => t.facultySkill.count({ where: byFaculty(r) }) },
+  { model: 'CrossScopeDivergenceSnapshot', label: 'data-quality snapshots', count: (t, r) => t.crossScopeDivergenceSnapshot.count({ where: byFaculty(r) }) },
+  // Restrict — a raw foreign-key error instead of a readable refusal.
+  { model: 'FacultyMember', label: 'staff records', count: (t, r) => t.facultyMember.count({ where: byFaculty(r) }) },
+  // SetNull — survives, but orphaned from the faculty it belongs to.
+  { model: 'FacultyBudget', label: 'faculty budgets', count: (t, r) => t.facultyBudget.count({ where: byFaculty(r) }) },
+];
+
+/**
+ * Faculty cascade children deliberately not counted, each with its reason.
+ * Empty today; an entry here asserts that losing the table's rows is fine.
+ */
+export const FACULTY_CASCADE_CHILDREN_UNREACHABLE: readonly { model: string; reason: string }[] = [];
+
+/** Rows hanging off a faculty this import created. */
+function byFaculty(runIds: readonly string[]) {
+  return { faculty: { ingestionRunId: { in: [...runIds] } } };
+}
 
 export const facultiesDataset: ImportDataset = {
   slug: 'faculties',
@@ -60,7 +107,7 @@ export const facultiesDataset: ImportDataset = {
     },
   ],
   strategy: { kind: 'upsert', match: { kind: 'unique', columns: ['code'] } },
-  dependents: ['departments', 'programmes'],
+  dependents: ['departments', 'programmes', 'faculty-members'],
 
   load: async (ctx: ImportLoadContext, rows: readonly ImportRow[]): Promise<ImportLoadResult> => {
     let inserted = 0;
@@ -92,22 +139,19 @@ export const facultiesDataset: ImportDataset = {
 
   count: (prisma: PrismaClient): Promise<number> => prisma.faculty.count(),
 
-  // `FacultyMember.faculty` is onDelete: Restrict, so a staff row turns the
-  // delete into a raw foreign-key error — a 500 with nothing cleared. Other
-  // children cascade. Either way the honest answer is to refuse and say what
-  // is in the way, rather than destroy it or crash.
-  cascadeBlockers: async (prisma, runIds): Promise<{ label: string; count: number }[]> => {
-    const where = { faculty: { ingestionRunId: { in: [...runIds] } } };
-    const [staff, budgets, compensation] = await Promise.all([
-      prisma.facultyMember.count({ where }),
-      prisma.facultyBudget.count({ where }),
-      prisma.facultyCompensation.count({ where }),
-    ]);
-    return [
-      { label: 'staff records', count: staff },
-      { label: 'faculty budgets', count: budgets },
-      { label: 'compensation figures', count: compensation },
-    ].filter((b) => b.count > 0);
+  cascadeBlockers: async (tx, runIds): Promise<{ label: string; count: number }[]> => {
+    const counted = await Promise.all(
+      FACULTY_CASCADE_CHILDREN.map(async (child) => ({
+        label: child.label,
+        count: await child.count(tx, runIds),
+      })),
+    );
+    const merged = new Map<string, number>();
+    for (const row of counted) {
+      if (row.count === 0) continue;
+      merged.set(row.label, (merged.get(row.label) ?? 0) + row.count);
+    }
+    return [...merged].map(([label, count]) => ({ label, count }));
   },
 
   clear: async (tx, runIds): Promise<number> => {

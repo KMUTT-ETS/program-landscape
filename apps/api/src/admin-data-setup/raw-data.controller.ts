@@ -653,8 +653,10 @@ const DATASETS: Record<string, DatasetFetcher> = {
           linkTemplate: 'https://openalex.org/{value}',
         },
         { key: 'retirementDate', label: 'Retire', format: 'date' },
+        { key: 'imported', label: 'Imported' },
       ],
       items: rows.map((r) => ({
+        imported: r.ingestionRunId !== null,
         employeeId: r.employeeId,
         nameTh: r.nameTh,
         nameEn: r.nameEn,
