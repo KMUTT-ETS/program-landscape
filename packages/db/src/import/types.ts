@@ -104,6 +104,21 @@ export interface PrefillOptions {
   toYear?: number;
 }
 
+/**
+ * A check across several cells of one row.
+ *
+ * Individually valid cells can still contradict each other — admitted above
+ * applications, a survey year before the graduation year — and the surfaces
+ * that read them render nonsense rather than failing. `check` returns false
+ * to fail the row; it sees cells that have already been coerced and
+ * individually validated, and must tolerate nulls, since an optional column
+ * may legitimately be blank.
+ */
+export interface ImportRowRule {
+  message: string;
+  check: (row: ImportRow) => boolean;
+}
+
 /** Everything the framework needs to know about one importable dataset. */
 export interface ImportDataset {
   /** URL-safe identifier; also names the DataSource row (`xlsx-<slug>`). */
@@ -116,6 +131,8 @@ export interface ImportDataset {
   sheetName: string;
   columns: readonly ImportColumn[];
   strategy: ImportStrategy;
+  /** Cross-column checks, run per row once its cells have passed. */
+  rowRules?: readonly ImportRowRule[];
   /** Rows the template ships pre-filled with. Omitted for tier 0. */
   prefill?: (prisma: PrismaClient, opts: PrefillOptions) => Promise<readonly ImportRow[]>;
   /** Writes validated rows, stamping `ctx.ingestionRunId` on every one. */

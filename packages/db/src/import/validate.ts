@@ -248,6 +248,19 @@ export function validateSheet(
       }
       built[column.key] = coerced.value;
     }
+
+    // Cross-column rules, only for a row whose own cells came through
+    // clean. Running them over a row that already failed coercion would
+    // describe one mistake twice, in two different vocabularies.
+    const rowFailed = errors.some((e) => e.row === sheetRow);
+    if (!rowFailed) {
+      for (const rule of dataset.rowRules ?? []) {
+        if (!rule.check(built)) {
+          errors.push({ sheet, row: sheetRow, column: null, message: rule.message });
+        }
+      }
+    }
+
     accepted.push({ sheetRow, row: built });
   }
 

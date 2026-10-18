@@ -207,6 +207,52 @@ describe('validateSheet — cells', () => {
   });
 });
 
+describe('validateSheet — row rules', () => {
+  // Cross-column checks: a cell can be individually valid and still
+  // contradict another cell on the same row.
+  const ruled = makeDataset({
+    rowRules: [
+      {
+        message: 'Admitted cannot exceed Applications.',
+        check: (r) => {
+          const admitted = r.headcount;
+          const applications = r.year;
+          if (typeof admitted !== 'number' || typeof applications !== 'number') return true;
+          return admitted <= applications;
+        },
+      },
+    ],
+  });
+
+  it('reports a failing rule with its message, against the row', () => {
+    // headcount 9 > year 5 — using the fixture's existing numeric columns.
+    const result = validateSheet(ruled, sheet(ALL_HEADERS, [row({ Year: 5, Headcount: 9 })]), ctx());
+    const e = errorsOf(result)[0];
+    expect(e.message).toBe('Admitted cannot exceed Applications.');
+    expect(e.row).toBe(2);
+    expect(e.column).toBeNull();
+  });
+
+  it('accepts a row the rule is satisfied by', () => {
+    const result = validateSheet(ruled, sheet(ALL_HEADERS, [row({ Year: 9, Headcount: 5 })]), ctx());
+    expect(result.ok).toBe(true);
+  });
+
+  it('does not run a rule for a row whose cells already failed', () => {
+    // Year is not a number, so the rule would see nonsense. Reporting both
+    // would describe one mistake twice.
+    const result = validateSheet(ruled, sheet(ALL_HEADERS, [row({ Year: 'oops', Headcount: 9 })]), ctx());
+    const errors = errorsOf(result);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].column).toBe('Year');
+  });
+
+  it('leaves a dataset without rowRules exactly as it was', () => {
+    const result = validateSheet(makeDataset(), sheet(ALL_HEADERS, [row({ Year: 5, Headcount: 9 })]), ctx());
+    expect(result.ok).toBe(true);
+  });
+});
+
 describe('validateSheet — keys', () => {
   const d = makeDataset();
 
