@@ -49,3 +49,6 @@ export type ScopeParams = z.infer<typeof ScopeParamsSchema>;
 export * from './staff-profile';
 
 export * from './brand';
+
+// Pure predicates — no `xlsx`, no Prisma — safe on the root barrel.
+export * from './privacy';
