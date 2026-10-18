@@ -3,6 +3,7 @@ import { ApiError } from '@kku/shared';
 import { departmentsDataset } from './datasets/departments';
 import { enrollmentDataset } from './datasets/enrollment';
 import { facultiesDataset } from './datasets/faculties';
+import { financialsDataset } from './datasets/financials';
 import { programmesDataset } from './datasets/programmes';
 import type { ImportDataset } from './types';
 
@@ -20,6 +21,7 @@ export const IMPORT_DATASETS: readonly ImportDataset[] = [
   departmentsDataset,
   programmesDataset,
   enrollmentDataset,
+  financialsDataset,
 ];
 
 export function listImportDatasets(): readonly ImportDataset[] {

@@ -9,6 +9,7 @@ import type {
   ImportLoadResult,
   ImportRow,
 } from '../types';
+import { PROVENANCE_SELECT, claimsRow } from './provenance';
 
 // Tier 1. Feeds the Deep-Dive's cohort and demographic-outlook sections,
 // and the demand funnel's benchmark figures.
@@ -149,16 +150,14 @@ export const enrollmentDataset: ImportDataset = {
 
       const existing = await ctx.tx.enrollmentMetric.findUnique({
         where: { programId_academicYear: { programId, academicYear } },
-        select: { id: true },
+        select: { id: true, ...PROVENANCE_SELECT },
       });
 
       if (existing) {
         // Only the cells the operator actually filled. A blank keeps what
         // another source wrote rather than zeroing it (D4).
-        const data: Record<string, number | Date | string> = {
-          freshnessDate,
-          ingestionRunId: ctx.ingestionRunId,
-        };
+        const data: Record<string, number | Date | string> = { freshnessDate };
+        if (claimsRow(existing)) data.ingestionRunId = ctx.ingestionRunId;
         for (const key of counts) {
           if (typeof row[key] === 'number') data[key] = row[key] as number;
         }

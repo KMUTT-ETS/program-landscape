@@ -607,6 +607,18 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'Shares the enrollment_metrics table with the registrar connector, so an upload updates only the columns it fills.',
     mocked: false,
   },
+  {
+    slug: 'xlsx-financial-metrics',
+    name: 'Finance (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Tuition and other revenue per programme per academic year, uploaded through /admin/data-setup. ' +
+      'Revenue only — cost columns belong to the cost-allocation methodology and survive an upload untouched.',
+    mocked: false,
+  },
 ] as const;
 
 export function getCatalogEntry(slug: string): SourceCatalogEntry | undefined {
