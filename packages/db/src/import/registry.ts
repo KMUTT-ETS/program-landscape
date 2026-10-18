@@ -1,6 +1,7 @@
 import { ApiError } from '@kku/shared';
 
 import { alumniCohortsDataset, studentCohortsDataset } from './datasets/cohorts';
+import { budgetsDataset } from './datasets/budgets';
 import { compensationDataset } from './datasets/compensation';
 import { departmentsDataset } from './datasets/departments';
 import { enrollmentDataset } from './datasets/enrollment';
@@ -31,6 +32,7 @@ export const IMPORT_DATASETS: readonly ImportDataset[] = [
   alumniCohortsDataset,
   staffDataset,
   compensationDataset,
+  budgetsDataset,
 ];
 
 export function listImportDatasets(): readonly ImportDataset[] {

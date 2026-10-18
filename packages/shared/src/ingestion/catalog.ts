@@ -679,6 +679,18 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'A row covering fewer than five people is refused, the same floor the kku-hr connector applies in SQL.',
     mocked: false,
   },
+  {
+    slug: 'xlsx-faculty-budgets',
+    name: 'Budgets (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Budget by division and fund category, uploaded through /admin/data-setup. ' +
+      'A division need not be a faculty; the faculty link is optional and only decides whether the figure rolls up.',
+    mocked: false,
+  },
 ] as const;
 
 export function getCatalogEntry(slug: string): SourceCatalogEntry | undefined {
