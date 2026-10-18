@@ -619,6 +619,18 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'Revenue only — cost columns belong to the cost-allocation methodology and survive an upload untouched.',
     mocked: false,
   },
+  {
+    slug: 'xlsx-graduate-outcomes',
+    name: 'Graduate Outcomes (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Employment survey results per programme per graduating cohort per survey, uploaded through /admin/data-setup. ' +
+      'Rows covering fewer than five respondents are refused.',
+    mocked: false,
+  },
 ] as const;
 
 export function getCatalogEntry(slug: string): SourceCatalogEntry | undefined {

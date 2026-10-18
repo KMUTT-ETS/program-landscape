@@ -290,6 +290,64 @@ const DATASETS: Record<string, DatasetFetcher> = {
     };
   },
 
+  // ── Graduate outcomes ────────────────────────────────────────────────────
+  'graduate-outcomes': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.GraduateOutcomeWhereInput = q.q
+      ? {
+          program: {
+            OR: [
+              { code: { contains: q.q, mode: 'insensitive' } },
+              { nameEn: { contains: q.q, mode: 'insensitive' } },
+              { nameTh: { contains: q.q } },
+            ],
+          },
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.graduateOutcome.findMany({
+        where,
+        include: { program: { select: { code: true, nameEn: true } } },
+        orderBy: [{ surveyYear: 'desc' }, { graduationYear: 'desc' }, { programId: 'asc' }],
+        skip,
+        take: q.pageSize,
+      }),
+      prisma.graduateOutcome.count({ where }),
+    ]);
+    return {
+      title: 'Graduate outcomes — employment survey per cohort × survey',
+      description:
+        'One row per (programme, graduation year, survey year). A cohort surveyed again the following year is a second row, not a correction. Rows covering fewer than five respondents are refused on import.',
+      columns: [
+        { key: 'surveyYear', label: 'Surveyed', numeric: true },
+        { key: 'graduationYear', label: 'Graduated', numeric: true },
+        { key: 'programCode', label: 'Programme', format: 'truncate' },
+        { key: 'programNameEn', label: 'Name (EN)' },
+        { key: 'employmentRate', label: 'Employed', numeric: true },
+        { key: 'averageSalary', label: 'Salary/mo', numeric: true },
+        { key: 'jobRelevanceScore', label: 'Relevance', numeric: true },
+        { key: 'furtherStudyRate', label: 'Further study', numeric: true },
+        { key: 'sampleSize', label: 'Sample', numeric: true },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        surveyYear: r.surveyYear,
+        graduationYear: r.graduationYear,
+        programCode: r.program?.code ?? r.programId,
+        programNameEn: r.program?.nameEn ?? '',
+        employmentRate: r.employmentRate,
+        averageSalary: Number(r.averageSalary),
+        jobRelevanceScore: r.jobRelevanceScore,
+        furtherStudyRate: r.furtherStudyRate,
+        sampleSize: r.sampleSize,
+        imported: r.ingestionRunId !== null,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
   // ── Student demographics ─────────────────────────────────────────────────
   'student-demographics': async (q) => {
     const skip = (q.page - 1) * q.pageSize;

@@ -4,6 +4,7 @@ import { departmentsDataset } from './datasets/departments';
 import { enrollmentDataset } from './datasets/enrollment';
 import { facultiesDataset } from './datasets/faculties';
 import { financialsDataset } from './datasets/financials';
+import { graduateOutcomesDataset } from './datasets/graduate-outcomes';
 import { programmesDataset } from './datasets/programmes';
 import type { ImportDataset } from './types';
 
@@ -22,6 +23,7 @@ export const IMPORT_DATASETS: readonly ImportDataset[] = [
   programmesDataset,
   enrollmentDataset,
   financialsDataset,
+  graduateOutcomesDataset,
 ];
 
 export function listImportDatasets(): readonly ImportDataset[] {
