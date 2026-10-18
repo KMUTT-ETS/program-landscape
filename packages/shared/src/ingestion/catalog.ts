@@ -715,6 +715,18 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'the kku-admission-campaigns connector writes; those columns are null on an imported row.',
     mocked: false,
   },
+  {
+    slug: 'xlsx-class-offerings',
+    name: 'Class Offerings (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Class sections for one term, uploaded through /admin/data-setup. TERM-SCOPED: uploading a term replaces it, ' +
+      'so a section missing from the file is treated as cancelled. The only import that deletes.',
+    mocked: false,
+  },
 ] as const;
 
 export function getCatalogEntry(slug: string): SourceCatalogEntry | undefined {

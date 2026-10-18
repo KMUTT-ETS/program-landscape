@@ -17,6 +17,7 @@ import {
   startOverDataset,
   validateSheet,
   type ImportBatchView,
+  type ImportCellValue,
   type ImportDataset,
   type ImportLoadResult,
   type ImportRow,
@@ -49,6 +50,8 @@ export interface ImportServiceDeps {
     rows: readonly ImportRow[],
     userId: string | null,
     batch: { filename: string; contentHash: string; storageKey: string; fileSize: number },
+    /** The period a term-scoped file covers; the loader deletes it first. */
+    term?: Readonly<Record<string, ImportCellValue>>,
   ) => Promise<{ batchId: string; result: ImportLoadResult }>;
   startOver: (slug: string) => Promise<{ rowsDeleted: number; batchesCleared: number }>;
   prefill: (dataset: ImportDataset, opts: PrefillOptions) => Promise<readonly ImportRow[]>;
@@ -132,7 +135,7 @@ export class ImportService implements OnModuleInit {
         }),
       loadReferences: deps?.loadReferences ?? ((dataset) => this.defaultLoadReferences(dataset)),
       heldCount: deps?.heldCount ?? ((dataset) => dataset.count(prisma)),
-      runLoad: deps?.runLoad ?? ((dataset, rows, userId, batch) => this.defaultRunLoad(dataset, rows, userId, batch)),
+      runLoad: deps?.runLoad ?? ((dataset, rows, userId, batch, term) => this.defaultRunLoad(dataset, rows, userId, batch, term)),
       startOver: deps?.startOver ?? startOverDataset,
       prefill: deps?.prefill ?? ((dataset, opts) => (dataset.prefill ? dataset.prefill(prisma, opts) : Promise.resolve([]))),
     };
@@ -188,6 +191,7 @@ export class ImportService implements OnModuleInit {
     rows: readonly ImportRow[],
     userId: string | null,
     batch: { filename: string; contentHash: string; storageKey: string; fileSize: number },
+    term?: Readonly<Record<string, ImportCellValue>>,
   ): Promise<{ batchId: string; result: ImportLoadResult }> {
     const { runId } = await startImportRun(dataset.slug, userId);
 
@@ -213,7 +217,7 @@ export class ImportService implements OnModuleInit {
 
     try {
       const result = await prisma.$transaction(
-        (tx) => dataset.load({ tx, ingestionRunId: runId }, rows),
+        (tx) => dataset.load({ tx, ingestionRunId: runId, term }, rows),
         { timeout: 120_000 },
       );
       // Order matters: the batch becomes SUCCEEDED — and therefore live for
@@ -320,7 +324,7 @@ export class ImportService implements OnModuleInit {
       contentHash,
       storageKey,
       fileSize: args.bytes.byteLength,
-    });
+    }, validated.term ?? undefined);
 
     this.logger.log(
       `import ${dataset.slug}: batch ${batchId}, ${validated.rows.length} rows ` +

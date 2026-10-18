@@ -189,3 +189,56 @@ describe('ImportService.startOver', () => {
     expect(h.deps.startOver).toHaveBeenCalledWith('faculties');
   });
 });
+
+describe('a term-scoped upload', () => {
+  // The term is established by validation — it refuses a file whose rows
+  // disagree, and one that states no term at all — and the loader DELETES
+  // that term before inserting. So it has to reach the loader; without it
+  // the only destructive write in the importer has nothing to go on.
+  const classes = getImportDataset('class-offerings');
+  const CLASS_HEADERS = classes.columns.map((c) => c.header);
+
+  function classRow(semester: number, section: number): unknown[] {
+    return CLASS_HEADERS.map((h) => {
+      if (h === 'Academic Year') return 2024;
+      if (h === 'Semester') return semester;
+      if (h === 'Faculty Code') return 'ENG';
+      if (h === 'Course Code') return 'EN101';
+      if (h === 'Section') return section;
+      if (h === 'Enrolled') return 40;
+      if (h === 'Total Seats') return 50;
+      return null;
+    });
+  }
+
+  const withFaculty = {
+    loadReferences: () => Promise.resolve(new Map([['faculties', new Set(['ENG'])]])),
+  };
+
+  it('hands the loader the term the file declares', async () => {
+    const h = harness(withFaculty);
+    await h.service.uploadFile({
+      datasetSlug: 'class-offerings',
+      originalFilename: 'classes.xlsx',
+      bytes: workbook([CLASS_HEADERS, classRow(2, 1)], classes.sheetName),
+      uploadedByUserId: null,
+      allowShrink: true,
+    });
+
+    expect(h.deps.runLoad).toHaveBeenCalled();
+    const term = h.deps.runLoad.mock.calls[0]?.[4];
+    expect(term).toEqual({ academicYear: 2024, semester: 2 });
+  });
+
+  it('refuses a file whose rows disagree about the term', async () => {
+    const h = harness(withFaculty);
+    await expect(h.service.uploadFile({
+      datasetSlug: 'class-offerings',
+      originalFilename: 'classes.xlsx',
+      bytes: workbook([CLASS_HEADERS, classRow(1, 1), classRow(2, 2)], classes.sheetName),
+      uploadedByUserId: null,
+      allowShrink: true,
+    })).rejects.toThrow();
+    expect(h.deps.runLoad).not.toHaveBeenCalled();
+  });
+});

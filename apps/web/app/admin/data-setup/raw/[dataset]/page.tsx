@@ -43,6 +43,7 @@ const DATASET_TITLES: Record<string, string> = {
   'student-cohorts': 'Student cohorts (still enrolled)',
   'alumni-cohorts': 'Alumni cohorts (outcome per cohort)',
   'admission-campaigns': 'Admission campaigns (recruitment funnel)',
+  'class-offerings': 'Class offerings (sections per term)',
   'faculty-budgets': 'Faculty budgets',
   'faculty-members': 'Academic staff roster',
   'faculty-compensation': 'Faculty compensation (aggregate)',

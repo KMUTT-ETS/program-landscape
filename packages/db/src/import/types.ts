@@ -100,6 +100,15 @@ export interface ImportValidationError {
 export interface ImportLoadContext {
   tx: Prisma.TransactionClient;
   ingestionRunId: string;
+  /**
+   * The period a `term-scoped` file covers, keyed by `termColumns`.
+   *
+   * Set only for a term-scoped dataset, where the loader DELETES this term
+   * before inserting. `validateSheet` is what establishes it — it refuses a
+   * file whose rows disagree, and refuses one that states no term at all —
+   * so a loader receiving it can trust that every row belongs to it.
+   */
+  term?: Readonly<Record<string, ImportCellValue>>;
 }
 
 export interface ImportLoadResult {
