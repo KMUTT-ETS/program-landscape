@@ -1,7 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { TooltipProvider } from '@kku/ui';
+
+// The panel calls useRouter() to refresh after a mutation. Static rendering
+// has no app router, so stub it — the refresh itself is exercised in the
+// browser drive, not here.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: () => {}, push: () => {} }),
+}));
 
 import { ImportPanel, type ImportPanelDataset } from '../app/admin/data-setup/raw/[dataset]/import-panel';
 import {
@@ -47,7 +54,7 @@ const clearedBatch = {
 
 describe('ImportPanel — what the operator sees', () => {
   it('links the template download at the dataset endpoint', () => {
-    expect(markup(dataset())).toContain('/api/v1/admin/imports/faculties/template');
+    expect(markup(dataset())).toContain('/api/admin-imports/faculties/template');
   });
 
   it('says what rows are matched on, so re-uploading is predictable', () => {
@@ -129,6 +136,24 @@ describe('isOverridableShrinkRefusal', () => {
       message: '1 problem',
       errors: [{ row: 7, column: 'Name', message: 'This cell looks like a personal identifier.' }],
     })).toBe(false);
+  });
+
+  it('does not offer an override when a real problem accompanies the shrink guard', () => {
+    // Seen in the browser: a national-ID refusal and the shrink guard arrived
+    // together, and the override button sat directly under the ID message —
+    // promising something it cannot do, next to the one error that must never
+    // look negotiable.
+    expect(isOverridableShrinkRefusal({
+      message: '2 problems',
+      errors: [
+        { row: 2, column: 'Name (Thai)', message: 'This cell looks like a personal identifier (national ID).' },
+        { row: 0, column: null, message: 'That looks like a partial export.' },
+      ],
+    })).toBe(false);
+  });
+
+  it('offers no override when there are no errors at all', () => {
+    expect(isOverridableShrinkRefusal({ message: '', errors: [] })).toBe(false);
   });
 });
 

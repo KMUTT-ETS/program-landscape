@@ -34,12 +34,19 @@ export interface UploadFailure {
 }
 
 /**
- * Whether a refusal is the shrink guard, which is the ONE failure an operator
- * may legitimately override — the file really is a smaller, correct export.
- * Every other refusal has to be fixed in the spreadsheet.
+ * Whether a refusal is the shrink guard and NOTHING else — the one failure an
+ * operator may legitimately override, because the file really is a smaller,
+ * correct export.
+ *
+ * Every error must be that one. Offering "upload anyway" beside a privacy or
+ * a bad-cell refusal would promise something the button cannot deliver: the
+ * override only relaxes the size check, so the re-upload would be refused
+ * again, and next to a national-ID message it reads as an invitation to force
+ * personal data through.
  */
 export function isOverridableShrinkRefusal(failure: UploadFailure): boolean {
-  return failure.errors.some((e) => e.row === 0 && /partial export/i.test(e.message));
+  if (failure.errors.length === 0) return false;
+  return failure.errors.every((e) => e.row === 0 && /partial export/i.test(e.message));
 }
 
 /** The sentence shown after a successful upload. */

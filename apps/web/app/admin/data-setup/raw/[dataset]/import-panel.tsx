@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
 import { Download, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge, Button, Card } from '@kku/ui';
@@ -61,6 +62,7 @@ function formatBytes(bytes: number): string {
 }
 
 export function ImportPanel({ dataset }: { dataset: ImportPanelDataset }): React.JSX.Element {
+  const router = useRouter();
   const [busy, setBusy] = React.useState(false);
   const [errors, setErrors] = React.useState<ImportValidationErrorRow[] | null>(null);
   const [errorSummary, setErrorSummary] = React.useState<string | null>(null);
@@ -78,7 +80,7 @@ export function ImportPanel({ dataset }: { dataset: ImportPanelDataset }): React
       const body = new FormData();
       body.append('file', file);
       const res = await fetch(
-        `/api/v1/admin/imports/${dataset.slug}?allowShrink=${allowShrink ? 'true' : 'false'}`,
+        `/api/admin-imports/${dataset.slug}?allowShrink=${allowShrink ? 'true' : 'false'}`,
         { method: 'POST', body },
       );
       const json = (await res.json()) as {
@@ -112,7 +114,9 @@ export function ImportPanel({ dataset }: { dataset: ImportPanelDataset }): React
       if (outcome?.deduplicated) toast.info(sentence);
       else toast.success(sentence);
       setShrinkFile(null);
-      window.location.reload();
+      // router.refresh(), not location.reload(): a full reload tears down the
+      // toast before the operator can read what happened.
+      router.refresh();
     } catch {
       toast.error('Upload failed — the server could not be reached.');
     } finally {
@@ -123,7 +127,7 @@ export function ImportPanel({ dataset }: { dataset: ImportPanelDataset }): React
   async function startOver(): Promise<void> {
     setBusy(true);
     try {
-      const res = await fetch(`/api/v1/admin/imports/${dataset.slug}/start-over`, {
+      const res = await fetch(`/api/admin-imports/${dataset.slug}/start-over`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ confirmName }),
@@ -137,7 +141,9 @@ export function ImportPanel({ dataset }: { dataset: ImportPanelDataset }): React
         return;
       }
       toast.success(`Cleared ${json.data?.rowsDeleted ?? 0} rows. The uploaded files are kept.`);
-      window.location.reload();
+      // router.refresh(), not location.reload(): a full reload tears down the
+      // toast before the operator can read what happened.
+      router.refresh();
     } catch {
       toast.error('Could not clear this dataset — the server could not be reached.');
     } finally {
@@ -158,7 +164,7 @@ export function ImportPanel({ dataset }: { dataset: ImportPanelDataset }): React
           </div>
           <div className="flex items-center gap-2">
             <Button asChild variant="outline" size="sm">
-              <a href={`/api/v1/admin/imports/${dataset.slug}/template`} download>
+              <a href={`/api/admin-imports/${dataset.slug}/template`} download>
                 <Download className="size-icon-sm" aria-hidden /> Download template
               </a>
             </Button>
