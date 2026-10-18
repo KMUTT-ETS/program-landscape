@@ -13,7 +13,7 @@ let runId = '';
 let otherRunId = '';
 const sourceSlug = 'xlsx-faculties';
 
-const facultyCodes = ['ODT-ENG', 'ODT-SCI', 'ODT-RENAMED'];
+const facultyCodes = ['ODT-ENG', 'ODT-SCI', 'ODT-RENAMED', 'ODT-SEEDED'];
 const departmentCodes = ['ODT-DEP-1', 'ODT-DEP-2'];
 
 async function cleanup(): Promise<void> {
@@ -86,6 +86,28 @@ describe('faculties dataset', () => {
     expect(row.ingestionRunId).toBe(runId);
   });
 
+  it('does not claim a pre-existing row it merely updated', async () => {
+    // A seeded or connector-written faculty whose code appears in an
+    // uploaded sheet is UPDATED, not created. Stamping it would hand it to
+    // start-over, which deletes rather than reverts — and on this table a
+    // delete cascades. Provenance marks origin, not last writer.
+    const seeded = await prisma.faculty.create({
+      data: { code: 'ODT-SEEDED', nameTh: 'เดิม', nameEn: 'Pre-existing' },
+      select: { id: true },
+    });
+
+    await load(facultiesDataset, [
+      { code: 'ODT-SEEDED', nameTh: 'เดิม', nameEn: 'Pre-existing (edited)', kind: null },
+    ], runId);
+
+    const after = await prisma.faculty.findUniqueOrThrow({
+      where: { id: seeded.id },
+      select: { nameEn: true, ingestionRunId: true },
+    });
+    expect(after.nameEn).toBe('Pre-existing (edited)');
+    expect(after.ingestionRunId).toBeNull();
+  });
+
   it('updates an existing faculty by code without duplicating it', async () => {
     const result = await load(facultiesDataset, [
       { code: 'ODT-ENG', nameTh: 'วิศวกรรมศาสตร์', nameEn: 'Engineering (renamed)', kind: null },
@@ -99,8 +121,9 @@ describe('faculties dataset', () => {
       select: { nameEn: true, ingestionRunId: true },
     });
     expect(row.nameEn).toBe('Engineering (renamed)');
-    // Re-stamped with the run that last touched it.
-    expect(row.ingestionRunId).toBe(otherRunId);
+    // Still owned by the run that CREATED it, not the one that last edited
+    // it — ownership decides what start-over may delete.
+    expect(row.ingestionRunId).toBe(runId);
   });
 
   it('defaults a blank Kind to ACADEMIC', async () => {

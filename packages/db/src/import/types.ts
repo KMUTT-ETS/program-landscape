@@ -7,8 +7,9 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 // cell validation, the guide sheet, pre-fill and loading all read the same
 // object, so a template cannot drift from the validator that accepts it.
 //
-// This module is imported by apps/web through the @kku/db barrel. It must
-// never import `xlsx` — the parser and the template writer live in
+// This module must never import `xlsx`: @kku/db is resolvable from apps/web,
+// and pulling a server-only spreadsheet parser down that path would not show
+// up until a bundle broke. The parser and the template writer live in
 // apps/api/src/import/. A test in test/import-registry.test.ts enforces it.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -125,4 +126,19 @@ export interface ImportDataset {
   clear: (tx: Prisma.TransactionClient, runIds: readonly string[]) => Promise<number>;
   /** Datasets whose rows depend on this one; start-over refuses while they hold rows. */
   dependents?: readonly string[];
+  /**
+   * What would be destroyed if `clear` ran now, beyond this dataset's own
+   * rows.
+   *
+   * Every foreign key into `programs` is `onDelete: Cascade`, and several
+   * into `faculties` are too, so deleting an imported row silently takes
+   * connector-written metrics with it. `dependents` cannot express that: it
+   * names other IMPORT datasets, and the data at risk is usually not
+   * imported at all. A dataset returns one entry per non-empty child table;
+   * start-over refuses and names them rather than cascading.
+   */
+  cascadeBlockers?: (
+    prisma: PrismaClient,
+    runIds: readonly string[],
+  ) => Promise<{ label: string; count: number }[]>;
 }

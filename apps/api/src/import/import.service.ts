@@ -10,6 +10,7 @@ import {
   listImportBatches,
   listImportDatasets,
   markImportBatchFailed,
+  markImportBatchSucceeded,
   prisma,
   recordImportBatch,
   startImportRun,
@@ -93,8 +94,15 @@ export const IMPORT_MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 /**
  * A hard ceiling, not a fallback to async. A file above this is a sign the
  * dataset wants splitting — by term, for the term-scoped ones.
+ *
+ * 5,000 is set by what the loaders can actually finish, not by taste: each
+ * does a sequential findUnique + update/create per row inside one
+ * transaction with a 120 s timeout. At a realistic 1-2 ms per round-trip,
+ * 50,000 rows would need 100-300 s — past that timeout and past most reverse
+ * proxies' read timeout, leaving the operator with a hung request and a
+ * failed batch. Raise this only together with batched loaders.
  */
-export const IMPORT_MAX_ROWS = 50_000;
+export const IMPORT_MAX_ROWS = 5_000;
 
 const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -177,29 +185,59 @@ export class ImportService implements OnModuleInit {
     batch: { filename: string; contentHash: string; storageKey: string; fileSize: number },
   ): Promise<{ batchId: string; result: ImportLoadResult }> {
     const { runId } = await startImportRun(dataset.slug, userId);
-    const created = await recordImportBatch({
-      datasetSlug: dataset.slug,
-      filename: batch.filename,
-      contentHash: batch.contentHash,
-      storageKey: batch.storageKey,
-      fileSize: batch.fileSize,
-      rowCount: rows.length,
-      uploadedByUserId: userId,
-      ingestionRunId: runId,
-    });
+
+    let created: { id: string };
+    try {
+      created = await recordImportBatch({
+        datasetSlug: dataset.slug,
+        filename: batch.filename,
+        contentHash: batch.contentHash,
+        storageKey: batch.storageKey,
+        fileSize: batch.fileSize,
+        rowCount: rows.length,
+        uploadedByUserId: userId,
+        ingestionRunId: runId,
+      });
+    } catch (e) {
+      // Without this the run is left RUNNING forever, counted by the data
+      // source dashboard and by the readiness green-history gate.
+      const message = e instanceof Error ? e.message : String(e);
+      await this.finishQuietly(runId, rows.length, message);
+      throw e;
+    }
 
     try {
       const result = await prisma.$transaction(
         (tx) => dataset.load({ tx, ingestionRunId: runId }, rows),
         { timeout: 120_000 },
       );
+      // Order matters: the batch becomes SUCCEEDED — and therefore live for
+      // dedupe — only once the rows are committed.
+      await markImportBatchSucceeded(created.id);
       await finishImportRun(runId, { loaded: rows.length, failed: 0, status: 'SUCCEEDED' });
       return { batchId: created.id, result };
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      await finishImportRun(runId, { loaded: 0, failed: rows.length, status: 'FAILED', errorMessage: message });
-      await markImportBatchFailed(created.id, message);
+      // Mark the batch FIRST. If finishImportRun throws (a concurrent
+      // start-over may have deleted the run), the batch would otherwise be
+      // left LOADING with no record of why.
+      await markImportBatchFailed(created.id, message).catch(() => undefined);
+      await this.finishQuietly(runId, rows.length, message);
       throw e;
+    }
+  }
+
+  /** Closes a run on the failure path without masking the original error. */
+  private async finishQuietly(runId: string, rowCount: number, message: string): Promise<void> {
+    try {
+      await finishImportRun(runId, {
+        loaded: 0,
+        failed: rowCount,
+        status: 'FAILED',
+        errorMessage: message,
+      });
+    } catch (e) {
+      this.logger.error(`import: could not close run ${runId}: ${String(e)}`);
     }
   }
 

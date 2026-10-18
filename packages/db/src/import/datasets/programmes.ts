@@ -127,7 +127,10 @@ export const programmesDataset: ImportDataset = {
       required: false,
       guide:
         'The national registration code for this curriculum, if your ministry ' +
-        'issues one. Not required, and not used to match rows.',
+        'issues one. Not required, and not used to match rows. Note: a code ' +
+        'that is exactly 13 digits may be refused as a personal identifier — ' +
+        'prefix it (for example "MHESI-") if your ministry issues codes of ' +
+        'that length.',
       example: '25501011100123',
     },
   ],
@@ -149,8 +152,15 @@ export const programmesDataset: ImportDataset = {
     const departmentIdByCode = new Map(departments.map((d) => [d.code, d.id]));
 
     // Allocate the sequence range once and increment in memory: one aggregate
-    // per load rather than per row. sequenceNoFromSheet is @unique, so a
-    // concurrent import collides and the caller's transaction retries.
+    // per load rather than per row.
+    //
+    // CONCURRENCY, stated honestly: sequenceNoFromSheet is @unique and
+    // nothing here retries. Two imports running at once both read this max
+    // under READ COMMITTED, both try the same numbers, and the loser's
+    // transaction fails on the unique — the upload is refused and must be
+    // retried by hand. That is acceptable because imports are a deliberate
+    // admin action, not a background job; it is NOT silent corruption. If
+    // concurrent imports ever become routine, take an advisory lock here.
     const maxSeq = await ctx.tx.program.aggregate({ _max: { sequenceNoFromSheet: true } });
     let nextSeq = (maxSeq._max.sequenceNoFromSheet ?? 0) + 1;
 
@@ -191,7 +201,6 @@ export const programmesDataset: ImportDataset = {
         durationYears: row.durationYears === null ? null : Number(row.durationYears),
         totalCredits: row.totalCredits === null ? null : Number(row.totalCredits),
         mhesiCode: row.mhesiCode === null ? null : String(row.mhesiCode),
-        ingestionRunId: ctx.ingestionRunId,
       };
 
       const existing = await ctx.tx.program.findUnique({
@@ -201,12 +210,24 @@ export const programmesDataset: ImportDataset = {
 
       if (existing) {
         // Never re-number an existing programme: other systems and shared
-        // links may already quote its canonical code.
-        await ctx.tx.program.update({ where: { code }, data });
+        // links may already quote its canonical code. But DO give one a
+        // number if it has none — otherwise it stays invisible to every
+        // Council surface despite having just been updated.
+        //
+        // ingestionRunId is deliberately not written here: provenance marks
+        // which import created a row, not which one last touched it, and a
+        // delete on this table cascades into every metric table.
+        await ctx.tx.program.update({
+          where: { code },
+          data:
+            existing.sequenceNoFromSheet === null
+              ? { ...data, sequenceNoFromSheet: nextSeq++ }
+              : data,
+        });
         updated += 1;
       } else {
         await ctx.tx.program.create({
-          data: { code, ...data, sequenceNoFromSheet: nextSeq },
+          data: { code, ...data, sequenceNoFromSheet: nextSeq, ingestionRunId: ctx.ingestionRunId },
         });
         nextSeq += 1;
         inserted += 1;
@@ -217,6 +238,39 @@ export const programmesDataset: ImportDataset = {
   },
 
   count: (prisma: PrismaClient): Promise<number> => prisma.program.count(),
+
+  // Every foreign key into `programs` is onDelete: Cascade, so deleting an
+  // imported programme would take its enrolment, finance, cohort, alumni,
+  // outcome and admission rows with it — rows a connector wrote and this
+  // import never touched. Start-over refuses while any exist.
+  //
+  // This list is the data-bearing children. EXTEND IT when a tier-1 dataset
+  // lands; a missing entry here is silent data loss, not a failed check.
+  cascadeBlockers: async (prisma, runIds): Promise<{ label: string; count: number }[]> => {
+    const where = { program: { ingestionRunId: { in: [...runIds] } } };
+    const [enrolment, financial, cohorts, alumni, outcomes, tcas, campaigns, courses] =
+      await Promise.all([
+        prisma.enrollmentMetric.count({ where }),
+        prisma.financialMetric.count({ where }),
+        prisma.studentCohortDistribution.count({ where }),
+        prisma.alumniCohortStatus.count({ where }),
+        prisma.graduateOutcome.count({ where }),
+        prisma.tcasAdmissionStat.count({ where }),
+        prisma.admissionCampaignStat.count({ where }),
+        prisma.programCourse.count({ where }),
+      ]);
+
+    return [
+      { label: 'enrolment figures', count: enrolment },
+      { label: 'financial figures', count: financial },
+      { label: 'student cohorts', count: cohorts },
+      { label: 'alumni cohorts', count: alumni },
+      { label: 'graduate outcomes', count: outcomes },
+      { label: 'TCAS admission statistics', count: tcas },
+      { label: 'admission campaigns', count: campaigns },
+      { label: 'courses', count: courses },
+    ].filter((b) => b.count > 0);
+  },
 
   clear: async (tx, runIds): Promise<number> => {
     const result = await tx.program.deleteMany({ where: { ingestionRunId: { in: [...runIds] } } });

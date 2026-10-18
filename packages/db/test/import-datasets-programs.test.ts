@@ -13,7 +13,7 @@ import type { ImportDataset, ImportLoadContext, ImportRow } from '../src/import/
 // is invisible everywhere that matters.
 
 const FACULTY_CODE = 'PDT-ENG';
-const programCodes = ['PDT-P1', 'PDT-P2', 'PDT-P3'];
+const programCodes = ['PDT-P1', 'PDT-P2', 'PDT-P3', 'PDT-P4'];
 let runId = '';
 let otherRunId = '';
 
@@ -171,10 +171,51 @@ describe('programmes dataset', () => {
     expect(programmesDataset.columns.map((c) => c.key)).not.toContain('sequenceNoFromSheet');
   });
 
-  it('clears only rows carrying the given run ids', async () => {
+  it('reports metric rows that a clear would cascade-delete', async () => {
+    // Every FK into `programs` is onDelete: Cascade, so deleting an imported
+    // programme takes connector-written metrics with it. The guard must see
+    // them BEFORE the delete — this is the difference between refusing and
+    // destroying a registrar's history.
+    const programme = await prisma.program.findUniqueOrThrow({
+      where: { code: 'PDT-P2' },
+      select: { id: true, ingestionRunId: true },
+    });
+    expect(programme.ingestionRunId).toBe(runId);
+
+    const metric = await prisma.enrollmentMetric.create({
+      data: {
+        programId: programme.id, academicYear: 2099,
+        applications: 0, admitted: 0, enrolled: 10,
+        retainedYear2: 0, graduatedOnTime: 0, graduatedLate: 0, dropouts: 0,
+        freshnessDate: new Date(),
+      },
+      select: { id: true },
+    });
+
+    try {
+      const blockers = await programmesDataset.cascadeBlockers?.(prisma, [runId]);
+      expect(blockers).toBeDefined();
+      expect(blockers?.some((b) => b.label.includes('enrolment') && b.count >= 1)).toBe(true);
+    } finally {
+      await prisma.enrollmentMetric.delete({ where: { id: metric.id } });
+    }
+  });
+
+  it('finds nothing to block when no child rows exist', async () => {
+    const blockers = await programmesDataset.cascadeBlockers?.(prisma, [runId]);
+    expect(blockers).toEqual([]);
+  });
+
+  it('clears only rows the given runs created', async () => {
+    // PDT-P4 is created by otherRunId; PDT-P1 was created by runId and only
+    // UPDATED by otherRunId, so clearing otherRunId must not touch it.
+    await load(programmesDataset, [programRow({ code: 'PDT-P4', nameEn: 'Four' })], otherRunId);
+
     const deleted = await prisma.$transaction((tx) => programmesDataset.clear(tx, [otherRunId]));
-    expect(deleted).toBeGreaterThanOrEqual(1);
-    expect(await prisma.program.findUnique({ where: { code: 'PDT-P1' } })).toBeNull();
+
+    expect(deleted).toBe(1);
+    expect(await prisma.program.findUnique({ where: { code: 'PDT-P4' } })).toBeNull();
+    expect(await prisma.program.findUnique({ where: { code: 'PDT-P1' } })).not.toBeNull();
     expect(await prisma.program.findUnique({ where: { code: 'PDT-P2' } })).not.toBeNull();
   });
 });

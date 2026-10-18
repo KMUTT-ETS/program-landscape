@@ -72,14 +72,17 @@ export const facultiesDataset: ImportDataset = {
         nameTh: String(row.nameTh),
         nameEn: String(row.nameEn),
         kind: (row.kind ? String(row.kind) : 'ACADEMIC') as FacultyKind,
-        ingestionRunId: ctx.ingestionRunId,
       };
       const existing = await ctx.tx.faculty.findUnique({ where: { code }, select: { id: true } });
       if (existing) {
+        // Deliberately NOT stamping ingestionRunId here. Provenance marks
+        // which import CREATED a row, not which one last touched it:
+        // start-over deletes what it owns, and deleting a seeded or
+        // connector-written faculty cascades well beyond this table.
         await ctx.tx.faculty.update({ where: { code }, data });
         updated += 1;
       } else {
-        await ctx.tx.faculty.create({ data: { code, ...data } });
+        await ctx.tx.faculty.create({ data: { code, ...data, ingestionRunId: ctx.ingestionRunId } });
         inserted += 1;
       }
     }
@@ -88,6 +91,24 @@ export const facultiesDataset: ImportDataset = {
   },
 
   count: (prisma: PrismaClient): Promise<number> => prisma.faculty.count(),
+
+  // `FacultyMember.faculty` is onDelete: Restrict, so a staff row turns the
+  // delete into a raw foreign-key error — a 500 with nothing cleared. Other
+  // children cascade. Either way the honest answer is to refuse and say what
+  // is in the way, rather than destroy it or crash.
+  cascadeBlockers: async (prisma, runIds): Promise<{ label: string; count: number }[]> => {
+    const where = { faculty: { ingestionRunId: { in: [...runIds] } } };
+    const [staff, budgets, compensation] = await Promise.all([
+      prisma.facultyMember.count({ where }),
+      prisma.facultyBudget.count({ where }),
+      prisma.facultyCompensation.count({ where }),
+    ]);
+    return [
+      { label: 'staff records', count: staff },
+      { label: 'faculty budgets', count: budgets },
+      { label: 'compensation figures', count: compensation },
+    ].filter((b) => b.count > 0);
+  },
 
   clear: async (tx, runIds): Promise<number> => {
     const result = await tx.faculty.deleteMany({ where: { ingestionRunId: { in: [...runIds] } } });

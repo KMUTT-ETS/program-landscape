@@ -6,6 +6,7 @@ import {
   findLiveBatchByHash,
   importDatasetStatus,
   listImportBatches,
+  markImportBatchSucceeded,
   recordImportBatch,
   startImportRun,
   startOverDataset,
@@ -140,12 +141,18 @@ describe('startImportRun / finishImportRun', () => {
 });
 
 describe('findLiveBatchByHash', () => {
-  it('finds a succeeded batch', async () => {
+  it('finds a batch only once its rows are committed', async () => {
     const runId = await makeRun();
-    await recordImportBatch({
+    const batch = await recordImportBatch({
       datasetSlug: SLUG, filename: 'a.xlsx', contentHash: 'live-hash-1',
       storageKey: 'k1', fileSize: 10, rowCount: 2, uploadedByUserId: null, ingestionRunId: runId,
     });
+
+    // Recorded as LOADING: the rows are not in yet, so the file must still
+    // be re-uploadable if the load dies here.
+    expect(await findLiveBatchByHash(SLUG, 'live-hash-1')).toBeNull();
+
+    await markImportBatchSucceeded(batch.id);
     const found = await findLiveBatchByHash(SLUG, 'live-hash-1');
     expect(found?.rowCount).toBe(2);
   });
@@ -170,6 +177,35 @@ describe('findLiveBatchByHash', () => {
     expect(await findLiveBatchByHash(DEPENDENT_SLUG, 'live-hash-1')).toBeNull();
   });
 
+  it('ignores a FAILED batch, so a fixed cause can be retried with the same file', async () => {
+    // A failed load leaves a batch holding the hash. If that counted as
+    // live, the operator would fix the cause, re-upload the identical file
+    // and be told "already uploaded — nothing changed", with no way out
+    // short of altering a byte of their workbook.
+    const runId = await makeRun();
+    const batch = await recordImportBatch({
+      datasetSlug: SLUG, filename: 'failed.xlsx', contentHash: 'failed-hash-1',
+      storageKey: 'k-failed', fileSize: 10, rowCount: 2, uploadedByUserId: null, ingestionRunId: runId,
+    });
+    await prisma.importBatch.update({
+      where: { id: batch.id },
+      data: { status: 'FAILED', errorMessage: 'constraint violated' },
+    });
+
+    expect(await findLiveBatchByHash(SLUG, 'failed-hash-1')).toBeNull();
+  });
+
+  it('ignores a batch still LOADING, so a crashed load can be retried', async () => {
+    const runId = await makeRun();
+    const batch = await recordImportBatch({
+      datasetSlug: SLUG, filename: 'stuck.xlsx', contentHash: 'stuck-hash-1',
+      storageKey: 'k-stuck', fileSize: 10, rowCount: 2, uploadedByUserId: null, ingestionRunId: runId,
+    });
+    await prisma.importBatch.update({ where: { id: batch.id }, data: { status: 'LOADING' } });
+
+    expect(await findLiveBatchByHash(SLUG, 'stuck-hash-1')).toBeNull();
+  });
+
   it('revives a cleared batch when the same file is uploaded again', async () => {
     // The cleared row still occupies the (datasetSlug, contentHash) unique
     // slot, so recording the replay must update it rather than insert a
@@ -191,6 +227,7 @@ describe('findLiveBatchByHash', () => {
     });
 
     expect(second.id).toBe(first.id);
+    await markImportBatchSucceeded(second.id);
     const row = await prisma.importBatch.findUniqueOrThrow({
       where: { id: first.id },
       select: { status: true, clearedAt: true, ingestionRunId: true },

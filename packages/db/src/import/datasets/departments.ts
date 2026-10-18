@@ -88,14 +88,14 @@ export const departmentsDataset: ImportDataset = {
         nameTh: String(row.nameTh),
         nameEn: String(row.nameEn),
         facultyId,
-        ingestionRunId: ctx.ingestionRunId,
       };
       const existing = await ctx.tx.department.findUnique({ where: { code }, select: { id: true } });
       if (existing) {
+        // See faculties.ts: provenance marks origin, not last writer.
         await ctx.tx.department.update({ where: { code }, data });
         updated += 1;
       } else {
-        await ctx.tx.department.create({ data: { code, ...data } });
+        await ctx.tx.department.create({ data: { code, ...data, ingestionRunId: ctx.ingestionRunId } });
         inserted += 1;
       }
     }
@@ -104,6 +104,16 @@ export const departmentsDataset: ImportDataset = {
   },
 
   count: (prisma: PrismaClient): Promise<number> => prisma.department.count(),
+
+  // `FacultyMember.department` is SetNull and programmes are covered by
+  // `dependents`, so the only cascade worth refusing for is staff: clearing
+  // departments would quietly unassign them.
+  cascadeBlockers: async (prisma, runIds): Promise<{ label: string; count: number }[]> => {
+    const staff = await prisma.facultyMember.count({
+      where: { department: { ingestionRunId: { in: [...runIds] } } },
+    });
+    return staff > 0 ? [{ label: 'staff assigned to these departments', count: staff }] : [];
+  },
 
   clear: async (tx, runIds): Promise<number> => {
     const result = await tx.department.deleteMany({ where: { ingestionRunId: { in: [...runIds] } } });

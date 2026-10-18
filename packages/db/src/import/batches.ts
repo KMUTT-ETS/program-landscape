@@ -53,17 +53,24 @@ export interface FinishImportRunInput {
 }
 
 /**
- * A batch that still owns its rows. Cleared batches are deliberately
- * invisible here: start-over keeps the row so the stored file stays
- * nameable, and re-uploading that same file must load again rather than
- * being refused as a duplicate.
+ * A batch that actually landed, i.e. one whose rows are in the database.
+ *
+ * ONLY `SUCCEEDED` counts. Every other state means this file has not landed
+ * and must be allowed to load again:
+ *  - `CLEARED` — start-over removed the rows but kept the row so the stored
+ *    file stays nameable; re-uploading it is the documented replay path.
+ *  - `FAILED` — the load threw. The operator fixes the cause (a missing
+ *    faculty, a lock) and re-uploads the SAME file. Treating this as live
+ *    would answer "already uploaded — nothing changed" forever, with no way
+ *    out short of altering a byte of their workbook.
+ *  - `PENDING` / `LOADING` — a crash mid-load. Same reasoning.
  */
 export async function findLiveBatchByHash(
   datasetSlug: string,
   contentHash: string,
 ): Promise<{ id: string; rowCount: number } | null> {
   return prisma.importBatch.findFirst({
-    where: { datasetSlug, contentHash, status: { not: 'CLEARED' } },
+    where: { datasetSlug, contentHash, status: 'SUCCEEDED' },
     select: { id: true, rowCount: true },
   });
 }
@@ -86,7 +93,11 @@ export async function recordImportBatch(
     storageKey: input.storageKey,
     fileSize: input.fileSize,
     rowCount: input.rowCount,
-    status: 'SUCCEEDED' as const,
+    // LOADING, not SUCCEEDED: the rows have not been written yet. A crash
+    // between here and the end of the load would otherwise leave a batch
+    // claiming rowCount rows that were rolled back — and, since only
+    // SUCCEEDED counts as live, the file would then be un-retryable.
+    status: 'LOADING' as const,
     uploadedByUserId: input.uploadedByUserId,
     ingestionRunId: input.ingestionRunId,
     errorMessage: null,
@@ -109,6 +120,14 @@ export async function markImportBatchFailed(id: string, errorMessage: string): P
   await prisma.importBatch.update({
     where: { id },
     data: { status: 'FAILED', errorMessage: errorMessage.slice(0, 2000) },
+  });
+}
+
+/** Called once the rows are committed. Until this runs the batch is LOADING. */
+export async function markImportBatchSucceeded(id: string): Promise<void> {
+  await prisma.importBatch.update({
+    where: { id },
+    data: { status: 'SUCCEEDED', errorMessage: null },
   });
 }
 
@@ -249,21 +268,42 @@ export async function startOverDataset(
     );
   }
 
-  const runs = await prisma.ingestionRun.findMany({
-    where: { dataSource: { slug: importDataSourceSlug(datasetSlug) } },
-    select: { id: true },
-  });
-  const runIds = runs.map((r) => r.id);
-  if (runIds.length === 0) return { rowsDeleted: 0, batchesCleared: 0 };
-
   return prisma.$transaction(async (tx) => {
+    // Read the runs INSIDE the transaction. Reading them outside left a
+    // window where an upload starting mid-clear had its batch marked CLEARED
+    // while its rows survived — a dataset showing as cleared with rows still
+    // in it, and no way to finish the job from the UI.
+    const runs = await tx.ingestionRun.findMany({
+      where: { dataSource: { slug: importDataSourceSlug(datasetSlug) } },
+      select: { id: true },
+    });
+    const runIds = runs.map((r) => r.id);
+    if (runIds.length === 0) return { rowsDeleted: 0, batchesCleared: 0 };
+
+    // What would be destroyed beyond this dataset's own rows. Checked here,
+    // inside the transaction, so the answer cannot go stale before the
+    // delete. See ImportDataset.cascadeBlockers.
+    const cascade = dataset.cascadeBlockers
+      ? await dataset.cascadeBlockers(prisma, runIds)
+      : [];
+    if (cascade.length > 0) {
+      const detail = cascade.map((b) => `${b.count} ${b.label}`).join(', ');
+      throw new ApiError(
+        'VALIDATION_FAILED',
+        `Cannot clear ${dataset.title}: ${detail} would be deleted along with it. ` +
+          `That data did not come from this import. Remove it first if you really mean to.`,
+      );
+    }
+
     // Data rows first: the deferred evaluation and DQ tables carry a non-null
     // ingestion_run_id with onDelete: Restrict, so this ordering is a hard
     // constraint the moment one of them is brought into scope.
     const rowsDeleted = await dataset.clear(tx as Prisma.TransactionClient, runIds);
 
+    // Scoped to these runs: a batch created by an upload that started after
+    // this transaction opened still owns its rows and must stay live.
     const cleared = await tx.importBatch.updateMany({
-      where: { datasetSlug, status: { not: 'CLEARED' } },
+      where: { datasetSlug, ingestionRunId: { in: runIds }, status: { not: 'CLEARED' } },
       data: { status: 'CLEARED', clearedAt: new Date() },
     });
 

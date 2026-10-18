@@ -57,13 +57,25 @@ export function parseImportWorkbook(bytes: Buffer, sheetName: string): ParseWork
 
   const headers = headerRow.map((h) => (h === null || h === undefined ? '' : String(h)));
 
-  const duplicates = headers.filter((h, i) => h !== '' && headers.indexOf(h) !== i);
+  // Drop trailing empties. A note typed in a far cell widens the sheet's
+  // used range, so the header row picks up nulls; reporting those as columns
+  // refuses the file for a column with no name, pointing at nothing the
+  // operator can see. Interior blanks are left alone — they separate real
+  // columns and are skipped per-row below.
+  while (headers.length > 0 && headers[headers.length - 1] === '') headers.pop();
+
+  // Compare TRIMMED. The validator trims before matching a header to a
+  // column, so "Code" and "Code " would collapse onto one key with the last
+  // silently winning — the file accepted, every row read from the wrong
+  // column. Detecting it here is what makes the trim in validate.ts safe.
+  const trimmed = headers.map((h) => h.trim());
+  const duplicates = trimmed.filter((h, i) => h !== '' && trimmed.indexOf(h) !== i);
   if (duplicates.length > 0) {
     return {
       ok: false,
       error:
         `Sheet "${sheetName}" repeats the column name(s): ${[...new Set(duplicates)].join(', ')}. ` +
-        `Each column must appear once.`,
+        `Each column must appear once. Check for a stray space at the end of a header.`,
     };
   }
 

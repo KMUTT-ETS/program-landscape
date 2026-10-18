@@ -59,7 +59,9 @@ function isBlank(value: unknown): boolean {
  * rendering 1 as "1.0" would make it wrong twice.
  */
 function numberToText(value: number): string {
-  return Number.isInteger(value) ? String(value) : String(value);
+  // String() already renders a whole-valued float without a decimal point
+  // (String(1.0) === "1"), which is exactly what a code column needs.
+  return String(value);
 }
 
 function coerceDate(value: unknown): Date | null {
@@ -203,18 +205,15 @@ export function validateSheet(
     const built: Record<string, ImportCellValue> = {};
     for (const column of dataset.columns) {
       const raw = read(column);
-      const coerced = coerceCell(column, raw);
-      if ('error' in coerced) {
-        errors.push({ sheet, row: sheetRow, column: column.header, message: coerced.error });
-        continue;
-      }
-      if (coerced.value === null && column.required) {
-        errors.push({ sheet, row: sheetRow, column: column.header, message: 'This cell is required.' });
-        continue;
-      }
-      // Privacy: a national identifier must not enter the system. Never echo
-      // the value — the message is an output surface.
-      if (typeof coerced.value === 'string' && looksLikeThaiNationalId(coerced.value)) {
+
+      // Privacy FIRST, on the raw cell, before anything can coerce or echo
+      // it. Two reasons the later check was not enough:
+      //  - Excel stores a 13-digit ID typed into a General cell as a NUMBER,
+      //    so a check on coerced strings never saw it in a numeric column.
+      //  - Every coercion-failure message quotes the offending value, so an
+      //    ID pasted into an enum column was echoed into the HTTP response
+      //    and onto the operator's screen by the very path meant to stop it.
+      if (!isBlank(raw) && looksLikeThaiNationalId(String(raw))) {
         errors.push({
           sheet,
           row: sheetRow,
@@ -223,6 +222,16 @@ export function validateSheet(
             'This cell looks like a personal identifier (national ID). Remove the ' +
             'column or replace it with a non-personal code before uploading.',
         });
+        continue;
+      }
+
+      const coerced = coerceCell(column, raw);
+      if ('error' in coerced) {
+        errors.push({ sheet, row: sheetRow, column: column.header, message: coerced.error });
+        continue;
+      }
+      if (coerced.value === null && column.required) {
+        errors.push({ sheet, row: sheetRow, column: column.header, message: 'This cell is required.' });
         continue;
       }
       if (column.groupSizeFor && typeof coerced.value === 'number' && coerced.value < column.groupSizeFor.minimum) {
@@ -289,7 +298,15 @@ export function validateSheet(
     const reference = column.references;
     if (!reference) continue;
     const known = ctx.references.get(reference.dataset);
-    if (!known) continue;
+    if (!known) {
+      // Not "nothing to check against" — the caller failed to supply the
+      // set, so skipping would accept any value in a column whose whole
+      // purpose is to be checked. Loud, because it is a wiring mistake.
+      throw new Error(
+        `Import validation for "${dataset.slug}" was given no reference values for ` +
+          `"${reference.dataset}" (needed by column "${column.header}").`,
+      );
+    }
     for (const { sheetRow, row } of accepted) {
       const value = row[column.key];
       if (value === null || value === undefined) continue;
@@ -314,6 +331,10 @@ export function validateSheet(
     const firstTerm: Record<string, ImportCellValue> = {};
     for (const key of termColumns) firstTerm[key] = first.row[key] ?? null;
 
+    // Report the FIRST dissenting row and stop. Counting the whole `errors`
+    // array here would mean any earlier cell error silently disabled term
+    // checking after one row.
+    let reported = false;
     for (const { sheetRow, row } of accepted.slice(1)) {
       for (const key of termColumns) {
         if (String(row[key] ?? '') !== String(firstTerm[key] ?? '')) {
@@ -326,9 +347,10 @@ export function validateSheet(
               `has ${String(firstTerm[key])} and this row has ${String(row[key])}. ` +
               `Upload one file per period.`,
           });
+          reported = true;
         }
       }
-      if (errors.length > 0) break;
+      if (reported) break;
     }
     term = firstTerm;
   }

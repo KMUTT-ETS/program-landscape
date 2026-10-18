@@ -269,9 +269,11 @@ export function ImportPanel({ dataset }: { dataset: ImportPanelDataset }): React
         <div>
           <h2 className="text-sm font-semibold text-text-primary">Start over</h2>
           <p className="mt-1 max-w-2xl text-xs text-text-secondary">
-            Deletes the {dataset.rowCount} rows this import wrote and leaves anything from a
-            connector or the seed alone. The uploaded files above are kept, so you can rebuild by
-            uploading them again — but if those files are gone, this cannot be undone.
+            Deletes the rows these uploads created. Anything from a connector or the original
+            setup is left alone — including a row an upload only edited. It refuses if other data
+            would be destroyed along with them, and names what is in the way. The uploaded files
+            above are kept, so you can rebuild by uploading them again — but if those files are
+            gone, this cannot be undone.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

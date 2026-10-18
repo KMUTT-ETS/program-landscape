@@ -95,6 +95,28 @@ describe('parseImportWorkbook', () => {
     expect((result.parsed.rows[2] as Record<string, unknown>).Code).toBe('C3');
   });
 
+  it('ignores trailing empty header cells left by a stray note', () => {
+    // An operator types a note in a far cell; the sheet's !ref widens and the
+    // header row gains a null. Reported as-is this becomes "Unexpected
+    // column(s): ." — a refusal naming a column that does not exist.
+    const bytes = workbook({ Data: [['Code', 'Name', null, null], ['A1', 'Alpha', null, null]] });
+    const result = parseImportWorkbook(bytes, 'Data');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.parsed.headers).toEqual(['Code', 'Name']);
+  });
+
+  it('treats headers differing only by trailing space as duplicates', () => {
+    // The validator trims before comparing, so these two collapse onto one
+    // key and the LAST silently wins — the file is accepted and every row is
+    // read from the wrong column.
+    const bytes = workbook({ Data: [['Code', 'Code '], ['right', 'wrong']] });
+    const result = parseImportWorkbook(bytes, 'Data');
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContain('Code');
+  });
+
   it('reports a duplicated header rather than silently keeping one', () => {
     const bytes = workbook({ Data: [['Code', 'Code'], ['A1', 'A2']] });
     const result = parseImportWorkbook(bytes, 'Data');

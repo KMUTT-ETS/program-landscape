@@ -258,6 +258,30 @@ describe('validateSheet — references', () => {
 describe('validateSheet — privacy', () => {
   const d = makeDataset();
 
+  it('rejects a national id in a NUMBER column, which Excel stores as a number', () => {
+    // A General-formatted cell holding 13 digits arrives as a number. Only
+    // checking coerced strings would let it straight into the database.
+    const result = validateSheet(d, sheet(ALL_HEADERS, [row({ Year: 1101700207366 })]), ctx());
+    const e = errorsOf(result)[0];
+    expect(e.column).toBe('Year');
+    expect(e.message).not.toContain('1101700207366');
+  });
+
+  it('does not echo a national id that also fails type coercion', () => {
+    // The enum branch would otherwise report: "1101700207366" is not allowed.
+    const result = validateSheet(d, sheet(ALL_HEADERS, [row({ Level: '1101700207366' })]), ctx());
+    for (const e of errorsOf(result)) {
+      expect(e.message).not.toContain('1101700207366');
+    }
+  });
+
+  it('rejects a national id written with hyphens in any column', () => {
+    const result = validateSheet(d, sheet(ALL_HEADERS, [row({ Name: '1-1017-00207-36-6' })]), ctx());
+    const e = errorsOf(result)[0];
+    expect(e.column).toBe('Name');
+    expect(e.message).not.toContain('1017');
+  });
+
   it('rejects a cell holding a national id without echoing the value', () => {
     const id = '1101700207366'; // synthetic
     const result = validateSheet(d, sheet(ALL_HEADERS, [row({ Name: id })]), ctx());
