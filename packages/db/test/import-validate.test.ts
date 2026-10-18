@@ -422,3 +422,177 @@ describe('validateSheet — term-scoped', () => {
     expect(result.ok && result.term).toBeNull();
   });
 });
+
+describe('a number written with a decimal comma', () => {
+  // Thousands separators are stripped so "1,250,000" works. The same rule
+  // turns a European "1234,56" into 123456 — a hundredfold error, silently
+  // accepted, in a column that is usually money. An adopting university
+  // outside Thailand is this feature's stated audience.
+  it('is refused rather than multiplied by a hundred', () => {
+    const result = validateSheet(makeDataset(), sheet(ALL_HEADERS, [row({ Amount: '1234,56' })]), ctx());
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors[0]?.column).toBe('Amount');
+    expect(result.errors[0]?.message).toMatch(/decimal point|1234\.56/i);
+  });
+
+  it('still accepts genuine thousands separators', () => {
+    const result = validateSheet(makeDataset(), sheet(ALL_HEADERS, [row({ Amount: '1,250,000' })]), ctx());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows[0]?.amount).toBe(1_250_000);
+  });
+
+  it('still accepts a plain decimal point', () => {
+    const result = validateSheet(makeDataset(), sheet(ALL_HEADERS, [row({ Amount: '1250000.50' })]), ctx());
+    expect(result.ok && result.rows[0]?.amount).toBe(1_250_000.5);
+  });
+
+  it('accepts a comma group of three at the end, which is a separator', () => {
+    const result = validateSheet(makeDataset(), sheet(ALL_HEADERS, [row({ Amount: '1,250' })]), ctx());
+    expect(result.ok && result.rows[0]?.amount).toBe(1250);
+  });
+});
+
+// ── rows that assert nothing ────────────────────────────────────────────────
+// Pre-filled templates ship a row per programme per year with the key columns
+// filled and every value blank. An operator fills the ones they have figures
+// for and uploads the sheet as it came. The untouched rows must not be read
+// as a statement — they would otherwise insert a wall of zeros, or fail the
+// file with thousands of "this cell is required" errors pointing at rows the
+// system itself wrote.
+
+describe('a row with keys but no values', () => {
+  const keyed = makeDataset({
+    // Only a dataset that pre-fills can produce a row nobody wrote, so the
+    // skip is gated on having one.
+    prefill: async () => [],
+    strategy: { kind: 'upsert', match: { kind: 'unique', columns: ['code', 'year'] } },
+    columns: [
+      { header: 'Code', key: 'code', type: 'text', required: true, guide: 'the code', example: 'A1' },
+      { header: 'Year', key: 'year', type: 'integer', required: true, guide: 'the year', example: '2024' },
+      { header: 'Amount', key: 'amount', type: 'decimal', required: false, guide: 'the amount', example: '12' },
+      { header: 'Other', key: 'other', type: 'decimal', required: false, guide: 'another', example: '3' },
+    ],
+  });
+  const headers = ['Code', 'Year', 'Amount', 'Other'];
+
+  it('is skipped rather than stored as zeros', () => {
+    const result = validateSheet(
+      keyed,
+      sheet(headers, [
+        { Code: 'A1', Year: 2024, Amount: 50, Other: null },
+        { Code: 'A1', Year: 2023, Amount: null, Other: null },
+        { Code: 'B2', Year: 2024, Amount: null, Other: null },
+      ]),
+      ctx(),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]).toMatchObject({ code: 'A1', year: 2024, amount: 50 });
+  });
+
+  it('is skipped even when a value column is required', () => {
+    // Finance and Graduate Outcomes both have required value columns, so
+    // without this the pre-filled template is refused as downloaded.
+    const required = makeDataset({
+      prefill: async () => [],
+      strategy: { kind: 'upsert', match: { kind: 'unique', columns: ['code', 'year'] } },
+      columns: [
+        { header: 'Code', key: 'code', type: 'text', required: true, guide: 'the code', example: 'A1' },
+        { header: 'Year', key: 'year', type: 'integer', required: true, guide: 'the year', example: '2024' },
+        { header: 'Amount', key: 'amount', type: 'decimal', required: true, guide: 'the amount', example: '12' },
+      ],
+    });
+    const result = validateSheet(
+      required,
+      sheet(['Code', 'Year', 'Amount'], [
+        { Code: 'A1', Year: 2024, Amount: 50 },
+        { Code: 'A1', Year: 2023, Amount: null },
+      ]),
+      ctx(),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows).toHaveLength(1);
+  });
+
+  it('still refuses a row missing a KEY, which is a real mistake', () => {
+    const result = validateSheet(
+      keyed,
+      sheet(headers, [{ Code: 'A1', Year: null, Amount: 50, Other: null }]),
+      ctx(),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors[0]?.column).toBe('Year');
+  });
+
+  it('does not skip a row whose only value is a legitimate zero', () => {
+    // Zero dropouts is a statement. Blank is the absence of one.
+    const result = validateSheet(
+      keyed,
+      sheet(headers, [{ Code: 'A1', Year: 2024, Amount: 0, Other: null }]),
+      ctx(),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]?.amount).toBe(0);
+  });
+
+  it('refuses a file in which EVERY row asserts nothing', () => {
+    // An untouched template. Reporting "0 rows loaded" as success would let
+    // someone believe they had uploaded their figures.
+    const result = validateSheet(
+      keyed,
+      sheet(headers, [
+        { Code: 'A1', Year: 2024, Amount: null, Other: null },
+        { Code: 'B2', Year: 2024, Amount: null, Other: null },
+      ]),
+      ctx(),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors[0]?.message).toMatch(/carries any figures/i);
+  });
+
+  it('leaves a dataset whose columns are all keys and names alone', () => {
+    // Tier 0: a faculty row is its key plus descriptive text. The skip must
+    // not swallow it just because the optional columns are blank.
+    const result = validateSheet(makeDataset(), sheet(ALL_HEADERS, [row()]), ctx());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows).toHaveLength(1);
+  });
+
+  it('still reports a bad KEY cell on a row with no figures', () => {
+    // The row is a template line, but the operator edited its year and got
+    // it wrong. Skipping silently would hide the one thing they did.
+    const result = validateSheet(
+      keyed,
+      sheet(headers, [{ Code: 'A1', Year: 'not-a-year', Amount: null, Other: null }]),
+      ctx(),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors[0]?.column).toBe('Year');
+  });
+
+  it('does not skip for a dataset with no pre-fill', () => {
+    // A tier-0 row with a code and nothing else is somebody starting a row
+    // and abandoning it. Saying so is the help.
+    const noPrefill = makeDataset({
+      strategy: { kind: 'upsert', match: { kind: 'unique', columns: ['code'] } },
+    });
+    const result = validateSheet(
+      noPrefill,
+      sheet(ALL_HEADERS, [row({ Code: 'A1', Name: null })]),
+      ctx(),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors[0]?.column).toBe('Name');
+  });
+});

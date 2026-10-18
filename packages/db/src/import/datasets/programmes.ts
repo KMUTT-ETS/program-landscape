@@ -1,4 +1,4 @@
-import type { PrismaClient, ProgramLevel, ProgramStatus } from '@prisma/client';
+import type { Prisma, PrismaClient, ProgramLevel, ProgramStatus } from '@prisma/client';
 
 import { ApiError } from '@kku/shared';
 
@@ -15,6 +15,96 @@ import type { ImportDataset, ImportLoadContext, ImportLoadResult, ImportRow } fr
 
 const LEVELS = ['BACHELOR', 'MASTER', 'DOCTORAL', 'HIGHER_GRAD_DIPLOMA'] as const;
 const STATUSES = ['ACTIVE', 'PAUSED', 'SUNSET'] as const;
+
+// ── What a start-over on this dataset would destroy ──────────────────────
+//
+// THIRTY-FIVE tables hold `onDelete: Cascade` foreign keys into `programs`.
+// Deleting an imported programme empties every one of them for that row —
+// including the PDF a human attached, the courses an AI run extracted at
+// real cost, and the risk assessment Council read last week. None of that
+// came from the import and none of it is restored by re-uploading the file.
+//
+// So the guard counts them all and refuses rather than cascading. The list
+// is kept honest by test/import-cascade-coverage.test.ts, which reads the
+// schema: a new Cascade child fails the suite until it is classified here.
+// The first version of this list named eight of the thirty-five.
+
+interface CascadeChild {
+  /** Prisma model name. Matched against schema.prisma by the structural test. */
+  model: string;
+  /** How an operator would recognise it. Several models may share a label. */
+  label: string;
+  count: (tx: Prisma.TransactionClient, runIds: readonly string[]) => Promise<number>;
+}
+
+/** Cascade children whose rows block a start-over while any exist. */
+export const CASCADE_CHILDREN: readonly CascadeChild[] = [
+  // Metrics — the tier-1 import datasets, plus what connectors write beside them.
+  { model: 'EnrollmentMetric', label: 'enrolment figures', count: (p, r) => p.enrollmentMetric.count({ where: byProgram(r) }) },
+  { model: 'FinancialMetric', label: 'financial figures', count: (p, r) => p.financialMetric.count({ where: byProgram(r) }) },
+  { model: 'GraduateOutcome', label: 'graduate outcomes', count: (p, r) => p.graduateOutcome.count({ where: byProgram(r) }) },
+  { model: 'StudentCohortDistribution', label: 'student cohorts', count: (p, r) => p.studentCohortDistribution.count({ where: byProgram(r) }) },
+  { model: 'AlumniCohortStatus', label: 'alumni cohorts', count: (p, r) => p.alumniCohortStatus.count({ where: byProgram(r) }) },
+  { model: 'StudentDemographic', label: 'student demographics', count: (p, r) => p.studentDemographic.count({ where: byProgram(r) }) },
+  { model: 'EmployerFeedback', label: 'employer feedback responses', count: (p, r) => p.employerFeedback.count({ where: byProgram(r) }) },
+
+  // Curriculum — attached by hand or extracted by paid AI runs.
+  { model: 'ProgramDocument', label: 'attached documents', count: (p, r) => p.programDocument.count({ where: byProgram(r) }) },
+  { model: 'Curriculum', label: 'curricula', count: (p, r) => p.curriculum.count({ where: byProgram(r) }) },
+  { model: 'Course', label: 'courses', count: (p, r) => p.course.count({ where: byProgram(r) }) },
+  { model: 'ProgramCourse', label: 'courses', count: (p, r) => p.programCourse.count({ where: byProgram(r) }) },
+  { model: 'ProgramLearningOutcome', label: 'learning outcomes', count: (p, r) => p.programLearningOutcome.count({ where: byProgram(r) }) },
+  { model: 'ProgramSkill', label: 'skill links', count: (p, r) => p.programSkill.count({ where: byProgram(r) }) },
+  { model: 'ProgramRevision', label: 'curriculum revisions', count: (p, r) => p.programRevision.count({ where: byProgram(r) }) },
+  { model: 'ProgramCurriculumRevision', label: 'curriculum revisions', count: (p, r) => p.programCurriculumRevision.count({ where: byProgram(r) }) },
+
+  // People.
+  { model: 'ProgramFaculty', label: 'teaching-staff assignments', count: (p, r) => p.programFaculty.count({ where: byProgram(r) }) },
+
+  // AI-derived analysis. Recomputable, but only by paying for it again.
+  { model: 'ProgramStrategicNarrative', label: 'AI analysis', count: (p, r) => p.programStrategicNarrative.count({ where: byProgram(r) }) },
+  { model: 'ProgramAiReadinessAssessment', label: 'AI analysis', count: (p, r) => p.programAiReadinessAssessment.count({ where: byProgram(r) }) },
+  { model: 'ProgramResearchExpertise', label: 'AI analysis', count: (p, r) => p.programResearchExpertise.count({ where: byProgram(r) }) },
+  { model: 'ProgramPedagogyAssessment', label: 'AI analysis', count: (p, r) => p.programPedagogyAssessment.count({ where: byProgram(r) }) },
+  { model: 'AunqaCriterionNarrative', label: 'AI analysis', count: (p, r) => p.aunqaCriterionNarrative.count({ where: byProgram(r) }) },
+  { model: 'ProgramDemandMatch', label: 'demand matches', count: (p, r) => p.programDemandMatch.count({ where: byProgram(r) }) },
+  { model: 'ProgramMarketProfile', label: 'market profiles', count: (p, r) => p.programMarketProfile.count({ where: byProgram(r) }) },
+  { model: 'ProgramJobThaiLink', label: 'labour-market links', count: (p, r) => p.programJobThaiLink.count({ where: byProgram(r) }) },
+  { model: 'ProgramJobField', label: 'labour-market links', count: (p, r) => p.programJobField.count({ where: byProgram(r) }) },
+  { model: 'ProgramOverlapPair', label: 'overlap findings', count: (p, r) => p.programOverlapPair.count({ where: { OR: [{ programA: byRun(r) }, { programB: byRun(r) }] } }) },
+
+  // Governance history. Council has seen these.
+  { model: 'RiskAssessment', label: 'risk assessments', count: (p, r) => p.riskAssessment.count({ where: byProgram(r) }) },
+  { model: 'RiskIndicatorBreach', label: 'risk assessments', count: (p, r) => p.riskIndicatorBreach.count({ where: byProgram(r) }) },
+  { model: 'VerdictSnapshot', label: 'stored verdicts', count: (p, r) => p.verdictSnapshot.count({ where: byProgram(r) }) },
+  { model: 'ProgramLifecycleSnapshot', label: 'stored verdicts', count: (p, r) => p.programLifecycleSnapshot.count({ where: byProgram(r) }) },
+
+  // Benchmarking.
+  { model: 'ProgramPeerReview', label: 'peer reviews', count: (p, r) => p.programPeerReview.count({ where: byProgram(r) }) },
+  { model: 'ProgramPeerSelection', label: 'peer selections', count: (p, r) => p.programPeerSelection.count({ where: byProgram(r) }) },
+
+  // Operator-curated mappings. Cheap to lose, impossible to notice.
+  { model: 'RegistryProgramMapping', label: 'registry mappings', count: (p, r) => p.registryProgramMapping.count({ where: byProgram(r) }) },
+  { model: 'ProgramMhesiAlias', label: 'MHESI aliases', count: (p, r) => p.programMhesiAlias.count({ where: byProgram(r) }) },
+  { model: 'AdmissionStatProgramMapping', label: 'admission-statistic mappings', count: (p, r) => p.admissionStatProgramMapping.count({ where: byProgram(r) }) },
+];
+
+/**
+ * Cascade children that are deliberately not counted, each with its reason.
+ *
+ * Empty today. An entry here is a decision that losing the table's rows is
+ * acceptable, which is a thing to argue for in review, not to assume.
+ */
+export const CASCADE_CHILDREN_UNREACHABLE: readonly { model: string; reason: string }[] = [];
+
+/** Rows hanging off a programme this import created. */
+function byProgram(runIds: readonly string[]) {
+  return { program: { ingestionRunId: { in: [...runIds] } } };
+}
+
+function byRun(runIds: readonly string[]) {
+  return { ingestionRunId: { in: [...runIds] } };
+}
 
 export const programmesDataset: ImportDataset = {
   slug: 'programmes',
@@ -239,37 +329,22 @@ export const programmesDataset: ImportDataset = {
 
   count: (prisma: PrismaClient): Promise<number> => prisma.program.count(),
 
-  // Every foreign key into `programs` is onDelete: Cascade, so deleting an
-  // imported programme would take its enrolment, finance, cohort, alumni,
-  // outcome and admission rows with it — rows a connector wrote and this
-  // import never touched. Start-over refuses while any exist.
-  //
-  // This list is the data-bearing children. EXTEND IT when a tier-1 dataset
-  // lands; a missing entry here is silent data loss, not a failed check.
-  cascadeBlockers: async (prisma, runIds): Promise<{ label: string; count: number }[]> => {
-    const where = { program: { ingestionRunId: { in: [...runIds] } } };
-    const [enrolment, financial, cohorts, alumni, outcomes, tcas, campaigns, courses] =
-      await Promise.all([
-        prisma.enrollmentMetric.count({ where }),
-        prisma.financialMetric.count({ where }),
-        prisma.studentCohortDistribution.count({ where }),
-        prisma.alumniCohortStatus.count({ where }),
-        prisma.graduateOutcome.count({ where }),
-        prisma.tcasAdmissionStat.count({ where }),
-        prisma.admissionCampaignStat.count({ where }),
-        prisma.programCourse.count({ where }),
-      ]);
 
-    return [
-      { label: 'enrolment figures', count: enrolment },
-      { label: 'financial figures', count: financial },
-      { label: 'student cohorts', count: cohorts },
-      { label: 'alumni cohorts', count: alumni },
-      { label: 'graduate outcomes', count: outcomes },
-      { label: 'TCAS admission statistics', count: tcas },
-      { label: 'admission campaigns', count: campaigns },
-      { label: 'courses', count: courses },
-    ].filter((b) => b.count > 0);
+  cascadeBlockers: async (prisma, runIds): Promise<{ label: string; count: number }[]> => {
+    const counted = await Promise.all(
+      CASCADE_CHILDREN.map(async (child) => ({
+        label: child.label,
+        count: await child.count(prisma, runIds),
+      })),
+    );
+    // Same label twice (one per underlying table) reads as a mistake, so
+    // merge before the message is built.
+    const merged = new Map<string, number>();
+    for (const row of counted) {
+      if (row.count === 0) continue;
+      merged.set(row.label, (merged.get(row.label) ?? 0) + row.count);
+    }
+    return [...merged].map(([label, count]) => ({ label, count }));
   },
 
   clear: async (tx, runIds): Promise<number> => {

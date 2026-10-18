@@ -284,7 +284,7 @@ export async function startOverDataset(
     // inside the transaction, so the answer cannot go stale before the
     // delete. See ImportDataset.cascadeBlockers.
     const cascade = dataset.cascadeBlockers
-      ? await dataset.cascadeBlockers(prisma, runIds)
+      ? await dataset.cascadeBlockers(tx as Prisma.TransactionClient, runIds)
       : [];
     if (cascade.length > 0) {
       const detail = cascade.map((b) => `${b.count} ${b.label}`).join(', ');

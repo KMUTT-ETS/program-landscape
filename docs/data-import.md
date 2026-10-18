@@ -61,7 +61,11 @@ You need an administrator account. Clearing a dataset needs the
 1. **Download the template.** It is generated for your installation, so its
    columns always match what the system will accept. For the metric datasets it
    also arrives **pre-filled** with a row per active programme per year, values
-   blank — so you fill in figures rather than re-typing programme codes.
+   blank — so you fill in figures rather than re-typing programme codes. Fill
+   in the rows you have figures for and upload the file as it came: **a row
+   you leave blank is skipped**, so there is no need to delete the rest. A
+   file in which every row is blank is refused rather than reported as a
+   successful upload of nothing.
 2. **Fill in the data sheet.** Every workbook has two sheets: the data, and a
    **Guide** that explains each column, with an example and the allowed values.
    The Guide sheet is ignored on upload — you can write in it freely.
@@ -112,6 +116,9 @@ button to upload it anyway if you know it is right.
   turns `007` into `7` before the system ever sees it.
 - **Blank rows are ignored**, so trailing empty rows are harmless.
 - **Dates** should be written `YYYY-MM-DD`, or as real date cells.
+- **Commas group thousands, they are not decimal points.** `1,250,000` is
+  fine. `1234,56` is refused rather than read as 123456 — if your locale uses
+  a decimal comma, write `1234.56`.
 - **Row numbers in error messages are the row numbers you see in Excel**, so
   you can go straight to the line.
 
@@ -131,8 +138,14 @@ Two things to understand before using it:
   finance or outcome figures exist — clearing them would take everything
   hanging off them with it, including rows a connector wrote and no upload ever
   touched. The message names what would be destroyed. Clear from the bottom up.
-- **It only deletes what your uploads created.** A row that an upload merely
-  corrected still belongs to whoever created it, and survives.
+- **A row a connector created survives**, even if one of your uploads
+  corrected it. It still belongs to the connector.
+- **A row with no recorded origin is adopted by the upload that corrects it**,
+  and start over removes it. This is the only way such a row becomes visible
+  at all — the application hides data whose origin it cannot verify — so an
+  upload that touches one takes ownership of it. If you are correcting figures
+  that were loaded before this system recorded where data came from, start
+  over will remove the whole row, not just your correction.
 
 ## If an upload does not appear
 

@@ -87,18 +87,49 @@ function coerceDate(value: unknown): Date | null {
 function coerceCell(column: ImportColumn, raw: unknown): { value: ImportCellValue } | { error: string } {
   if (isBlank(raw)) return { value: null };
 
+  /**
+   * A comma used as a DECIMAL point rather than a thousands separator.
+   *
+   * Commas are stripped so an operator can paste `1,250,000`. The same rule
+   * silently turns the European `1234,56` into 123456 — a hundredfold error
+   * in a column that is usually money, accepted with no signal at all. A
+   * separator always leaves groups of exactly three digits behind it, so a
+   * trailing group of one or two is the giveaway.
+   */
+  function decimalCommaError(text: string): string | null {
+    const trimmed = text.trim();
+    if (!/^-?[\d,]+(\.\d+)?$/.test(trimmed)) return null;
+    const groups = trimmed.replace(/^-/, '').split(',');
+    if (groups.length < 2) return null;
+    const last = groups[groups.length - 1] ?? '';
+    if (/^\d{3}(\.\d+)?$/.test(last)) return null;
+    return (
+      `"${trimmed}" uses a comma where this column expects a decimal point. ` +
+      `Write ${groups.join('')} as ${groups.slice(0, -1).join('')}.${last} if you ` +
+      `meant a decimal, or use commas only to group thousands.`
+    );
+  }
+
   switch (column.type) {
     case 'text': {
       const text = typeof raw === 'number' ? numberToText(raw) : String(raw).trim();
       return { value: text };
     }
     case 'integer': {
+      if (typeof raw !== 'number') {
+        const decimalComma = decimalCommaError(String(raw));
+        if (decimalComma) return { error: decimalComma };
+      }
       const n = typeof raw === 'number' ? raw : Number(String(raw).replace(/,/g, '').trim());
       if (!Number.isFinite(n)) return { error: `"${String(raw)}" is not a number.` };
       if (!Number.isInteger(n)) return { error: `"${String(raw)}" is not a whole number.` };
       return { value: n };
     }
     case 'decimal': {
+      if (typeof raw !== 'number') {
+        const decimalComma = decimalCommaError(String(raw));
+        if (decimalComma) return { error: decimalComma };
+      }
       const n = typeof raw === 'number' ? raw : Number(String(raw).replace(/,/g, '').trim());
       if (!Number.isFinite(n)) return { error: `"${String(raw)}" is not a number.` };
       return { value: n };
@@ -194,6 +225,21 @@ export function validateSheet(
   /** Accepted rows, each carrying the spreadsheet row it came from. */
   const accepted: { sheetRow: number; row: Record<string, ImportCellValue> }[] = [];
 
+  // Columns that only say WHICH row this is. A row carrying nothing but
+  // these asserts no figure, whatever is in them.
+  const identityKeys = new Set<string>([
+    ...dataset.strategy.match.columns,
+    ...(dataset.strategy.kind === 'term-scoped' ? dataset.strategy.termColumns : []),
+  ]);
+  const identityColumns = dataset.columns.filter((c) => identityKeys.has(c.key));
+  const valueColumns = dataset.columns.filter((c) => !identityKeys.has(c.key));
+
+  // Only a dataset whose template PRE-FILLS the key columns can produce a
+  // row the operator never wrote. Everywhere else, keys-and-nothing-else is
+  // somebody starting a row and abandoning it, and saying so is the help.
+  const skipsValuelessRows = dataset.prefill !== undefined && valueColumns.length > 0;
+  let skippedEmptyValueRows = 0;
+
   for (const [index, source] of parsed.rows.entries()) {
     const sheetRow = index + 2;
     const read = (column: ImportColumn): unknown => source[headerByTrimmed.get(column.header) ?? column.header];
@@ -202,8 +248,25 @@ export function validateSheet(
     // of them must not produce an error per declared column.
     if (dataset.columns.every((c) => isBlank(read(c)))) continue;
 
+    // A pre-filled template arrives with one row per programme per year and
+    // every figure blank; an operator fills the years they have. The rest
+    // must not be read as statements — otherwise a dataset whose figures are
+    // optional stores a wall of zeros (and a zero is a claim that something
+    // was counted), and one whose figures are required refuses the file with
+    // thousands of errors naming rows the system itself wrote.
+    //
+    // A blank is the absence of a figure. A typed 0 is a figure, reaches
+    // isBlank as false, and keeps its row.
+    //
+    // The KEY cells are still checked. A Buddhist-era year on a row with no
+    // figures is the operator's mistake and reporting it is the whole point
+    // of the column check; only the required-value errors are what has to
+    // stay quiet here.
+    const valuelessRow = skipsValuelessRows && valueColumns.every((c) => isBlank(read(c)));
+    const errorsBefore = errors.length;
+
     const built: Record<string, ImportCellValue> = {};
-    for (const column of dataset.columns) {
+    for (const column of valuelessRow ? identityColumns : dataset.columns) {
       const raw = read(column);
 
       // Privacy FIRST, on the raw cell, before anything can coerce or echo
@@ -230,7 +293,13 @@ export function validateSheet(
         errors.push({ sheet, row: sheetRow, column: column.header, message: coerced.error });
         continue;
       }
-      if (coerced.value === null && column.required) {
+      // "Required" is suspended on a row that states no figure at all —
+      // including for a key. The outcomes template cannot know the survey
+      // year, so it ships that column blank; demanding it back on a line
+      // the operator never filled in would refuse the template as
+      // downloaded. A key that is present but MALFORMED still fails below:
+      // blank is an untouched row, wrong is a mistake.
+      if (coerced.value === null && column.required && !valuelessRow) {
         errors.push({ sheet, row: sheetRow, column: column.header, message: 'This cell is required.' });
         continue;
       }
@@ -254,6 +323,13 @@ export function validateSheet(
         continue;
       }
       built[column.key] = coerced.value;
+    }
+
+    // Keys were fine and the row states no figure: it is a template line the
+    // operator did not fill in. Skip it without comment.
+    if (valuelessRow) {
+      if (errors.length === errorsBefore) skippedEmptyValueRows += 1;
+      continue;
     }
 
     // Cross-column rules, only for a row whose own cells came through
@@ -385,6 +461,22 @@ export function validateSheet(
         `This file has ${accepted.length} rows but the dataset currently holds ` +
         `${ctx.heldRowCount}. That looks like a partial export. Re-upload with ` +
         `confirmation if it is intentional.`,
+    });
+  }
+
+  // A template downloaded and uploaded untouched. Reporting it as a success
+  // that loaded nothing is how someone comes away believing they have
+  // uploaded their figures.
+  if (accepted.length === 0 && skippedEmptyValueRows > 0) {
+    errors.push({
+      sheet,
+      row: 0,
+      column: null,
+      message:
+        `None of the ${skippedEmptyValueRows} rows in this file carries any figures — ` +
+        `every one has only its programme and year filled in. Enter the figures ` +
+        `you have and upload it again. Rows you leave blank are skipped, so there ` +
+        `is no need to delete them.`,
     });
   }
 

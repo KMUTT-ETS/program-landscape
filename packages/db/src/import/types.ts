@@ -165,7 +165,10 @@ export interface ImportDataset {
    * start-over refuses and names them rather than cascading.
    */
   cascadeBlockers?: (
-    prisma: PrismaClient,
+    // The TRANSACTION, not the client: start-over reads this and then
+    // deletes, and a count taken on a second pooled connection sits outside
+    // that snapshot — so it can go stale in the window it exists to close.
+    tx: Prisma.TransactionClient,
     runIds: readonly string[],
   ) => Promise<{ label: string; count: number }[]>;
 }
