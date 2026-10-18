@@ -14,10 +14,31 @@ const SLUGS = [
   'enrollment-metrics',
   'financial-metrics',
   'graduate-outcomes',
+  'student-cohorts',
+  'alumni-cohorts',
+  'admission-campaigns',
+  'faculty-members',
+  'faculty-compensation',
+  'faculty-budgets',
+  'research-outputs',
+  'class-offerings',
 ];
 const PROGRAMME_CODES = ['NU-CIV-BE', 'NU-EE-BE', 'NU-CIV-ME'];
 const DEPARTMENT_CODES = ['NU-ENG-CIV', 'NU-ENG-EE'];
 const FACULTY_CODES = ['NU-ENG', 'NU-SCI', 'NU-RES', '007', '12345'];
+
+// Tier-2 rows hang off the FACULTY, not the programme, so deleting the
+// programmes above does not reach them — and FacultyMember is Restrict, so
+// the faculty delete would throw rather than cascade. Order matters.
+await prisma.classOffering.deleteMany({ where: { courseCode: { startsWith: 'NU-' } } });
+await prisma.researchOutput.deleteMany({
+  where: { facultyMember: { employeeCode: { startsWith: 'NU-EMP' } } },
+});
+await prisma.facultyMember.deleteMany({ where: { employeeCode: { startsWith: 'NU-EMP' } } });
+await prisma.facultyCompensation.deleteMany({ where: { faculty: { code: { in: FACULTY_CODES } } } });
+await prisma.facultyBudget.deleteMany({
+  where: { divisionName: { in: ['Faculty of Engineering', "President's Office"] } },
+});
 
 const removed = {
   programmes: (await prisma.program.deleteMany({ where: { code: { in: PROGRAMME_CODES } } })).count,

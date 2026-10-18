@@ -20,6 +20,16 @@ const DEPARTMENT_CODE = 'E2E-ENG-CIVIL';
 const PROGRAMME_CODE = 'E2E-ENG-CIVIL-BE';
 
 async function cleanup(): Promise<void> {
+  // Tier-2 rows hang off the faculty, so deleting the programme does not
+  // reach them — and FacultyMember is onDelete: Restrict, which would make
+  // the faculty delete throw rather than cascade.
+  await prisma.classOffering.deleteMany({ where: { courseCode: { startsWith: 'E2E' } } });
+  await prisma.researchOutput.deleteMany({
+    where: { facultyMember: { employeeCode: { startsWith: 'E2E-EMP' } } },
+  });
+  await prisma.facultyMember.deleteMany({ where: { employeeCode: { startsWith: 'E2E-EMP' } } });
+  await prisma.facultyCompensation.deleteMany({ where: { faculty: { code: FACULTY_CODE } } });
+  await prisma.facultyBudget.deleteMany({ where: { divisionName: { contains: '(e2e)' } } });
   await prisma.program.deleteMany({ where: { code: PROGRAMME_CODE } });
   await prisma.department.deleteMany({ where: { code: DEPARTMENT_CODE } });
   await prisma.faculty.deleteMany({ where: { code: FACULTY_CODE } });
@@ -36,6 +46,11 @@ const DATASETS = [
   'enrollment-metrics',
   'financial-metrics',
   'graduate-outcomes',
+  'faculty-members',
+  'faculty-compensation',
+  'faculty-budgets',
+  'research-outputs',
+  'class-offerings',
 ];
 
 /** Fills a generated template's data sheet with the given rows. */
@@ -333,5 +348,157 @@ describe('the metrics an adopter actually came for', () => {
     await expect(service.startOver('programmes', 'Programmes', null)).rejects.toThrow(
       /enrolment figures|financial figures|graduate outcomes/,
     );
+  });
+});
+
+// The tier-2 datasets hang off a FACULTY rather than a programme, so they
+// survive the programme start-over above and are exercised last.
+describe('tier 2, the rest of the Deep-Dive', () => {
+  const EMPLOYEE_CODE = 'E2E-EMP-0001';
+
+  it('loads a staff member against the imported faculty', async () => {
+    const bytes = await fillTemplate('faculty-members', [
+      {
+        'Employee Code': EMPLOYEE_CODE,
+        'Name (Thai)': 'สมหญิง ทดสอบ',
+        'Name (English)': 'Somying Test',
+        'Faculty Code': FACULTY_CODE,
+        'Department Code': DEPARTMENT_CODE,
+        Rank: 'ASSOC_PROF',
+        'Retirement Date': '2035-09-30',
+      },
+    ]);
+    const result = await upload('faculty-members', bytes, 'staff.xlsx');
+    expect(result.inserted).toBe(1);
+
+    const stored = await prisma.facultyMember.findUniqueOrThrow({
+      where: { employeeCode: EMPLOYEE_CODE },
+      select: { rank: true, retirementDate: true },
+    });
+    expect(stored.rank).toBe('ASSOC_PROF');
+    expect(stored.retirementDate).not.toBeNull();
+  });
+
+  it('refuses a compensation row covering fewer than five people', async () => {
+    const bytes = await fillTemplate('faculty-compensation', [
+      {
+        'Faculty Code': FACULTY_CODE,
+        Rank: 'ASSOC_PROF',
+        'Fiscal Year': 2024,
+        Headcount: 3,
+        'Total Salary (THB)': 2_400_000,
+        'Mean Salary (THB)': 800_000,
+        'Min Salary (THB)': 700_000,
+        'Max Salary (THB)': 900_000,
+      },
+    ]);
+    await expect(upload('faculty-compensation', bytes, 'comp-small.xlsx')).rejects.toThrow();
+  });
+
+  it('loads a compensation row covering a reportable group', async () => {
+    const bytes = await fillTemplate('faculty-compensation', [
+      {
+        'Faculty Code': FACULTY_CODE,
+        Rank: 'ASSOC_PROF',
+        'Fiscal Year': 2024,
+        Headcount: 9,
+        'Total Salary (THB)': 7_200_000,
+        'Mean Salary (THB)': 800_000,
+        'Min Salary (THB)': 640_000,
+        'Max Salary (THB)': 980_000,
+      },
+    ]);
+    const result = await upload('faculty-compensation', bytes, 'comp.xlsx');
+    expect(result.inserted).toBe(1);
+
+    const rows = await prisma.facultyCompensation.findMany({
+      where: { faculty: { code: FACULTY_CODE }, ...realDataWhere() },
+      select: { headcount: true },
+    });
+    expect(rows.map((r) => r.headcount)).toEqual([9]);
+  });
+
+  it('loads a budget and a publication', async () => {
+    const budget = await fillTemplate('faculty-budgets', [
+      {
+        'Division Name': 'Faculty of Engineering (e2e)',
+        'Faculty Code': FACULTY_CODE,
+        'Fund Category': 'University revenue',
+        'Fiscal Year': 2024,
+        'Total Budget (THB)': 18_000_000,
+      },
+    ]);
+    expect((await upload('faculty-budgets', budget, 'budgets.xlsx')).inserted).toBe(1);
+
+    const papers = await fillTemplate('research-outputs', [
+      {
+        'Employee Code': EMPLOYEE_CODE,
+        Year: 2023,
+        Type: 'JOURNAL',
+        Title: 'An end-to-end paper',
+        Venue: 'Journal of Imports',
+        Citations: 7,
+        DOI: '10.9999/e2e.2023.1',
+      },
+    ]);
+    expect((await upload('research-outputs', papers, 'papers.xlsx')).inserted).toBe(1);
+
+    const visible = await prisma.researchOutput.findMany({
+      where: { facultyMember: { employeeCode: EMPLOYEE_CODE }, ...realDataWhere() },
+      select: { citations: true },
+    });
+    expect(visible.map((r) => r.citations)).toEqual([7]);
+  });
+
+  it('replaces a class-offerings term rather than merging it', async () => {
+    // The only destructive write in the importer, and the assertion that
+    // proves it does what the connector it replaces does: a section absent
+    // from the second file is treated as cancelled.
+    const two = await fillTemplate('class-offerings', [
+      {
+        'Academic Year': 2024, Semester: 1, 'Faculty Code': FACULTY_CODE,
+        'Course Code': 'E2E101', Section: 1, Enrolled: 40, 'Total Seats': 50,
+      },
+      {
+        'Academic Year': 2024, Semester: 1, 'Faculty Code': FACULTY_CODE,
+        'Course Code': 'E2E101', Section: 2, Enrolled: 22, 'Total Seats': 50,
+      },
+    ]);
+    const first = await upload('class-offerings', two, 'classes-1.xlsx');
+    expect(first.inserted).toBe(2);
+
+    const one = await fillTemplate('class-offerings', [
+      {
+        'Academic Year': 2024, Semester: 1, 'Faculty Code': FACULTY_CODE,
+        'Course Code': 'E2E101', Section: 1, Enrolled: 41, 'Total Seats': 50,
+      },
+    ]);
+    const second = await upload('class-offerings', one, 'classes-2.xlsx');
+    expect(second.deleted).toBe(2);
+    expect(second.inserted).toBe(1);
+
+    const sections = await prisma.classOffering.findMany({
+      where: { courseCode: 'E2E101', ...realDataWhere() },
+      select: { section: true },
+    });
+    expect(sections.map((s) => s.section)).toEqual([1]);
+  });
+
+  it('refuses a class-offerings file that mixes two terms', async () => {
+    const mixed = await fillTemplate('class-offerings', [
+      {
+        'Academic Year': 2024, Semester: 1, 'Faculty Code': FACULTY_CODE,
+        'Course Code': 'E2E202', Section: 1, Enrolled: 10, 'Total Seats': 30,
+      },
+      {
+        'Academic Year': 2024, Semester: 2, 'Faculty Code': FACULTY_CODE,
+        'Course Code': 'E2E202', Section: 1, Enrolled: 12, 'Total Seats': 30,
+      },
+    ]);
+    await expect(upload('class-offerings', mixed, 'classes-mixed.xlsx')).rejects.toThrow();
+  });
+
+  it('refuses to clear faculties, naming the staff in the way', async () => {
+    await expect(service.startOver('faculties', 'Faculties', null)).rejects.toThrow();
   });
 });

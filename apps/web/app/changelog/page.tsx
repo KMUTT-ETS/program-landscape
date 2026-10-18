@@ -28,10 +28,13 @@ const ENTRIES: ChangelogEntry[] = [
   {
     date: '2026-10-18',
     version: 'Unreleased · Import from spreadsheets',
-    title: 'An institution can now create its faculties, departments and programmes — and fill the Program Deep-Dive — by uploading spreadsheets, with no code changes',
+    title: 'An institution can now stand up its whole dataset — org chart, metrics, staff, budgets and timetable — by uploading spreadsheets, with no code changes',
     audience: ['Admin'],
     bullets: [
-      'Six datasets: faculties, departments and programmes, then enrolment, finance and graduate outcomes. Load the first three in that order; the metrics can follow in any order. Uploaded figures appear on the Program Deep-Dive like any other source.',
+      'Fourteen datasets: faculties, departments and programmes, then enrolment, finance, graduate outcomes, student and alumni cohorts, admission campaigns, staff, compensation, budgets, publications and class offerings. Load the backbone first and staff before publications; everything else can follow in any order. Uploaded figures appear on the Program Deep-Dive like any other source.',
+      'Class offerings behave differently from every other sheet and the guide says so: uploading a term REPLACES it, because a timetable export states what exists rather than what changed — a section cancelled since the last upload is absent from the new file, and merging would leave it in the system for ever. One file per term; a file mixing two is refused.',
+      'The staff sheet is the only one about people. It asks for names, your own employee code and a rank — and deliberately not for a date of birth, since the succession-risk view reads the retirement date, which answers the same question and reveals far less. No sheet offers a national-ID column in any form.',
+      'Compensation refuses a row covering fewer than five people, the same floor the HR connector applies in SQL: at that size an average is close enough to an individual salary to identify someone. The refusal names the row and never repeats the figures.',
       'Each dataset has a Download template button on its page under Data setup. The template carries the exact columns the system accepts, plus a Guide sheet explaining every column with an example and its allowed values. The metric templates arrive pre-filled with a row per active programme per year, values blank, so nobody re-types programme codes.',
       'Three conventions the templates state and the upload enforces: years are Common Era (2025, not 2568), the finance year is an academic year rather than a budget year, and rates are proportions between 0 and 1 — an employment rate of 87 is refused rather than shown as 8700%.',
       'Cost figures are deliberately not importable. A programme’s cost is an allocation the institution has to be able to defend, so it stays with the cost-allocation methodology and an upload leaves it untouched.',

@@ -70,6 +70,70 @@ write('07-outcomes.xlsx', 'Graduate Outcomes', [
   ['NU-CIV-BE', 2022, 2024, 0.92, 27800, 0.84, 0.06, 88],
 ]);
 
+// Tier 2 — staff, money, publications and the timetable.
+write('08-staff.xlsx', 'Staff', [
+  ['Employee Code', 'Name (Thai)', 'Name (English)', 'Faculty Code', 'Department Code',
+   'Rank', 'Academic Qualification', 'Specialization', 'Hire Date', 'Retirement Date', 'Active'],
+  ['NU-EMP-001', 'สมชาย ใจดี', 'Somchai Jaidee', 'NU-ENG', 'NU-ENG-CIV',
+   'ASSOC_PROF', 'PhD Civil Engineering', 'Structural engineering', '2012-06-01', '2038-09-30', 'yes'],
+  ['NU-EMP-002', 'สมหญิง เก่งมาก', 'Somying Kengmak', 'NU-ENG', 'NU-ENG-EE',
+   'LECTURER', 'MEng Electrical', null, '2019-08-15', null, null],
+]);
+
+write('09-compensation.xlsx', 'Compensation', [
+  ['Faculty Code', 'Department Code', 'Rank', 'Fiscal Year', 'Headcount',
+   'Total Salary (THB)', 'Mean Salary (THB)', 'Min Salary (THB)', 'Max Salary (THB)'],
+  ['NU-ENG', null, 'ASSOC_PROF', 2024, 11, 9900000, 900000, 760000, 1150000],
+  ['NU-ENG', 'NU-ENG-CIV', 'LECTURER', 2024, 7, 4550000, 650000, 540000, 790000],
+]);
+
+write('10-budgets.xlsx', 'Budgets', [
+  ['Division Name', 'Faculty Code', 'Fund Category', 'Fiscal Year', 'Total Budget (THB)',
+   'Total Commitment (THB)', 'Total Obligation (THB)', 'Total Expenditure (THB)', 'Funds Available (THB)'],
+  ['Faculty of Engineering', 'NU-ENG', 'University revenue', 2024, 42000000, null, null, 31000000, null],
+  // A division that is not a faculty at all — the faculty link is optional.
+  ["President's Office", null, 'Government subsidy', 2024, 18000000, null, null, null, null],
+]);
+
+write('11-publications.xlsx', 'Publications', [
+  ['Employee Code', 'Year', 'Type', 'Title', 'Venue', 'Citations', 'DOI'],
+  ['NU-EMP-001', 2023, 'JOURNAL', 'Fatigue in welded steel connections',
+   'Journal of Structural Engineering', 19, '10.1234/jse.2023.0042'],
+  // Same paper, second author: two rows, not one.
+  ['NU-EMP-002', 2023, 'JOURNAL', 'Fatigue in welded steel connections',
+   'Journal of Structural Engineering', 19, '10.1234/jse.2023.0042'],
+  ['NU-EMP-002', 2022, 'CONFERENCE', 'Grid stability under high solar penetration', null, null, null],
+]);
+
+write('12-campaigns.xlsx', 'Admission Campaigns', [
+  ['Programme Code', 'Academic Year', 'Round', 'Campaign Name',
+   'Planned Seats', 'Total Applicants', 'Total Passed', 'Confirmed', 'Reported'],
+  ['NU-CIV-BE', 2024, 'Round 1 — Portfolio', 'Civil Engineering, regular', 60, 480, 95, 70, 62],
+  ['NU-CIV-BE', 2024, 'Round 3 — Admission', 'Civil Engineering, regular', 40, 820, 120, 55, 48],
+]);
+
+// Two sections of one course. The drive uploads this, then a shorter file
+// for the same term, to prove the term is replaced rather than merged.
+write('13-classes-term1.xlsx', 'Class Offerings', [
+  ['Academic Year', 'Semester', 'Faculty Code', 'Level', 'Course Code', 'Section', 'Class Id',
+   'Course Name (Thai)', 'Course Name (English)', 'Credits', 'Lecture Hours/Week', 'Lab Hours/Week',
+   'Enrolled', 'Total Seats', 'Grade A', 'Grade B+', 'Grade B', 'Grade C+', 'Grade C',
+   'Grade D+', 'Grade D', 'Grade F', 'Incomplete', 'Withdrawn', 'Audit', 'Satisfactory'],
+  [2024, 1, 'NU-ENG', 'Bachelor', 'NU-EN101', 1, null, 'กลศาสตร์', 'Mechanics', 3, 3, 0,
+   48, 60, 12, 9, 10, 6, 5, 3, 2, 1, 0, 0, 0, 0],
+  [2024, 1, 'NU-ENG', 'Bachelor', 'NU-EN101', 2, null, 'กลศาสตร์', 'Mechanics', 3, 3, 0,
+   41, 60, 8, 7, 11, 7, 4, 2, 1, 1, 0, 0, 0, 0],
+]);
+
+write('14-classes-term1-cancelled.xlsx', 'Class Offerings', [
+  ['Academic Year', 'Semester', 'Faculty Code', 'Level', 'Course Code', 'Section', 'Class Id',
+   'Course Name (Thai)', 'Course Name (English)', 'Credits', 'Lecture Hours/Week', 'Lab Hours/Week',
+   'Enrolled', 'Total Seats', 'Grade A', 'Grade B+', 'Grade B', 'Grade C+', 'Grade C',
+   'Grade D+', 'Grade D', 'Grade F', 'Incomplete', 'Withdrawn', 'Audit', 'Satisfactory'],
+  [2024, 1, 'NU-ENG', 'Bachelor', 'NU-EN101', 1, null, 'กลศาสตร์', 'Mechanics', 3, 3, 0,
+   49, 60, 13, 9, 10, 6, 5, 3, 2, 1, 0, 0, 0, 0],
+]);
+
 // ── files that must be REFUSED, one rule each ───────────────────────────────
 
 // An extra column — the primary privacy defence.
@@ -114,6 +178,27 @@ write('bad-percentage-rate.xlsx', 'Graduate Outcomes', [
   ['Programme Code', 'Graduation Year', 'Survey Year', 'Employment Rate',
    'Average Salary (THB/month)', 'Job Relevance Score', 'Further Study Rate', 'Sample Size'],
   ['NU-CIV-BE', 2022, 2025, 87, 24500, 0.81, 0.09, 96],
+]);
+
+// A compensation row covering three people. The group-size floor exists
+// because an average over three is close enough to an individual salary.
+write('bad-small-group.xlsx', 'Compensation', [
+  ['Faculty Code', 'Department Code', 'Rank', 'Fiscal Year', 'Headcount',
+   'Total Salary (THB)', 'Mean Salary (THB)', 'Min Salary (THB)', 'Max Salary (THB)'],
+  ['NU-ENG', null, 'PROF', 2024, 3, 3600000, 1200000, 1100000, 1300000],
+]);
+
+// A class-offerings file covering two terms. Loading it would delete one
+// term and insert both.
+write('bad-mixed-term.xlsx', 'Class Offerings', [
+  ['Academic Year', 'Semester', 'Faculty Code', 'Level', 'Course Code', 'Section', 'Class Id',
+   'Course Name (Thai)', 'Course Name (English)', 'Credits', 'Lecture Hours/Week', 'Lab Hours/Week',
+   'Enrolled', 'Total Seats', 'Grade A', 'Grade B+', 'Grade B', 'Grade C+', 'Grade C',
+   'Grade D+', 'Grade D', 'Grade F', 'Incomplete', 'Withdrawn', 'Audit', 'Satisfactory'],
+  [2024, 1, 'NU-ENG', 'Bachelor', 'NU-EN202', 1, null, null, 'Thermo', 3, 3, 0,
+   30, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [2024, 2, 'NU-ENG', 'Bachelor', 'NU-EN202', 1, null, null, 'Thermo', 3, 3, 0,
+   28, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 ]);
 
 // Two headers differing only by a trailing space — silently merged before.

@@ -17,9 +17,19 @@ This page is for the person doing the uploading.
 | **Enrolment** | Applications through to graduation, per programme per year | — |
 | **Finance** | Tuition and other revenue, per programme per year | — |
 | **Graduate Outcomes** | Employment survey results per graduating cohort | — |
+| **Student Cohorts** | How many of each entry cohort are still enrolled | — |
+| **Alumni Cohorts** | What became of each entry cohort | — |
+| **Admission Campaigns** | The recruitment funnel, per campaign | — |
+| **Staff** | Your teaching-staff roster | Publications |
+| **Compensation** | Aggregate salary by faculty, department and rank | — |
+| **Budgets** | Budget by division and fund category | — |
+| **Publications** | Research outputs, one row per paper per author | — |
+| **Class Offerings** | Every class section taught in one term | — |
 
-Load them top to bottom: the first three are the backbone every metric refers
-to by code, and the last three can be uploaded in any order once those exist.
+Load them top to bottom. The first three are the backbone everything else
+refers to by code; **Staff** must come before **Publications**, which names
+people by their employee code. Everything else can be uploaded in any order
+once the backbone exists.
 
 Two things are deliberately absent. **Cost figures** are not uploadable: a
 programme's cost is an allocation your institution has to be able to defend, so
@@ -28,9 +38,33 @@ and an upload never touches it. **Student demographics** are not uploadable
 either — nothing in the application reads them today, so a template for them
 would ask you for work no screen would show.
 
-Further datasets — staff, compensation, cohorts, class offerings — follow in
-later releases. See the design document under `docs/superpowers/specs/` for the
-full inventory.
+A few more are deliberately out of scope and documented as such in the design
+note under `docs/superpowers/specs/` — employer feedback, teaching evaluations
+and instructor rosters, the last of these because it keys on personal email
+addresses.
+
+## Class Offerings replaces a term; everything else merges
+
+This is the one dataset that behaves differently, and it is worth
+understanding before the first upload.
+
+Every other sheet **merges**: it updates the rows it mentions, adds the new
+ones, and leaves everything else alone. Class Offerings **replaces the term
+the file covers**. Upload the 2024 semester 1 file and every 2024 semester 1
+section already stored is removed first, then the file's rows are inserted.
+
+That is deliberate, because a timetable export states what exists rather than
+what changed. A section cancelled since your last upload is simply absent from
+the new file, and a merge would leave it in the system for ever.
+
+Three things follow:
+
+- **One file per term**, and every row in it from the same term. A file mixing
+  two terms is refused, naming the rows that disagree.
+- **The file must be complete for its term.** Uploading a partial export
+  deletes the sections it leaves out.
+- **Other terms are untouched.** Loading 2024 semester 2 does nothing to
+  semester 1.
 
 ## Years, money and rates
 
@@ -46,7 +80,33 @@ Three conventions, each of which has a wrong answer that looks right:
 - **Rates are proportions between 0 and 1.** Write 87 % as `0.87`. A rate of
   `87` is refused; left unchecked it would render as 8700 % employment.
 
-Salaries are **monthly**, in baht. Commas are fine.
+Salaries are **monthly**, in baht, on the Graduate Outcomes sheet and
+**annual** on the Compensation sheet — each says which in its guide column.
+Commas are fine.
+
+Two year columns are stored converted to the Buddhist era, because that is
+how the registrar data they sit beside is recorded: **Student Cohorts**,
+**Alumni Cohorts**, **Admission Campaigns** and **Class Offerings**. You
+always write the Common Era year; the admin data view shows it plus 543.
+
+## Personal data
+
+Only one sheet is about people: **Staff**. It asks for names, your own
+employee code, and a rank.
+
+It deliberately does **not** ask for a date of birth. The succession-risk
+view reads the retirement date, which answers the same question and reveals
+far less, so that is the column offered instead. There is no national-ID
+column on any sheet, in any form — if your systems match people by one, keep
+using it on your side and give us your employee code, which is not sensitive
+on its own.
+
+**Compensation refuses a row covering fewer than five people.** At that size
+an average is close enough to an individual salary to identify someone. The
+message names the row and never repeats the figures.
+
+If any cell on any sheet looks like a national ID number, the file is refused
+and the message says which row and column — without reproducing the value.
 
 ## Where to go
 

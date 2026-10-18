@@ -255,6 +255,53 @@ try {
     await page.screenshot({ path: `${SHOTS}/refusal-${file.replace('.xlsx', '')}.png` });
   }
 
+  // ── tier 2: staff, money, publications, timetable ───────────────────────
+  for (const [slug, file, label] of [
+    ['faculty-members', '08-staff.xlsx', 'staff'],
+    ['faculty-compensation', '09-compensation.xlsx', 'compensation'],
+    ['faculty-budgets', '10-budgets.xlsx', 'budgets'],
+    ['research-outputs', '11-publications.xlsx', 'publications'],
+    ['admission-campaigns', '12-campaigns.xlsx', 'campaigns'],
+  ]) {
+    const { api } = await upload(slug, file, true);
+    const data = api?.body?.data;
+    const ok = api?.status === 201 || api?.status === 200;
+    record(`upload ${label}`, Boolean(ok && data && !data.deduplicated && data.inserted > 0),
+      data ? `+${data.inserted} ~${data.updated} of ${data.rowCount}` : `status ${api?.status}`);
+    await page.screenshot({ path: `${SHOTS}/upload-${label}.png`, fullPage: false });
+  }
+
+  // Term-scoped: the second file drops a section, which must disappear.
+  {
+    const first = await upload('class-offerings', '13-classes-term1.xlsx', true);
+    record('upload class offerings', first.api?.body?.data?.inserted === 2,
+      `+${first.api?.body?.data?.inserted}`);
+
+    const second = await upload('class-offerings', '14-classes-term1-cancelled.xlsx', true);
+    const d = second.api?.body?.data;
+    record('re-uploading a term replaces it', d?.deleted === 2 && d?.inserted === 1,
+      d ? `-${d.deleted} +${d.inserted}` : `status ${second.api?.status}`);
+    await page.screenshot({ path: `${SHOTS}/class-offerings-replaced.png`, fullPage: true });
+  }
+
+  // The two mistakes tier 2 makes.
+  for (const [slug, file, label, pattern] of [
+    ['faculty-compensation', 'bad-small-group.xlsx', 'small compensation group refused', /at least 5 people|too small to report/i],
+    ['class-offerings', 'bad-mixed-term.xlsx', 'mixed-term file refused', /same period/i],
+  ]) {
+    const { text } = await upload(slug, file);
+    record(label, pattern.test(text), (text.match(pattern) ?? ['not found'])[0]);
+    await page.screenshot({ path: `${SHOTS}/refusal-${file.replace('.xlsx', '')}.png` });
+  }
+
+  // A salary figure must never reach the screen through a refusal.
+  {
+    const { text } = await upload('faculty-compensation', 'bad-small-group.xlsx');
+    const leaked = ['3600000', '1200000', '1100000', '1300000'].filter((f) => text.includes(f));
+    record('a refused compensation row never shows its salaries', leaked.length === 0,
+      leaked.length ? `LEAKED ${leaked.join(', ')}` : 'figures suppressed');
+  }
+
   // Cascade guard: faculties must refuse while programmes exist.
   await openDataset('faculties');
   await page.fill('input[aria-label*="confirm"]', 'Faculties');

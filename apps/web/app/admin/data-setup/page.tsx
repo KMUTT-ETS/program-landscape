@@ -219,6 +219,7 @@ export default async function AdminDataSetupPage() {
             secondary={[
               `${stats.facultyStaff.active} currently active`,
               `Source: kku-hr connector (live)`,
+              'Also importable from a spreadsheet — see "View raw data"',
             ]}
             href="/admin/data-sources/kku-hr"
             cta="View kku-hr data source"
@@ -423,6 +424,10 @@ export default async function AdminDataSetupPage() {
             <RawDatasetLink slug="student-demographics" label="Student demographics" />
             <RawDatasetLink slug="financial-metrics" label="Financial — per program" />
             <RawDatasetLink slug="graduate-outcomes" label="Graduate outcomes (employment survey)" />
+            <RawDatasetLink slug="student-cohorts" label="Student cohorts (still enrolled)" />
+            <RawDatasetLink slug="alumni-cohorts" label="Alumni cohorts (outcome per cohort)" />
+            <RawDatasetLink slug="admission-campaigns" label="Admission campaigns (recruitment funnel)" />
+            <RawDatasetLink slug="class-offerings" label="Class offerings (sections per term)" />
             <RawDatasetLink slug="faculty-budgets" label="Faculty budgets" />
             <RawDatasetLink slug="faculty-members" label="Academic staff" />
             <RawDatasetLink slug="faculty-compensation" label="Faculty compensation (aggregate)" />
