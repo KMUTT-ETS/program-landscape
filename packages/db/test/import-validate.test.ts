@@ -421,6 +421,71 @@ describe('validateSheet — term-scoped', () => {
     const result = validateSheet(makeDataset(), sheet(ALL_HEADERS, [row()]), ctx());
     expect(result.ok && result.term).toBeNull();
   });
+
+  it('names both terms in the refusal', () => {
+    // The operator uploaded a file against the wrong term. Naming only the
+    // dissenting value leaves them guessing which term the file is "in".
+    const result = validateSheet(
+      termed,
+      sheet(ALL_HEADERS, [row({ Code: 'A1', Year: 2568 }), row({ Code: 'A2', Year: 2569 })]),
+      ctx(),
+    );
+    const e = errorsOf(result)[0];
+    expect(e.message).toContain('2568');
+    expect(e.message).toContain('2569');
+  });
+
+  it('reports the disagreement once, not once per row', () => {
+    // A 5,000-row file uploaded against the wrong term must not produce
+    // 4,999 copies of the same sentence.
+    const result = validateSheet(
+      termed,
+      sheet(ALL_HEADERS, [
+        row({ Code: 'A1', Year: 2568 }),
+        row({ Code: 'A2', Year: 2569 }),
+        row({ Code: 'A3', Year: 2569 }),
+        row({ Code: 'A4', Year: 2570 }),
+      ]),
+      ctx(),
+    );
+    expect(errorsOf(result)).toHaveLength(1);
+  });
+
+  it('refuses a row whose term column is blank', () => {
+    // Term-scoped loading DELETES the term it is given. A blank term is not
+    // a term, and must never reach the loader as one.
+    const result = validateSheet(
+      termed,
+      sheet(ALL_HEADERS, [row({ Code: 'A1', Year: 2568 }), row({ Code: 'A2', Year: null })]),
+      ctx(),
+    );
+    const e = errorsOf(result)[0];
+    expect(e.row).toBe(3);
+    expect(e.column).toBe('Year');
+  });
+
+  it('refuses a file in which no row states the term at all', () => {
+    // Every row agreeing on nothing is still agreeing. Without this the
+    // loader would be handed { year: null } and delete whatever that matches.
+    const result = validateSheet(
+      termed,
+      sheet(ALL_HEADERS, [row({ Code: 'A1', Year: null }), row({ Code: 'A2', Year: null })]),
+      ctx(),
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it('ignores a skipped blank row when deciding the term', () => {
+    const result = validateSheet(
+      termed,
+      sheet(ALL_HEADERS, [
+        row({ Code: null, Name: null }),
+        row({ Code: 'A1', Year: 2568 }),
+      ]),
+      ctx(),
+    );
+    expect(result.ok && result.term).toEqual({ year: 2568 });
+  });
 });
 
 describe('a number written with a decimal comma', () => {

@@ -448,6 +448,25 @@ export function validateSheet(
       }
       if (reported) break;
     }
+
+    // A term the file never states. Rows agreeing on nothing still agree,
+    // so the loop above is silent — and the loader would then be handed
+    // `{ year: null }` and asked to DELETE whatever that matches. The only
+    // destructive write in the importer must not run on a blank key.
+    for (const key of termColumns) {
+      if (firstTerm[key] === null) {
+        errors.push({
+          sheet,
+          row: first.sheetRow,
+          column: headerFor(key),
+          message:
+            `This column says which period the file covers, so it cannot be ` +
+            `blank. Uploading this file replaces everything already stored ` +
+            `for the period it names.`,
+        });
+      }
+    }
+
     term = firstTerm;
   }
 
