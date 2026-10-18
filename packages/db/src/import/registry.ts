@@ -1,13 +1,24 @@
 import { ApiError } from '@kku/shared';
 
+import { departmentsDataset } from './datasets/departments';
+import { facultiesDataset } from './datasets/faculties';
+import { programmesDataset } from './datasets/programmes';
 import type { ImportDataset } from './types';
 
 // The one place a dataset becomes importable. Adding a dataset is adding a
 // declaration here; everything else — template, validation, guide sheet,
 // provenance, start-over — is derived from it.
 
-/** Every importable dataset, in the order the admin screens should show them. */
-export const IMPORT_DATASETS: readonly ImportDataset[] = [];
+/**
+ * Every importable dataset, in the order the admin screens should show them
+ * — which is also the order an adopter must load them in, since each tier
+ * references the one above.
+ */
+export const IMPORT_DATASETS: readonly ImportDataset[] = [
+  facultiesDataset,
+  departmentsDataset,
+  programmesDataset,
+];
 
 export function listImportDatasets(): readonly ImportDataset[] {
   return IMPORT_DATASETS;
