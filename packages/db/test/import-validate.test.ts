@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ImportDataset, ImportStrategy } from '../src/import/types';
-import { MAX_REPORTED_ERRORS, validateSheet, type ParsedSheet, type ValidationContext } from '../src/import/validate';
+import { MAX_REPORTED_ERRORS, readDeclaredTerm, validateSheet, type ParsedSheet, type ValidationContext } from '../src/import/validate';
 
 // A fixture dataset, not one from the real registry: the suite must not move
 // when a shipped declaration changes a column.
@@ -693,5 +693,156 @@ describe('a row with keys but no values', () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.errors[0]?.column).toBe('Name');
+  });
+});
+
+describe('a manual match with a fallback key', () => {
+  // `manual` exists for a table whose natural key is not a unique index.
+  // Publications are the case: DOI identifies a paper where there is one,
+  // and (title, year) within one author where there is not. The duplicate
+  // check has to honour the same two-step rule the loader uses, or a file
+  // whose rows legitimately share a blank DOI is refused as duplicated.
+  const papers = makeDataset({
+    strategy: {
+      kind: 'upsert',
+      match: { kind: 'manual', columns: ['code', 'name'], fallback: ['name', 'year', 'level'] },
+    },
+    columns: [
+      { header: 'Code', key: 'code', type: 'text', required: false, guide: 'the doi', example: 'd' },
+      { header: 'Name', key: 'name', type: 'text', required: true, guide: 'the author', example: 'A' },
+      { header: 'Year', key: 'year', type: 'integer', required: true, guide: 'the year', example: '2024' },
+      { header: 'Level', key: 'level', type: 'text', required: true, guide: 'the title', example: 'x' },
+    ],
+  });
+  const headers = ['Code', 'Name', 'Year', 'Level'];
+
+  it('accepts two rows whose primary key is blank but whose fallback differs', () => {
+    const result = validateSheet(
+      papers,
+      sheet(headers, [
+        { Code: null, Name: 'EMP1', Year: 2023, Level: 'Paper one' },
+        { Code: null, Name: 'EMP1', Year: 2022, Level: 'Paper two' },
+      ]),
+      ctx(),
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('still refuses two rows that match on the fallback too', () => {
+    const result = validateSheet(
+      papers,
+      sheet(headers, [
+        { Code: null, Name: 'EMP1', Year: 2023, Level: 'Paper one' },
+        { Code: null, Name: 'EMP1', Year: 2023, Level: 'Paper one' },
+      ]),
+      ctx(),
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it('still refuses two rows sharing a present primary key', () => {
+    const result = validateSheet(
+      papers,
+      sheet(headers, [
+        { Code: '10.1/x', Name: 'EMP1', Year: 2023, Level: 'Paper one' },
+        { Code: '10.1/x', Name: 'EMP1', Year: 2019, Level: 'Paper two' },
+      ]),
+      ctx(),
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it('does not confuse a blank-key row with a present-key row', () => {
+    const result = validateSheet(
+      papers,
+      sheet(headers, [
+        { Code: null, Name: 'EMP1', Year: 2023, Level: 'Paper one' },
+        { Code: '10.1/x', Name: 'EMP1', Year: 2023, Level: 'Paper one' },
+      ]),
+      ctx(),
+    );
+    expect(result.ok).toBe(true);
+  });
+});
+
+describe('the shrink guard on a term-scoped dataset', () => {
+  // The guard compares the file against what is already stored. For a
+  // term-scoped dataset the file can only ever cover ONE term, while the
+  // table holds every term ever loaded — so from the fourth upload onward
+  // a complete, correct file trips the guard, every time, forever. An
+  // operator who learns to tick "upload anyway" by reflex is one click
+  // from replacing a term they did not mean to.
+  const termed = makeDataset({
+    strategy: {
+      kind: 'term-scoped',
+      termColumns: ['year'],
+      match: { kind: 'unique', columns: ['code'] },
+    },
+  });
+
+  function rowsFor(year: number, count: number) {
+    return Array.from({ length: count }, (_, i) => row({ Code: `A${i}`, Year: year }));
+  }
+
+  it('does not fire when the file covers its term completely', () => {
+    // 10 rows for this term against 40 held across four terms.
+    const result = validateSheet(
+      termed,
+      sheet(ALL_HEADERS, rowsFor(2568, 10)),
+      ctx({ allowShrink: false, heldRowCount: 40, heldRowCountForTerm: 10 }),
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('still fires when the TERM itself shrinks by half', () => {
+    const result = validateSheet(
+      termed,
+      sheet(ALL_HEADERS, rowsFor(2568, 3)),
+      ctx({ allowShrink: false, heldRowCount: 40, heldRowCountForTerm: 10 }),
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it('is unchanged for a dataset that is not term-scoped', () => {
+    const result = validateSheet(
+      makeDataset(),
+      sheet(ALL_HEADERS, [row({ Code: 'A1' })]),
+      ctx({ allowShrink: false, heldRowCount: 40 }),
+    );
+    expect(result.ok).toBe(false);
+  });
+});
+
+describe('readDeclaredTerm', () => {
+  // The shrink guard needs the term BEFORE validation establishes it, so
+  // the service peeks at the file. Only ever used to choose which stored
+  // count to compare against — validateSheet remains the authority on
+  // whether the term is agreed and present.
+  const termed = makeDataset({
+    strategy: {
+      kind: 'term-scoped',
+      termColumns: ['year'],
+      match: { kind: 'unique', columns: ['code'] },
+    },
+  });
+
+  it('reads the term from the first row that says anything', () => {
+    const parsed = sheet(ALL_HEADERS, [
+      row({ Code: null, Name: null }),
+      row({ Code: 'A1', Year: 2568 }),
+    ]);
+    expect(readDeclaredTerm(termed, parsed)).toEqual({ year: 2568 });
+  });
+
+  it('returns null for a dataset that is not term-scoped', () => {
+    expect(readDeclaredTerm(makeDataset(), sheet(ALL_HEADERS, [row()]))).toBeNull();
+  });
+
+  it('returns null when the term column is blank', () => {
+    expect(readDeclaredTerm(termed, sheet(ALL_HEADERS, [row({ Code: 'A1', Year: null })]))).toBeNull();
+  });
+
+  it('returns null for an empty sheet', () => {
+    expect(readDeclaredTerm(termed, sheet(ALL_HEADERS, []))).toBeNull();
   });
 });

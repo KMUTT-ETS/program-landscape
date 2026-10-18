@@ -21,6 +21,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { Prisma, ProgramLevel, ProgramStatus, AutomationRisk, KkuRiskLevel, RiskTier } from '@prisma/client';
+import { campaignPlanKeySql } from './campaign-plan-key';
 import { prisma } from './index';
 import { programDemographicOutlook } from './program-deep-dive';
 import { programFunnelRoundRows } from './program-funnel';
@@ -1059,7 +1060,7 @@ async function computeCompetitivenessPercentile(
   // rounds, which would undercount a program that runs several intakes.
   const rows = await prisma.$queryRaw<Array<{ program_id: string; ratio: number }>>(Prisma.sql`
     WITH eligible AS (
-      SELECT c.program_id, c.recruitment_program_id, c.acad_year_be,
+      SELECT c.program_id, c.recruitment_program_id, c.round, c.campaign_name, c.acad_year_be,
              c.total_applicants, c.plan_per_year
       FROM admission_campaign_stats c
       JOIN programs p ON p.id = c.program_id
@@ -1074,8 +1075,8 @@ async function computeCompetitivenessPercentile(
     ),
     plan_by_prog AS (
       SELECT program_id, SUM(pp) AS plan FROM (
-        SELECT program_id, recruitment_program_id, MAX(plan_per_year) AS pp
-        FROM scoped GROUP BY program_id, recruitment_program_id
+        SELECT program_id, ${campaignPlanKeySql('scoped')} AS plan_key, MAX(plan_per_year) AS pp
+        FROM scoped GROUP BY program_id, plan_key
       ) s GROUP BY program_id
     ),
     apps_by_prog AS (

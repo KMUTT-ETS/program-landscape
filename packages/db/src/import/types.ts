@@ -158,6 +158,15 @@ export interface ImportDataset {
   load: (ctx: ImportLoadContext, rows: readonly ImportRow[]) => Promise<ImportLoadResult>;
   /** Rows currently held, for the shrink guard and the admin screen. */
   count: (prisma: PrismaClient) => Promise<number>;
+  /**
+   * Rows held for one term. Required of a `term-scoped` dataset, where the
+   * table holds every term ever loaded and `count` would make a complete
+   * one-term file look like a 75 % shrink from the fourth upload onward.
+   */
+  countForTerm?: (
+    prisma: PrismaClient,
+    term: Readonly<Record<string, ImportCellValue>>,
+  ) => Promise<number>;
   /** Deletes only rows written by the given import runs. Returns the count. */
   clear: (tx: Prisma.TransactionClient, runIds: readonly string[]) => Promise<number>;
   /** Datasets whose rows depend on this one; start-over refuses while they hold rows. */

@@ -12,6 +12,7 @@ import {
   markImportBatchFailed,
   markImportBatchSucceeded,
   prisma,
+  readDeclaredTerm,
   recordImportBatch,
   startImportRun,
   startOverDataset,
@@ -45,6 +46,11 @@ export interface ImportServiceDeps {
   putObject: (args: { bucket: string; key: string; body: Buffer; contentType: string }) => Promise<void>;
   loadReferences: (dataset: ImportDataset) => Promise<Map<string, Set<string>>>;
   heldCount: (dataset: ImportDataset) => Promise<number>;
+  /** Rows held for one term; undefined unless the dataset is term-scoped. */
+  heldCountForTerm: (
+    dataset: ImportDataset,
+    term: Readonly<Record<string, ImportCellValue>>,
+  ) => Promise<number | undefined>;
   runLoad: (
     dataset: ImportDataset,
     rows: readonly ImportRow[],
@@ -135,6 +141,10 @@ export class ImportService implements OnModuleInit {
         }),
       loadReferences: deps?.loadReferences ?? ((dataset) => this.defaultLoadReferences(dataset)),
       heldCount: deps?.heldCount ?? ((dataset) => dataset.count(prisma)),
+      heldCountForTerm:
+        deps?.heldCountForTerm ??
+        ((dataset, term) =>
+          dataset.countForTerm ? dataset.countForTerm(prisma, term) : Promise.resolve(undefined)),
       runLoad: deps?.runLoad ?? ((dataset, rows, userId, batch, term) => this.defaultRunLoad(dataset, rows, userId, batch, term)),
       startOver: deps?.startOver ?? startOverDataset,
       prefill: deps?.prefill ?? ((dataset, opts) => (dataset.prefill ? dataset.prefill(prisma, opts) : Promise.resolve([]))),
@@ -282,9 +292,18 @@ export class ImportService implements OnModuleInit {
       this.deps.heldCount(dataset),
     ]);
 
+    // A term-scoped file is compared against its own term, not the table.
+    // The term is read from the file here only to pick that baseline;
+    // validateSheet is still what refuses a file whose rows disagree.
+    const declaredTerm = readDeclaredTerm(dataset, parsed.parsed);
+    const heldRowCountForTerm = declaredTerm
+      ? await this.deps.heldCountForTerm(dataset, declaredTerm)
+      : undefined;
+
     const validated = validateSheet(dataset, parsed.parsed, {
       references,
       heldRowCount,
+      heldRowCountForTerm,
       allowShrink: args.allowShrink,
       maxRows: IMPORT_MAX_ROWS,
     });

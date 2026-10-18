@@ -290,6 +290,109 @@ const DATASETS: Record<string, DatasetFetcher> = {
     };
   },
 
+  // ── Admissions and teaching ──────────────────────────────────────────────
+  'admission-campaigns': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.AdmissionCampaignStatWhereInput = q.q
+      ? {
+          OR: [
+            { campaignName: { contains: q.q, mode: 'insensitive' } },
+            { program: { code: { contains: q.q, mode: 'insensitive' } } },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.admissionCampaignStat.findMany({
+        where,
+        include: { program: { select: { code: true } } },
+        orderBy: [{ acadYearBE: 'desc' }, { round: 'asc' }, { campaignName: 'asc' }],
+        skip,
+        take: q.pageSize,
+      }),
+      prisma.admissionCampaignStat.count({ where }),
+    ]);
+    return {
+      title: 'Admission campaigns — the recruitment funnel per campaign',
+      description:
+        'One row per (programme, year, round, campaign). Year is BUDDHIST ERA. An imported row carries no registrar identifiers — those columns are null and the import sheet does not offer them.',
+      columns: [
+        { key: 'acadYearBE', label: 'Year (BE)', numeric: true },
+        { key: 'round', label: 'Round' },
+        { key: 'programCode', label: 'Programme' },
+        { key: 'campaignName', label: 'Campaign' },
+        { key: 'planPerYear', label: 'Planned', numeric: true },
+        { key: 'totalApplicants', label: 'Applicants', numeric: true },
+        { key: 'totalPassed', label: 'Passed', numeric: true },
+        { key: 'regReported', label: 'Reported', numeric: true },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        acadYearBE: r.acadYearBE,
+        round: r.round,
+        programCode: r.program?.code ?? '—',
+        campaignName: r.campaignName,
+        planPerYear: r.planPerYear,
+        totalApplicants: r.totalApplicants,
+        totalPassed: r.totalPassed,
+        regReported: r.regReported,
+        imported: r.ingestionRunId !== null,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
+  'class-offerings': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.ClassOfferingWhereInput = q.q
+      ? {
+          OR: [
+            { courseCode: { contains: q.q, mode: 'insensitive' } },
+            { courseNameEn: { contains: q.q, mode: 'insensitive' } },
+            { courseNameTh: { contains: q.q } },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.classOffering.findMany({
+        where,
+        orderBy: [{ acadYearBE: 'desc' }, { semester: 'desc' }, { courseCode: 'asc' }, { section: 'asc' }],
+        skip,
+        take: q.pageSize,
+      }),
+      prisma.classOffering.count({ where }),
+    ]);
+    return {
+      title: 'Class offerings — sections taught per term',
+      description:
+        'One row per section. Year is BUDDHIST ERA. Uploading a term through the spreadsheet import REPLACES the rows that import created for it; rows a connector wrote are left alone.',
+      columns: [
+        { key: 'term', label: 'Term' },
+        { key: 'courseCode', label: 'Course' },
+        { key: 'section', label: 'Sec', numeric: true },
+        { key: 'courseNameEn', label: 'Name (EN)' },
+        { key: 'enrollSeat', label: 'Enrolled', numeric: true },
+        { key: 'totalSeat', label: 'Seats', numeric: true },
+        { key: 'classGpa', label: 'Class GPA', numeric: true },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        term: `${r.acadYearBE}/${r.semester}`,
+        courseCode: r.courseCode,
+        section: r.section,
+        courseNameEn: r.courseNameEn ?? r.courseNameTh ?? '',
+        enrollSeat: r.enrollSeat,
+        totalSeat: r.totalSeat,
+        classGpa: r.classGpa,
+        imported: r.ingestionRunId !== null,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
   // ── Cohort progression and outcomes ──────────────────────────────────────
   'student-cohorts': async (q) => {
     const skip = (q.page - 1) * q.pageSize;

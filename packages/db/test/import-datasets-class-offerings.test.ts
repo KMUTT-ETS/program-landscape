@@ -19,7 +19,10 @@ let runId = '';
 
 async function cleanup(): Promise<void> {
   await prisma.classOffering.deleteMany({
-    where: { courseCode: { in: [COURSE_A, COURSE_B] } },
+    where: { courseCode: { startsWith: 'CO-' } },
+  });
+  await prisma.classOffering.deleteMany({
+    where: { courseCode: { in: [COURSE_A, COURSE_B, 'GE101', 'EN205'] } },
   });
   await prisma.faculty.deleteMany({ where: { code: FACULTY_CODE } });
 }
@@ -235,6 +238,85 @@ describe('class offerings dataset', () => {
       select: { semester: true },
     });
     expect(found.length).toBeGreaterThan(0);
+  });
+
+describe('the term delete and other people’s rows', () => {
+  // The one destructive write in the importer. Every other write respects
+  // claimsRow: an upload never touches a row a live source created. The
+  // delete has to hold the same line, or a 40-row trial upload on a KKU
+  // installation wipes a term of registrar data — and cascades into the
+  // instructor rosters hanging off it.
+  const CONNECTOR_COURSE = 'CO-CONN-900';
+
+  it('leaves a connector-written row in the term alone', async () => {
+    const connectorRunId = await makeRun('kku-class-offerings-test');
+    const faculty = await prisma.faculty.findUniqueOrThrow({ where: { code: FACULTY_CODE } });
+    await prisma.classOffering.create({
+      data: {
+        acadYearBE: 2567, semester: 1, courseCode: CONNECTOR_COURSE,
+        courseCodeRaw: CONNECTOR_COURSE, section: 1, classId: 9_900_001n,
+        enrollSeat: 30, totalSeat: 40, levelName: 'Bachelor',
+        registryFacultyId: '07', registryFacultyName: faculty.nameTh,
+        facultyId: faculty.id, ingestionRunId: connectorRunId,
+      },
+    });
+
+    await load([row({ courseCode: COURSE_A, section: 1 })], { academicYear: 2024, semester: 1 });
+
+    const survivor = await prisma.classOffering.findFirst({
+      where: { courseCode: CONNECTOR_COURSE },
+      select: { ingestionRunId: true },
+    });
+    expect(survivor?.ingestionRunId).toBe(connectorRunId);
+  });
+
+  it('still replaces the rows its own uploads created', async () => {
+    const result = await load(
+      [row({ courseCode: COURSE_A, section: 1 })],
+      { academicYear: 2024, semester: 1 },
+    );
+    expect(result.deleted).toBe(1);
+    expect(result.inserted).toBe(1);
+  });
+
+  it('reclaims a row with no recorded origin', async () => {
+    // A legacy row nothing owns is invisible anyway; leaving it would mean
+    // the term could never be made correct.
+    const faculty = await prisma.faculty.findUniqueOrThrow({ where: { code: FACULTY_CODE } });
+    await prisma.classOffering.create({
+      data: {
+        acadYearBE: 2567, semester: 1, courseCode: 'CO-LEGACY-1',
+        courseCodeRaw: 'CO-LEGACY-1', section: 1, classId: 9_900_002n,
+        enrollSeat: 1, totalSeat: 1, levelName: '',
+        registryFacultyId: '', registryFacultyName: faculty.nameTh,
+        facultyId: faculty.id,
+      },
+    });
+
+    const result = await load(
+      [row({ courseCode: COURSE_A, section: 1 })],
+      { academicYear: 2024, semester: 1 },
+    );
+    expect(result.deleted).toBeGreaterThanOrEqual(2);
+    expect(await prisma.classOffering.count({ where: { courseCode: 'CO-LEGACY-1' } })).toBe(0);
+  });
+});
+
+  it('classifies a general-education course from its code', async () => {
+    // The connector derives this from the code prefix; without it an
+    // adopter's GE filter silently returns nothing, which reads as "we
+    // teach no general education" rather than "nobody set the flag".
+    await load(
+      [row({ courseCode: 'GE101', section: 1 }), row({ courseCode: 'EN205', section: 1 })],
+      { academicYear: 2024, semester: 1 },
+    );
+    const rows = await prisma.classOffering.findMany({
+      where: { courseCode: { in: ['GE101', 'EN205'] } },
+      select: { courseCode: true, isGeneralEducation: true },
+    });
+    expect(rows.find((r) => r.courseCode === 'GE101')?.isGeneralEducation).toBe(true);
+    expect(rows.find((r) => r.courseCode === 'EN205')?.isGeneralEducation).toBe(false);
+    await prisma.classOffering.deleteMany({ where: { courseCode: { in: ['GE101', 'EN205'] } } });
   });
 
   it('clears only rows the given runs created', async () => {

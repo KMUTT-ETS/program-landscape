@@ -130,6 +130,20 @@ describe('budgets dataset', () => {
     expect(Number(afterBlank.totalBudget)).toBe(14_000_000);
   });
 
+  it('does not drop a faculty link when the code is left blank', async () => {
+    // The comment on the update path promises a blank cell keeps what is
+    // stored. facultyId was written unconditionally, so a re-upload that
+    // omits the code silently orphaned the row from its faculty rollup.
+    await load([row({ facultyCode: null, totalBudget: 14_500_000 })], otherRunId);
+
+    const stored = await prisma.facultyBudget.findFirstOrThrow({
+      where: { divisionName: FACULTY_DIVISION },
+      select: { faculty: { select: { code: true } }, totalBudget: true },
+    });
+    expect(stored.faculty?.code).toBe(FACULTY_CODE);
+    expect(Number(stored.totalBudget)).toBe(14_500_000);
+  });
+
   it('keeps a second fund category for one division apart', async () => {
     const result = await load([row({ fundCategory: 'Government subsidy' })], runId);
     expect(result.inserted).toBe(1);

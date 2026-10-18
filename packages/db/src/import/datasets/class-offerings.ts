@@ -11,6 +11,7 @@ import type {
   ImportLoadResult,
   ImportRow,
 } from '../types';
+import { isGeneralEducationCode } from '../../program-overlap/score';
 import { buddhistYearColumn, toBuddhistEra } from './cohorts';
 
 // Tier 2, and the only TERM-SCOPED dataset.
@@ -64,6 +65,22 @@ export function synthesiseClassId(
     .digest();
   // 7 bytes = 56 bits, comfortably inside the 62 bits below the floor.
   return SYNTHETIC_CLASS_ID_FLOOR + BigInt(`0x${digest.subarray(0, 7).toString('hex')}`);
+}
+
+/**
+ * Every ingestion run this dataset's own uploads have made.
+ *
+ * The term delete may remove those rows and no others. Resolved per load
+ * rather than cached: a run created moments ago by this very upload has to
+ * be in the set, or re-uploading a term would refuse to replace its own
+ * previous attempt.
+ */
+async function importedRunIds(ctx: ImportLoadContext): Promise<string[]> {
+  const runs = await ctx.tx.ingestionRun.findMany({
+    where: { dataSource: { slug: 'xlsx-class-offerings' } },
+    select: { id: true },
+  });
+  return runs.map((r) => r.id);
 }
 
 /** An optional grade tally. 0 when the term is still in progress. */
@@ -285,7 +302,25 @@ export const classOfferingsDataset: ImportDataset = {
 
     // Delete the term, then insert the file. In one transaction, so a
     // failure part-way leaves the term exactly as it was.
-    const removed = await ctx.tx.classOffering.deleteMany({ where: { acadYearBE, semester } });
+    //
+    // SCOPED, exactly as claimsRow scopes every other write in the
+    // framework. An unscoped delete here would let a 40-row trial upload
+    // on an installation whose registrar connector holds ~121k rows wipe a
+    // whole term of its data — and cascade into the instructor rosters
+    // hanging off those sections. Rows a live source created are left
+    // alone; rows with no recorded origin, or a mocked one, are not owned
+    // by anybody and would otherwise make the term impossible to correct.
+    const removed = await ctx.tx.classOffering.deleteMany({
+      where: {
+        acadYearBE,
+        semester,
+        OR: [
+          { ingestionRunId: null },
+          { ingestionRunId: { in: await importedRunIds(ctx) } },
+          { ingestionRun: { dataSource: { mocked: true } } },
+        ],
+      },
+    });
 
     const data = rows.map((row) => {
       const courseCode = String(row.courseCode);
@@ -323,6 +358,10 @@ export const classOfferingsDataset: ImportDataset = {
         labHrsPerWeek: row.labHrsPerWeek === null ? null : Number(row.labHrsPerWeek),
         enrollSeat: Number(row.enrollSeat),
         totalSeat: Number(row.totalSeat),
+        // Derived from the code prefix, the same rule the connector uses.
+        // Left to default, an adopter's general-education filter returns
+        // nothing — which reads as "we teach none" rather than "unset".
+        isGeneralEducation: isGeneralEducationCode(courseCode),
         facultyId: faculty.id,
         registryFacultyName: faculty.nameTh,
         // No registrar id exists for an imported row; the faculty link above
@@ -344,6 +383,18 @@ export const classOfferingsDataset: ImportDataset = {
   },
 
   count: (prisma: PrismaClient): Promise<number> => prisma.classOffering.count(),
+
+  // The shrink guard compares a file against its OWN term. Against the
+  // whole table a complete 12,000-row term reads as a partial export once
+  // three terms are stored, and an operator who learns to click past that
+  // warning is one click from replacing a term they did not mean to.
+  countForTerm: (prisma: PrismaClient, term): Promise<number> =>
+    prisma.classOffering.count({
+      where: {
+        acadYearBE: toBuddhistEra(Number(term.academicYear)),
+        semester: Number(term.semester),
+      },
+    }),
 
   clear: async (tx, runIds): Promise<number> => {
     const result = await tx.classOffering.deleteMany({

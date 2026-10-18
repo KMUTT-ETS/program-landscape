@@ -37,6 +37,7 @@ function harness(overrides: Partial<ImportServiceDeps> = {}): Harness {
     putObject: track('putObject', Promise.resolve(undefined)),
     loadReferences: track('loadReferences', Promise.resolve(new Map())),
     heldCount: track('heldCount', Promise.resolve(0)),
+    heldCountForTerm: track('heldCountForTerm', Promise.resolve(undefined)),
     runLoad: track('runLoad', Promise.resolve({ batchId: 'batch-1', result: { inserted: 1, updated: 0, deleted: 0 } })),
     startOver: track('startOver', Promise.resolve({ rowsDeleted: 3, batchesCleared: 1 })),
     prefill: track('prefill', Promise.resolve([] as ImportRow[])),

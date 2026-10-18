@@ -113,7 +113,12 @@ export interface CampaignRoundNode extends CampaignMetrics {
 
 /** Sub-program tier — one PROGRAMID (ภาคปกติ / โครงการพิเศษ / a major). */
 export interface CampaignSubProgramNode extends CampaignMetrics {
-  recruitmentProgramId: string;
+  /**
+   * The registrar's PROGRAMID. Null for a spreadsheet-imported campaign,
+   * which has none — NOT the internal grouping key, which contains a
+   * control character and would be rendered verbatim.
+   */
+  recruitmentProgramId: string | null;
   currId: string | null;
   label: string;
   roundCount: number;
@@ -446,7 +451,7 @@ export class AdmissionCampaignsService {
     const kpis: CampaignKpis = {
       ...m,
       programs: this.distinctProgramKeys(inScope, programKey),
-      subPrograms: new Set(inScope.map((r) => r.recruitmentProgramId)).size,
+      subPrograms: new Set(inScope.map((r) => campaignPlanKey(r))).size,
       campaigns: inScope.length,
       overAlloc: m.plan != null && m.plan > 0 && m.seats != null ? m.seats / m.plan : null,
     };
@@ -532,7 +537,9 @@ export class AdmissionCampaignsService {
             .sort((a, b) => a.round.localeCompare(b.round));
           const label = sg.reduce((a, r) => (r.campaignName.length < a.length ? r.campaignName : a), sg[0]!.campaignName);
           return {
-            recruitmentProgramId: pid,
+            // The group's own id, not the synthesised grouping key: this
+            // field is rendered verbatim on /education/recruitment-campaigns.
+            recruitmentProgramId: sg[0]!.recruitmentProgramId,
             currId: sg[0]!.currId,
             label,
             roundCount: rounds.length,

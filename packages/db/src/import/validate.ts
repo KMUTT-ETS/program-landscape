@@ -30,6 +30,16 @@ export interface ValidationContext {
   references: ReadonlyMap<string, ReadonlySet<string>>;
   /** Rows the dataset currently holds, for the shrink guard. */
   heldRowCount: number;
+  /**
+   * Rows already stored FOR THE TERM a term-scoped file covers.
+   *
+   * The plain `heldRowCount` is the whole table, which for a term-scoped
+   * dataset is every term ever loaded — so a complete file for one term
+   * looks like a 75 % shrink once three terms are in. Undefined for every
+   * other dataset, and for a term-scoped upload whose term cannot be read
+   * (a file the validator is about to refuse anyway).
+   */
+  heldRowCountForTerm?: number;
   allowShrink: boolean;
   maxRows: number;
 }
@@ -159,6 +169,40 @@ function coerceCell(column: ImportColumn, raw: unknown): { value: ImportCellValu
       return { error: `Unsupported column type ${String(exhaustive)}.` };
     }
   }
+}
+
+/**
+ * The term a term-scoped file appears to cover, read before validation.
+ *
+ * The shrink guard has to compare a file against the rows stored FOR ITS
+ * TERM, and the term is only established by validation — so the caller
+ * peeks first. This is advisory only: `validateSheet` remains the authority
+ * on whether every row agrees and whether a term was stated at all, and
+ * returns null here rather than guessing.
+ */
+export function readDeclaredTerm(
+  dataset: ImportDataset,
+  parsed: ParsedSheet,
+): Readonly<Record<string, ImportCellValue>> | null {
+  if (dataset.strategy.kind !== 'term-scoped') return null;
+  const termColumns = dataset.strategy.termColumns;
+  const headerByTrimmed = new Map(parsed.headers.map((h) => [h.trim(), h]));
+  const columns = dataset.columns.filter((c) => termColumns.includes(c.key));
+  if (columns.length !== termColumns.length) return null;
+
+  for (const source of parsed.rows) {
+    const read = (c: ImportColumn): unknown => source[headerByTrimmed.get(c.header) ?? c.header];
+    if (dataset.columns.every((c) => isBlank(read(c)))) continue;
+
+    const term: Record<string, ImportCellValue> = {};
+    for (const column of columns) {
+      const coerced = coerceCell(column, read(column));
+      if ('error' in coerced || coerced.value === null) return null;
+      term[column.key] = coerced.value;
+    }
+    return term;
+  }
+  return null;
 }
 
 export function validateSheet(
@@ -353,10 +397,29 @@ export function validateSheet(
   const headerFor = (key: string): string => columnByKey.get(key)?.header ?? key;
   const seen = new Map<string, number>();
 
+  // A `manual` match may declare a FALLBACK key for rows whose primary one
+  // is not filled in — publications are matched by DOI where there is one
+  // and by (title, year) within one author where there is not. The loader
+  // follows that two-step rule, so the duplicate check has to as well:
+  // without it, two of an author's papers that both lack a DOI collapse to
+  // one composite and the file is refused as duplicated, naming a blank
+  // cell the operator cannot fill. Conference papers, books and
+  // Thai-journal articles routinely have no DOI, so that is most files.
+  const fallbackColumns =
+    dataset.strategy.match.kind === 'manual' ? dataset.strategy.match.fallback : undefined;
+
   for (const { sheetRow, row } of accepted) {
-    const parts: string[] = [];
+    // Which rule identifies THIS row. A blank in the primary key is what
+    // sends it to the fallback, exactly as in the loader.
+    const primaryIsBlank = keyColumns.some((k) => {
+      const v = row[k];
+      return (v === null || v === undefined) && columnByKey.get(k)?.required === false;
+    });
+    const activeKey = fallbackColumns && primaryIsBlank ? fallbackColumns : keyColumns;
+    // Namespaced so a fallback composite can never equal a primary one.
+    const parts: string[] = [activeKey === keyColumns ? 'k' : 'f'];
     let incomplete = false;
-    for (const key of keyColumns) {
+    for (const key of activeKey) {
       const value = row[key];
 
       // One OPTIONAL component of a COMPOUND key may be blank, and the blank
@@ -371,7 +434,7 @@ export function validateSheet(
       // declared: a row whose only identifying cell is blank has no identity
       // at all, and nothing downstream could ever find it again.
       const optionalPartOfCompoundKey =
-        keyColumns.length > 1 && columnByKey.get(key)?.required === false;
+        activeKey.length > 1 && columnByKey.get(key)?.required === false;
       if ((value === null || value === undefined) && optionalPartOfCompoundKey) {
         parts.push('\u0000blank');
         continue;
@@ -400,7 +463,7 @@ export function validateSheet(
       errors.push({
         sheet,
         row: sheetRow,
-        column: headerFor(keyColumns[0] ?? ''),
+        column: headerFor(activeKey[0] ?? ''),
         message: `Duplicate of row ${first}: these rows identify the same record.`,
       });
       continue;
@@ -490,14 +553,21 @@ export function validateSheet(
   }
 
   // ── shrink guard ──────────────────────────────────────────────────────────
-  if (!ctx.allowShrink && ctx.heldRowCount > 0 && accepted.length * 2 < ctx.heldRowCount) {
+  // A term-scoped file is compared against its own term, not the table:
+  // see ValidationContext.heldRowCountForTerm.
+  const shrinkBaseline =
+    dataset.strategy.kind === 'term-scoped' && ctx.heldRowCountForTerm !== undefined
+      ? ctx.heldRowCountForTerm
+      : ctx.heldRowCount;
+
+  if (!ctx.allowShrink && shrinkBaseline > 0 && accepted.length * 2 < shrinkBaseline) {
     errors.push({
       sheet,
       row: 0,
       column: null,
       message:
-        `This file has ${accepted.length} rows but the dataset currently holds ` +
-        `${ctx.heldRowCount}. That looks like a partial export. Re-upload with ` +
+        `This file has ${accepted.length} rows but ${shrinkBaseline} are already ` +
+        `stored for it. That looks like a partial export. Re-upload with ` +
         `confirmation if it is intentional.`,
     });
   }

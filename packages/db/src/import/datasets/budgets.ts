@@ -145,10 +145,13 @@ export const budgetsDataset: ImportDataset = {
         // Only the cells the operator filled, so a partial return does not
         // zero figures another source supplied.
         const data: Record<string, number | string | Date | null> = {
-          facultyId,
           totalBudget: Number(row.totalBudget),
           freshnessDate,
         };
+        // Blank means "I did not say", here too. Writing null unconditionally
+        // would orphan a division from the faculty it rolls up into on any
+        // re-upload that omits the code.
+        if (facultyId !== null) data.facultyId = facultyId;
         for (const key of optional) {
           if (typeof row[key] === 'number') data[key] = row[key] as number;
         }

@@ -14,7 +14,7 @@
 // never summed across rounds.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { campaignPlanKey } from './campaign-plan-key';
+import { campaignPlanKey, campaignPlanKeySqlText } from './campaign-plan-key';
 import { prisma } from './index';
 import { realDataWhere, realDataSqlUnsafe } from './data-quality';
 import { getAcademicYearContext, entryYearComplete } from './academic-year';
@@ -234,7 +234,8 @@ export async function scopeFunnelLatestYear(
          ${scoped ? `AND ${scopeCol} = $2` : ''}
      ),
      plan_per_sub AS (
-       SELECT recruitment_program_id, MAX(plan_per_year) AS pp FROM scoped GROUP BY recruitment_program_id
+       SELECT ${campaignPlanKeySqlText('scoped')} AS plan_key, MAX(plan_per_year) AS pp
+       FROM scoped GROUP BY plan_key
      )
      SELECT
        COALESCE(SUM(enroll_seats), 0)::bigint AS seats,
