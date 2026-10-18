@@ -40,6 +40,16 @@ export interface ImportColumn {
   /** Value must already exist in another dataset, checked at validation. */
   references?: { dataset: string; column: string };
   /**
+   * A check on this cell alone, run after coercion. Returns a message to
+   * fail the cell, or null to accept it.
+   *
+   * A blank optional cell never reaches it — `required` already decides
+   * whether blank is allowed, and a check that had to re-handle null would
+   * state that rule in two places. Use `ImportRowRule` for anything that
+   * needs to see a second column.
+   */
+  check?: (value: ImportCellValue) => string | null;
+  /**
    * Marks a headcount column that gates k-anonymity on its row: a row whose
    * value is below `minimum` fails the file. The connectors apply this in
    * SQL (`HAVING COUNT(*) >= 5`); an uploaded sheet has no such guarantee.

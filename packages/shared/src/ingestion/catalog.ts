@@ -595,6 +595,18 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     notes: 'Programmes uploaded through /admin/data-setup. Imported rows are assigned a sequence number so they are canonical.',
     mocked: false,
   },
+  {
+    slug: 'xlsx-enrollment-metrics',
+    name: 'Enrolment (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Applications through to graduation per programme per academic year, uploaded through /admin/data-setup. ' +
+      'Shares the enrollment_metrics table with the registrar connector, so an upload updates only the columns it fills.',
+    mocked: false,
+  },
 ] as const;
 
 export function getCatalogEntry(slug: string): SourceCatalogEntry | undefined {

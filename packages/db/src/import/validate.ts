@@ -234,6 +234,13 @@ export function validateSheet(
         errors.push({ sheet, row: sheetRow, column: column.header, message: 'This cell is required.' });
         continue;
       }
+      if (column.check && coerced.value !== null) {
+        const problem = column.check(coerced.value);
+        if (problem) {
+          errors.push({ sheet, row: sheetRow, column: column.header, message: problem });
+          continue;
+        }
+      }
       if (column.groupSizeFor && typeof coerced.value === 'number' && coerced.value < column.groupSizeFor.minimum) {
         errors.push({
           sheet,
