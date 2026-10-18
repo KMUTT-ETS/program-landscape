@@ -14,10 +14,39 @@ This page is for the person doing the uploading.
 | **Faculties** | The faculties, colleges and institutes that own programmes | Everything |
 | **Departments** | Departments within a faculty. Optional | Programmes |
 | **Programmes** | The curricula you offer | Every metric |
+| **Enrolment** | Applications through to graduation, per programme per year | — |
+| **Finance** | Tuition and other revenue, per programme per year | — |
+| **Graduate Outcomes** | Employment survey results per graduating cohort | — |
 
-More datasets — enrolment, finance, graduate outcomes, staff — follow in later
-releases. See the design document under `docs/superpowers/specs/` for the full
-inventory.
+Load them top to bottom: the first three are the backbone every metric refers
+to by code, and the last three can be uploaded in any order once those exist.
+
+Two things are deliberately absent. **Cost figures** are not uploadable: a
+programme's cost is an allocation your institution has to be able to defend, so
+it is produced by the cost-allocation methodology from staff and budget data,
+and an upload never touches it. **Student demographics** are not uploadable
+either — nothing in the application reads them today, so a template for them
+would ask you for work no screen would show.
+
+Further datasets — staff, compensation, cohorts, class offerings — follow in
+later releases. See the design document under `docs/superpowers/specs/` for the
+full inventory.
+
+## Years, money and rates
+
+Three conventions, each of which has a wrong answer that looks right:
+
+- **Every year is Common Era.** Write 2025, not 2568. A Buddhist-era year is
+  543 years in the future, which passes any "is this a plausible number" test —
+  so the file is refused outright rather than filed under a year nothing asks
+  for.
+- **The finance year is an academic year, not a budget year.** An academic year
+  straddles two fiscal years, so a figure copied from a fiscal-year budget
+  report describes a different period than the column asks for.
+- **Rates are proportions between 0 and 1.** Write 87 % as `0.87`. A rate of
+  `87` is refused; left unchecked it would render as 8700 % employment.
+
+Salaries are **monthly**, in baht. Commas are fine.
 
 ## Where to go
 
@@ -30,15 +59,17 @@ You need an administrator account. Clearing a dataset needs the
 ## How it works
 
 1. **Download the template.** It is generated for your installation, so its
-   columns always match what the system will accept.
+   columns always match what the system will accept. For the metric datasets it
+   also arrives **pre-filled** with a row per active programme per year, values
+   blank — so you fill in figures rather than re-typing programme codes.
 2. **Fill in the data sheet.** Every workbook has two sheets: the data, and a
    **Guide** that explains each column, with an example and the allowed values.
    The Guide sheet is ignored on upload — you can write in it freely.
 3. **Upload it.** The file is checked while you wait. If anything is wrong you
    get a list of rows and columns to fix, and **nothing is stored**.
 
-Load them in order: Faculties, then Departments, then Programmes. Each refers to
-the one before it by code.
+Load them in order: Faculties, then Departments, then Programmes, then the
+metrics. Each refers to the one before it by code.
 
 ## Uploading again later
 
@@ -50,6 +81,11 @@ Upload the same dataset as often as you like. Rows are matched on their code:
 
 So a file covering only the three programmes that changed this term does exactly
 that, and touches nothing else.
+
+The same goes for **columns**, in the metric datasets: a blank cell leaves
+whatever is stored alone rather than setting it to zero. If you have
+application counts but not graduation counts, leave the graduation columns
+empty and they keep whatever another source supplied.
 
 Re-uploading a byte-for-byte identical file does nothing and says so.
 
@@ -91,8 +127,12 @@ Two things to understand before using it:
   are back where you were. This is the only way back, so do not delete the
   workbooks from your own machine either.
 - **It refuses while other data depends on it.** You cannot clear Faculties
-  while Departments or Programmes exist — clearing them would take everything
-  hanging off them with it. Clear from the bottom up.
+  while Departments or Programmes exist, nor Programmes while enrolment,
+  finance or outcome figures exist — clearing them would take everything
+  hanging off them with it, including rows a connector wrote and no upload ever
+  touched. The message names what would be destroyed. Clear from the bottom up.
+- **It only deletes what your uploads created.** A row that an upload merely
+  corrected still belongs to whoever created it, and survives.
 
 ## If an upload does not appear
 

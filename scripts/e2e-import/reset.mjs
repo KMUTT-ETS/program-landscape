@@ -1,10 +1,20 @@
 // Removes everything the e2e drive creates, so a run always starts clean.
 // Scoped to the NU-* codes the fixtures use plus the import batches for the
-// three tier-0 datasets — nothing else is touched.
+// datasets the drive touches — nothing else is touched.
+//
+// The metric rows are not deleted by code here: every foreign key into
+// `programs` cascades, so deleting the programmes above takes them with it.
 import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
-const SLUGS = ['faculties', 'departments', 'programmes'];
+const SLUGS = [
+  'faculties',
+  'departments',
+  'programmes',
+  'enrollment-metrics',
+  'financial-metrics',
+  'graduate-outcomes',
+];
 const PROGRAMME_CODES = ['NU-CIV-BE', 'NU-EE-BE', 'NU-CIV-ME'];
 const DEPARTMENT_CODES = ['NU-ENG-CIV', 'NU-ENG-EE'];
 const FACULTY_CODES = ['NU-ENG', 'NU-SCI', 'NU-RES', '007', '12345'];

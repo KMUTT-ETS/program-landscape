@@ -101,3 +101,13 @@ gold-labels/
 # Developer manual site (apps/docs-site) — build artefacts
 docs/_generated/
 apps/docs-site/.vitepress/cache/
+
+# Spreadsheet-import browser check. Its scripts resolve these paths relative
+# to themselves, and the README has you run a COPY from a workspace that
+# carries xlsx or playwright — so the artefacts land wherever that copy is.
+# Twelve screenshots were committed to apps/ingestion/ that way once already.
+**/.e2e-*.mjs
+scripts/e2e-import/fixtures/
+scripts/e2e-import/shots/
+apps/*/fixtures/e2e-import/
+apps/*/shots/

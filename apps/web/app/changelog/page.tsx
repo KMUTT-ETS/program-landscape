@@ -28,14 +28,18 @@ const ENTRIES: ChangelogEntry[] = [
   {
     date: '2026-10-18',
     version: 'Unreleased · Import from spreadsheets',
-    title: 'An institution can now create its faculties, departments and programmes by uploading spreadsheets, with no code changes',
+    title: 'An institution can now create its faculties, departments and programmes — and fill the Program Deep-Dive — by uploading spreadsheets, with no code changes',
     audience: ['Admin'],
     bullets: [
-      'Each dataset has a Download template button on its page under Data setup. The template carries the exact columns the system accepts, plus a Guide sheet explaining every column with an example and its allowed values.',
+      'Six datasets: faculties, departments and programmes, then enrolment, finance and graduate outcomes. Load the first three in that order; the metrics can follow in any order. Uploaded figures appear on the Program Deep-Dive like any other source.',
+      'Each dataset has a Download template button on its page under Data setup. The template carries the exact columns the system accepts, plus a Guide sheet explaining every column with an example and its allowed values. The metric templates arrive pre-filled with a row per active programme per year, values blank, so nobody re-types programme codes.',
+      'Three conventions the templates state and the upload enforces: years are Common Era (2025, not 2568), the finance year is an academic year rather than a budget year, and rates are proportions between 0 and 1 — an employment rate of 87 is refused rather than shown as 8700%.',
+      'Cost figures are deliberately not importable. A programme’s cost is an allocation the institution has to be able to defend, so it stays with the cost-allocation methodology and an upload leaves it untouched.',
+      'In the metric datasets a blank cell leaves the stored value alone rather than zeroing it, so an institution holding only part of a figure set can upload what it has without erasing the rest.',
       'A file is checked while you wait. If anything is wrong you get the list of rows and columns to fix, and nothing is stored — so a bad upload never leaves the data half-changed.',
       'Uploading the same dataset again updates the rows whose codes are already here, adds the new ones, and leaves everything else alone. Uploading a byte-for-byte identical file does nothing and says so.',
       'Uploads are refused if a column is unexpected, if a cell holds a national ID number, or if the file has fewer than half the rows currently stored — the last with a button to proceed when you know it is right.',
-      'Each dataset has a Start over control that removes what was imported and leaves anything from a connector alone. Your uploaded files are kept so you can rebuild by uploading them again, and it refuses while other data still depends on the dataset.',
+      'Each dataset has a Start over control that removes what your uploads created and leaves anything from a connector alone — including rows an upload merely corrected. Your uploaded files are kept so you can rebuild by uploading them again, and it refuses while other data still depends on the dataset, naming what would be destroyed.',
     ],
   },
   {

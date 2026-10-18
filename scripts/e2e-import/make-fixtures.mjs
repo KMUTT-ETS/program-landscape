@@ -45,6 +45,31 @@ write('03-programmes.xlsx', 'Programmes', [
    null, 'MASTER', null, 2018, 2, 36, null],
 ]);
 
+// Tier 1 — the metrics the Deep-Dive is built from. Every one of these
+// refers to a programme code loaded above.
+write('05-enrolment.xlsx', 'Enrolment', [
+  ['Programme Code', 'Academic Year', 'Applications', 'Admitted', 'Enrolled',
+   'Retained to Year 2', 'Graduated on Time', 'Graduated Late', 'Dropouts'],
+  ['NU-CIV-BE', 2023, 520, 180, 142, 131, 118, 9, 12],
+  ['NU-CIV-BE', 2024, 486, 175, 138, null, null, null, null],
+  ['NU-EE-BE', 2024, 610, 200, 171, null, null, null, null],
+]);
+
+write('06-finance.xlsx', 'Finance', [
+  ['Programme Code', 'Academic Year', 'Tuition Revenue (THB)', 'Other Revenue (THB)'],
+  ['NU-CIV-BE', 2023, '5,680,000', 120000],
+  ['NU-CIV-BE', 2024, 5520000, null],
+  ['NU-EE-BE', 2024, 6840000, 90000],
+]);
+
+write('07-outcomes.xlsx', 'Graduate Outcomes', [
+  ['Programme Code', 'Graduation Year', 'Survey Year', 'Employment Rate',
+   'Average Salary (THB/month)', 'Job Relevance Score', 'Further Study Rate', 'Sample Size'],
+  ['NU-CIV-BE', 2022, 2023, 0.87, 24500, 0.81, 0.09, 96],
+  // The same cohort surveyed a year later: a second row, not a correction.
+  ['NU-CIV-BE', 2022, 2024, 0.92, 27800, 0.84, 0.06, 88],
+]);
+
 // ── files that must be REFUSED, one rule each ───────────────────────────────
 
 // An extra column — the primary privacy defence.
@@ -73,6 +98,22 @@ write('bad-reference.xlsx', 'Programmes', [
    'Department Code', 'Level', 'Status', 'Year Established',
    'Duration (years)', 'Total Credits', 'Official Code'],
   ['NU-ORPHAN', 'ทดสอบ', 'Orphan', 'NU-NOPE', null, 'BACHELOR', null, null, null, null, null],
+]);
+
+// A Buddhist-era year. It clears every "is this a plausible number" test,
+// and the figures then sit on a year no surface will ever ask for.
+write('bad-buddhist-year.xlsx', 'Enrolment', [
+  ['Programme Code', 'Academic Year', 'Applications', 'Admitted', 'Enrolled',
+   'Retained to Year 2', 'Graduated on Time', 'Graduated Late', 'Dropouts'],
+  ['NU-CIV-BE', 2568, 500, 180, 140, null, null, null, null],
+]);
+
+// A rate written as a percentage. 87 and 0.87 are both plausible numbers;
+// one of them reports 8700 % employment.
+write('bad-percentage-rate.xlsx', 'Graduate Outcomes', [
+  ['Programme Code', 'Graduation Year', 'Survey Year', 'Employment Rate',
+   'Average Salary (THB/month)', 'Job Relevance Score', 'Further Study Rate', 'Sample Size'],
+  ['NU-CIV-BE', 2022, 2025, 87, 24500, 0.81, 0.09, 96],
 ]);
 
 // Two headers differing only by a trailing space — silently merged before.

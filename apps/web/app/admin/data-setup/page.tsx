@@ -307,6 +307,7 @@ export default async function AdminDataSetupPage() {
               `${stats.studentInfo.enrollmentMetricRows} enrollment-metric rows total`,
               `${stats.studentInfo.programsWithoutEnrollment} programs with no enrollment data`,
               `Source: kku-registry connector (live)`,
+              'Also importable from a spreadsheet — see "View raw data"',
             ]}
             href="/admin/data-sources/kku-registry"
             cta="View kku-registry data source"
@@ -331,6 +332,7 @@ export default async function AdminDataSetupPage() {
               `${stats.financial.programMetrics} financial-metric rows total`,
               `${stats.financial.facultyBudgetRows} faculty-budget rows`,
               `Source: kku-finance connector (live)`,
+              'Revenue is also importable from a spreadsheet; cost columns are not',
             ]}
             href="/admin/data-sources/kku-finance"
             cta="View kku-finance data source"
@@ -420,6 +422,7 @@ export default async function AdminDataSetupPage() {
             <RawDatasetLink slug="enrollment-metrics" label="Enrollment metrics" />
             <RawDatasetLink slug="student-demographics" label="Student demographics" />
             <RawDatasetLink slug="financial-metrics" label="Financial — per program" />
+            <RawDatasetLink slug="graduate-outcomes" label="Graduate outcomes (employment survey)" />
             <RawDatasetLink slug="faculty-budgets" label="Faculty budgets" />
             <RawDatasetLink slug="faculty-members" label="Academic staff" />
             <RawDatasetLink slug="faculty-compensation" label="Faculty compensation (aggregate)" />

@@ -222,6 +222,39 @@ try {
       data ? `+${data.inserted} deduplicated=${data.deduplicated}` : `status ${api?.status}`);
   }
 
+  // ── tier 1: the metrics the Deep-Dive is built from ─────────────────────
+  // After the replay, so the programmes these refer to exist again.
+  for (const [slug, file, label] of [
+    ['enrollment-metrics', '05-enrolment.xlsx', 'enrolment'],
+    ['financial-metrics', '06-finance.xlsx', 'finance'],
+    ['graduate-outcomes', '07-outcomes.xlsx', 'outcomes'],
+  ]) {
+    const { api } = await upload(slug, file, true);
+    const data = api?.body?.data;
+    const ok = api?.status === 201 || api?.status === 200;
+    record(`upload ${label}`, Boolean(ok && data && !data.deduplicated && data.inserted > 0),
+      data ? `+${data.inserted} ~${data.updated} of ${data.rowCount}` : `status ${api?.status}`);
+    await page.screenshot({ path: `${SHOTS}/upload-${label}.png`, fullPage: false });
+  }
+
+  // The figures must be on the page, not merely in the database.
+  await openDataset('enrollment-metrics');
+  const enrolmentText = await page.innerText('body');
+  record('enrolment rows visible in the raw view',
+    enrolmentText.includes('NU-CIV-BE') && enrolmentText.includes('2024'),
+    'NU-CIV-BE 2024');
+  await page.screenshot({ path: `${SHOTS}/enrolment-loaded.png`, fullPage: true });
+
+  // The two mistakes an adopter will actually make.
+  for (const [slug, file, label, pattern] of [
+    ['enrollment-metrics', 'bad-buddhist-year.xlsx', 'Buddhist-era year refused', /Buddhist/i],
+    ['graduate-outcomes', 'bad-percentage-rate.xlsx', 'percentage rate refused', /between 0 and 1|0\.87/i],
+  ]) {
+    const { text } = await upload(slug, file);
+    record(label, pattern.test(text), (text.match(pattern) ?? ['not found'])[0]);
+    await page.screenshot({ path: `${SHOTS}/refusal-${file.replace('.xlsx', '')}.png` });
+  }
+
   // Cascade guard: faculties must refuse while programmes exist.
   await openDataset('faculties');
   await page.fill('input[aria-label*="confirm"]', 'Faculties');
@@ -232,6 +265,18 @@ try {
     /Cannot clear|depends on it|would be deleted/i.test(cascade),
     (cascade.match(/Cannot clear[^.]*\./) ?? ['see screenshot'])[0]);
   await page.screenshot({ path: `${SHOTS}/cascade-refusal.png`, fullPage: true });
+
+  // And programmes must now refuse too, naming the metric rows a clear
+  // would cascade into — the guard doing its job against real figures.
+  await openDataset('programmes');
+  await page.fill('input[aria-label*="confirm"]', 'Programmes');
+  await page.click('button:has-text("Clear this dataset")');
+  await page.waitForTimeout(2500);
+  const metricCascade = await page.innerText('body');
+  record('programmes refuses to clear while metric rows exist',
+    /enrolment figures|financial figures|graduate outcomes/i.test(metricCascade),
+    (metricCascade.match(/Cannot clear[^.]*\./) ?? ['see screenshot'])[0]);
+  await page.screenshot({ path: `${SHOTS}/cascade-refusal-metrics.png`, fullPage: true });
 } catch (e) {
   record('driver', false, String(e).slice(0, 300));
   await page.screenshot({ path: `${SHOTS}/driver-error.png`, fullPage: true }).catch(() => {});
