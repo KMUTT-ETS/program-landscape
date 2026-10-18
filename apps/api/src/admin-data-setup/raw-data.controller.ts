@@ -290,6 +290,101 @@ const DATASETS: Record<string, DatasetFetcher> = {
     };
   },
 
+  // ── Cohort progression and outcomes ──────────────────────────────────────
+  'student-cohorts': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.StudentCohortDistributionWhereInput = q.q
+      ? {
+          program: {
+            OR: [
+              { code: { contains: q.q, mode: 'insensitive' } },
+              { nameEn: { contains: q.q, mode: 'insensitive' } },
+              { nameTh: { contains: q.q } },
+            ],
+          },
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.studentCohortDistribution.findMany({
+        where,
+        include: { program: { select: { code: true, nameEn: true } } },
+        orderBy: [{ entryYearBE: 'desc' }, { programId: 'asc' }],
+        skip,
+        take: q.pageSize,
+      }),
+      prisma.studentCohortDistribution.count({ where }),
+    ]);
+    return {
+      title: 'Student cohorts — still enrolled per entry year',
+      description:
+        'One row per (programme, entry cohort). Entry year is BUDDHIST ERA, as the registrar records it; the import template asks for a Common Era year and converts on load.',
+      columns: [
+        { key: 'entryYearBE', label: 'Entry year (BE)', numeric: true },
+        { key: 'programCode', label: 'Programme' },
+        { key: 'programNameEn', label: 'Name (EN)' },
+        { key: 'studentCount', label: 'Still enrolled', numeric: true },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        entryYearBE: r.entryYearBE,
+        programCode: r.program?.code ?? r.programId,
+        programNameEn: r.program?.nameEn ?? '',
+        studentCount: r.studentCount,
+        imported: r.ingestionRunId !== null,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
+  'alumni-cohorts': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.AlumniCohortStatusWhereInput = q.q
+      ? {
+          program: {
+            OR: [
+              { code: { contains: q.q, mode: 'insensitive' } },
+              { nameEn: { contains: q.q, mode: 'insensitive' } },
+              { nameTh: { contains: q.q } },
+            ],
+          },
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.alumniCohortStatus.findMany({
+        where,
+        include: { program: { select: { code: true, nameEn: true } } },
+        orderBy: [{ entryYearBE: 'desc' }, { programId: 'asc' }, { statusBucket: 'asc' }],
+        skip,
+        take: q.pageSize,
+      }),
+      prisma.alumniCohortStatus.count({ where }),
+    ]);
+    return {
+      title: 'Alumni cohorts — outcome per entry year',
+      description:
+        'One row per (programme, entry cohort, outcome). Entry year is BUDDHIST ERA. A status the Deep-Dive does not recognise is counted under "other" rather than refused.',
+      columns: [
+        { key: 'entryYearBE', label: 'Entry year (BE)', numeric: true },
+        { key: 'programCode', label: 'Programme' },
+        { key: 'statusBucket', label: 'Status' },
+        { key: 'count', label: 'Count', numeric: true },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        entryYearBE: r.entryYearBE,
+        programCode: r.program?.code ?? r.programId,
+        statusBucket: r.statusBucket,
+        count: r.count,
+        imported: r.ingestionRunId !== null,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
   // ── Graduate outcomes ────────────────────────────────────────────────────
   'graduate-outcomes': async (q) => {
     const skip = (q.page - 1) * q.pageSize;

@@ -40,6 +40,8 @@ const DATASET_TITLES: Record<string, string> = {
   'student-demographics': 'Student demographics',
   'financial-metrics': 'Financial — per program',
   'graduate-outcomes': 'Graduate outcomes (employment survey)',
+  'student-cohorts': 'Student cohorts (still enrolled)',
+  'alumni-cohorts': 'Alumni cohorts (outcome per cohort)',
   'faculty-budgets': 'Faculty budgets',
   'faculty-members': 'Academic staff roster',
   'faculty-compensation': 'Faculty compensation (aggregate)',

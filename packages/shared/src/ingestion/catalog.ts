@@ -631,6 +631,30 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'Rows covering fewer than five respondents are refused.',
     mocked: false,
   },
+  {
+    slug: 'xlsx-student-cohorts',
+    name: 'Student Cohorts (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Students still enrolled per programme per entry cohort, uploaded through /admin/data-setup. ' +
+      'The sheet asks for a Common Era year; the stored figure is Buddhist era.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-alumni-cohorts',
+    name: 'Alumni Cohorts (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Cohort outcomes per programme per entry cohort per status, uploaded through /admin/data-setup. ' +
+      'The sheet asks for a Common Era year; the stored figure is Buddhist era.',
+    mocked: false,
+  },
 ] as const;
 
 export function getCatalogEntry(slug: string): SourceCatalogEntry | undefined {
