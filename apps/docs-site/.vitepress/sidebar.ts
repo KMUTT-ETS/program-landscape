@@ -43,6 +43,7 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
       text: 'Data integration',
       items: [
         { text: 'Ingestion framework', link: '/data-sources' },
+        { text: 'Importing from spreadsheets', link: '/data-import' },
         { text: 'Source catalogue', link: '/data-sources/README' },
         { text: 'Per-source specs', collapsed: true, items: dataSourceItems(docsDir) },
         { text: 'JobThai acknowledgement', link: '/acknowledgements/jobthai' },

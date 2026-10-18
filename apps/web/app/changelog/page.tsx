@@ -26,6 +26,19 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-10-18',
+    version: 'Unreleased · Import from spreadsheets',
+    title: 'An institution can now create its faculties, departments and programmes by uploading spreadsheets, with no code changes',
+    audience: ['Admin'],
+    bullets: [
+      'Each dataset has a Download template button on its page under Data setup. The template carries the exact columns the system accepts, plus a Guide sheet explaining every column with an example and its allowed values.',
+      'A file is checked while you wait. If anything is wrong you get the list of rows and columns to fix, and nothing is stored — so a bad upload never leaves the data half-changed.',
+      'Uploading the same dataset again updates the rows whose codes are already here, adds the new ones, and leaves everything else alone. Uploading a byte-for-byte identical file does nothing and says so.',
+      'Uploads are refused if a column is unexpected, if a cell holds a national ID number, or if the file has fewer than half the rows currently stored — the last with a button to proceed when you know it is right.',
+      'Each dataset has a Start over control that removes what was imported and leaves anything from a connector alone. Your uploaded files are kept so you can rebuild by uploading them again, and it refuses while other data still depends on the dataset.',
+    ],
+  },
+  {
     date: '2026-10-06',
     version: 'v2.1.4 · Deploy reliability',
     title: 'Deployments no longer fail when a service from an older release still points at that release’s files; nothing changes on screen',

@@ -21,6 +21,9 @@ All 40 catalog sources are now listed. Rows marked *(no spec yet)* have a connec
 | **A** Internal | `kku-research` | KKU Research Affairs | **`real`** | [kku-research.md](./kku-research.md) | — |
 | **A** Internal | `kku-evaluations` | KKU Student Evaluations (Teaching & Learning) | **`real`** | [kku-evaluations.md](./kku-evaluations.md) | Phase 0 complete 2026-05-19 |
 | **A** Internal | `kku-research-services` | KKU Research & Academic Services (external grants) | **`real`** | [kku-research-services.md](./kku-research-services.md) | MySQL views, daily 04:00 |
+| **A** Internal | `xlsx-faculties` | Spreadsheet import — faculties | **`real`** | [../data-import.md](../data-import.md) | Adopter upload path |
+| **A** Internal | `xlsx-departments` | Spreadsheet import — departments | **`real`** | [../data-import.md](../data-import.md) | Adopter upload path |
+| **A** Internal | `xlsx-programmes` | Spreadsheet import — programmes | **`real`** | [../data-import.md](../data-import.md) | Adopter upload path |
 | **A** Internal | `digital-transcript` | Thailand Digital Transcript | `mocked` | [digital-transcript.md](./digital-transcript.md) | — |
 | **A** Internal | `mhesi-cisa` | MHESI CISA portal | `mocked` | [mhesi-cisa.md](./mhesi-cisa.md) | — |
 | **B** National | `nso-labor-force` | NSO Thailand | `mocked` | [nso-labor-force.md](./nso-labor-force.md) | PDF pipeline |

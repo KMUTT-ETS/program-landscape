@@ -169,6 +169,36 @@ describe('findLiveBatchByHash', () => {
   it('does not match a hash belonging to another dataset', async () => {
     expect(await findLiveBatchByHash(DEPENDENT_SLUG, 'live-hash-1')).toBeNull();
   });
+
+  it('revives a cleared batch when the same file is uploaded again', async () => {
+    // The cleared row still occupies the (datasetSlug, contentHash) unique
+    // slot, so recording the replay must update it rather than insert a
+    // second row — otherwise the replay path start-over promises throws.
+    const firstRun = await makeRun();
+    const first = await recordImportBatch({
+      datasetSlug: SLUG, filename: 'replay.xlsx', contentHash: 'replay-hash-1',
+      storageKey: 'k-replay', fileSize: 10, rowCount: 2, uploadedByUserId: null, ingestionRunId: firstRun,
+    });
+    await prisma.importBatch.update({
+      where: { id: first.id },
+      data: { status: 'CLEARED', clearedAt: new Date() },
+    });
+
+    const secondRun = await makeRun();
+    const second = await recordImportBatch({
+      datasetSlug: SLUG, filename: 'replay.xlsx', contentHash: 'replay-hash-1',
+      storageKey: 'k-replay', fileSize: 10, rowCount: 2, uploadedByUserId: null, ingestionRunId: secondRun,
+    });
+
+    expect(second.id).toBe(first.id);
+    const row = await prisma.importBatch.findUniqueOrThrow({
+      where: { id: first.id },
+      select: { status: true, clearedAt: true, ingestionRunId: true },
+    });
+    expect(row.status).toBe('SUCCEEDED');
+    expect(row.clearedAt).toBeNull();
+    expect(row.ingestionRunId).toBe(secondRun);
+  });
 });
 
 describe('startOverDataset', () => {

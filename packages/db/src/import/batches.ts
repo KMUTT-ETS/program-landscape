@@ -68,21 +68,39 @@ export async function findLiveBatchByHash(
   });
 }
 
+/**
+ * Records an upload.
+ *
+ * An UPSERT, not a create, and the difference is the replay path. Start-over
+ * keeps a batch row and marks it CLEARED, which leaves it occupying the
+ * (datasetSlug, contentHash) unique slot. findLiveBatchByHash rightly ignores
+ * cleared rows so the same file loads again — but the insert that follows
+ * would then collide with the very row that was kept. Re-uploading a cleared
+ * file therefore revives its batch: same file, same hash, new run.
+ */
 export async function recordImportBatch(
   input: RecordImportBatchInput,
 ): Promise<{ id: string }> {
-  return prisma.importBatch.create({
-    data: {
-      datasetSlug: input.datasetSlug,
-      filename: input.filename,
-      contentHash: input.contentHash,
-      storageKey: input.storageKey,
-      fileSize: input.fileSize,
-      rowCount: input.rowCount,
-      status: 'SUCCEEDED',
-      uploadedByUserId: input.uploadedByUserId,
-      ingestionRunId: input.ingestionRunId,
+  const fields = {
+    filename: input.filename,
+    storageKey: input.storageKey,
+    fileSize: input.fileSize,
+    rowCount: input.rowCount,
+    status: 'SUCCEEDED' as const,
+    uploadedByUserId: input.uploadedByUserId,
+    ingestionRunId: input.ingestionRunId,
+    errorMessage: null,
+    clearedAt: null,
+  };
+  return prisma.importBatch.upsert({
+    where: {
+      datasetSlug_contentHash: {
+        datasetSlug: input.datasetSlug,
+        contentHash: input.contentHash,
+      },
     },
+    create: { datasetSlug: input.datasetSlug, contentHash: input.contentHash, ...fields },
+    update: fields,
     select: { id: true },
   });
 }
