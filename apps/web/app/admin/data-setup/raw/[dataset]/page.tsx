@@ -7,6 +7,7 @@ import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { Badge, Button, Card, PageHeader } from '@kku/ui';
+import { ImportPanel, type ImportPanelDataset } from './import-panel';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Data setup — raw view' };
@@ -31,6 +32,10 @@ interface RawDatasetResult {
 }
 
 const DATASET_TITLES: Record<string, string> = {
+  // Organisation backbone — importable from a spreadsheet (tier 0).
+  faculties: 'Faculties',
+  departments: 'Departments',
+  programmes: 'Programmes',
   'enrollment-metrics': 'Student information (enrollment)',
   'student-demographics': 'Student demographics',
   'financial-metrics': 'Financial — per program',
@@ -83,6 +88,13 @@ export default async function RawDatasetPage({
     } as RawDatasetResult;
   });
 
+  // Null for a dataset the import framework does not know about, which is
+  // every dataset fed only by a connector. Those pages render exactly as
+  // they did before.
+  const importDataset = await apiFetch<ImportPanelDataset>(
+    `/admin/imports/${encodeURIComponent(dataset)}`,
+  ).catch(() => null);
+
   const totalPages = Math.max(1, Math.ceil(result.total / pageSize));
   const fromIdx = (page - 1) * pageSize + 1;
   const toIdx = Math.min(page * pageSize, result.total);
@@ -104,6 +116,8 @@ export default async function RawDatasetPage({
         title={result.title}
         subtitle={result.description}
       />
+
+      {importDataset ? <ImportPanel dataset={importDataset} /> : null}
 
       <Card padding="md" tone="quiet" className="flex flex-wrap items-center justify-between gap-4">
         <form action={`/admin/data-setup/raw/${dataset}`} method="get" className="flex items-center gap-3">

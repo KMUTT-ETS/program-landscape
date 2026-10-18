@@ -83,6 +83,156 @@ export class AdminDataSetupRawController {
 type DatasetFetcher = (q: RawDataQuery) => Promise<RawDatasetResult>;
 
 const DATASETS: Record<string, DatasetFetcher> = {
+  // ── Organisation backbone (spreadsheet import) ──────────────────────────
+  // Tier 0 of the import framework. On an installation with no registrar
+  // connector these are the only way the org chart exists at all, so the
+  // raw view doubles as the adopter's confirmation that an upload landed.
+  faculties: async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.FacultyWhereInput = q.q
+      ? {
+          OR: [
+            { code: { contains: q.q, mode: 'insensitive' } },
+            { nameEn: { contains: q.q, mode: 'insensitive' } },
+            { nameTh: { contains: q.q } },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.faculty.findMany({
+        where,
+        orderBy: { code: 'asc' },
+        skip,
+        take: q.pageSize,
+        include: { _count: { select: { departments: true, programs: true } } },
+      }),
+      prisma.faculty.count({ where }),
+    ]);
+    return {
+      title: 'Faculties',
+      description:
+        'Faculties, colleges and institutes. Populated by the Faculties spreadsheet import, or by the seed on a KKU installation.',
+      columns: [
+        { key: 'code', label: 'Code' },
+        { key: 'nameTh', label: 'Name (TH)' },
+        { key: 'nameEn', label: 'Name (EN)' },
+        { key: 'kind', label: 'Kind' },
+        { key: 'departments', label: 'Departments', numeric: true },
+        { key: 'programs', label: 'Programmes', numeric: true },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        code: r.code,
+        nameTh: r.nameTh,
+        nameEn: r.nameEn,
+        kind: r.kind,
+        departments: r._count.departments,
+        programs: r._count.programs,
+        imported: r.ingestionRunId !== null,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
+  departments: async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.DepartmentWhereInput = q.q
+      ? {
+          OR: [
+            { code: { contains: q.q, mode: 'insensitive' } },
+            { nameEn: { contains: q.q, mode: 'insensitive' } },
+            { nameTh: { contains: q.q } },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.department.findMany({
+        where,
+        orderBy: { code: 'asc' },
+        skip,
+        take: q.pageSize,
+        include: { faculty: { select: { code: true } }, _count: { select: { programs: true } } },
+      }),
+      prisma.department.count({ where }),
+    ]);
+    return {
+      title: 'Departments',
+      description: 'Departments within a faculty. Optional — an installation may put programmes directly under a faculty.',
+      columns: [
+        { key: 'code', label: 'Code' },
+        { key: 'nameTh', label: 'Name (TH)' },
+        { key: 'nameEn', label: 'Name (EN)' },
+        { key: 'facultyCode', label: 'Faculty' },
+        { key: 'programs', label: 'Programmes', numeric: true },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        code: r.code,
+        nameTh: r.nameTh,
+        nameEn: r.nameEn,
+        facultyCode: r.faculty?.code ?? '—',
+        programs: r._count.programs,
+        imported: r.ingestionRunId !== null,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
+  programmes: async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.ProgramWhereInput = q.q
+      ? {
+          OR: [
+            { code: { contains: q.q, mode: 'insensitive' } },
+            { nameEn: { contains: q.q, mode: 'insensitive' } },
+            { nameTh: { contains: q.q } },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.program.findMany({
+        where,
+        orderBy: { code: 'asc' },
+        skip,
+        take: q.pageSize,
+        include: { faculty: { select: { code: true } }, department: { select: { code: true } } },
+      }),
+      prisma.program.count({ where }),
+    ]);
+    return {
+      title: 'Programmes',
+      description:
+        'Curricula. "Canonical" means the programme carries a sequence number; Council surfaces list only canonical programmes, and the importer assigns one on insert.',
+      columns: [
+        { key: 'code', label: 'Code' },
+        { key: 'nameEn', label: 'Name (EN)' },
+        { key: 'level', label: 'Level' },
+        { key: 'status', label: 'Status' },
+        { key: 'facultyCode', label: 'Faculty' },
+        { key: 'departmentCode', label: 'Department' },
+        { key: 'canonical', label: 'Canonical' },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        code: r.code,
+        nameEn: r.nameEn,
+        level: r.level,
+        status: r.status,
+        facultyCode: r.faculty?.code ?? '—',
+        departmentCode: r.department?.code ?? '—',
+        canonical: r.sequenceNoFromSheet !== null,
+        imported: r.ingestionRunId !== null,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
   // ── Student information (kku-registry) ──────────────────────────────────
   'enrollment-metrics': async (q) => {
     const skip = (q.page - 1) * q.pageSize;
