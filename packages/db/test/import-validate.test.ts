@@ -273,6 +273,40 @@ describe('validateSheet — keys', () => {
     const result = validateSheet(optionalKey, sheet(['Code', 'Name'], [{ Code: null, Name: 'Alpha' }]), ctx());
     expect(errorsOf(result)[0].column).toBe('Code');
   });
+
+  it('allows a blank optional component of a COMPOUND key', () => {
+    // The compensation case: a row with no department is the faculty-wide
+    // figure, and the other three components still identify it. This is why
+    // `manual` matching exists — Postgres treats NULL as distinct, so such a
+    // row can never be constrained by a unique index.
+    const compound = makeDataset({
+      strategy: { kind: 'upsert', match: { kind: 'manual', columns: ['code', 'name'] } },
+      columns: [
+        { header: 'Code', key: 'code', type: 'text', required: true, guide: 'the code', example: 'A1' },
+        { header: 'Name', key: 'name', type: 'text', required: false, guide: 'the name', example: 'x' },
+      ],
+    });
+    const result = validateSheet(compound, sheet(['Code', 'Name'], [{ Code: 'A1', Name: null }]), ctx());
+    expect(result.ok).toBe(true);
+  });
+
+  it('still catches two rows that are blank in the same key component', () => {
+    // Blank must behave as a VALUE in the key, not as a wildcard, or two
+    // faculty-wide rows for one rank and year would both load.
+    const compound = makeDataset({
+      strategy: { kind: 'upsert', match: { kind: 'manual', columns: ['code', 'name'] } },
+      columns: [
+        { header: 'Code', key: 'code', type: 'text', required: true, guide: 'the code', example: 'A1' },
+        { header: 'Name', key: 'name', type: 'text', required: false, guide: 'the name', example: 'x' },
+      ],
+    });
+    const result = validateSheet(
+      compound,
+      sheet(['Code', 'Name'], [{ Code: 'A1', Name: null }, { Code: 'A1', Name: null }]),
+      ctx(),
+    );
+    expect(result.ok).toBe(false);
+  });
 });
 
 describe('validateSheet — references', () => {

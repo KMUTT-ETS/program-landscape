@@ -667,6 +667,18 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'no date of birth and no national ID, in any form.',
     mocked: false,
   },
+  {
+    slug: 'xlsx-faculty-compensation',
+    name: 'Compensation (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Aggregate salary by faculty, department and rank, uploaded through /admin/data-setup. ' +
+      'A row covering fewer than five people is refused, the same floor the kku-hr connector applies in SQL.',
+    mocked: false,
+  },
 ] as const;
 
 export function getCatalogEntry(slug: string): SourceCatalogEntry | undefined {

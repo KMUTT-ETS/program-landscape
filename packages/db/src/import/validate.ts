@@ -358,6 +358,25 @@ export function validateSheet(
     let incomplete = false;
     for (const key of keyColumns) {
       const value = row[key];
+
+      // One OPTIONAL component of a COMPOUND key may be blank, and the blank
+      // is part of the row's identity rather than a hole in it: a
+      // compensation row with no department is the faculty-wide figure, not
+      // a broken department one. That is the whole reason `manual` matching
+      // exists — Postgres treats NULL as distinct in a unique index, so such
+      // a row cannot be constrained by one. Blank joins the key as its own
+      // value, which keeps the duplicate check below honest.
+      //
+      // A key of ONE column is different and still refused however it is
+      // declared: a row whose only identifying cell is blank has no identity
+      // at all, and nothing downstream could ever find it again.
+      const optionalPartOfCompoundKey =
+        keyColumns.length > 1 && columnByKey.get(key)?.required === false;
+      if ((value === null || value === undefined) && optionalPartOfCompoundKey) {
+        parts.push('\u0000blank');
+        continue;
+      }
+
       if (value === null || value === undefined) {
         // Only report when the cell itself did not already fail.
         const header = headerFor(key);
