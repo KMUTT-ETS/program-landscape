@@ -52,7 +52,7 @@ import {
   type Intervention,
   type ToolCall,
 } from '@kku/shared';
-import { listPortfolioRisk, scopeFunnelLatestYear, getAcademicYearContext, entryYearComplete } from '@kku/db';
+import { listPortfolioRisk, scopeFunnelLatestYear, getAcademicYearContext, entryYearComplete, campaignPlanKey } from '@kku/db';
 
 // ═════════════════════════════════════════════════════════════════════
 // Analyst tool executor
@@ -1002,6 +1002,10 @@ export class AnalystToolExecutor {
         select: {
           programId: true,
           recruitmentProgramId: true,
+          // Both only so campaignPlanKey can group an imported row, which
+          // carries no recruitment-programme id, on its own identity.
+          round: true,
+          campaignName: true,
           planPerYear: true,
           enrollSeats: true,
           totalApplicants: true,
@@ -1027,7 +1031,10 @@ export class AnalystToolExecutor {
         a.applicants += r.totalApplicants ?? 0;
         a.reported += r.regReported ?? 0;
         if (r.planPerYear != null) {
-          a.planBySub.set(r.recruitmentProgramId, Math.max(a.planBySub.get(r.recruitmentProgramId) ?? 0, r.planPerYear));
+          // An imported row has no recruitment-programme id and states its
+          // own plan, so it is its own group. See campaignPlanKey.
+          const planKey = campaignPlanKey(r);
+          a.planBySub.set(planKey, Math.max(a.planBySub.get(planKey) ?? 0, r.planPerYear));
         }
       }
       const aggregated = [...byProg.values()]

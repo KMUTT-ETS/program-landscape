@@ -703,6 +703,18 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'Shares research_outputs with the publications connectors; matching is by DOI, falling back to title and year within one person.',
     mocked: false,
   },
+  {
+    slug: 'xlsx-admission-campaigns',
+    name: 'Admission Campaigns (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Admissions funnel per campaign, uploaded through /admin/data-setup. Offers none of the registrar-specific identifiers ' +
+      'the kku-admission-campaigns connector writes; those columns are null on an imported row.',
+    mocked: false,
+  },
 ] as const;
 
 export function getCatalogEntry(slug: string): SourceCatalogEntry | undefined {

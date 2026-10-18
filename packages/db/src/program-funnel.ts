@@ -14,6 +14,7 @@
 // never summed across rounds.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { campaignPlanKey } from './campaign-plan-key';
 import { prisma } from './index';
 import { realDataWhere, realDataSqlUnsafe } from './data-quality';
 import { getAcademicYearContext, entryYearComplete } from './academic-year';
@@ -54,7 +55,8 @@ export interface ProgramFunnelYear {
 }
 
 interface RawRow {
-  recruitmentProgramId: string;
+  recruitmentProgramId: string | null;
+  campaignName: string;
   acadYearBE: number;
   round: string;
   enrollSeats: number | null;
@@ -76,8 +78,9 @@ function planSum(rows: RawRow[]): number | null {
   for (const r of rows) {
     if (r.planPerYear === null) continue;
     any = true;
-    const cur = byPid.get(r.recruitmentProgramId);
-    byPid.set(r.recruitmentProgramId, cur == null ? r.planPerYear : Math.max(cur, r.planPerYear));
+    const key = campaignPlanKey(r);
+    const cur = byPid.get(key);
+    byPid.set(key, cur == null ? r.planPerYear : Math.max(cur, r.planPerYear));
   }
   if (!any) return null;
   let s = 0;
@@ -90,6 +93,7 @@ async function loadProgramRows(programId: string): Promise<RawRow[]> {
     where: { programId, ...realDataWhere() },
     select: {
       recruitmentProgramId: true,
+      campaignName: true,
       acadYearBE: true,
       round: true,
       enrollSeats: true,

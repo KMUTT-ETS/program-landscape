@@ -46,6 +46,7 @@ export * from './risk-scoring';
 export * from './risk-measure-rules';
 export * from './retention';
 export * from './sign-in-lockout';
+export * from './campaign-plan-key';
 export * from './data-quality';
 export * from './research-services';
 export * from './grant-award';

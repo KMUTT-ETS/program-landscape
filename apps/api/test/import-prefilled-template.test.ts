@@ -115,9 +115,40 @@ describe('a pre-filled template, filled in partly and uploaded', () => {
     expect(result.errors[0]?.message).toMatch(/Buddhist/i);
   });
 
+  it('loads only the student-cohort row the operator filled', () => {
+    const result = roundTrip(getImportDataset('student-cohorts'), (row) => {
+      row['Students Still Enrolled'] = 118;
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]).toMatchObject({ studentCount: 118, entryYear: YEARS[0] });
+  });
+
+  it('accepts an alumni-cohort template despite its required status column', () => {
+    // Status is a required KEY column the pre-fill deliberately leaves
+    // blank, because a cohort has several and guessing one looks like an
+    // answer. Untouched rows must still be skipped rather than refused.
+    const result = roundTrip(getImportDataset('alumni-cohorts'), (row) => {
+      row['Status'] = 'GRADUATED';
+      row['Count'] = 94;
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.rows).toHaveLength(1);
+  });
+
   it('covers every dataset that ships a pre-fill', () => {
     // So a new pre-filled dataset cannot be added without a case above.
     const prefilled = listImportDatasets().filter((d) => d.prefill).map((d) => d.slug).sort();
-    expect(prefilled).toEqual(['enrollment-metrics', 'financial-metrics', 'graduate-outcomes']);
+    expect(prefilled).toEqual([
+      'alumni-cohorts',
+      'enrollment-metrics',
+      'financial-metrics',
+      'graduate-outcomes',
+      'student-cohorts',
+    ]);
   });
 });

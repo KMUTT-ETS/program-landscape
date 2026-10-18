@@ -5621,12 +5621,16 @@ model AdmissionCampaignStat {
   id                   String   @id @default(cuid())
   /// WPROGRAMID — Oracle's unique per-row surrogate for one campaign-track
   /// instance. The natural key for upserts.
-  wProgramId           String   @unique @map("w_program_id")
+  /// NULL for a row created by the spreadsheet importer: an adopting
+  /// university has no Oracle surrogate to supply. Still unique, which
+  /// Postgres allows alongside many NULLs.
+  wProgramId           String?  @unique @map("w_program_id")
   /// PROGRAMID — the recruitment-program code (≠ MHESI curr code). One
   /// PROGRAMID groups many campaign tracks. Resolved to a canonical
   /// Program via AdmissionStatProgramMapping. Length-1 / "0" values are
   /// the source's not-yet-assigned ("convert") rows.
-  recruitmentProgramId String   @map("recruitment_program_id")
+  /// NULL for an imported row — see wProgramId.
+  recruitmentProgramId String?  @map("recruitment_program_id")
   /// CURR_ID — the 14-digit MHESI curriculum code (added by Registrar IT
   /// 2026-05-30). Authoritative link to the canonical program via
   /// Program.mhesiCode ∪ ProgramMhesiAlias (same path the TCAS funnel

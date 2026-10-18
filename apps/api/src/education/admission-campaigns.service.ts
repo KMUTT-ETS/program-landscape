@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { prisma, getAcademicYearContext, academicYearContextSync, entryYearComplete } from '@kku/db';
+import { prisma, getAcademicYearContext, academicYearContextSync, entryYearComplete, campaignPlanKey } from '@kku/db';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Actual recruitment campaigns dashboard — POWERBI.ADMISSION_STAT, ingested
@@ -99,7 +99,8 @@ export interface CampaignYearRow extends CampaignMetrics {
 
 /** Individual campaign track (WPROGRAMID) — the deepest tier. */
 export interface CampaignTrackNode extends CampaignMetrics {
-  wProgramId: string;
+  /** Null for a spreadsheet-imported track: it has no registrar surrogate. */
+  wProgramId: string | null;
   campaignName: string;
 }
 
@@ -182,8 +183,10 @@ export interface CampaignDashboardPayload {
 }
 
 interface Row {
-  wProgramId: string;
-  recruitmentProgramId: string;
+  // Both are registrar identifiers and are NULL on a spreadsheet-imported
+  // row — an adopting university has neither.
+  wProgramId: string | null;
+  recruitmentProgramId: string | null;
   currId: string | null;
   campaignName: string;
   facultyId: string | null;
@@ -222,8 +225,9 @@ export class AdmissionCampaignsService {
     for (const r of rows) {
       if (r.planPerYear === null) continue;
       any = true;
-      const cur = byPid.get(r.recruitmentProgramId);
-      byPid.set(r.recruitmentProgramId, cur == null ? r.planPerYear : Math.max(cur, r.planPerYear));
+      const key = campaignPlanKey(r);
+      const cur = byPid.get(key);
+      byPid.set(key, cur == null ? r.planPerYear : Math.max(cur, r.planPerYear));
     }
     if (!any) return null;
     let s = 0;
@@ -246,13 +250,16 @@ export class AdmissionCampaignsService {
     const pidsTotal = new Set<string>();
     const pidsWithPlan = new Set<string>();
     for (const r of rows) {
-      pidsTotal.add(r.recruitmentProgramId);
-      if (r.planPerYear !== null) pidsWithPlan.add(r.recruitmentProgramId);
+      // An imported row has no PROGRAMID; it is its own group, so coverage
+      // counts it once rather than merging every such row into one bucket.
+      const key = campaignPlanKey(r);
+      pidsTotal.add(key);
+      if (r.planPerYear !== null) pidsWithPlan.add(key);
     }
     // Numerator for % Admit: enrolled only from plan-bearing programs, so it
     // sits over the same population as `plan` (the denominator).
     const enrolledWithPlan = rows.reduce(
-      (a, r) => (pidsWithPlan.has(r.recruitmentProgramId) ? a + num(r.regReported) : a),
+      (a, r) => (pidsWithPlan.has(campaignPlanKey(r)) ? a + num(r.regReported) : a),
       0,
     );
     return {
@@ -341,6 +348,9 @@ export class AdmissionCampaignsService {
     }
     const resolve = (r: Row): ProgramRef | null => {
       // A flagged new program is intentionally unmapped — skip curr_id/bridge.
+      // Both bridges are keyed on the registrar's PROGRAMID, so an imported
+      // row (which has none) can never be in either.
+      if (r.recruitmentProgramId === null) return null;
       if (newProgramByPid.has(r.recruitmentProgramId)) return null;
       // Per-PROGRAMID bridge wins over curr_id. The bridge is the deliberate,
       // analyst/LLM-curated mapping; it exists specifically to correct the
@@ -359,10 +369,15 @@ export class AdmissionCampaignsService {
     const programKey = (r: Row): string => {
       // Standalone key so a flagged new program never bundles with another
       // (even another row that shares its reused curr_id).
-      if (newProgramByPid.has(r.recruitmentProgramId)) return `new:${r.recruitmentProgramId}`;
+      if (r.recruitmentProgramId !== null && newProgramByPid.has(r.recruitmentProgramId)) {
+        return `new:${r.recruitmentProgramId}`;
+      }
       const ref = resolve(r);
       if (ref) return ref.programId;
-      return r.currId ? `curr:${r.currId}` : `pid:${r.recruitmentProgramId}`;
+      if (r.currId) return `curr:${r.currId}`;
+      // An imported row has no registrar id at all; its own identity is the
+      // only thing that distinguishes it.
+      return campaignPlanKey(r);
     };
 
     const scoped = allRows.filter((r) => {
@@ -391,12 +406,13 @@ export class AdmissionCampaignsService {
       .sort((a, b) => a.nameTh.localeCompare(b.nameTh, 'th'));
 
     const seatDataAvailable = allRows.some((r) => r.planPerYear !== null || r.enrollSeats !== null);
-    const allPids = new Set(allRows.map((r) => r.recruitmentProgramId));
+    const allPids = new Set(allRows.map((r) => campaignPlanKey(r)));
     let unmappedProgramCount = 0;
     const seenPid = new Set<string>();
     for (const r of allRows) {
-      if (seenPid.has(r.recruitmentProgramId)) continue;
-      seenPid.add(r.recruitmentProgramId);
+      const pidKey = campaignPlanKey(r);
+      if (seenPid.has(pidKey)) continue;
+      seenPid.add(pidKey);
       if (resolve(r) === null) unmappedProgramCount += 1;
     }
 
@@ -493,7 +509,12 @@ export class AdmissionCampaignsService {
       const ref = resolve(grp[0]!);
       // Sub-program tier (PROGRAMID).
       const subGroups = new Map<string, Row[]>();
-      for (const r of grp) (subGroups.get(r.recruitmentProgramId) ?? subGroups.set(r.recruitmentProgramId, []).get(r.recruitmentProgramId)!).push(r);
+      for (const r of grp) {
+        // An imported row has no PROGRAMID tier; it stands alone under the
+        // programme rather than merging with every other such row.
+        const sub = campaignPlanKey(r);
+        (subGroups.get(sub) ?? subGroups.set(sub, []).get(sub)!).push(r);
+      }
       const subPrograms: CampaignSubProgramNode[] = [...subGroups.entries()]
         .map(([pid, sg]) => {
           // Round tier (aggregate the competency-option tracks within a round).
@@ -522,7 +543,10 @@ export class AdmissionCampaignsService {
         .sort((a, b) => b.applicants - a.applicants);
       // New-program override: standalone, uncatalogued. Its key is per-PROGRAMID
       // (`new:<pid>`), so the whole group shares one recruitmentProgramId.
-      const newOvr = newProgramByPid.get(grp[0]!.recruitmentProgramId);
+      // An imported group has no PROGRAMID and can never be a flagged new
+      // programme — that flag is set against the registrar's own id.
+      const groupPid = grp[0]!.recruitmentProgramId;
+      const newOvr = groupPid === null ? undefined : newProgramByPid.get(groupPid);
       const isNewProgram = key.startsWith('new:');
       // Fallback display name = shortest campaign name in the group.
       const derivedLabel = grp.reduce((a, r) => (r.campaignName.length < a.length ? r.campaignName : a), grp[0]!.campaignName);
