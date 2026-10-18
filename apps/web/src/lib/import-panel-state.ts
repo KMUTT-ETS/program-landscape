@@ -23,9 +23,32 @@ export interface StartOverGateInput {
  * the whole point of the confirmation.
  */
 export function canStartOver(input: StartOverGateInput): boolean {
-  if (input.busy) return false;
-  if (input.liveBatchCount <= 0) return false;
-  return input.confirmName.trim() === input.title;
+  return startOverBlockedReason(input) === null;
+}
+
+/**
+ * Why "Clear this dataset" cannot be pressed, in words, or null when it can.
+ *
+ * A disabled destructive control that will not say what it is waiting for
+ * leaves the operator typing the name again and wondering which character is
+ * wrong. The commonest case is not a typo at all: there is nothing to clear,
+ * because start-over only ever removes rows an import created.
+ */
+export function startOverBlockedReason(input: StartOverGateInput): string | null {
+  if (input.busy) return 'Working…';
+  if (input.liveBatchCount <= 0) {
+    return (
+      'Nothing to clear: no upload has added rows to this dataset. Rows that ' +
+      'came from a connector or the original setup are never removed by this.'
+    );
+  }
+  if (input.confirmName.trim() === '') {
+    return `Type "${input.title}" above to confirm.`;
+  }
+  if (input.confirmName.trim() !== input.title) {
+    return `That does not match. Type "${input.title}" exactly, including capitals.`;
+  }
+  return null;
 }
 
 export interface UploadFailure {

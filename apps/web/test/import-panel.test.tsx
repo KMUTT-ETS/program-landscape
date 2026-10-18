@@ -15,6 +15,7 @@ import {
   canStartOver,
   describeUploadOutcome,
   isOverridableShrinkRefusal,
+  startOverBlockedReason,
 } from '../src/lib/import-panel-state';
 
 // Two halves, for the reason apps/web/vitest.config.ts gives: this workspace
@@ -113,6 +114,50 @@ describe('canStartOver', () => {
 
   it('refuses while another request is in flight', () => {
     expect(canStartOver({ ...base, busy: true })).toBe(false);
+  });
+});
+
+describe('startOverBlockedReason', () => {
+  const base = { confirmName: 'Faculties', title: 'Faculties', liveBatchCount: 1, busy: false };
+
+  it('says nothing when the button is ready', () => {
+    expect(startOverBlockedReason(base)).toBeNull();
+  });
+
+  it('explains the commonest case: there is nothing an import added', () => {
+    // Reported from the live UI: the name was typed correctly and the button
+    // stayed disabled with no reason given. The dataset had seeded rows but
+    // no uploads, and start-over never touches rows it did not create.
+    const reason = startOverBlockedReason({ ...base, liveBatchCount: 0, confirmName: '' });
+    expect(reason).toMatch(/nothing to clear/i);
+    expect(reason).toMatch(/connector|original setup/i);
+  });
+
+  it('keeps saying so even when the name is typed correctly', () => {
+    expect(startOverBlockedReason({ ...base, liveBatchCount: 0 })).toMatch(/nothing to clear/i);
+  });
+
+  it('asks for the name when the box is empty', () => {
+    expect(startOverBlockedReason({ ...base, confirmName: '' })).toMatch(/Type "Faculties"/);
+  });
+
+  it('says the name does not match, and that capitals count', () => {
+    const reason = startOverBlockedReason({ ...base, confirmName: 'faculties' });
+    expect(reason).toMatch(/does not match/i);
+    expect(reason).toMatch(/capitals/i);
+  });
+
+  it('reports work in progress', () => {
+    expect(startOverBlockedReason({ ...base, busy: true })).toMatch(/working/i);
+  });
+
+  it('agrees with canStartOver in every case', () => {
+    for (const over of [
+      {}, { liveBatchCount: 0 }, { confirmName: '' }, { confirmName: 'nope' }, { busy: true },
+    ]) {
+      const input = { ...base, ...over };
+      expect(canStartOver(input)).toBe(startOverBlockedReason(input) === null);
+    }
   });
 });
 

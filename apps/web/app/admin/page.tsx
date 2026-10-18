@@ -654,6 +654,26 @@ function buildGroups({
   // intelligence feeds. PDF library handles non-curriculum docs.
   const external: ConsoleTile[] = [
     {
+      // First in the group because it is the overview the others are
+      // detail views of — and, on an installation with no connectors, the
+      // only way in: the spreadsheet import for faculties, departments and
+      // programmes lives behind it.
+      href: '/admin/data-setup',
+      label: 'Data setup',
+      description:
+        'Every input category in one place — curriculum documents, students, staff, finance, labour market, research — with what is loaded, what is missing, and where it came from. Faculties, departments and programmes can be imported from a spreadsheet here.',
+      icon: <Layers className="size-icon-xl" />,
+      badge: dataStats
+        ? {
+            label: `${dataStats.programs.total.toLocaleString()} programmes`,
+            tone: dataStats.programs.total > 0 ? 'neutral' : 'warning',
+          }
+        : undefined,
+      meta: dataStats
+        ? `${dataStats.dataFeeds.live} live feeds · ${dataStats.dataFeeds.mocked} mocked`
+        : undefined,
+    },
+    {
       href: '/admin/data-sources',
       label: 'DB / API connectors',
       description:
@@ -900,9 +920,9 @@ function buildGroups({
     },
     {
       eyebrow: 'Group 2',
-      label: 'External data',
+      label: 'Data',
       caption:
-        'Sources outside KKU — connectors, AI-summarised intelligence feeds, non-curriculum PDFs, and data-quality monitoring.',
+        'Where everything the platform analyses comes from — the data-setup overview, connectors, spreadsheet imports, AI-summarised intelligence feeds, non-curriculum PDFs, and data-quality monitoring.',
       tiles: external.filter(filterByRole),
     },
     {

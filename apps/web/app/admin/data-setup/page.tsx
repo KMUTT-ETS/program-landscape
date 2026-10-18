@@ -129,6 +129,54 @@ export default async function AdminDataSetupPage() {
         </div>
       )}
 
+      {/* ── Organisation backbone ────────────────────────────────── */}
+      {/* First, because everything below hangs off these three. On an
+          installation with no registrar connector they are also the only
+          data that exists at all until someone uploads them. */}
+      <Section
+        title="Organisation"
+        description="The faculties, departments and programmes everything else refers to. Importable from a spreadsheet — load them in this order, since each refers to the one before it."
+      >
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <CategoryCard
+            tone="glossy"
+            icon={<Building2 />}
+            title="Faculties"
+            description="Faculties, colleges and institutes. Upload this first — departments and programmes refer to these codes."
+            primary={{ label: 'Spreadsheet import', tone: 'neutral' }}
+            secondary={['Download a template, fill it, upload it', 'Re-uploading updates matching rows']}
+            href="/admin/data-setup/raw/faculties"
+            cta="Open faculties"
+            rawHref="/admin/data-setup/raw/faculties"
+            rawCta="View raw data"
+          />
+
+          <CategoryCard
+            icon={<GitBranch />}
+            title="Departments"
+            description="Departments within a faculty. Optional — leave empty if programmes hang directly off faculties."
+            primary={{ label: 'Spreadsheet import', tone: 'neutral' }}
+            secondary={['Refers to Faculty Code', 'Upload faculties first']}
+            href="/admin/data-setup/raw/departments"
+            cta="Open departments"
+            rawHref="/admin/data-setup/raw/departments"
+            rawCta="View raw data"
+          />
+
+          <CategoryCard
+            icon={<GraduationCap />}
+            title="Programmes"
+            description="The curricula this institution offers. Every metric imported later refers to these codes."
+            primary={{ label: 'Spreadsheet import', tone: 'neutral' }}
+            secondary={['Refers to Faculty and Department Code', 'Imported rows are made canonical automatically']}
+            href="/admin/data-setup/raw/programmes"
+            cta="Open programmes"
+            rawHref="/admin/data-setup/raw/programmes"
+            rawCta="View raw data"
+          />
+        </div>
+      </Section>
+
       {/* ── Curriculum docs ──────────────────────────────────────── */}
       <Section
         title="Curriculum documents"

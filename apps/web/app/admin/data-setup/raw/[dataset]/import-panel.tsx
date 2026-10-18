@@ -9,6 +9,7 @@ import {
   canStartOver,
   describeUploadOutcome,
   isOverridableShrinkRefusal,
+  startOverBlockedReason,
 } from '@/lib/import-panel-state';
 
 // The import affordances for a dataset the framework knows about: download a
@@ -71,6 +72,12 @@ export function ImportPanel({ dataset }: { dataset: ImportPanelDataset }): React
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   const liveBatches = dataset.batches.filter((b) => b.status !== 'CLEARED');
+  const blockedReason = startOverBlockedReason({
+    confirmName,
+    title: dataset.title,
+    liveBatchCount: liveBatches.length,
+    busy,
+  });
 
   async function send(file: File, allowShrink: boolean): Promise<void> {
     setBusy(true);
@@ -289,7 +296,8 @@ export function ImportPanel({ dataset }: { dataset: ImportPanelDataset }): React
             onChange={(e) => setConfirmName(e.target.value)}
             placeholder={`Type "${dataset.title}" to confirm`}
             aria-label={`Type ${dataset.title} to confirm clearing this dataset`}
-            className="w-72 rounded-md border border-default bg-surface-1 px-3 py-1.5 text-sm text-text-primary"
+            disabled={liveBatches.length === 0}
+            className="w-72 rounded-md border border-default bg-surface-1 px-3 py-1.5 text-sm text-text-primary disabled:opacity-50"
           />
           <Button
             size="sm"
@@ -307,6 +315,11 @@ export function ImportPanel({ dataset }: { dataset: ImportPanelDataset }): React
             Clear this dataset
           </Button>
         </div>
+        {blockedReason ? (
+          <p className="max-w-2xl text-xs text-text-tertiary" role="status">
+            {blockedReason}
+          </p>
+        ) : null}
       </Card>
     </div>
   );
