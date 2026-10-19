@@ -1,5 +1,7 @@
+import { redirect } from 'next/navigation';
 import { SignInForm } from './sign-in-form';
-import { prisma } from '@kku/db';
+import { prisma, isSetupAvailable } from '@kku/db';
+import { shouldOfferPasswordForm } from '@/lib/auth/password-hash';
 import { SignalsFeed, type FeedItem } from './signals-feed';
 import { fetchTodaysHeadlines, type NewsItem } from '@/lib/news/today';
 import { ProductMark } from '@/components/brand/product-mark-component';
@@ -25,7 +27,15 @@ export const dynamic = 'force-dynamic';
 // pane fills the viewport; the form column stays the same width
 // (~340px) so it doesn't feel narrower on a phone — just better
 // breathing room above and below.
-export default async function SignInPage() {
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams?: { password?: string };
+}) {
+  // A fresh installation redirects here; if it has never been claimed,
+  // there is no account to sign in to yet.
+  if (await isSetupAvailable()) redirect('/setup');
+
   const ssoConfigured = Boolean(
     process.env.KKU_SSO_WEB_BASE &&
       process.env.KKU_SSO_API_BASE &&
@@ -34,7 +44,16 @@ export default async function SignInPage() {
       process.env.KKU_SSO_CLIENT_SECRET &&
       process.env.KKU_SSO_REDIRECT_URI,
   );
-  const localAuthEnabled = process.env.ENABLE_LOCAL_AUTH === 'true';
+  // The password form is hidden wherever SSO is configured, so an
+  // installation whose accounts are all SSO accounts never invites anyone
+  // to type a password. `?password=1` brings it back — the bootstrap admin
+  // signs in this way, and wiring SSO would otherwise shut the only door
+  // they have. See shouldOfferPasswordForm().
+  const localAuthEnabled = shouldOfferPasswordForm({
+    localAuthEnabled: process.env.ENABLE_LOCAL_AUTH === 'true',
+    ssoConfigured,
+    forced: searchParams?.password === '1',
+  });
   const branding = await brandingForRequest();
 
   // News fetch (parallel), with TrendSignal fallback so the right pane
@@ -105,6 +124,7 @@ export default async function SignInPage() {
               <SignInForm
                 ssoConfigured={ssoConfigured}
                 localAuthEnabled={localAuthEnabled}
+                devHints={process.env.ENABLE_LOCAL_AUTH === 'true'}
               />
             </div>
           </div>

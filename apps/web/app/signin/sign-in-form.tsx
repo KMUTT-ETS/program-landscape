@@ -7,20 +7,29 @@ import { ArrowRight } from 'lucide-react';
 
 interface Props {
   ssoConfigured: boolean;
+  /** Whether to render the password form at all — see shouldOfferPasswordForm(). */
   localAuthEnabled: boolean;
+  /**
+   * Whether this is a development machine with the shared DEV_AUTH_PASSWORD
+   * fallback on. Separate from the flag above on purpose: an adopting
+   * university sees the password form (it is how their first admin signs
+   * in) and must NOT be shown KKU's seeded accounts or offered `kku-dev`,
+   * which is not a password on their installation and never was.
+   */
+  devHints: boolean;
 }
 
 // Card-style sign-in form. Lives inside the rounded-2xl container in
 // page.tsx — typography here is sized to the card width (440px), not
 // the viewport, so weights/sizes feel calm and contained.
 
-export function SignInForm({ ssoConfigured, localAuthEnabled }: Props) {
+export function SignInForm({ ssoConfigured, localAuthEnabled, devHints }: Props) {
   const router = useRouter();
   const params = useSearchParams();
   const callbackUrl = params.get('from') ?? '/';
 
-  const [email, setEmail] = useState('admin@kku.ac.th');
-  const [password, setPassword] = useState('kku-dev');
+  const [email, setEmail] = useState(devHints ? 'admin@kku.ac.th' : '');
+  const [password, setPassword] = useState(devHints ? 'kku-dev' : '');
   const [submitting, setSubmitting] = useState(false);
   const [ssoBusy, setSsoBusy] = useState(false);
   // Surface SSO errors propagated from /api/auth/callback/kku-sso.
@@ -50,7 +59,11 @@ export function SignInForm({ ssoConfigured, localAuthEnabled }: Props) {
     });
     setSubmitting(false);
     if (res?.error) {
-      setError('That email and password do not match a seeded user.');
+      setError(
+        devHints
+          ? 'That email and password do not match a seeded user.'
+          : 'That email and password do not match an account.',
+      );
     } else if (res?.ok) {
       router.push(callbackUrl);
       router.refresh();
@@ -127,10 +140,14 @@ export function SignInForm({ ssoConfigured, localAuthEnabled }: Props) {
               disabled={submitting}
               className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border-default bg-surface-0 px-5 py-2.5 text-[13px] font-medium text-text-primary transition-colors hover:bg-surface-2 hover:border-border-strong disabled:opacity-50"
             >
-              {submitting ? 'Signing in…' : 'Sign in with developer credentials'}
+              {submitting
+                ? 'Signing in…'
+                : devHints
+                  ? 'Sign in with developer credentials'
+                  : 'Sign in'}
             </button>
 
-            <details className="group mt-2">
+            <details className={devHints ? 'group mt-2' : 'hidden'}>
               <summary className="cursor-pointer list-none text-[10px] uppercase tracking-[0.14em] text-text-tertiary transition-colors hover:text-text-secondary select-none">
                 <span className="inline-block transition-transform group-open:rotate-90">▸</span>{' '}
                 Show seeded developer accounts

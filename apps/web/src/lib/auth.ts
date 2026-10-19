@@ -11,7 +11,7 @@ import { SessionUserSchema, type SessionUser } from '@kku/shared';
 
 import { decodeJwt, encodeJwt } from './auth/jwt-codec';
 import { assertLocalAuthSafe, isLocalAuthEnabled } from './auth/env-guard';
-import { verifyPassword } from './auth/password-hash';
+import { passwordMatches } from './auth/password-hash';
 import {
   IMPERSONATION_COOKIE,
   canImpersonate,
@@ -31,50 +31,58 @@ const providers: Provider[] = [];
 // writes the same cookie name NextAuth uses, so auth() sees the session
 // transparently. See docs/auth/kku-sso.md.
 
-// ── Credentials (dev only) ───────────────────────────────────────────────
-if (isLocalAuthEnabled()) {
-  providers.push(
-    Credentials({
-      id: 'dev-credentials',
-      name: 'Developer Login',
-      credentials: {
-        email: { label: 'Email', type: 'email' },
-        password: { label: 'Password', type: 'password' },
-      },
-      async authorize(credentials) {
-        if (process.env.NODE_ENV === 'production') return null;
-        const email = credentials?.email;
-        const password = credentials?.password;
-        if (typeof email !== 'string' || typeof password !== 'string') return null;
+// ── Credentials ──────────────────────────────────────────────────────────
+// Registered on every installation, but what it will accept differs.
+//
+// In production it opens only accounts that carry a stored password hash,
+// which today means exactly one: the first administrator, created by the
+// setup wizard at /setup. That account has to sign in before the
+// installation's SSO exists, so there is nothing else it could use.
+//
+// The shared DEV_AUTH_PASSWORD fallback — which opens ANY account with no
+// stored hash, and SSO-provisioned users never have one — stays strictly
+// development-only. That fallback, not passwords as such, is what
+// assertLocalAuthSafe() has always been guarding; calling it here keeps
+// the deploy-time crash on ENABLE_LOCAL_AUTH=true in production.
+const devFallbackEnabled = isLocalAuthEnabled();
 
-        const user = await prisma.user.findUnique({ where: { email } });
-        // Don't lock on unknown emails — that would let an attacker
-        // enumerate the user table by watching which emails trigger the
-        // lockout signal.
-        if (!user) return null;
+providers.push(
+  Credentials({
+    id: 'dev-credentials',
+    name: 'Password',
+    credentials: {
+      email: { label: 'Email', type: 'email' },
+      password: { label: 'Password', type: 'password' },
+    },
+    async authorize(credentials) {
+      const email = credentials?.email;
+      const password = credentials?.password;
+      if (typeof email !== 'string' || typeof password !== 'string') return null;
 
-        // Soft-lockout check before verification.
-        const lockout = await getSignInLockoutStatus(user.id);
-        if (lockout.locked) return null;
+      const user = await prisma.user.findUnique({ where: { email } });
+      // Don't lock on unknown emails — that would let an attacker
+      // enumerate the user table by watching which emails trigger the
+      // lockout signal.
+      if (!user) return null;
 
-        const ok = user.passwordHash
-          ? verifyPassword(password, user.passwordHash)
-          : password === (process.env.DEV_AUTH_PASSWORD ?? 'kku-dev');
-        if (!ok) {
-          // Record the failure (audit-log row). The window-based query
-          // above will pick this up on the next attempt.
-          await recordSignInFailure({
-            userId: user.id,
-            reason: 'bad_password',
-          }).catch(() => undefined);
-          return null;
-        }
-        await recordSignInSuccess({ userId: user.id }).catch(() => undefined);
-        return { id: user.id, email: user.email, name: user.name ?? user.email };
-      },
-    }),
-  );
-}
+      // Soft-lockout check before verification.
+      const lockout = await getSignInLockoutStatus(user.id);
+      if (lockout.locked) return null;
+
+      if (!passwordMatches(user, password, { allowDevFallback: devFallbackEnabled })) {
+        // Record the failure (audit-log row). The window-based query
+        // above will pick this up on the next attempt.
+        await recordSignInFailure({
+          userId: user.id,
+          reason: 'bad_password',
+        }).catch(() => undefined);
+        return null;
+      }
+      await recordSignInSuccess({ userId: user.id }).catch(() => undefined);
+      return { id: user.id, email: user.email, name: user.name ?? user.email };
+    },
+  }),
+);
 
 const useSecureCookies = process.env.NODE_ENV === 'production';
 

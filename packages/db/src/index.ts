@@ -54,6 +54,7 @@ export * from './methodology-bundle';
 export * from './evaluations';
 export * from './academic-year';
 export * from './organization';
+export * from './setup';
 export * from './financial-year';
 export * from './teaching-talent';
 export * from './student-dq';

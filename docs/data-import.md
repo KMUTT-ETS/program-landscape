@@ -108,6 +108,34 @@ message names the row and never repeats the figures.
 If any cell on any sheet looks like a national ID number, the file is refused
 and the message says which row and column — without reproducing the value.
 
+## Before you start: the first administrator
+
+Everything on this page is behind `/admin`, and a newly installed system has
+no administrator at all. Seeding is a Khon Kaen University convenience that
+adopters do not run, and single sign-on hands every account the lowest role
+there is, so neither produces one.
+
+Open the system in a browser instead. A fresh installation sends you to
+**`/setup`**, which asks for a name, an email address and a password, and
+creates the first administrator from them. That account can then create
+every other account, and this page's work can begin.
+
+Two things to know about it:
+
+- **The page is open to anyone who can reach the address, and the first
+  person to use it becomes the administrator.** Nobody needs a password —
+  they need to be first. Claim the installation as soon as it is running
+  rather than leaving it up over a weekend while other paperwork is sorted.
+- **It closes permanently the moment it is used**, and stays closed even if
+  that administrator is later deleted. After that `/setup` just sends you to
+  the sign-in page.
+
+Sign in with that email and password. The password form is hidden once
+single sign-on is configured; if you still need it after that, go to
+`/signin?password=1`. Promote one single-sign-on account to administrator
+before you rely on that, so the installation is not resting on a single
+password.
+
 ## Where to go
 
 `/admin/data-setup` lists every dataset. Open one and you get a page with the

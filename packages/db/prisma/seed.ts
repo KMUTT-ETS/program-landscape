@@ -56,6 +56,7 @@ const pick = <T>(arr: readonly T[]): T => arr[Math.floor(rand() * arr.length)]!;
 // kku-finance, kku-research, kmitl-skill-mapping) + the curated workflow.
 // ──────────────────────────────────────────────────────────────────────────
 const SEED_MOCKS = process.env.SEED_MOCKS === 'true';
+console.log(`SEED_MOCKS=${SEED_MOCKS} — ${SEED_MOCKS ? 'mock data will be seeded' : 'mock data will NOT be seeded'}`);
 
 // ──────────────────────────────────────────────────────────────────────────
 // 1. Faculties (24) and Departments (12)
