@@ -9,7 +9,6 @@ import type {
   ImportLoadResult,
   ImportRow,
 } from '../types';
-import { programmeYearPrefill } from './prefill';
 import { PROVENANCE_SELECT, claimsRow } from './provenance';
 
 // Tier 1. Feeds the Deep-Dive's cohort and demographic-outlook sections,
@@ -103,9 +102,21 @@ export const enrollmentDataset: ImportDataset = {
     kind: 'upsert',
     match: { kind: 'unique', columns: ['programmeCode', 'academicYear'] },
   },
-  prefill: programmeYearPrefill({ yearKey: 'academicYear' }),
 
+  // No pre-fill: an adopter rarely has every figure for every programme and
+  // year, so the template ships empty and they type only the rows they hold.
   rowRules: [
+    {
+      // Every figure is optional, so without this a row carrying only a
+      // code and a year would pass and be stored as seven zeros — and a zero
+      // is a claim that something was counted.
+      message:
+        'This row has a programme and a year but no figures. Fill in at least ' +
+        'one figure, or delete the row.',
+      check: (r) =>
+        ['applications', 'admitted', 'enrolled', 'retainedYear2', 'graduatedOnTime', 'graduatedLate', 'dropouts']
+          .some((k) => typeof r[k] === 'number'),
+    },
     {
       message: 'Admitted cannot exceed Applications — check the two columns against each other.',
       check: (r) =>

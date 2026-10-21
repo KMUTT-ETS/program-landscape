@@ -194,6 +194,19 @@ describe('enrolment dataset', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('refuses a row with a programme and a year but no figures', () => {
+    // The template is not pre-filled, so such a row was typed by hand and
+    // abandoned. Accepting it would store seven zeros.
+    const e = errorsOf(validate([sheetRow()]))[0];
+    expect(e.column).toBeNull();
+    expect(e.message).toMatch(/no figures/i);
+  });
+
+  it('accepts a row whose only figure is a typed zero', () => {
+    // A 0 is a figure; only a blank is the absence of one.
+    expect(validate([sheetRow({ Dropouts: 0 })]).ok).toBe(true);
+  });
+
   it('accepts a programme that exists but is not canonical', async () => {
     // It loads, and is then invisible on Council surfaces for a reason the
     // operator cannot see from here — so the guide says so.

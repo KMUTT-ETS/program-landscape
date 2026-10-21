@@ -338,8 +338,8 @@ export function validateSheet(
         continue;
       }
       // "Required" is suspended on a row that states no figure at all —
-      // including for a key. The outcomes template cannot know the survey
-      // year, so it ships that column blank; demanding it back on a line
+      // including for a key. The alumni-cohort template cannot know the
+      // status, so it ships that column blank; demanding it back on a line
       // the operator never filled in would refuse the template as
       // downloaded. A key that is present but MALFORMED still fails below:
       // blank is an untouched row, wrong is a mistake.

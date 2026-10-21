@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { prisma } from '../src';
 import { getAcademicYearContext } from '../src/academic-year';
+import { alumniCohortsDataset, studentCohortsDataset } from '../src/import/datasets/cohorts';
 import { enrollmentDataset } from '../src/import/datasets/enrollment';
 import { financialsDataset } from '../src/import/datasets/financials';
 import { graduateOutcomesDataset } from '../src/import/datasets/graduate-outcomes';
@@ -100,12 +101,18 @@ describe('programmeYearPrefill', () => {
   });
 });
 
-describe('the tier-1 declarations', () => {
-  it('all offer a pre-filled template', () => {
-    // The hook Phase 1 declared and nothing implemented, which is why
-    // every template shipped empty and reference errors were the norm.
-    expect(enrollmentDataset.prefill).toBeTypeOf('function');
-    expect(financialsDataset.prefill).toBeTypeOf('function');
-    expect(graduateOutcomesDataset.prefill).toBeTypeOf('function');
+describe('which declarations pre-fill', () => {
+  it('leaves the core-metric templates empty', () => {
+    // An adopter rarely holds every figure for every programme and year, so
+    // these templates ship with headers only and they type the rows they
+    // have (owner decision, 2026-10-21).
+    expect(enrollmentDataset.prefill).toBeUndefined();
+    expect(financialsDataset.prefill).toBeUndefined();
+    expect(graduateOutcomesDataset.prefill).toBeUndefined();
+  });
+
+  it('still pre-fills the cohort templates', () => {
+    expect(studentCohortsDataset.prefill).toBeTypeOf('function');
+    expect(alumniCohortsDataset.prefill).toBeTypeOf('function');
   });
 });

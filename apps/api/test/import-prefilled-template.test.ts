@@ -58,60 +58,20 @@ function roundTrip(dataset: ImportDataset, fill: (row: Record<string, unknown>) 
 }
 
 describe('a pre-filled template, filled in partly and uploaded', () => {
-  it('loads only the enrolment row the operator filled', () => {
-    const result = roundTrip(getImportDataset('enrollment-metrics'), (row) => {
-      row['Applications'] = 480;
-      row['Admitted'] = 160;
-      row['Enrolled'] = 120;
-    });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    // One row, not four. The other three asserted nothing and must not
-    // become zero applications, zero enrolled, zero graduated.
-    expect(result.rows).toHaveLength(1);
-    expect(result.rows[0]).toMatchObject({ enrolled: 120, academicYear: YEARS[0] });
-  });
-
-  it('accepts a finance template despite its required revenue column', () => {
-    const result = roundTrip(getImportDataset('financial-metrics'), (row) => {
-      row['Tuition Revenue (THB)'] = 4_800_000;
-    });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.rows).toHaveLength(1);
-  });
-
-  it('accepts an outcomes template despite six required columns', () => {
-    const result = roundTrip(getImportDataset('graduate-outcomes'), (row) => {
-      row['Survey Year'] = 2024;
-      row['Employment Rate'] = 0.87;
-      row['Average Salary (THB/month)'] = 24_000;
-      row['Job Relevance Score'] = 0.8;
-      row['Further Study Rate'] = 0.1;
-      row['Sample Size'] = 40;
-    });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.rows).toHaveLength(1);
-  });
-
   it('refuses a template uploaded without a single figure in it', () => {
-    const result = roundTrip(getImportDataset('enrollment-metrics'), () => {});
+    const result = roundTrip(getImportDataset('student-cohorts'), () => {});
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.errors[0]?.message).toMatch(/carries any figures/i);
   });
 
   it('still reports a mistake the operator made in a key cell', () => {
-    const result = roundTrip(getImportDataset('enrollment-metrics'), (row) => {
-      row['Academic Year'] = 2568;
+    const result = roundTrip(getImportDataset('student-cohorts'), (row) => {
+      row['Entry Year'] = 2568;
     });
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.errors[0]?.column).toBe('Academic Year');
+    expect(result.errors[0]?.column).toBe('Entry Year');
     expect(result.errors[0]?.message).toMatch(/Buddhist/i);
   });
 
@@ -143,12 +103,7 @@ describe('a pre-filled template, filled in partly and uploaded', () => {
   it('covers every dataset that ships a pre-fill', () => {
     // So a new pre-filled dataset cannot be added without a case above.
     const prefilled = listImportDatasets().filter((d) => d.prefill).map((d) => d.slug).sort();
-    expect(prefilled).toEqual([
-      'alumni-cohorts',
-      'enrollment-metrics',
-      'financial-metrics',
-      'graduate-outcomes',
-      'student-cohorts',
-    ]);
+    // Enrolment, finance and graduate outcomes deliberately ship empty.
+    expect(prefilled).toEqual(['alumni-cohorts', 'student-cohorts']);
   });
 });

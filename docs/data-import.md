@@ -162,13 +162,19 @@ You need an administrator account. Clearing a dataset needs the
 ## How it works
 
 1. **Download the template.** It is generated for your installation, so its
-   columns always match what the system will accept. For the metric datasets it
-   also arrives **pre-filled** with a row per active programme per year, values
-   blank — so you fill in figures rather than re-typing programme codes. Fill
-   in the rows you have figures for and upload the file as it came: **a row
-   you leave blank is skipped**, so there is no need to delete the rest. A
-   file in which every row is blank is refused rather than reported as a
-   successful upload of nothing.
+   columns always match what the system will accept. The enrolment, finance
+   and graduate-outcome templates arrive **empty** (headers only): add one row
+   for each programme and year you hold figures for, and leave out the ones you
+   don't. An enrolment row needs at least one figure; a row with only a
+   programme code and a year is refused, because storing it would record
+   zeros nobody counted.
+
+   The student-cohort and alumni-cohort templates arrive **pre-filled** with a
+   row per active programme per year, values blank, so you fill in figures
+   rather than re-typing programme codes. Upload the file as it came: **a
+   pre-filled row you leave blank is skipped**, so there is no need to delete
+   the rest. A file in which every row is blank is refused rather than
+   reported as a successful upload of nothing.
 2. **Fill in the data sheet.** Every workbook has two sheets: the data, and a
    **Guide** that explains each column, with an example and the allowed values.
    The Guide sheet is ignored on upload — you can write in it freely.

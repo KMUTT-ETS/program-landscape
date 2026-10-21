@@ -49,26 +49,26 @@ describe('buildImportTemplate', () => {
     expect(first[headers.indexOf('Kind')]).toBeNull();
   });
 
-  it('ships a pre-filled tier-1 template the validator then accepts', () => {
+  it('ships a pre-filled cohort template the validator then accepts', () => {
     // The whole point of pre-fill: the operator fills values into rows
     // whose keys are already right, instead of hand-typing programme codes
     // that fail the file when one of them is mistyped.
-    const enrolment = getImportDataset('enrollment-metrics');
+    const cohorts = getImportDataset('student-cohorts');
     const rows: ImportRow[] = [
-      { programmeCode: 'ENG-CIVIL-BE', academicYear: 2024 },
-      { programmeCode: 'ENG-CIVIL-BE', academicYear: 2023 },
+      { programmeCode: 'ENG-CIVIL-BE', entryYear: 2024 },
+      { programmeCode: 'ENG-CIVIL-BE', entryYear: 2023 },
     ];
-    const result = parseImportWorkbook(buildImportTemplate(enrolment, rows), enrolment.sheetName);
+    const result = parseImportWorkbook(buildImportTemplate(cohorts, rows), cohorts.sheetName);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.parsed.rows).toHaveLength(2);
     expect(result.parsed.rows[0]).toMatchObject({
       'Programme Code': 'ENG-CIVIL-BE',
-      'Academic Year': 2024,
+      'Entry Year': 2024,
     });
     // Every value column is blank, so a template downloaded and uploaded
     // unchanged states nothing rather than asserting zeros.
-    expect(result.parsed.rows[0]?.['Enrolled'] ?? null).toBeNull();
+    expect(result.parsed.rows[0]?.['Students Still Enrolled'] ?? null).toBeNull();
   });
 
   it('round-trips through the parser', () => {

@@ -593,8 +593,8 @@ describe('a row with keys but no values', () => {
   });
 
   it('is skipped even when a value column is required', () => {
-    // Finance and Graduate Outcomes both have required value columns, so
-    // without this the pre-filled template is refused as downloaded.
+    // A pre-filled dataset with a required value column would otherwise be
+    // refused as downloaded.
     const required = makeDataset({
       prefill: async () => [],
       strategy: { kind: 'upsert', match: { kind: 'unique', columns: ['code', 'year'] } },
