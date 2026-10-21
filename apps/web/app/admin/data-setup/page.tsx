@@ -11,18 +11,17 @@ import {
   Button,
   Card,
   EdgeGlow,
+  FreshnessBadge,
   PageHeader,
   Section,
 } from '@kku/ui';
 import {
   Banknote,
   BookText,
-  Building2,
   Database,
   ExternalLink,
   FileSearch,
   FileText,
-  GitBranch,
   Globe,
   GraduationCap,
   HelpCircle,
@@ -79,6 +78,39 @@ interface DataSetupStats {
   };
 }
 
+/** One row of GET /admin/imports — mirrors `ImportDatasetSummary` in the api. */
+interface ImportDatasetSummary {
+  slug: string;
+  title: string;
+  description: string;
+  tier: 0 | 1 | 2;
+  rowCount: number;
+  lastUpload: string | null;
+  batchCount: number;
+}
+
+// The registry's tiers, in load order. Each tier refers to the one above.
+const IMPORT_TIERS: readonly { tier: 0 | 1 | 2; step: number; title: string; hint: string }[] = [
+  {
+    tier: 0,
+    step: 1,
+    title: 'Organisation backbone',
+    hint: 'Faculties, departments and programmes. Every other dataset refers to these codes.',
+  },
+  {
+    tier: 1,
+    step: 2,
+    title: 'Core programme metrics',
+    hint: 'Enrolment, finance and graduate outcomes — one row per programme per year.',
+  },
+  {
+    tier: 2,
+    step: 3,
+    title: 'Students, staff, research and teaching',
+    hint: 'The remaining Deep-Dive inputs: cohorts, admissions, staff, budgets, publications and class offerings.',
+  },
+];
+
 const EMPTY_STATS: DataSetupStats = {
   programs: { total: 0, withCurriculumPdf: 0, missingCurriculumPdf: 0 },
   curriculumDocs: { total: 0 },
@@ -103,6 +135,7 @@ export default async function AdminDataSetupPage() {
   // doesn't depend on the numbers).
   const statsRes = await apiFetchSafe<DataSetupStats>('/admin/data-setup/stats');
   const stats = statsRes.ok ? statsRes.data : EMPTY_STATS;
+  const importsRes = await apiFetchSafe<ImportDatasetSummary[]>('/admin/imports');
 
   return (
     <AuthedAppShell user={user}>
@@ -129,52 +162,47 @@ export default async function AdminDataSetupPage() {
         </div>
       )}
 
-      {/* ── Organisation backbone ────────────────────────────────── */}
-      {/* First, because everything below hangs off these three. On an
-          installation with no registrar connector they are also the only
-          data that exists at all until someone uploads them. */}
+      {/* ── Institution data — every spreadsheet-importable dataset ─ */}
+      {/* First, because everything below hangs off the org backbone, and on
+          an installation with no registrar connector these uploads are the
+          only data that exists at all. The tiles come from the import
+          registry (GET /admin/imports), so a newly declared dataset appears
+          here without editing this page. */}
       <Section
-        title="Organisation"
-        description="The faculties, departments and programmes everything else refers to. Importable from a spreadsheet — load them in this order, since each refers to the one before it."
+        title="Institution data"
+        description="Everything the Program Deep-Dive reads about your own institution, importable from spreadsheets. Load the groups in order — each refers to the codes in the one before it."
       >
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <CategoryCard
-            tone="glossy"
-            icon={<Building2 />}
-            title="Faculties"
-            description="Faculties, colleges and institutes. Upload this first — departments and programmes refer to these codes."
-            primary={{ label: 'Spreadsheet import', tone: 'neutral' }}
-            secondary={['Download a template, fill it, upload it', 'Re-uploading updates matching rows']}
-            href="/admin/data-setup/raw/faculties"
-            cta="Open faculties"
-            rawHref="/admin/data-setup/raw/faculties"
-            rawCta="View raw data"
-          />
-
-          <CategoryCard
-            icon={<GitBranch />}
-            title="Departments"
-            description="Departments within a faculty. Optional — leave empty if programmes hang directly off faculties."
-            primary={{ label: 'Spreadsheet import', tone: 'neutral' }}
-            secondary={['Refers to Faculty Code', 'Upload faculties first']}
-            href="/admin/data-setup/raw/departments"
-            cta="Open departments"
-            rawHref="/admin/data-setup/raw/departments"
-            rawCta="View raw data"
-          />
-
-          <CategoryCard
-            icon={<GraduationCap />}
-            title="Programmes"
-            description="The curricula this institution offers. Every metric imported later refers to these codes."
-            primary={{ label: 'Spreadsheet import', tone: 'neutral' }}
-            secondary={['Refers to Faculty and Department Code', 'Imported rows are made canonical automatically']}
-            href="/admin/data-setup/raw/programmes"
-            cta="Open programmes"
-            rawHref="/admin/data-setup/raw/programmes"
-            rawCta="View raw data"
-          />
-        </div>
+        {importsRes.ok ? (
+          <div className="flex flex-col gap-5">
+            {IMPORT_TIERS.map((tier) => {
+              const datasets = importsRes.data.filter((d) => d.tier === tier.tier);
+              if (datasets.length === 0) return null;
+              const filled = datasets.filter((d) => d.rowCount > 0).length;
+              return (
+                <div key={tier.tier} className="flex flex-col gap-2">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-semibold text-text-primary">
+                        {tier.step}. {tier.title}
+                      </h3>
+                      <p className="text-xs text-text-tertiary">{tier.hint}</p>
+                    </div>
+                    <span className="text-xs text-text-tertiary">
+                      {filled} of {datasets.length} loaded
+                    </span>
+                  </div>
+                  <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+                    {datasets.map((d) => (
+                      <ImportDatasetTile key={d.slug} dataset={d} />
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <DiagnosticEmptyState surface="spreadsheet imports" error={importsRes.error} />
+        )}
       </Section>
 
       {/* ── Curriculum docs ──────────────────────────────────────── */}
@@ -219,7 +247,7 @@ export default async function AdminDataSetupPage() {
             secondary={[
               `${stats.facultyStaff.active} currently active`,
               `Source: kku-hr connector (live)`,
-              'Also importable from a spreadsheet — see "View raw data"',
+              'Also importable from a spreadsheet — see Institution data above',
             ]}
             href="/admin/data-sources/kku-hr"
             cta="View kku-hr data source"
@@ -308,7 +336,7 @@ export default async function AdminDataSetupPage() {
               `${stats.studentInfo.enrollmentMetricRows} enrollment-metric rows total`,
               `${stats.studentInfo.programsWithoutEnrollment} programs with no enrollment data`,
               `Source: kku-registry connector (live)`,
-              'Also importable from a spreadsheet — see "View raw data"',
+              'Also importable from a spreadsheet — see Institution data above',
             ]}
             href="/admin/data-sources/kku-registry"
             cta="View kku-registry data source"
@@ -333,7 +361,7 @@ export default async function AdminDataSetupPage() {
               `${stats.financial.programMetrics} financial-metric rows total`,
               `${stats.financial.facultyBudgetRows} faculty-budget rows`,
               `Source: kku-finance connector (live)`,
-              'Revenue is also importable from a spreadsheet; cost columns are not',
+              'Revenue is also importable from a spreadsheet (Institution data above); cost columns are not',
             ]}
             href="/admin/data-sources/kku-finance"
             cta="View kku-finance data source"
@@ -420,6 +448,9 @@ export default async function AdminDataSetupPage() {
       >
         <Card padding="md" tone="quiet">
           <ul className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2 lg:grid-cols-3">
+            <RawDatasetLink slug="faculties" label="Faculties" />
+            <RawDatasetLink slug="departments" label="Departments" />
+            <RawDatasetLink slug="programmes" label="Programmes" />
             <RawDatasetLink slug="enrollment-metrics" label="Enrollment metrics" />
             <RawDatasetLink slug="student-demographics" label="Student demographics" />
             <RawDatasetLink slug="financial-metrics" label="Financial — per program" />
@@ -559,6 +590,37 @@ function CategoryCard({
         <div className="mt-1 border-t border-border-subtle pt-3">{footer}</div>
       )}
     </Card>
+  );
+}
+
+function ImportDatasetTile({ dataset }: { dataset: ImportDatasetSummary }) {
+  const empty = dataset.rowCount === 0;
+  return (
+    <li>
+      <Link
+        href={`/admin/data-setup/raw/${dataset.slug}`}
+        className="flex h-full flex-col gap-2 rounded-md border border-subtle bg-surface-1 p-3 hover:border-strong hover:bg-accent-subtle/40"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <span className="font-medium text-text-primary">{dataset.title}</span>
+          <Badge tone={empty ? 'neutral' : 'success'}>
+            {empty ? 'Empty' : `${dataset.rowCount.toLocaleString()} rows`}
+          </Badge>
+        </div>
+        <p className="text-xs leading-relaxed text-text-secondary">{dataset.description}</p>
+        <div className="mt-auto flex items-center justify-between gap-2 pt-1 text-xs text-text-tertiary">
+          {dataset.lastUpload ? (
+            <FreshnessBadge freshnessDate={dataset.lastUpload} label="Last upload" />
+          ) : (
+            <span>No spreadsheet uploaded yet</span>
+          )}
+          <span className="flex items-center gap-1">
+            Import or view
+            <ExternalLink className="size-icon-sm" aria-hidden />
+          </span>
+        </div>
+      </Link>
+    </li>
   );
 }
 

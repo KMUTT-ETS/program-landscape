@@ -151,7 +151,9 @@ password.
 
 ## Where to go
 
-`/admin/data-setup` lists every dataset. Open one and you get a page with the
+`/admin/data-setup` lists every dataset under **Institution data**, grouped in
+the order to load them, with how many rows each holds and when it was last
+uploaded. Open one and you get a page with the
 import panel at the top and, below it, whatever is currently stored.
 
 You need an administrator account. Clearing a dataset needs the
