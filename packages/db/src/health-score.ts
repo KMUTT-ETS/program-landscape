@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
-import { getInstitution } from '@kku/shared';
+import { getInstitution, intakeComplianceFor, intakeFloors } from '@kku/shared';
+import type { IntakeCompliance } from '@kku/shared';
 import type { ScopeLevel } from './scope';
 import { prisma } from './index';
 import { queryMetricByScope, type MetricRow } from './scope';
@@ -239,18 +240,23 @@ export const HEALTH_SCORE_VERSION = 'health-score.v5.4';
 // from PREVIEW_METHODOLOGIES.
 export const COST_ALLOCATION_VERSION = 'cost-allocation.v0';
 
-// ── KKU intake-floor policy ─────────────────────────────────────────
-// Council policy (2026): every program must hit a minimum new-intake
-// floor each academic year. Failing the floor is a structural risk
-// signal — strict for undergraduate (closure-track), watch-list for
-// postgraduate (where small-cohort is structurally normal).
+// ── Intake-floor policy ─────────────────────────────────────────────
+// Council policy: every programme must hit a minimum new-intake floor each
+// academic year. Failing the floor is a structural risk signal — strict for
+// undergraduate (closure-track), watch-list for postgraduate (where a small
+// cohort is structurally normal).
+//
+// The floors themselves are NOT here any more. They were `30` and `8`,
+// written in this file and copied into risk-scoring.ts, which judged every
+// adopting institution by one university's rule and gave two constants the
+// freedom to drift apart. They now sit on the organisation profile and are
+// read through @kku/shared's intake-policy module, which is also where the
+// curves live. An installation with no profile configured yields no floors,
+// and the driver below reads null rather than guessing.
 //
 // Compliance state surfaces in the attractiveness driver's `raw.compliance`
 // field and feeds the lifecycle verdict.
-export const KKU_INTAKE_FLOOR_BACHELOR = 30;
-export const KKU_INTAKE_FLOOR_POSTGRAD = 8;
-
-export type IntakeCompliance = 'compliant' | 'watch' | 'breach' | 'unknown';
+export type { IntakeCompliance } from '@kku/shared';
 
 /** Standalone helper for surface-layer code (deep-dive header, dashboard,
  *  cockpit). Returns the canonical compliance state for any program given
@@ -260,32 +266,8 @@ export function getKkuIntakePolicyVerdict(
   level: string,
   latestIntake: number | null,
 ): { state: IntakeCompliance; floor: number } {
-  const v = intakeComplianceFor(level, latestIntake);
+  const v = intakeComplianceFor(level, latestIntake, intakeFloors());
   return { state: v.state, floor: v.floor };
-}
-
-function intakeComplianceFor(
-  level: 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA' | string,
-  intake: number | null,
-): { state: IntakeCompliance; floor: number; score: number | null } {
-  if (intake === null) return { state: 'unknown', floor: 0, score: null };
-  if (level === 'BACHELOR') {
-    const floor = KKU_INTAKE_FLOOR_BACHELOR;
-    if (intake < floor) {
-      // Strict policy: severely punish — far below floor → 0;
-      // half the floor → ~25.
-      return { state: 'breach', floor, score: clamp((intake / floor) * 50) };
-    }
-    // At or above floor — scale to 100 at 2× floor.
-    return { state: 'compliant', floor, score: clamp(50 + ((intake - floor) / floor) * 50) };
-  }
-  // Postgraduate (MASTER / DOCTORAL / HIGHER_GRAD_DIPLOMA) — watch-list,
-  // not strict closure-track. Below floor still penalised but not zeroed.
-  const floor = KKU_INTAKE_FLOOR_POSTGRAD;
-  if (intake < floor) {
-    return { state: 'watch', floor, score: clamp(30 + (intake / floor) * 30) };
-  }
-  return { state: 'compliant', floor, score: clamp(60 + ((intake - floor) / floor) * 40) };
 }
 
 export const HEALTH_DIMENSIONS = [
@@ -875,6 +857,11 @@ async function resolveChildren(scope: ScopeLevel, scopeId: string | null): Promi
 // ──────────────────────────────────────────────────────────────────────────
 
 async function scoreAttractivenessProgram(programId: string): Promise<HealthScore> {
+  // This installation's council policy. Null when no organisation profile
+  // exists, which makes the intake driver read null rather than silently
+  // judging the programme by whatever floor happened to be in the source.
+  const floors = intakeFloors();
+
   // Latest COMPLETE year TCAS funnel — sums across rounds 1–4 + any
   // sub-rounds for the program's most recent FINISHED recruitment.
   // POWERBI.ADMISSION_STAT_CURRID gives quota / applicants / passed /
@@ -1066,24 +1053,30 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
       raw: { series: enrollment.map((r) => r.enrolled) },
     },
     {
-      // KKU intake-floor policy — bachelor=30, postgrad=8.
-      // Bachelor breaches are strict (closure-track); postgrad
-      // breaches are watch-list. The driver's `raw.compliance` is
-      // the canonical surface for UI badges + lifecycle verdicts.
+      // Intake-floor policy. The floors come from this installation's
+      // organisation profile, not from the source — see @kku/shared's
+      // intake-policy module. Bachelor breaches are strict
+      // (closure-track); postgraduate breaches are watch-list. The
+      // driver's `raw.compliance` is the canonical surface for UI badges
+      // and lifecycle verdicts.
+      //
+      // The label keeps its historic name: it is written into stored
+      // assessments and named in the methodology docs, so renaming it is a
+      // versioned change rather than a tidy-up.
       label: 'kku_intake_policy',
       value: (() => {
         const series = applyPartialYearDrop(
           enrollment.map((r) => ({ year: r.academicYear, value: r.enrolled })),
         );
         const latestIntake = series[series.length - 1]?.value ?? null;
-        return intakeComplianceFor(programRow?.level ?? 'BACHELOR', latestIntake).score;
+        return intakeComplianceFor(programRow?.level ?? 'BACHELOR', latestIntake, floors).score;
       })(),
       raw: (() => {
         const series = applyPartialYearDrop(
           enrollment.map((r) => ({ year: r.academicYear, value: r.enrolled })),
         );
         const latestIntake = series[series.length - 1]?.value ?? null;
-        const verdict = intakeComplianceFor(programRow?.level ?? 'BACHELOR', latestIntake);
+        const verdict = intakeComplianceFor(programRow?.level ?? 'BACHELOR', latestIntake, floors);
         return {
           level: programRow?.level ?? null,
           latestIntake,

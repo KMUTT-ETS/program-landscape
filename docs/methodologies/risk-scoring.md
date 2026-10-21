@@ -45,7 +45,7 @@ Weighted average of:
 | Component | Weight | Source | Formula |
 |---|---|---|---|
 | Competition ratio | 0.35 | TCAS funnel (latest year) | `applicants / planPerYear`. Score: `(3 − ratio) × 50`, clamped 0–100. ratio<1 ⇒ 100; ratio≥3 ⇒ 0. |
-| Fill rate | 0.35 | TCAS funnel (latest year) | `regReported / planPerYear`. Score: `(1 − fill) × 100/0.6`. KKU intake-floor breach (BACHELOR < 30) lifts the score to ≥80 regardless. |
+| Fill rate | 0.35 | TCAS funnel (latest year) | `regReported / planPerYear`. Score: `(1 − fill) × 100/0.6`. An intake-floor breach lifts the score to ≥80 regardless; withheld where no floor is configured. |
 | Trend decay | 0.20 | TCAS funnel 5y | CAGR of total applicants. Score: `50 − cagr × 500`. −10%/yr CAGR ⇒ 100; +10% ⇒ 0. |
 | Late-round dependency | 0.10 | TCAS funnel (latest year) | Share of `regReported` from rounds 3–4. Score = share × 100. |
 
@@ -336,8 +336,16 @@ overlap measure is for review and never to propose closure. † Calibrated
 overlap run and the pair.
 
 KRI breaches are stored per `(program × indicator × evaluation moment)` so
-the UI can plot breach history as a series. The bachelor intake floor is
-KKU Council policy, not a statistical threshold.
+the UI can plot breach history as a series.
+
+The bachelor intake floor is **council policy, not a statistical
+threshold**, and is therefore configuration rather than code: each
+installation sets it at `/admin/organization`, defaulting to 30 for bachelor
+and 8 for postgraduate — the values this product shipped with. Where no
+organisation profile has been configured the floor is unknown, and both the
+fill-rate reinforcement above and the `bachelor_intake_floor` KRI are
+withheld rather than assumed: an `OK` would claim an intake clears a bar
+nobody has set.
 
 ## AI assessment — `risk-assessment.v1`
 

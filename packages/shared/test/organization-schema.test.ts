@@ -16,6 +16,37 @@ describe('OrganizationIdentityInputSchema', () => {
     expect(out.nameTh).toBe('มหาวิทยาลัยตัวอย่าง');
   });
 
+  it('defaults the intake floors to the values the product shipped with', () => {
+    // An install that never touches them keeps scoring as it always did.
+    const out = OrganizationIdentityInputSchema.parse(base);
+    expect(out.intakeFloorBachelor).toBe(30);
+    expect(out.intakeFloorPostgrad).toBe(8);
+  });
+
+  it('accepts an institution that sets its own floors', () => {
+    const out = OrganizationIdentityInputSchema.parse({
+      ...base,
+      intakeFloorBachelor: 20,
+      intakeFloorPostgrad: 5,
+    });
+    expect(out.intakeFloorBachelor).toBe(20);
+    expect(out.intakeFloorPostgrad).toBe(5);
+  });
+
+  it('refuses a floor of zero', () => {
+    // intakeComplianceFor divides by the floor; zero would score every
+    // programme NaN rather than meaning "no policy".
+    expect(
+      OrganizationIdentityInputSchema.safeParse({ ...base, intakeFloorBachelor: 0 }).success,
+    ).toBe(false);
+  });
+
+  it('refuses a fractional floor', () => {
+    expect(
+      OrganizationIdentityInputSchema.safeParse({ ...base, intakeFloorPostgrad: 4.5 }).success,
+    ).toBe(false);
+  });
+
   it('stores cleared optional fields as null', () => {
     const out = OrganizationIdentityInputSchema.parse({
       ...base,

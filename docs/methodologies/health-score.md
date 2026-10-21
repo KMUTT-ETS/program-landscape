@@ -510,6 +510,15 @@ the Outcomes table below.
 | `tcas_competition_vs_peers` | `clamp((kku_ratio / peer_median_ratio) × 50)` — score 50 means parity, 100 means 2× peer median | `admission_campaign_stats` for KKU + `tcas_admission_stats` same-subject peer rows |
 | `tcas_fill_rate` | `clamp(((admittedPass1 + admittedPass2) / quota) × 100)` | `admission_campaign_stats` (latest complete year, summed across rounds) |
 | `enrollment_trend_slope` | Slope of `enrolled` per year over last 5 years; `clamp(50 + slope/maxSlope × 50)` | `enrollment_metrics` |
+| `kku_intake_policy` | Latest intake against this installation's floor. Bachelor is strict: at the floor 50, at twice the floor 100, below it falling linearly to 0 (`breach`). Postgraduate is a watch list: at the floor 60, below it 30 and up (`watch`). **Null when no floor is configured** — never a default | `enrollment_metrics` + the floors on `organization_profile` |
+
+The intake floors are **council policy, not a property of this software**:
+each installation sets them at `/admin/organization`, defaulting to 30 for
+bachelor and 8 for postgraduate. They were formerly two constants in
+`health-score.ts`, copied into `risk-scoring.ts`; both now read
+`@kku/shared`'s `intake-policy` module. The driver keeps its historic label
+because it is written into stored assessments — renaming it would be a
+versioned change, not a tidy-up.
 
 ### Financial
 

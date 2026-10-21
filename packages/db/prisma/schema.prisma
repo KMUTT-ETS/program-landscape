@@ -6030,6 +6030,12 @@ model OrganizationProfile {
   /// Outbound User-Agent contact only — never shown publicly.
   contactEmail    String?  @map("contact_email")
   appUrl          String   @map("app_url")
+  /// Council policy, not a property of the software: the minimum intake a
+  /// programme must recruit to count as viable. The defaults are the values
+  /// this product shipped with, so an existing installation's health scores
+  /// do not move. Read only through packages/shared/src/intake-policy.ts.
+  intakeFloorBachelor Int   @default(30) @map("intake_floor_bachelor")
+  intakeFloorPostgrad Int   @default(8)  @map("intake_floor_postgrad")
   /// MinIO object keys in bucket MINIO_BUCKET_BRANDING (default "branding"); null = built-in mark.
   logoLightKey    String?  @map("logo_light_key")
   logoDarkKey     String?  @map("logo_dark_key")

@@ -27,6 +27,15 @@ export const OrganizationIdentityInputSchema = z.object({
     .url()
     .refine((u) => /^https?:\/\//.test(u), 'must start with http:// or https://')
     .transform((u) => u.replace(/\/+$/, '')),
+  /**
+   * Council policy: the minimum intake a programme must recruit to count as
+   * viable. Must be at least 1 — `intakeComplianceFor` divides by the floor,
+   * so a 0 would score every programme NaN rather than mean "no policy".
+   * The defaults are the values the product shipped with, so an institution
+   * that never touches them scores exactly as it always did.
+   */
+  intakeFloorBachelor: z.coerce.number().int().min(1).max(10_000).default(30),
+  intakeFloorPostgrad: z.coerce.number().int().min(1).max(10_000).default(8),
   /** null when creating the first profile; otherwise the version the form was loaded at. */
   expectedVersion: z.number().int().positive().nullable(),
 });

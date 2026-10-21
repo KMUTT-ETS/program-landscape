@@ -65,6 +65,8 @@ export function profileToInstitution(row: OrganizationProfile): Institution {
     regionEn: row.regionEn,
     contactEmail: row.contactEmail,
     appUrl: row.appUrl,
+    intakeFloorBachelor: row.intakeFloorBachelor,
+    intakeFloorPostgrad: row.intakeFloorPostgrad,
   };
 }
 

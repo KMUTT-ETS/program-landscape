@@ -25,6 +25,13 @@ export interface Institution {
   contactEmail: string | null;
   /** Sent in outbound User-Agents. No trailing slash. */
   appUrl: string;
+  /**
+   * Minimum viable intake for a bachelor programme — council policy, read
+   * through `intake-policy.ts`. Below it, a programme is closure-track.
+   */
+  intakeFloorBachelor: number;
+  /** Minimum viable intake for a postgraduate programme — watch-list below. */
+  intakeFloorPostgrad: number;
 }
 
 export class OrganizationNotLoadedError extends Error {
