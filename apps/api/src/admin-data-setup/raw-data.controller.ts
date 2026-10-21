@@ -758,6 +758,7 @@ const DATASETS: Record<string, DatasetFetcher> = {
             { nameEn: { contains: q.q, mode: 'insensitive' } },
             { nameTh: { contains: q.q } },
             { employeeId: { contains: q.q, mode: 'insensitive' } },
+            { employeeCode: { contains: q.q, mode: 'insensitive' } },
             { orcid: { contains: q.q, mode: 'insensitive' } },
           ],
         }
@@ -780,12 +781,14 @@ const DATASETS: Record<string, DatasetFetcher> = {
     ]);
     return {
       title: 'Academic staff — faculty roster',
-      description: 'Source: kku-hr connector (HCMEmployee + epm_report.workforce_hcm_actual). Active + retired members. EMPLOYEEID is the HR-internal employment number (NOT citizen ID — confirmed not PII). Citizen ID stays hashed at source. ORCID + OpenAlex IDs are filled lazily by kku-research; publication count is cross-joined from research_outputs.',
+      description: 'Sources: the kku-hr connector (HCMEmployee + epm_report.workforce_hcm_actual) and the Staff spreadsheet import (rows marked Imported). Active + retired members. Employee is the HR-internal employment number for connector rows (NOT citizen ID — confirmed not PII; citizen ID stays hashed at source) and the uploaded Employee Code for imported rows. ORCID + OpenAlex IDs are filled lazily by kku-research; publication count is cross-joined from research_outputs.',
       columns: [
-        // EMPLOYEEID — un-hashed HR-internal employment number, not PII.
-        // Distinct from employee_code (which is `hr_<hash>` and stays as
-        // the unique cross-system join key).
-        { key: 'employeeId', label: 'EMPLOYEEID', format: 'truncate' },
+        // Connector rows: EMPLOYEEID, the un-hashed HR-internal employment
+        // number (not PII). Their employee_code is `hr_<hash>` and means
+        // nothing to a reader, so it is never shown.
+        // Imported rows: the adopter's own Employee Code. The import does not
+        // write employee_id, so without this the column is blank for them.
+        { key: 'employee', label: 'Employee', format: 'truncate' },
         { key: 'nameTh', label: 'Name (TH)' },
         { key: 'nameEn', label: 'Name (EN)' },
         { key: 'rank', label: 'Rank' },
@@ -819,7 +822,7 @@ const DATASETS: Record<string, DatasetFetcher> = {
       ],
       items: rows.map((r) => ({
         imported: r.ingestionRunId !== null,
-        employeeId: r.employeeId,
+        employee: r.employeeId ?? (r.ingestionRunId !== null ? r.employeeCode : null),
         nameTh: r.nameTh,
         nameEn: r.nameEn,
         rank: r.rank,
