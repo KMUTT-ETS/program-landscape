@@ -727,6 +727,19 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'so a section missing from the file is treated as cancelled. The only import that deletes.',
     mocked: false,
   },
+  {
+    slug: 'xlsx-program-faculty',
+    name: 'Programme Teaching Staff (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Which staff teach which programmes, uploaded through /admin/data-setup. The link the Deep-Dive faculty section, the ' +
+      'Capability health drivers and per-programme publication counts all read. Previously written only by an AI extraction ' +
+      'over the curriculum PDF, which an adopting university has no equivalent of.',
+    mocked: false,
+  },
 ] as const;
 
 export function getCatalogEntry(slug: string): SourceCatalogEntry | undefined {

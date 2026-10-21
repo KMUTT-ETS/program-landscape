@@ -148,10 +148,15 @@ export const staffDataset: ImportDataset = {
     kind: 'upsert',
     match: { kind: 'unique', columns: ['employeeCode'] },
   },
-  // Publications cascade from a staff member, so clearing the roster would
-  // take them with it. Declared here rather than in the staff task because
+  // Publications AND programme teaching assignments both cascade from a
+  // staff member (`onDelete: Cascade` on `facultyMemberId`), so clearing the
+  // roster would take them with it — silently, which is the worst version.
+  // Losing the teaching assignments is the more damaging of the two: it is
+  // the link the Capability health drivers and per-programme publication
+  // counts are computed through, and nothing on screen would say why those
+  // went blank. Declared here rather than in each dataset's own task because
   // the registry refuses a dependent that does not exist yet.
-  dependents: ['research-outputs'],
+  dependents: ['research-outputs', 'program-faculty'],
 
   load: async (ctx: ImportLoadContext, rows: readonly ImportRow[]): Promise<ImportLoadResult> => {
     const facultyCodes = [...new Set(rows.map((r) => String(r.facultyCode)))];

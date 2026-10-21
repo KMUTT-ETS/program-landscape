@@ -1611,15 +1611,21 @@ model ProgramFaculty {
   /// baseline — it agrees by construction with Program.activeRevisionId
   /// also being NULL.
   programRevisionId String?            @map("program_revision_id")
+  /// The spreadsheet import that wrote this link, when one did. NULL for
+  /// every row the curriculum-PDF extraction produced; start-over deletes
+  /// by run id, so it can never reach them.
+  ingestionRunId    String?            @map("ingestion_run_id")
 
   facultyMember   FacultyMember    @relation(fields: [facultyMemberId], references: [id], onDelete: Cascade)
   program         Program          @relation(fields: [programId], references: [id], onDelete: Cascade)
   programRevision ProgramRevision? @relation(fields: [programRevisionId], references: [id], onDelete: SetNull)
+  ingestionRun    IngestionRun?    @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
 
   @@unique([facultyMemberId, programId])
   @@index([facultyMemberId])
   @@index([programId])
   @@index([programRevisionId])
+  @@index([ingestionRunId])
   @@map("program_faculties")
 }
 
@@ -3536,6 +3542,7 @@ model IngestionRun {
   importedDepartments           Department[]
   importedPrograms              Program[]
   importedFacultyMembers        FacultyMember[]
+  importedProgramFaculties      ProgramFaculty[]
   jobPostings                   JobPosting[]
   job108Announcements           Job108Announcement[]
   programJobThaiLinks           ProgramJobThaiLink[]

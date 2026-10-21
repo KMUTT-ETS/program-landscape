@@ -393,6 +393,65 @@ const DATASETS: Record<string, DatasetFetcher> = {
     };
   },
 
+  'program-faculty': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.ProgramFacultyWhereInput = q.q
+      ? {
+          OR: [
+            { program: { code: { contains: q.q, mode: 'insensitive' } } },
+            { program: { nameEn: { contains: q.q, mode: 'insensitive' } } },
+            { facultyMember: { employeeCode: { contains: q.q, mode: 'insensitive' } } },
+            { facultyMember: { nameEn: { contains: q.q, mode: 'insensitive' } } },
+            { facultyMember: { nameTh: { contains: q.q } } },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.programFaculty.findMany({
+        where,
+        orderBy: [{ program: { code: 'asc' } }, { role: 'asc' }],
+        skip,
+        take: q.pageSize,
+        include: {
+          program: { select: { code: true, nameEn: true } },
+          facultyMember: { select: { employeeCode: true, nameEn: true, nameTh: true } },
+          programRevision: { select: { curriculumYearBE: true } },
+        },
+      }),
+      prisma.programFaculty.count({ where }),
+    ]);
+    return {
+      title: 'Programme teaching staff — who teaches what',
+      description:
+        'One row per person per programme. This is the link that lets publications, seniority and staffing ratios reach a programme page; without it the Capability dimension of the health score reads null. Rows not marked Imported were extracted from the curriculum PDF by AI, and a start-over cannot remove them.',
+      columns: [
+        { key: 'programmeCode', label: 'Programme' },
+        { key: 'programmeName', label: 'Programme name' },
+        { key: 'employeeCode', label: 'Employee' },
+        { key: 'staffName', label: 'Staff name' },
+        { key: 'role', label: 'Role' },
+        { key: 'curriculumYear', label: 'Curriculum year (CE)', numeric: true },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        programmeCode: r.program.code,
+        programmeName: r.program.nameEn ?? '',
+        employeeCode: r.facultyMember.employeeCode,
+        staffName: r.facultyMember.nameTh || r.facultyMember.nameEn || '',
+        role: r.role,
+        // Stored Buddhist-era; shown as the Common Era year the sheet asks for.
+        curriculumYear:
+          r.programRevision?.curriculumYearBE != null
+            ? r.programRevision.curriculumYearBE - 543
+            : null,
+        imported: r.ingestionRunId !== null,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
   // ── Cohort progression and outcomes ──────────────────────────────────────
   'student-cohorts': async (q) => {
     const skip = (q.page - 1) * q.pageSize;

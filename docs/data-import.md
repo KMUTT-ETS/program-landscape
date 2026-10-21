@@ -20,16 +20,26 @@ This page is for the person doing the uploading.
 | **Student Cohorts** | How many of each entry cohort are still enrolled | — |
 | **Alumni Cohorts** | What became of each entry cohort | — |
 | **Admission Campaigns** | The recruitment funnel, per campaign | — |
-| **Staff** | Your teaching-staff roster | Publications |
+| **Staff** | Your teaching-staff roster | Publications, Programme Teaching Staff |
 | **Compensation** | Aggregate salary by faculty, department and rank | — |
 | **Budgets** | Budget by division and fund category | — |
 | **Publications** | Research outputs, one row per paper per author | — |
 | **Class Offerings** | Every class section taught in one term | — |
+| **Programme Teaching Staff** | Which staff teach which programmes | — |
 
 Load them top to bottom. The first three are the backbone everything else
-refers to by code; **Staff** must come before **Publications**, which names
-people by their employee code. Everything else can be uploaded in any order
-once the backbone exists.
+refers to by code; **Staff** must come before both **Publications** and
+**Programme Teaching Staff**, which name people by their employee code.
+Everything else can be uploaded in any order once the backbone exists.
+
+**Do not skip Programme Teaching Staff.** It is a link table rather than a
+set of figures, which makes it easy to leave for later, and three things you
+have already uploaded stay silent until it exists. A publication attaches to
+a *person*; a person reaches a *programme* only through this sheet. So
+without it the programme pages show no teaching team, the staffing and
+seniority figures are blank, your uploaded research record contributes
+nothing to any programme, and the Capability part of each programme's health
+score cannot be computed at all.
 
 Two things are deliberately absent. **Cost figures** are not uploadable: a
 programme's cost is an allocation your institution has to be able to defend, so
@@ -40,8 +50,11 @@ would ask you for work no screen would show.
 
 A few more are deliberately out of scope and documented as such in the design
 note under `docs/superpowers/specs/` — employer feedback, teaching evaluations
-and instructor rosters, the last of these because it keys on personal email
-addresses.
+and per-section instructor rosters, the last of these because it keys on
+personal email addresses. Note that per-section instructors are a different
+thing from **Programme Teaching Staff** above: one says who stood in front of
+a particular class, the other says who the programme's teaching team is, and
+only the second is importable.
 
 ## Class Offerings replaces a term; everything else merges
 
