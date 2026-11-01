@@ -123,6 +123,11 @@ interface Props {
   demandFunnel: DeepDiveDemandFunnel | null;
   studentCohorts: DeepDiveStudentCohorts | null;
   tcasStats: DeepDiveTcasStats | null;
+  /**
+   * Admin-grade only. Empty states link to Data sources (TCAS) and to the
+   * Data setup import pages (cohorts, funnel), both behind the same gate.
+   */
+  canOpenDataSources: boolean;
   recruitment: DeepDiveRecruitment | null;
   aiPeers: DeepDiveAiPeers | null;
   aiReadiness: DeepDiveAiReadiness | null;
@@ -420,8 +425,14 @@ export function DeepDiveClient(props: Props) {
           stat={railMeta.current.students}
           statLabel="active"
         >
-          <StudentCohortsSection data={props.studentCohorts} />
-          <DemandFunnelSection data={props.demandFunnel} />
+          <StudentCohortsSection
+            data={props.studentCohorts}
+            canOpenDataSources={props.canOpenDataSources}
+          />
+          <DemandFunnelSection
+            data={props.demandFunnel}
+            canOpenDataSources={props.canOpenDataSources}
+          />
           <DemographicOutlookSection data={props.demographicOutlook} />
         </MacroGroup>
 
@@ -1348,17 +1359,59 @@ function NarrativeSection({
   );
 }
 
-function DemandFunnelSection({ data }: { data: DeepDiveDemandFunnel | null }) {
-  if (!data) return <EmptyCard title="Demand funnel" note="No data — run kku-registry + alumni links." />;
-  const stages = data.stages.filter((s) => s.value > 0);
-  if (stages.length === 0) {
+/**
+ * Where an empty cohort section sends its reader. The spreadsheet import is
+ * the path every installation has; the registrar scripts only work where the
+ * kku-registry Oracle connection is configured, so they are a footnote.
+ */
+function CohortImportNote({
+  canOpenDataSources,
+  datasets,
+}: {
+  canOpenDataSources: boolean;
+  datasets: ReadonlyArray<{ slug: string; label: string }>;
+}) {
+  if (!canOpenDataSources) {
+    return <>This data has not been loaded yet. An administrator can import it from Data setup.</>;
+  }
+  return (
+    <>
+      Import it from Data setup:{' '}
+      {datasets.map((d, i) => (
+        <React.Fragment key={d.slug}>
+          {i > 0 && (i === datasets.length - 1 ? ' and ' : ', ')}
+          <Link href={`/admin/data-setup/raw/${d.slug}`} className="text-accent-default hover:underline">
+            {d.label}
+          </Link>
+        </React.Fragment>
+      ))}
+      . Installations connected to the registrar database can run the{' '}
+      <span className="font-tabular">pnpm programs:link-*</span> scripts instead.
+    </>
+  );
+}
+
+const FUNNEL_DATASETS = [
+  { slug: 'student-cohorts', label: 'Student cohorts' },
+  { slug: 'alumni-cohorts', label: 'Alumni cohorts' },
+  { slug: 'admission-campaigns', label: 'Admission campaigns' },
+] as const;
+
+function DemandFunnelSection({
+  data,
+  canOpenDataSources,
+}: {
+  data: DeepDiveDemandFunnel | null;
+  canOpenDataSources: boolean;
+}) {
+  const note = <CohortImportNote canOpenDataSources={canOpenDataSources} datasets={FUNNEL_DATASETS} />;
+  const stages = data ? data.stages.filter((s) => s.value > 0) : [];
+  if (!data || stages.length === 0) {
     return (
       <Section id="demand" title="Demand funnel">
         <Card>
-          <EmptyState
-            title="No funnel data"
-            description="Run `pnpm programs:link-cohorts <code>` and `pnpm programs:link-alumni <code>` to populate cohort-by-year + alumni-status data, then `pnpm registry:capture` for TCAS3 applicant counts."
-          />
+          <p className="text-sm font-medium text-text-secondary">No funnel data</p>
+          <p className="mt-1 text-sm text-text-tertiary">{note}</p>
         </Card>
       </Section>
     );
@@ -1590,13 +1643,24 @@ function StatusKpi({
   );
 }
 
-function StudentCohortsSection({ data }: { data: DeepDiveStudentCohorts | null }) {
+function StudentCohortsSection({
+  data,
+  canOpenDataSources,
+}: {
+  data: DeepDiveStudentCohorts | null;
+  canOpenDataSources: boolean;
+}) {
   if (!data || data.cohorts.length === 0) {
     return (
       <Section id="cohorts" title="Cohort distribution by entry year">
         <EmptyCard
           title="No cohort data"
-          note="Run `pnpm programs:link-cohorts <code>` to populate from registrar data."
+          note={
+            <CohortImportNote
+              canOpenDataSources={canOpenDataSources}
+              datasets={[{ slug: 'student-cohorts', label: 'Student cohorts' }]}
+            />
+          }
         />
       </Section>
     );
@@ -4873,7 +4937,7 @@ function TrendsSection({ data }: { data: DeepDiveTrends | null }) {
 // Helpers
 // ──────────────────────────────────────────────────────────────────────────
 
-function EmptyCard({ title, note }: { title: string; note: string }) {
+function EmptyCard({ title, note }: { title: string; note: React.ReactNode }) {
   return (
     <Section id={title.toLowerCase().replace(/\s/g, '-')} title={title}>
       <Card>

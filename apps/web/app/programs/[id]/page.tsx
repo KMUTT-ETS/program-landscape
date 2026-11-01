@@ -5,7 +5,7 @@ import { notFound, redirect } from 'next/navigation';
 // into the browser bundle — so they are read here, on the server, and
 // passed down. Same for the suppression floor out of `@kku/db`, which
 // the DQ copy quotes: one definition, not two.
-import { DQ_MODULES, DQ_PASS_MARK, type SessionUser } from '@kku/shared';
+import { DQ_MODULES, DQ_PASS_MARK, isAdminGrade, type SessionUser } from '@kku/shared';
 import { DQ_MIN_CELL_STUDENTS, OVERALL_MEAN_MAX_MODULE_NO } from '@kku/db';
 import { auth } from '@/lib/auth';
 import { apiFetch, apiFetchEnvelope, apiFetchSafe } from '@/lib/api-client';
@@ -219,6 +219,7 @@ export default async function ProgramDeepDivePage({
         demandFunnel={demandFunnel}
         studentCohorts={studentCohorts}
         tcasStats={tcasStats}
+        canOpenDataSources={isAdminGrade(user.effectiveRole ?? user.role)}
         recruitment={recruitment}
         aiPeers={aiPeers}
         aiReadiness={aiReadiness}

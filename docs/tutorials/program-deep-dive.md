@@ -251,8 +251,12 @@ you can see the shape of the work. They run only after the steps above.
 - **Phase 4 is not portable.** The pipeline's cohort, alumni and financial
   linking scripts (`programs:link-cohorts`, `programs:link-alumni`,
   `programs:link-financials`) query the reference deployment's registrar and HR
-  views directly. At another institution, adapt them or run the pipeline with
-  `--skip=phase4` and fill those tables another way.
+  views directly. At another institution, run the pipeline with
+  `--skip=phase4` and fill those tables from spreadsheets instead — the
+  *Student Cohorts*, *Alumni Cohorts* and *Finance* datasets in
+  [the data import guide](../data-import.md) write the same tables. The
+  Deep-Dive's empty cohort and funnel sections link admins straight to those
+  imports.
 - **Step by step:** [Adapt the registrar connector](./adapt-the-registrar-connector.md)
   walks through this source from schema discovery to a verified run.
 - **More:** [registrar source spec](../data-sources/kku-registry.md),
