@@ -13,6 +13,9 @@ const MODEL_INVALID_MARKERS = [
   /"code"\s*:\s*400[\s\S]*"status"\s*:\s*"INVALID_ARGUMENT"/,
   /"code"\s*:\s*404[\s\S]*"status"\s*:\s*"NOT_FOUND"/,
   /is not found for API version/i,
+  // OpenRouter (openrouter-ai.ts prefixes the status, then OpenRouter's body).
+  /OpenRouter HTTP 400:[\s\S]*is not a valid model ID/i,
+  /OpenRouter HTTP 404:[\s\S]*No endpoints found for/i,
 ];
 
 export function isModelInvalidError(err: unknown): boolean {

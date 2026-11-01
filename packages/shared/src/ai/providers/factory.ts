@@ -22,7 +22,10 @@ import {
 //
 //   AI_PROVIDER=google       — Gemini via @google/genai (default)
 //   AI_PROVIDER=anthropic    — Claude via @anthropic-ai/sdk
-//   AI_PROVIDER=openrouter   — stub; throws on call
+//   AI_PROVIDER=openrouter   — any model via OpenRouter's OpenAI-compatible
+//                              API. embed() goes to Google when a Google key
+//                              is set (keeps stored vectors in one space);
+//                              Google is also the transient-error secondary.
 //   AI_PROVIDER=intelsphere  — stub; throws on call
 //   AI_PROVIDER=stub         — dev fallback; deterministic placeholders +
 //                              AiInference rows, no external call. Use when
@@ -51,6 +54,7 @@ export interface AiFactoryConfig {
   models?: {
     google?: { completion?: string; embedding?: string };
     anthropic?: { completion?: string };
+    openrouter?: { completion?: string; embedding?: string };
   };
   /** Runtime per-method-prefix model override resolver. Backed by the
    *  ai_model_overrides table via @kku/db's AiModelOverrideStore.
@@ -76,6 +80,10 @@ export function normaliseModels(models: AiFactoryConfig['models']): AiFactoryCon
     },
     anthropic: models.anthropic && {
       completion: blankToUndefined(models.anthropic.completion),
+    },
+    openrouter: models.openrouter && {
+      completion: blankToUndefined(models.openrouter.completion),
+      embedding: blankToUndefined(models.openrouter.embedding),
     },
   };
 }
@@ -141,7 +149,44 @@ export function createAiService(config: AiFactoryConfig): AiService {
     }
     case 'openrouter': {
       if (!apiKeys.openrouter) throw new Error('AI_PROVIDER=openrouter but no OPENROUTER_API_KEY configured');
-      return new OpenrouterAiService({ apiKey: apiKeys.openrouter, recorder });
+      // Most api-side callers pass no `models` at all. Google and Anthropic
+      // have sane built-in defaults; an OpenRouter deployment's model choice
+      // is the whole point of picking OpenRouter, so read the env here rather
+      // than make a dozen services each remember to thread it through.
+      const orCompletion =
+        models?.openrouter?.completion ?? blankToUndefined(process.env.AI_OPENROUTER_COMPLETION_MODEL);
+      const orEmbedding =
+        models?.openrouter?.embedding ?? blankToUndefined(process.env.AI_OPENROUTER_EMBEDDING_MODEL);
+      const primary = new OpenrouterAiService({
+        apiKey: apiKeys.openrouter,
+        recorder,
+        defaultModel: orCompletion,
+        embeddingModel: orEmbedding,
+        modelOverrideResolver,
+      });
+      const googleSecondary = apiKeys.google
+        ? new GoogleAiService({
+            apiKey: apiKeys.google,
+            recorder,
+            defaultCompletionModel: models?.google?.completion,
+            defaultEmbeddingModel: models?.google?.embedding,
+            modelOverrideResolver,
+          })
+        : undefined;
+      if (!googleSecondary && !orEmbedding) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          '[ai/factory] AI_PROVIDER=openrouter without GOOGLE_AI_API_KEY or AI_OPENROUTER_EMBEDDING_MODEL — embed() calls will fail.',
+        );
+      }
+      // Embeddings stay on Google whenever it is available: every stored
+      // vector came from Google's model, and similarity across two models'
+      // spaces is meaningless. An explicit OpenRouter embedding model only
+      // takes over when there is no Google key at all.
+      const withEmbeddings = wrapWithEmbeddingFallback(primary, googleSecondary);
+      return wrapWithModelInvalidFallback(
+        wrapWithTransientFallback(withEmbeddings, googleSecondary),
+      );
     }
     case 'intelsphere': {
       if (!apiKeys.intelSphere) throw new Error('AI_PROVIDER=intelsphere but KKU_INTELSPHERE_* vars missing');

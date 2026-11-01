@@ -59,11 +59,13 @@ Config (env):
 | `AI_PROVIDER` | `google` | `google` / `anthropic` / `openrouter` / `intelsphere` |
 | `GOOGLE_AI_API_KEY` |  | Required for provider=google; also used for embeddings when provider=anthropic |
 | `ANTHROPIC_API_KEY` |  | Required for provider=anthropic |
-| `OPENROUTER_API_KEY` |  | Stubbed |
+| `OPENROUTER_API_KEY` |  | Required for provider=openrouter |
 | `KKU_INTELSPHERE_URL` / `KKU_INTELSPHERE_API_KEY` |  | Stubbed |
 | `AI_GOOGLE_COMPLETION_MODEL` | `gemini-2.0-flash-001` | Override per deployment |
 | `AI_GOOGLE_EMBEDDING_MODEL` | `text-embedding-004` | 1536 dims — matches pgvector column |
 | `AI_ANTHROPIC_COMPLETION_MODEL` | `claude-sonnet-4-6` | |
+| `AI_OPENROUTER_COMPLETION_MODEL` | `google/gemini-2.5-flash` | OpenRouter `vendor/model` id. Bare `gemini-…` ids (method-catalog defaults, admin overrides) map to `google/<id>` |
+| `AI_OPENROUTER_EMBEDDING_MODEL` |  | Leave unset. Embeddings go to Google whenever `GOOGLE_AI_API_KEY` is set, because stored vectors must all come from one model; this is used only when there is no Google key, and then everything must be re-embedded |
 | `AI_AUTO_APPROVE_THRESHOLD` | `0.85` | AiExtraction below this → PENDING_REVIEW |
 
 ## Confidence thresholds
@@ -209,7 +211,7 @@ that's the signal to invest in the hand-labeled audit.
 | `AiService` interface | **Real** | In `@kku/shared/ai` |
 | Google / Gemini provider | **Real** | Requires `GOOGLE_AI_API_KEY` |
 | Anthropic / Claude provider | **Real** | Requires `ANTHROPIC_API_KEY`; embedding falls back to Google |
-| OpenRouter provider | **Stubbed** | Factory returns the class; methods throw |
+| OpenRouter provider | **Real** | Requires `OPENROUTER_API_KEY`. OpenAI-compatible chat API: complete, extractStructured (JSON mode), translate, vision, tool use. Cost recorded from OpenRouter's billed figure. Embeddings and transient-error fallback go to Google when its key is set. No File API: an extraction carrying `fileAttachment` is refused |
 | IntelSphere (KKU gateway) | **Stubbed** | Needs gateway API contract |
 | Prompt templates | **Real** | 3 templates versioned as code |
 | Skill taxonomy seed | **Real-ish** | ~60 skills; full ESCO / TPQI bootstrap deferred to a data-load chore |

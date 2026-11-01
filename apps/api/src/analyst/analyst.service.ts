@@ -122,7 +122,8 @@ export class AnalystService implements OnModuleInit {
     // Analyst follows the global AI_PROVIDER setting. Both Anthropic and
     // Google now support `completeWithTools`: Google via Gemini Flash
     // function calling (cheap + fast), Anthropic via the native tool_use
-    // protocol. OpenRouter / IntelSphere still throw ToolUseNotSupportedError.
+    // protocol, OpenRouter via OpenAI-style function calling. IntelSphere
+    // still throws ToolUseNotSupportedError.
     const providerId = (this.config.get<string>('AI_PROVIDER') ?? 'google') as AiProviderId;
     const intelSphereUrl = this.config.get<string>('KKU_INTELSPHERE_URL');
     const intelSphereKey = this.config.get<string>('KKU_INTELSPHERE_API_KEY');
@@ -146,11 +147,13 @@ export class AnalystService implements OnModuleInit {
     return Boolean(this.config.get<string>('ANTHROPIC_API_KEY'));
   }
 
-  /** Either provider supports the agent loop now. Google via Gemini Flash
-   *  function-calling, Anthropic via the native tool_use API. */
+  /** Google, Anthropic and OpenRouter all support the agent loop: Gemini
+   *  function calling, Anthropic's native tool_use, OpenAI-style tools. */
   private hasToolUseProvider(): boolean {
     return Boolean(
-      this.config.get<string>('ANTHROPIC_API_KEY') || this.config.get<string>('GOOGLE_AI_API_KEY'),
+      this.config.get<string>('ANTHROPIC_API_KEY') ||
+        this.config.get<string>('GOOGLE_AI_API_KEY') ||
+        this.config.get<string>('OPENROUTER_API_KEY'),
     );
   }
 
