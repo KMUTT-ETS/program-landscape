@@ -84,10 +84,15 @@ export type ImportMatch =
  *   that term is replaced wholesale. Not an operator choice: a fixed property
  *   of the dataset, invisible in the UI. Used where the source is a statement
  *   of what exists rather than a list of changes.
+ * 'programme-scoped' — every distinct tuple of `scopeColumns` the file names
+ *   (typically a programme code) is replaced wholesale; programmes the file
+ *   does not mention are untouched. Used where the source is a programme's
+ *   complete list of something, and a file may cover many programmes.
  */
 export type ImportStrategy =
   | { kind: 'upsert'; match: ImportMatch }
-  | { kind: 'term-scoped'; termColumns: readonly string[]; match: ImportMatch };
+  | { kind: 'term-scoped'; termColumns: readonly string[]; match: ImportMatch }
+  | { kind: 'programme-scoped'; scopeColumns: readonly string[]; match: ImportMatch };
 
 /** One thing wrong with an uploaded sheet, addressed to the operator. */
 export interface ImportValidationError {
@@ -173,6 +178,15 @@ export interface ImportDataset {
   countForTerm?: (
     prisma: PrismaClient,
     term: Readonly<Record<string, ImportCellValue>>,
+  ) => Promise<number>;
+  /**
+   * Rows held for the scopes a file names. Required of a `programme-scoped`
+   * dataset, where the table holds every programme and `count` would make a
+   * file covering two programmes look like a near-total shrink.
+   */
+  countForScope?: (
+    prisma: PrismaClient,
+    scopes: readonly Readonly<Record<string, ImportCellValue>>[],
   ) => Promise<number>;
   /** Deletes only rows written by the given import runs. Returns the count. */
   clear: (tx: Prisma.TransactionClient, runIds: readonly string[]) => Promise<number>;

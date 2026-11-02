@@ -4,6 +4,38 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ImportService, type ImportServiceDeps } from '../src/import/import.service';
 
+// A programme-scoped fixture: no shipped dataset uses the strategy yet, so
+// the lookup is widened for one slug only.
+const SCOPED_SLUG = 'fixture-scoped';
+vi.mock('@kku/db', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@kku/db')>();
+  return {
+    ...actual,
+    getImportDataset: (slug: string) =>
+      slug === 'fixture-scoped'
+        ? ({
+            slug,
+            title: 'Fixture',
+            description: '',
+            tier: 1,
+            sheetName: 'Scoped',
+            columns: [
+              { header: 'Programme Code', key: 'programmeCode', type: 'text', required: true, guide: 'g', example: 'P1' },
+              { header: 'Course Code', key: 'courseCode', type: 'text', required: true, guide: 'g', example: 'C1' },
+            ],
+            strategy: {
+              kind: 'programme-scoped',
+              scopeColumns: ['programmeCode'],
+              match: { kind: 'manual', columns: ['programmeCode', 'courseCode'] },
+            },
+            load: async () => ({ inserted: 0, updated: 0, deleted: 0 }),
+            count: async () => 0,
+            clear: async () => 0,
+          } satisfies ImportDataset)
+        : actual.getImportDataset(slug),
+  };
+});
+
 // No database and no MinIO: every collaborator is injected.
 
 const faculties = getImportDataset('faculties');
@@ -38,6 +70,7 @@ function harness(overrides: Partial<ImportServiceDeps> = {}): Harness {
     loadReferences: track('loadReferences', Promise.resolve(new Map())),
     heldCount: track('heldCount', Promise.resolve(0)),
     heldCountForTerm: track('heldCountForTerm', Promise.resolve(undefined)),
+    heldCountForScope: track('heldCountForScope', Promise.resolve(undefined)),
     runLoad: track('runLoad', Promise.resolve({ batchId: 'batch-1', result: { inserted: 1, updated: 0, deleted: 0 } })),
     startOver: track('startOver', Promise.resolve({ rowsDeleted: 3, batchesCleared: 1 })),
     prefill: track('prefill', Promise.resolve([] as ImportRow[])),
@@ -241,5 +274,29 @@ describe('a term-scoped upload', () => {
       allowShrink: true,
     })).rejects.toThrow();
     expect(h.deps.runLoad).not.toHaveBeenCalled();
+  });
+});
+
+describe('a programme-scoped upload', () => {
+  it('passes the scope count to validation for a programme-scoped dataset', async () => {
+    const h = harness({
+      heldCount: () => Promise.resolve(11_000),
+      heldCountForScope: () => Promise.resolve(4),
+    });
+    await h.service.uploadFile({
+      datasetSlug: SCOPED_SLUG,
+      originalFilename: 'courses.xlsx',
+      bytes: workbook(
+        [['Programme Code', 'Course Code'], ['P1', 'C1'], ['P1', 'C2'], ['P2', 'C1']],
+        'Scoped',
+      ),
+      uploadedByUserId: null,
+      allowShrink: false,
+    });
+    expect(h.deps.heldCountForScope).toHaveBeenCalledWith(
+      expect.objectContaining({ slug: SCOPED_SLUG }),
+      [{ programmeCode: 'P1' }, { programmeCode: 'P2' }],
+    );
+    expect(h.deps.runLoad).toHaveBeenCalled();
   });
 });

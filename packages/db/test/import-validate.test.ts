@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ImportDataset, ImportStrategy } from '../src/import/types';
-import { MAX_REPORTED_ERRORS, readDeclaredTerm, validateSheet, type ParsedSheet, type ValidationContext } from '../src/import/validate';
+import { MAX_REPORTED_ERRORS, readDeclaredScopes, readDeclaredTerm, validateSheet, type ParsedSheet, type ValidationContext } from '../src/import/validate';
 
 // A fixture dataset, not one from the real registry: the suite must not move
 // when a shipped declaration changes a column.
@@ -885,5 +885,78 @@ describe('validateSheet — key identity', () => {
     const result = validateSheet(identityDataset(), idSheet([{ A: 'P', Code: 'MEE 221' }]), ctx());
     if (!result.ok) throw new Error('expected ok');
     expect(result.rows[0].code).toBe('MEE 221');
+  });
+});
+
+describe('programme-scoped strategy', () => {
+  // A file may name many programmes; each is replaced wholesale. The shrink
+  // guard must compare against rows held for THOSE programmes, not the table.
+  const scoped = makeDataset({
+    strategy: {
+      kind: 'programme-scoped',
+      scopeColumns: ['code'],
+      match: { kind: 'manual', columns: ['code', 'name'] },
+    },
+  });
+
+  const threeRows = [
+    row({ Code: 'P1', Name: 'a' }),
+    row({ Code: 'P1', Name: 'b' }),
+    row({ Code: 'P2', Name: 'c' }),
+  ];
+
+  it('programme-scoped: rows may name different scopes', () => {
+    const result = validateSheet(
+      scoped,
+      sheet(ALL_HEADERS, [row({ Code: 'P1', Name: 'a' }), row({ Code: 'P2', Name: 'b' })]),
+      ctx(),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.term).toBeNull();
+  });
+
+  it('programme-scoped: shrink baseline is heldRowCountForScope, not heldRowCount', () => {
+    const fine = validateSheet(
+      scoped, sheet(ALL_HEADERS, threeRows),
+      ctx({ heldRowCount: 11_000, heldRowCountForScope: 4 }),
+    );
+    expect(fine.ok).toBe(true);
+
+    const shrunk = validateSheet(
+      scoped, sheet(ALL_HEADERS, threeRows),
+      ctx({ heldRowCount: 11_000, heldRowCountForScope: 10 }),
+    );
+    expect(errorsOf(shrunk).some((e) => e.message.includes('are already stored for it'))).toBe(true);
+  });
+
+  it('programme-scoped: undefined heldRowCountForScope means no prior rows', () => {
+    const result = validateSheet(
+      scoped, sheet(ALL_HEADERS, threeRows),
+      ctx({ heldRowCount: 11_000 }),
+    );
+    expect(result.ok).toBe(true);
+  });
+});
+
+describe('readDeclaredScopes', () => {
+  const scoped = makeDataset({
+    strategy: {
+      kind: 'programme-scoped',
+      scopeColumns: ['code'],
+      match: { kind: 'manual', columns: ['code', 'name'] },
+    },
+  });
+
+  it('returns distinct tuples', () => {
+    const parsed = sheet(ALL_HEADERS, [
+      row({ Code: 'P1', Name: 'a' }),
+      row({ Code: 'P1', Name: 'b' }),
+      row({ Code: 'P2', Name: 'c' }),
+    ]);
+    expect(readDeclaredScopes(scoped, parsed)).toEqual([{ code: 'P1' }, { code: 'P2' }]);
+  });
+
+  it('is null for a dataset that is not programme-scoped', () => {
+    expect(readDeclaredScopes(makeDataset(), sheet(ALL_HEADERS, [row()]))).toBeNull();
   });
 });

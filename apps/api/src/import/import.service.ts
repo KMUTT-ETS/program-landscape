@@ -12,6 +12,7 @@ import {
   markImportBatchFailed,
   markImportBatchSucceeded,
   prisma,
+  readDeclaredScopes,
   readDeclaredTerm,
   recordImportBatch,
   startImportRun,
@@ -50,6 +51,11 @@ export interface ImportServiceDeps {
   heldCountForTerm: (
     dataset: ImportDataset,
     term: Readonly<Record<string, ImportCellValue>>,
+  ) => Promise<number | undefined>;
+  /** Rows held for the scopes a file names; undefined unless programme-scoped. */
+  heldCountForScope: (
+    dataset: ImportDataset,
+    scopes: readonly Readonly<Record<string, ImportCellValue>>[],
   ) => Promise<number | undefined>;
   runLoad: (
     dataset: ImportDataset,
@@ -145,6 +151,10 @@ export class ImportService implements OnModuleInit {
         deps?.heldCountForTerm ??
         ((dataset, term) =>
           dataset.countForTerm ? dataset.countForTerm(prisma, term) : Promise.resolve(undefined)),
+      heldCountForScope:
+        deps?.heldCountForScope ??
+        ((dataset, scopes) =>
+          dataset.countForScope ? dataset.countForScope(prisma, scopes) : Promise.resolve(undefined)),
       runLoad: deps?.runLoad ?? ((dataset, rows, userId, batch, term) => this.defaultRunLoad(dataset, rows, userId, batch, term)),
       startOver: deps?.startOver ?? startOverDataset,
       prefill: deps?.prefill ?? ((dataset, opts) => (dataset.prefill ? dataset.prefill(prisma, opts) : Promise.resolve([]))),
@@ -300,10 +310,18 @@ export class ImportService implements OnModuleInit {
       ? await this.deps.heldCountForTerm(dataset, declaredTerm)
       : undefined;
 
+    // Likewise a programme-scoped file is compared against the rows held for
+    // the programmes it names.
+    const declaredScopes = readDeclaredScopes(dataset, parsed.parsed);
+    const heldRowCountForScope = declaredScopes
+      ? await this.deps.heldCountForScope(dataset, declaredScopes)
+      : undefined;
+
     const validated = validateSheet(dataset, parsed.parsed, {
       references,
       heldRowCount,
       heldRowCountForTerm,
+      heldRowCountForScope,
       allowShrink: args.allowShrink,
       maxRows: IMPORT_MAX_ROWS,
     });

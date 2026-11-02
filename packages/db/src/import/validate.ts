@@ -40,6 +40,14 @@ export interface ValidationContext {
    * (a file the validator is about to refuse anyway).
    */
   heldRowCountForTerm?: number;
+  /**
+   * Rows already stored FOR THE SCOPES a programme-scoped file names.
+   *
+   * For that kind an absent value means "no prior rows" — it does NOT fall
+   * back to `heldRowCount`, which counts every programme in the table and
+   * would make a one-programme file look like a near-total shrink.
+   */
+  heldRowCountForScope?: number;
   allowShrink: boolean;
   maxRows: number;
 }
@@ -205,6 +213,47 @@ export function readDeclaredTerm(
   return null;
 }
 
+/**
+ * The scopes a programme-scoped file appears to name, read before validation.
+ *
+ * Same role as `readDeclaredTerm`: the shrink guard needs the baseline for
+ * these scopes before validation runs. Advisory only — a row whose scope
+ * cells do not coerce, or are blank, is skipped here and refused later by
+ * `validateSheet`. Null unless the dataset is programme-scoped.
+ */
+export function readDeclaredScopes(
+  dataset: ImportDataset,
+  parsed: ParsedSheet,
+): Readonly<Record<string, ImportCellValue>>[] | null {
+  if (dataset.strategy.kind !== 'programme-scoped') return null;
+  const scopeColumns = dataset.strategy.scopeColumns;
+  const headerByTrimmed = new Map(parsed.headers.map((h) => [h.trim(), h]));
+  const columns = dataset.columns.filter((c) => scopeColumns.includes(c.key));
+  if (columns.length !== scopeColumns.length) return null;
+
+  const seen = new Set<string>();
+  const scopes: Record<string, ImportCellValue>[] = [];
+  for (const source of parsed.rows) {
+    const read = (c: ImportColumn): unknown => source[headerByTrimmed.get(c.header) ?? c.header];
+    const scope: Record<string, ImportCellValue> = {};
+    let usable = true;
+    for (const column of columns) {
+      const coerced = coerceCell(column, read(column));
+      if ('error' in coerced || coerced.value === null) {
+        usable = false;
+        break;
+      }
+      scope[column.key] = coerced.value;
+    }
+    if (!usable) continue;
+    const id = JSON.stringify(scopeColumns.map((k) => scope[k]));
+    if (seen.has(id)) continue;
+    seen.add(id);
+    scopes.push(scope);
+  }
+  return scopes;
+}
+
 export function validateSheet(
   dataset: ImportDataset,
   parsed: ParsedSheet,
@@ -274,6 +323,7 @@ export function validateSheet(
   const identityKeys = new Set<string>([
     ...dataset.strategy.match.columns,
     ...(dataset.strategy.kind === 'term-scoped' ? dataset.strategy.termColumns : []),
+    ...(dataset.strategy.kind === 'programme-scoped' ? dataset.strategy.scopeColumns : []),
   ]);
   const identityColumns = dataset.columns.filter((c) => identityKeys.has(c.key));
   const valueColumns = dataset.columns.filter((c) => !identityKeys.has(c.key));
@@ -560,10 +610,14 @@ export function validateSheet(
   // ── shrink guard ──────────────────────────────────────────────────────────
   // A term-scoped file is compared against its own term, not the table:
   // see ValidationContext.heldRowCountForTerm.
+  // A programme-scoped file is compared against the rows held for the
+  // programmes it names; absent means none, never the whole table.
   const shrinkBaseline =
-    dataset.strategy.kind === 'term-scoped' && ctx.heldRowCountForTerm !== undefined
-      ? ctx.heldRowCountForTerm
-      : ctx.heldRowCount;
+    dataset.strategy.kind === 'programme-scoped'
+      ? (ctx.heldRowCountForScope ?? 0)
+      : dataset.strategy.kind === 'term-scoped' && ctx.heldRowCountForTerm !== undefined
+        ? ctx.heldRowCountForTerm
+        : ctx.heldRowCount;
 
   if (!ctx.allowShrink && shrinkBaseline > 0 && accepted.length * 2 < shrinkBaseline) {
     errors.push({
