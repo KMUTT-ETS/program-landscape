@@ -129,6 +129,10 @@ Things to know about what reads the list:
 
 - The Deep-Dive course card lists only courses that also appear in Class
   Offerings with graded sections on the same course code, so upload Class
+- **A pipeline run racing an upload.** If a pipeline run happens to be writing
+  extracted courses for a programme at the exact moment its upload commits, the
+  upload can be overwritten; re-upload that programme in that case (the window
+  is a single database statement).
   Offerings with matching codes for the card to fill.
 - Curriculum revision reads course descriptions from the AI digest, not from
   this table, and Unknown-category rows are never promotion candidates. Its

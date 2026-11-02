@@ -3,7 +3,7 @@ import type { CourseCategory, PrismaClient } from '@prisma/client';
 import { ApiError } from '@kku/shared';
 
 import { normaliseCourseCode } from '../../course-code-normalise';
-import { importOwnedCourseWhere } from '../../program-course-ownership';
+import { importOwnedCourseWhere, importOwnedRowsWhere } from '../../program-course-ownership';
 import type {
   ImportDataset,
   ImportLoadContext,
@@ -181,7 +181,11 @@ export const programmeCoursesDataset: ImportDataset = {
     return { inserted: created.count, updated: 0, deleted: deleted.count };
   },
 
-  count: (prisma: PrismaClient): Promise<number> => prisma.programCourse.count(),
+  // Import-owned rows only: PDF-extracted rows share the table, and counting
+  // them would make the dataset look filled before any upload and leave rows
+  // behind after start-over. Same relation as countForScope / ownership.
+  count: (prisma: PrismaClient): Promise<number> =>
+    prisma.programCourse.count({ where: importOwnedRowsWhere() }),
 
   // Only rows the import itself wrote: the guard protects an adopter's own
   // list from a partial re-upload and must not refuse a first upload over an

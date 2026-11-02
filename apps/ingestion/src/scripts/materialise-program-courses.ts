@@ -299,7 +299,7 @@ async function main(): Promise<void> {
     console.log(`Programs processed:        ${processed}`);
     console.log(`Programs failed:           ${failed}`);
     console.log(`Programs skipped (extractor-owned rows): ${skippedExtractorOwned}`);
-    console.log(`Programs skippedImportOwned: ${skippedImportOwned}`);
+    console.log(`Programs skipped (import-owned rows): ${skippedImportOwned}`);
     console.log(`Rows ${args.apply ? 'inserted' : 'would-insert'}:        ${totalInserted}`);
     console.log(`Rows with a category:      ${totalWithCategory} / ${totalInserted}`);
     console.log(`Rows dropped (empty/dup):  ${totalDropped} (empty=${totalEmptyCode}, dup-in-digest=${totalDuplicateInDigest})`);

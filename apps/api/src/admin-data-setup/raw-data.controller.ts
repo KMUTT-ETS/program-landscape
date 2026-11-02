@@ -1,6 +1,6 @@
 import { Controller, Get, NotFoundException, Param, Query } from '@nestjs/common';
 import { z } from 'zod';
-import { prisma, type Prisma } from '@kku/db';
+import { PROGRAMME_COURSES_IMPORT_VERSION, prisma, type Prisma } from '@kku/db';
 import { Authorized, Provenance, ZodValidationPipe } from '../common';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -497,7 +497,7 @@ const DATASETS: Record<string, DatasetFetcher> = {
         courseNameEn: r.courseNameEn,
         credits: r.credits,
         category: r.category,
-        imported: r.methodVersion === 'xlsx-import.v1',
+        imported: r.methodVersion === PROGRAMME_COURSES_IMPORT_VERSION,
       })),
       total,
       page: q.page,

@@ -197,6 +197,24 @@ describe('programme-courses dataset', () => {
     expect(await count(prisma, [{ programmeCode: CODES[2] }])).toBe(0);
   });
 
+  it('count() counts only import-owned rows, not PDF-extracted ones', async () => {
+    const before = await programmeCoursesDataset.count(prisma);
+    const extra = await prisma.programCourse.create({
+      data: {
+        programId: ids[CODES[2]]!, courseCode: 'PDFX', courseCodeRaw: 'PDF X',
+        methodVersion: 'program-courses-extract.v4', ingestionRunId: null,
+      },
+    });
+    try {
+      // An extractor row must not move the dataset's row count.
+      expect(await programmeCoursesDataset.count(prisma)).toBe(before);
+    } finally {
+      await prisma.programCourse.delete({ where: { id: extra.id } });
+    }
+    // Import rows do count: CODES[0] and CODES[1] hold one each.
+    expect(before).toBeGreaterThanOrEqual(2);
+  });
+
   it('importOwnedProgramIds names the programmes holding imported rows', async () => {
     const owned = await importOwnedProgramIds(prisma, CODES.map((c) => ids[c]!));
     expect(owned).toEqual(new Set([ids[CODES[0]]!, ids[CODES[1]]!]));

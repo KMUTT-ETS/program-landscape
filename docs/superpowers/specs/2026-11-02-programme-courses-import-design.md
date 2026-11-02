@@ -112,7 +112,7 @@ Descriptions, CLOs and embeddings are dropped by step 2, as every phase 2b run a
 does; overlap prep refills descriptions from an approved digest on matching code and
 re-embeds.
 
-`count` = whole table. `clear(tx, runIds)` = `deleteMany({ ingestionRunId: { in: runIds } })`.
+`count` = import-owned rows only (changed after final review). `clear(tx, runIds)` = `deleteMany({ ingestionRunId: { in: runIds } })`.
 No `dependents` / `cascadeBlockers` (nothing hangs off `program_courses`).
 `programmes`' existing `cascadeBlockers` already lists `ProgramCourse`, so clearing
 programmes refuses while course rows exist — verify with a test, no code change.
