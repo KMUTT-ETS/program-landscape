@@ -26,6 +26,7 @@ This page is for the person doing the uploading.
 | **Publications** | Research outputs, one row per paper per author | — |
 | **Class Offerings** | Every class section taught in one term | — |
 | **Programme Teaching Staff** | Which staff teach which programmes | — |
+| **Programme course lists** | The course list of each programme | Programmes |
 
 Load them top to bottom. The first three are the backbone everything else
 refers to by code; **Staff** must come before both **Publications** and
@@ -78,6 +79,64 @@ Three things follow:
   deletes the sections it leaves out.
 - **Other terms are untouched.** Loading 2024 semester 2 does nothing to
   semester 1.
+
+## Programme course lists — the fallback when the PDF cannot be read
+
+The programme pipeline builds each programme's course list from its curriculum
+PDF (phase 2b). Its parser expects one code shape, so a PDF with codes such as
+`MEE 221`, a scan, or an unusual layout can come back with no list at all — and
+programme overlap, curriculum revision and the Deep-Dive course sections then
+stay empty. This sheet is the fallback: you supply the list.
+
+Columns: **Programme Code** and **Course Code** (required), **Course Name
+(Thai)**, **Course Name (English)**, **Credits** (0 to 60) and **Category**.
+Category takes the English label, the Thai label or the stored token
+(case-insensitive): General education / หมวดวิชาศึกษาทั่วไป, Core / วิชาแกน,
+Major required / วิชาเฉพาะบังคับ, Major elective / วิชาเฉพาะเลือก, Free elective /
+หมวดวิชาเลือกเสรี, Thesis / project / วิทยานิพนธ์/โครงงาน, Unknown / ไม่ระบุ.
+Blank is stored as Unknown, never guessed.
+
+**Mark general-education courses as General education.** Programme overlap
+treats Unknown as a major course. Its code-prefix fallback only recognises the
+prefixes GE, LI and 00, which are KKU's, so your general-education courses are
+counted as major courses (and inflate overlap between programmes) unless the
+Category says otherwise.
+
+How it behaves:
+
+- **Uploading a programme replaces its whole course list**, including rows the
+  PDF extractor wrote. Programmes the file does not name are untouched. Two
+  rows whose codes normalise to the same value (case, spaces) are refused,
+  naming both rows.
+- **The upload takes precedence over the PDF.** Once a programme has an
+  imported list, phase 2b skips it (`course list supplied by spreadsheet import
+  — not re-extracting`) and the materialise script skips it even with
+  `--force`. Nothing re-extracts over your list.
+- **Start over is the only way back to the PDF.** Starting the dataset over
+  removes every imported list and hands all those programmes back to phase 2b.
+  There is no per-programme release. Two workarounds: to refresh one
+  programme's list (for example after a new curriculum revision — imported
+  rows keep the revision they were loaded under) just upload that programme
+  again; to hand one programme back to the PDF, download the stored files,
+  start over, and re-upload the rest.
+- **The shrink guard compares only against rows an earlier import wrote** for
+  those programmes, so the first upload is never refused for replacing an
+  over-collected extractor list.
+- Imported rows are stamped `xlsx-import.v1`, the upload's ingestion run and the
+  programme's active revision.
+
+Things to know about what reads the list:
+
+- The Deep-Dive course card lists only courses that also appear in Class
+  Offerings with graded sections on the same course code, so upload Class
+  Offerings with matching codes for the card to fill.
+- Curriculum revision reads course descriptions from the AI digest, not from
+  this table, and Unknown-category rows are never promotion candidates. Its
+  prose code check (`PROSE_COURSE_CODE_RE`, five or six digits) misses 3-digit
+  codes; only a diagnostic counter is affected.
+- There is deliberately **no description column**: curriculum revision would
+  ignore it, and overlap preparation overwrites a description whenever an
+  approved digest lists the same code.
 
 ## Years, money and rates
 

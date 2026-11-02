@@ -347,6 +347,11 @@ The phases, in execution order, are 1 and 2b (in parallel), 2, 3, 4, 6, 5, RE, C
 review. Phase 7 (narrative) is the last of the narrative chain and depends on the
 phases before it; it is also the "done" marker the status command uses.
 
+If phase 2b cannot read the course list from your PDF (it reports "Could not
+locate the รายวิชา section"), upload the list instead with the **Programme course lists**
+dataset at `/admin/data-setup`. An uploaded list is never overwritten by
+the pipeline; see [Data import](../data-import.md#programme-course-lists--the-fallback-when-the-pdf-cannot-be-read).
+
 `--only` and `--skip` silently drop ids they do not recognise, so a typo runs
 nothing. Valid ids are `phase1`, `phase2`, `phase2b`, `phase3`, `phase4`,
 `phase5`, `phase6`, `phaseRE`, `phaseCR`, `phase7`, `phaseOV`, `phase8`.

@@ -531,13 +531,15 @@ Attach PDFs through the UI or `pdf:bulk-load`. KKU previously had a fuzzy filena
 |---|---|---|
 | 1 | PDF AI extraction — digest, faculty, skills, pedagogy | Runs in parallel |
 | 2 | Approve + materialise digest → `ProgramSkill` | DB only, fast |
-| 2b | Focused course-code extraction | Replaces the digest's truncated course list with the full 40–90 |
+| 2b | Focused course-code extraction | Runs in parallel with phase 1. Replaces the digest's truncated course list with the full 40–90. **Skips a programme whose course list was uploaded** via the Programme course lists import |
 | 3 | Career mapping, demand matching | Sequential |
 | 4 | Institutional data linkage — cohorts, alumni, financials | Parallel; hits your registrar/finance sources |
 | 6 | AI readiness assessment | **Executes before phase 5** — both 5 and 7 consume its score |
 | 5 | Peer selection + peer review | Sequential |
 | RE | Research expertise | **Insert-only**, skip-if-exists; never auto-regenerated |
+| CR | Curriculum revision | After RE (reads its output). **Insert-only**, like RE |
 | 7 | Strategic narrative | Consumes every prior phase |
+| OV | Programme overlap | After 7. When several programmes are processed it is deferred and run once as a batch |
 | 8 | Risk analysis | Deterministic maths + narrative |
 
 `--skip=phase4` is the flag you want when your registrar connectors are not wired yet. `--only=phase5` runs one phase.

@@ -168,11 +168,15 @@ function buildersFor(src: string, ident: string): string[] {
   return out;
 }
 
-/** Every payload branch passed to a write on `delegate` in `src`. */
+/**
+ * Every payload branch passed to a write on `delegate` in `src`. Both the
+ * module client (`prisma.`) and an interactive-transaction client (`tx.`) count:
+ * phase 2b and the materialiser write inside `$transaction(async (tx) => …)`.
+ */
 function payloadBranches(src: string, delegate: string): Branch[] {
   const found: Branch[] = [];
   for (const op of WRITE_OPS) {
-    const re = new RegExp(`prisma\\.${delegate}\\.${op}\\s*\\(`, 'g');
+    const re = new RegExp(`\\b(?:prisma|tx)\\.${delegate}\\.${op}\\s*\\(`, 'g');
     for (const m of src.matchAll(re)) {
       const paren = m.index + m[0].length - 1;
       const argText = balanced(src, paren);
