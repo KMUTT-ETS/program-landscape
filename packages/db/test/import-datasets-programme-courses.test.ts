@@ -253,9 +253,15 @@ describe('programme-courses validation', () => {
     expect(res.errors[0]!.message).toContain('Major elective');
   });
 
-  it('refuses credits over 60', () => {
-    const res = validate([sRow({ Credits: 61 })]);
+  it('accepts credits up to 99', () => {
+    expect(validate([sRow({ Credits: 99 })]).ok).toBe(true);
+  });
+
+  it('refuses credits over 99', () => {
+    const res = validate([sRow({ Credits: 100 })]);
     expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.errors[0]!.message).toBe('Credits must be a whole number from 0 to 99.');
   });
 
   it('accepts a clean file', () => {

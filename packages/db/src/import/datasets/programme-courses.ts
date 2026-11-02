@@ -102,13 +102,13 @@ export const programmeCoursesDataset: ImportDataset = {
       key: 'credits',
       type: 'integer',
       required: false,
-      guide: 'Whole credits, 0 to 60. Leave blank if unknown.',
+      guide: 'Whole credits, 0 to 99. Leave blank if unknown.',
       example: '3',
       check: (value) => {
         if (typeof value !== 'number') return null;
-        return value >= 0 && value <= 60 && Number.isInteger(value)
+        return value >= 0 && value <= 99 && Number.isInteger(value)
           ? null
-          : 'Credits must be a whole number from 0 to 60.';
+          : 'Credits must be a whole number from 0 to 99.';
       },
     },
     {

@@ -89,7 +89,7 @@ programme overlap, curriculum revision and the Deep-Dive course sections then
 stay empty. This sheet is the fallback: you supply the list.
 
 Columns: **Programme Code** and **Course Code** (required), **Course Name
-(Thai)**, **Course Name (English)**, **Credits** (0 to 60) and **Category**.
+(Thai)**, **Course Name (English)**, **Credits** (0 to 99) and **Category**.
 Category takes the English label, the Thai label or the stored token
 (case-insensitive): General education / หมวดวิชาศึกษาทั่วไป, Core / วิชาแกน,
 Major required / วิชาเฉพาะบังคับ, Major elective / วิชาเฉพาะเลือก, Free elective /

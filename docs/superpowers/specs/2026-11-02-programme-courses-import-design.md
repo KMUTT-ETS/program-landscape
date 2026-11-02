@@ -46,7 +46,7 @@ no prefill.
 | Course Code | courseCode | text | yes | identity = `normaliseCourseCode` |
 | Course Name (Thai) | courseNameTh | text | no | |
 | Course Name (English) | courseNameEn | text | no | |
-| Credits | credits | integer | no | check 0–60 |
+| Credits | credits | integer | no | check 0–99 |
 | Category | category | text | no | label → `CourseCategory`; blank → `UNKNOWN` |
 
 Category labels accepted (case-insensitive, surrounding whitespace ignored; the enum
