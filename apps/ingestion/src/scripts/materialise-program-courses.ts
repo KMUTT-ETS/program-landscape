@@ -66,10 +66,11 @@ function loadDotEnv(envPath: string): void {
   }
 }
 
-import { loadOrganization, prisma, activeRevisionIdFor } from '@kku/db';
+import { loadOrganization, prisma, activeRevisionIdFor, importOwnedProgramIds } from '@kku/db';
 import { CourseCategorySchema, type CourseCategory } from '@kku/shared';
 import { withScriptRun } from '../lib/script-run';
 import { normaliseCourseCode } from '../lib/course-code';
+import { shouldMaterialise } from '../program-courses-extract/materialise-decision';
 
 // Single source of truth for the valid หมวด values — derived from the
 // prompt schema rather than re-declared here, so a future prompt-side
@@ -170,10 +171,17 @@ async function main(): Promise<void> {
           `(${args.force ? 'OVERWRITING — --force given' : 'will be skipped'})`,
       );
     }
+    // Precedence: a spreadsheet-imported course list is never overwritten,
+    // not even with --force.
+    const importOwned = await importOwnedProgramIds(prisma, [...existingIds]);
+    if (importOwned.size > 0) {
+      console.log(`Import-owned programs: ${importOwned.size} (always skipped, --force does not apply)`);
+    }
     console.log(`Programs to materialise: ${existingIds.size - (args.force ? 0 : extractorOwned.size)}`);
 
     let totalInserted = 0;
     let skippedExtractorOwned = 0;
+    let skippedImportOwned = 0;
     let totalWithCategory = 0;
     let totalDropped = 0;
     let totalDuplicateInDigest = 0;
@@ -184,9 +192,19 @@ async function main(): Promise<void> {
     for (const programId of existingIds) {
       const entry = byProgram.get(programId);
       if (!entry) continue;
-      // Refuse to downgrade extractor-owned rows. Checked before the
-      // transaction, so the destructive deleteMany never runs for these.
-      if (extractorOwned.has(programId) && !args.force) {
+      // Refuse to downgrade extractor-owned rows, and never touch an
+      // import-owned programme. Checked before the transaction, so the
+      // destructive deleteMany never runs for these.
+      const decision = shouldMaterialise({
+        extractorOwned: extractorOwned.has(programId),
+        importOwned: importOwned.has(programId),
+        force: args.force,
+      });
+      if (decision === 'skip-import') {
+        skippedImportOwned++;
+        continue;
+      }
+      if (decision === 'skip-extractor') {
         skippedExtractorOwned++;
         continue;
       }
@@ -254,10 +272,17 @@ async function main(): Promise<void> {
         }
 
         if (args.apply) {
-          await prisma.$transaction([
-            prisma.programCourse.deleteMany({ where: { programId } }),
-            prisma.programCourse.createMany({ data: rows, skipDuplicates: true }),
-          ]);
+          const wrote = await prisma.$transaction(async (tx) => {
+            // Re-check: an import may have landed since the pre-loop lookup.
+            if ((await importOwnedProgramIds(tx, [programId])).has(programId)) return false;
+            await tx.programCourse.deleteMany({ where: { programId } });
+            await tx.programCourse.createMany({ data: rows, skipDuplicates: true });
+            return true;
+          });
+          if (!wrote) {
+            skippedImportOwned++;
+            continue;
+          }
         }
         totalInserted += rows.length;
         totalWithCategory += rows.filter((r) => r.category !== null).length;
@@ -274,6 +299,7 @@ async function main(): Promise<void> {
     console.log(`Programs processed:        ${processed}`);
     console.log(`Programs failed:           ${failed}`);
     console.log(`Programs skipped (extractor-owned rows): ${skippedExtractorOwned}`);
+    console.log(`Programs skippedImportOwned: ${skippedImportOwned}`);
     console.log(`Rows ${args.apply ? 'inserted' : 'would-insert'}:        ${totalInserted}`);
     console.log(`Rows with a category:      ${totalWithCategory} / ${totalInserted}`);
     console.log(`Rows dropped (empty/dup):  ${totalDropped} (empty=${totalEmptyCode}, dup-in-digest=${totalDuplicateInDigest})`);

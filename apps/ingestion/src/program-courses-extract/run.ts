@@ -1,5 +1,5 @@
 import { decideCourseMaterialisation } from './materialisation-guard';
-import { prisma, activeRevisionIdFor } from '@kku/db';
+import { prisma, activeRevisionIdFor, importOwnedProgramIds, IMPORT_OWNED_SKIP_REASON } from '@kku/db';
 import {
   buildProgramCoursesExtractMessages,
   extractCandidateCourseCodes,
@@ -89,6 +89,13 @@ export async function runProgramCoursesExtract(
   if (!program) return { status: 'SKIPPED', reason: `program not found: ${params.programId}` };
   const doc = program.documents[0];
   if (!doc) return { status: 'SKIPPED', reason: 'no CURRENT_CURRICULUM PDF linked' };
+
+  // Precedence: a course list supplied by spreadsheet import is never
+  // re-extracted. Checked before the PDF fetch and the AI call so no money is
+  // spent on a result that cannot be written. Re-checked inside the write.
+  if ((await importOwnedProgramIds(prisma, [program.id])).has(program.id)) {
+    return { status: 'SKIPPED', reason: IMPORT_OWNED_SKIP_REASON };
+  }
 
   // Reuse pipeline-shared PDF prep when supplied; else fetch + extract.
   let extracted = params.pdfPrep;
@@ -347,11 +354,20 @@ export async function runProgramCoursesExtract(
     } else {
       // Transaction: wipe + reinsert. Idempotent on re-runs *that produced
       // rows* — the guard above is what makes that claim true.
-      await prisma.$transaction([
-        prisma.programCourse.deleteMany({ where: { programId: program.id } }),
-        prisma.programCourse.createMany({ data: rows, skipDuplicates: true }),
-      ]);
-      materialisedCount = rows.length;
+      // Interactive transaction so the ownership re-check and the wipe are
+      // atomic: an import may have landed while the AI call was running.
+      const wrote = await prisma.$transaction(async (tx) => {
+        if ((await importOwnedProgramIds(tx, [program.id])).has(program.id)) return false;
+        await tx.programCourse.deleteMany({ where: { programId: program.id } });
+        await tx.programCourse.createMany({ data: rows, skipDuplicates: true });
+        return true;
+      });
+      if (wrote) {
+        materialisedCount = rows.length;
+      } else {
+        materialisationRefusedReason = IMPORT_OWNED_SKIP_REASON;
+        logger.warn(`[${program.code}] materialisation REFUSED: ${IMPORT_OWNED_SKIP_REASON}`);
+      }
     }
     logger.log(
       `[${program.code}] candidates=${candidateCodes.length} llm=${llmCourses.length}` +
