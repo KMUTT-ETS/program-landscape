@@ -61,6 +61,17 @@ describe('phase 2b and import ownership', () => {
     expect(extractStructured).not.toHaveBeenCalled();
   });
 
+  it('reports import ownership even when the programme has no PDF linked', async () => {
+    findProgram.mockResolvedValue({ ...program, documents: [] });
+    owned.mockResolvedValue(new Set(['p1']));
+    const out = await runProgramCoursesExtract({
+      programId: 'p1',
+      ai: {} as never,
+      storage: {} as never,
+    });
+    expect(out).toEqual({ status: 'SKIPPED', reason: IMPORT_OWNED_SKIP_REASON });
+  });
+
   it('writes nothing when the programme became import-owned during extraction', async () => {
     owned.mockResolvedValueOnce(new Set()).mockResolvedValue(new Set(['p1']));
     const fullText =

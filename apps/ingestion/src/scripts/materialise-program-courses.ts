@@ -177,7 +177,7 @@ async function main(): Promise<void> {
     if (importOwned.size > 0) {
       console.log(`Import-owned programs: ${importOwned.size} (always skipped, --force does not apply)`);
     }
-    console.log(`Programs to materialise: ${existingIds.size - (args.force ? 0 : extractorOwned.size)}`);
+    console.log(`Programs to materialise: ${[...existingIds].filter((id) => shouldMaterialise({ extractorOwned: extractorOwned.has(id), importOwned: importOwned.has(id), force: args.force }) === 'write').length}`);
 
     let totalInserted = 0;
     let skippedExtractorOwned = 0;

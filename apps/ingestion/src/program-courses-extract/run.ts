@@ -87,15 +87,15 @@ export async function runProgramCoursesExtract(
     },
   });
   if (!program) return { status: 'SKIPPED', reason: `program not found: ${params.programId}` };
-  const doc = program.documents[0];
-  if (!doc) return { status: 'SKIPPED', reason: 'no CURRENT_CURRICULUM PDF linked' };
-
   // Precedence: a course list supplied by spreadsheet import is never
   // re-extracted. Checked before the PDF fetch and the AI call so no money is
   // spent on a result that cannot be written. Re-checked inside the write.
   if ((await importOwnedProgramIds(prisma, [program.id])).has(program.id)) {
     return { status: 'SKIPPED', reason: IMPORT_OWNED_SKIP_REASON };
   }
+
+  const doc = program.documents[0];
+  if (!doc) return { status: 'SKIPPED', reason: 'no CURRENT_CURRICULUM PDF linked' };
 
   // Reuse pipeline-shared PDF prep when supplied; else fetch + extract.
   let extracted = params.pdfPrep;
