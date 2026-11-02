@@ -86,3 +86,4 @@ export * from './api-clients';
 export * from './program-overlap';
 export * from './landscape-atlas';
 export * from './import';
+export * from './program-course-ownership';

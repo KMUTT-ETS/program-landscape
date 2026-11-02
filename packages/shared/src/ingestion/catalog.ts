@@ -740,6 +740,17 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'over the curriculum PDF, which an adopting university has no equivalent of.',
     mocked: false,
   },
+  {
+    slug: 'xlsx-programme-courses',
+    name: 'Programme Course Lists (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Course lists per programme, uploaded through /admin/data-setup. PROGRAMME-SCOPED: a programme named in the file has its whole course list replaced. Takes precedence over phase 2b PDF extraction until started over.',
+    mocked: false,
+  },
 ] as const;
 
 export function getCatalogEntry(slug: string): SourceCatalogEntry | undefined {

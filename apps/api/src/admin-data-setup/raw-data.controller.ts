@@ -452,6 +452,59 @@ const DATASETS: Record<string, DatasetFetcher> = {
     };
   },
 
+  'programme-courses': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.ProgramCourseWhereInput = q.q
+      ? {
+          OR: [
+            { program: { code: { contains: q.q, mode: 'insensitive' } } },
+            { program: { nameEn: { contains: q.q, mode: 'insensitive' } } },
+            { courseCode: { contains: q.q.replace(/\s+/g, '').toUpperCase() } },
+            { courseNameEn: { contains: q.q, mode: 'insensitive' } },
+            { courseNameTh: { contains: q.q } },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.programCourse.findMany({
+        where,
+        orderBy: [{ program: { code: 'asc' } }, { courseCode: 'asc' }],
+        skip,
+        take: q.pageSize,
+        include: { program: { select: { code: true, nameEn: true } } },
+      }),
+      prisma.programCourse.count({ where }),
+    ]);
+    return {
+      title: 'Programme course lists',
+      description:
+        'One row per course per programme. Rows marked Imported came from a spreadsheet upload, which takes precedence over PDF extraction for that programme; the others were extracted from the curriculum PDF.',
+      columns: [
+        { key: 'programmeCode', label: 'Programme' },
+        { key: 'programmeName', label: 'Programme name' },
+        { key: 'courseCode', label: 'Course code' },
+        { key: 'courseNameTh', label: 'Course name (Thai)' },
+        { key: 'courseNameEn', label: 'Course name (English)' },
+        { key: 'credits', label: 'Credits', numeric: true },
+        { key: 'category', label: 'Category' },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        programmeCode: r.program.code,
+        programmeName: r.program.nameEn ?? '',
+        courseCode: r.courseCodeRaw,
+        courseNameTh: r.courseNameTh,
+        courseNameEn: r.courseNameEn,
+        credits: r.credits,
+        category: r.category,
+        imported: r.methodVersion === 'xlsx-import.v1',
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
   // ── Cohort progression and outcomes ──────────────────────────────────────
   'student-cohorts': async (q) => {
     const skip = (q.page - 1) * q.pageSize;

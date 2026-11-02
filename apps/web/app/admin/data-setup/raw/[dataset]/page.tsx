@@ -47,6 +47,7 @@ const DATASET_TITLES: Record<string, string> = {
   'faculty-budgets': 'Faculty budgets',
   'faculty-members': 'Academic staff roster',
   'program-faculty': 'Programme teaching staff',
+  'programme-courses': 'Programme course lists',
   'faculty-compensation': 'Faculty compensation (aggregate)',
   'kmitl-careers': 'Labour-market career taxonomy (LinkedIn data, MHESI subscription)',
   'kmitl-skill-demands': 'Labour-market skill demand — LinkedIn data, subscribed by MHESI',
