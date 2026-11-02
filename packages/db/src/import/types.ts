@@ -55,6 +55,13 @@ export interface ImportColumn {
    * SQL (`HAVING COUNT(*) >= 5`); an uploaded sheet has no such guarantee.
    */
   groupSizeFor?: { minimum: number };
+  /**
+   * How this cell is compared when it is part of the match key, so that
+   * 'MEE 221' and 'mee221' are recognised as the same record by the
+   * duplicate-key check. Comparison only: the stored value is untouched, so
+   * the loader still receives exactly what the operator typed.
+   */
+  identity?: (value: ImportCellValue) => string;
 }
 
 /**

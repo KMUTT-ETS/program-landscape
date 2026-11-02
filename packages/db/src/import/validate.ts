@@ -454,7 +454,12 @@ export function validateSheet(
         incomplete = true;
         continue;
       }
-      parts.push(value instanceof Date ? value.toISOString() : String(value));
+      // A column may declare how its cell compares (case, inner spaces);
+      // dates keep their ISO form either way.
+      const identity = columnByKey.get(key)?.identity;
+      parts.push(
+        value instanceof Date ? value.toISOString() : identity ? identity(value) : String(value),
+      );
     }
     if (incomplete) continue;
     const composite = parts.join('\u0000');

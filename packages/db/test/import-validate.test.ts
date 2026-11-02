@@ -846,3 +846,44 @@ describe('readDeclaredTerm', () => {
     expect(readDeclaredTerm(termed, sheet(ALL_HEADERS, []))).toBeNull();
   });
 });
+
+describe('validateSheet — key identity', () => {
+  const identityDataset = (): ImportDataset =>
+    makeDataset({
+      columns: [
+        { header: 'A', key: 'a', type: 'text', required: true, guide: 'a', example: 'P' },
+        {
+          header: 'Code', key: 'code', type: 'text', required: true, guide: 'code', example: 'MEE 221',
+          identity: (v) => String(v).replace(/\s+/g, '').toUpperCase(),
+        },
+      ],
+      strategy: { kind: 'upsert', match: { kind: 'unique', columns: ['a', 'code'] } },
+    });
+  const idSheet = (rows: Record<string, unknown>[]): ParsedSheet => sheet(['A', 'Code'], rows);
+
+  it('compares key cells through identity() when a column declares one', () => {
+    const result = validateSheet(
+      identityDataset(),
+      idSheet([{ A: 'P', Code: 'MEE 221' }, { A: 'P', Code: 'mee221' }]),
+      ctx(),
+    );
+    expect(errorsOf(result)).toEqual([
+      { sheet: 'Data', row: 3, column: 'A', message: 'Duplicate of row 2: these rows identify the same record.' },
+    ]);
+  });
+
+  it('still separates rows whose other key cell differs', () => {
+    const result = validateSheet(
+      identityDataset(),
+      idSheet([{ A: 'P', Code: 'MEE 221' }, { A: 'Q', Code: 'MEE221' }]),
+      ctx(),
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('leaves the accepted value untouched — identity is comparison only', () => {
+    const result = validateSheet(identityDataset(), idSheet([{ A: 'P', Code: 'MEE 221' }]), ctx());
+    if (!result.ok) throw new Error('expected ok');
+    expect(result.rows[0].code).toBe('MEE 221');
+  });
+});
