@@ -18,6 +18,8 @@ const service = new ImportService(undefined, {
 const FACULTY_CODE = 'E2E-ENG';
 const DEPARTMENT_CODE = 'E2E-ENG-CIVIL';
 const PROGRAMME_CODE = 'E2E-ENG-CIVIL-BE';
+/** Prefixed to every uploaded filename so cleanup touches only this test's batches. */
+const FILENAME_MARKER = '__import-e2e__';
 
 async function cleanup(): Promise<void> {
   // Tier-2 rows hang off the faculty, so deleting the programme does not
@@ -33,10 +35,19 @@ async function cleanup(): Promise<void> {
   await prisma.program.deleteMany({ where: { code: PROGRAMME_CODE } });
   await prisma.department.deleteMany({ where: { code: DEPARTMENT_CODE } });
   await prisma.faculty.deleteMany({ where: { code: FACULTY_CODE } });
-  await prisma.importBatch.deleteMany({ where: { datasetSlug: { in: DATASETS } } });
-  for (const slug of DATASETS.map((d) => `xlsx-${d}`)) {
-    await prisma.ingestionRun.deleteMany({ where: { dataSource: { slug } } });
-  }
+  // Only this test's own batches and runs. This suite runs against the live
+  // dev database, and `ingestion_run_id` is ON DELETE SET NULL on every
+  // metric table: deleting every run of an `xlsx-*` source silently stripped
+  // the provenance off every real upload, and `realDataWhere()` then hid
+  // those rows from the Deep-Dive. Batches are found by the filename marker
+  // `upload()` adds, so leftovers from a crashed run are still caught.
+  const ours = await prisma.importBatch.findMany({
+    where: { datasetSlug: { in: DATASETS }, filename: { startsWith: FILENAME_MARKER } },
+    select: { id: true, ingestionRunId: true },
+  });
+  const runIds = ours.map((b) => b.ingestionRunId).filter((id): id is string => id !== null);
+  await prisma.importBatch.deleteMany({ where: { id: { in: ours.map((b) => b.id) } } });
+  await prisma.ingestionRun.deleteMany({ where: { id: { in: runIds } } });
 }
 
 const DATASETS = [
@@ -76,14 +87,39 @@ async function fillTemplate(
 function upload(slug: string, bytes: Buffer, filename: string) {
   return service.uploadFile({
     datasetSlug: slug,
-    originalFilename: filename,
+    originalFilename: `${FILENAME_MARKER}-${filename}`,
     bytes,
     uploadedByUserId: null,
     allowShrink: true, // these fixtures are tiny beside a seeded database
   });
 }
 
-beforeAll(cleanup);
+/**
+ * The suite calls a REAL start-over on `programmes` (and attempts one on
+ * `faculties`). Start-over deletes every row stamped by that dataset's runs,
+ * and programmes cascade into every metric table — so on a database holding
+ * real imported programmes or faculties it would destroy them. Refuse to run
+ * rather than gamble on it; clear or move that data, or point DATABASE_URL at
+ * a scratch database.
+ */
+async function assertNoRealStartOverTargets(): Promise<void> {
+  const [programmes, faculties] = await Promise.all([
+    prisma.program.count({ where: { ingestionRun: { dataSource: { slug: 'xlsx-programmes' } } } }),
+    prisma.faculty.count({ where: { ingestionRun: { dataSource: { slug: 'xlsx-faculties' } } } }),
+  ]);
+  if (programmes > 0 || faculties > 0) {
+    throw new Error(
+      `import-e2e refuses to run: this database holds ${programmes} imported programme(s) and ` +
+        `${faculties} imported faculty row(s) that the suite's start-over steps would delete. ` +
+        'Run it against a scratch database.',
+    );
+  }
+}
+
+beforeAll(async () => {
+  await cleanup();
+  await assertNoRealStartOverTargets();
+});
 afterAll(cleanup);
 
 describe('import, end to end', () => {
@@ -207,7 +243,7 @@ describe('import, end to end', () => {
     expect(await prisma.program.findUnique({ where: { code: PROGRAMME_CODE } })).toBeNull();
 
     const batches = await prisma.importBatch.findMany({
-      where: { datasetSlug: 'programmes' },
+      where: { datasetSlug: 'programmes', filename: { startsWith: FILENAME_MARKER } },
       select: { status: true, filename: true, storageKey: true },
     });
     expect(batches.length).toBeGreaterThan(0);
