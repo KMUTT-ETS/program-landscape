@@ -130,8 +130,17 @@ async function fetchPendingProposedSkillNames(limit: number | null): Promise<str
   // {nameTh, nameEn, category, weight, evidenceQuote} in payloadJson.
   // We unique on the most-meaningful surface form (prefer nameEn when
   // present, else nameTh).
+  // AUTO_APPROVED too: with the default AI_AUTO_APPROVE_THRESHOLD=0 every
+  // proposal is auto-approved at write time, and approving one creates no
+  // Skill row — so a PENDING_REVIEW-only filter found nothing on a default
+  // install and the taxonomy could never grow from curriculum vocabulary.
+  // Names already decided are skipped by their SkillAlias row below, so
+  // widening the filter never re-processes a name.
   const rows = await prisma.aiExtraction.findMany({
-    where: { extractionKind: 'PROPOSED_SKILL', reviewStatus: 'PENDING_REVIEW' },
+    where: {
+      extractionKind: 'PROPOSED_SKILL',
+      reviewStatus: { in: ['PENDING_REVIEW', 'AUTO_APPROVED'] },
+    },
     select: { payloadJson: true },
   });
   const seen = new Set<string>();
