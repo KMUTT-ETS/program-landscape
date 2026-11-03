@@ -13,6 +13,7 @@ import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { Button, Card, PageHeader } from '@kku/ui';
 import { ChevronRight, FileText, Home, Printer } from 'lucide-react';
+import { brandingForRequest } from '@/lib/branding';
 import { DeepDiveClient, type DeepDiveDigitalCompetency } from './client';
 import type {
   DeepDiveOverview,
@@ -125,6 +126,10 @@ export default async function ProgramDeepDivePage({
     );
   }
 
+  const branding = await brandingForRequest();
+  const orgShortNameEn = branding?.shortNameEn ?? 'University';
+  const orgShortNameTh = branding?.shortNameTh ?? 'มหาวิทยาลัย';
+
   // Cockpit-style breadcrumb so users can navigate back from the
   // deepest level (program → department → faculty → KKU root) without
   // hunting for the browser back button.
@@ -146,8 +151,8 @@ export default async function ProgramDeepDivePage({
           >
             <Home className="size-icon-sm shrink-0" aria-hidden />
             <span className="flex flex-col leading-tight">
-              <span lang="th">มข. (ภาพรวม)</span>
-              <span className="text-[10px] text-text-tertiary">KKU University</span>
+              <span lang="th">{orgShortNameTh} (ภาพรวม)</span>
+              <span className="text-[10px] text-text-tertiary">{orgShortNameEn}</span>
             </span>
           </Link>
           <ChevronRight className="size-icon-sm text-text-tertiary shrink-0" aria-hidden />
@@ -213,6 +218,8 @@ export default async function ProgramDeepDivePage({
         }
       />
       <DeepDiveClient
+        orgShortNameEn={orgShortNameEn}
+        orgShortNameTh={orgShortNameTh}
         user={user}
         programId={id}
         overview={overview}

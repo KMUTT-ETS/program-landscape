@@ -33,6 +33,7 @@ import {
   sortActionsStrongestFirst,
 } from '@/components/overlap/labels';
 import type { OverlapSibling, ProgramOverlapSection } from './types';
+import { useOrgNames } from './org-context';
 
 /** The section's lower bound; siblings below it are never returned (D6). */
 const SIBLING_FLOOR = 30;
@@ -100,6 +101,7 @@ export function OverlapSection({
   meta: ApiMeta | null;
   programCode: string;
 }) {
+  const org = useOrgNames();
   const siblings = data.siblings.filter((s) => s.overlapIndex >= SIBLING_FLOOR);
   const [openId, setOpenId] = React.useState<string | null>(null);
   const provenance: ApiMeta = meta ?? {
@@ -112,7 +114,7 @@ export function OverlapSection({
     <Section
       id="overlap-siblings"
       title="Overlapping programmes"
-      description="Same-level KKU programmes whose curriculum overlaps this one by an index of 30 or more. Every action is a prompt for review by the faculty and Council, not a decision."
+      description={`Same-level ${org.en} programmes whose curriculum overlaps this one by an index of 30 or more. Every action is a prompt for review by the faculty and Council, not a decision.`}
       actions={
         <div className="flex items-center gap-[8px]">
           <FreshnessBadge freshnessDate={data.completedAt} label="overlap run" />
