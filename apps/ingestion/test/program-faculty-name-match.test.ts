@@ -34,8 +34,8 @@ describe('matchRosterName', () => {
   it('still matches bare KKU-style names', () => {
     expect(matchRosterName(roster, { nameTh: 'ตัวอย่าง ใจดี' })).toBe('b');
   });
-  it('refuses an ambiguous key', () => {
-    expect(matchRosterName(roster, { nameTh: 'ซ้ำ ชื่อ' })).toBeNull();
+  it('resolves an ambiguous key to a member (last wins) rather than dropping it', () => {
+    expect(matchRosterName(roster, { nameTh: 'ซ้ำ ชื่อ' })).not.toBeNull();
   });
   it('returns null when nothing matches', () => {
     expect(matchRosterName(roster, { nameTh: 'ไม่พบ คนนี้', nameEn: 'No One' })).toBeNull();
@@ -45,13 +45,28 @@ describe('matchRosterName', () => {
 import { rosterDegradedNote } from '../src/program-faculty/name-match';
 
 describe('fix round 1', () => {
-  it('does not fall through from an ambiguous key to the swapped kind', () => {
+  it('a held ambiguous key resolves (last in load order) and never falls through to the swapped kind', () => {
     const l = buildRosterLookup([
       { id: '1', nameTh: null, nameEn: 'A B' },
       { id: '2', nameTh: null, nameEn: 'A B' },
       { id: '3', nameTh: null, nameEn: 'B A' },
     ]);
-    expect(matchRosterName(l, { nameEn: 'a b' })).toBeNull();
+    expect(matchRosterName(l, { nameEn: 'a b' })).toBe('2');
+  });
+  it('two active candidates: the exact raw-name match wins', () => {
+    const l = buildRosterLookup([
+      { id: 'hr', nameTh: 'นายสมชาย ใจดี', nameEn: null, isActive: true },
+      { id: 'pub', nameTh: 'สมชาย ใจดี', nameEn: null, isActive: true },
+    ]);
+    expect(matchRosterName(l, { nameTh: 'สมชาย ใจดี' })).toBe('pub');
+    expect(matchRosterName(l, { nameTh: 'นายสมชาย ใจดี' })).toBe('hr');
+  });
+  it('two active candidates, no raw match: last in load order (pre-change behaviour)', () => {
+    const l = buildRosterLookup([
+      { id: 'hr', nameTh: 'นายสมชาย ใจดี', nameEn: null, isActive: true },
+      { id: 'pub', nameTh: 'สมชาย ใจดี', nameEn: null, isActive: true },
+    ]);
+    expect(matchRosterName(l, { nameTh: 'ดร. สมชาย ใจดี' })).toBe('pub');
   });
   it('prefers the single active member among duplicates', () => {
     const l = buildRosterLookup([
@@ -63,7 +78,7 @@ describe('fix round 1', () => {
       { id: 'x', nameTh: 'ซ้ำ ชื่อ', nameEn: null, isActive: true },
       { id: 'y', nameTh: 'ซ้ำ ชื่อ', nameEn: null, isActive: true },
     ]);
-    expect(matchRosterName(l2, { nameTh: 'ซ้ำ ชื่อ' })).toBeNull();
+    expect(matchRosterName(l2, { nameTh: 'ซ้ำ ชื่อ' })).toBe('y');
   });
   it('strips bare นาย only when it is a title', () => {
     expect(stripAcademicTitles('นายกร')).toBe('นายกร');

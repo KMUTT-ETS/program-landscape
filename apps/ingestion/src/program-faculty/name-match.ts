@@ -6,8 +6,8 @@
  * exact string therefore misses everyone who carries a title. This module
  * strips academic/medical/courtesy titles, then looks the name up by Thai
  * name, English name, and English name with first/last swapped. A key shared
- * by two members is ambiguous and never matches — a wrong link is worse than
- * a missing one.
+ * by several members prefers the single active one, then an exact raw-name
+ * match, then the last in load order (the pre-change behaviour).
  */
 
 // Thai titles that carry a dot (the dot is required). Longest first.
@@ -66,6 +66,13 @@ function swapFirstLast(stripped: string): string | null {
 interface Candidate {
   id: string;
   active: boolean;
+  /** The name this candidate was indexed under, unstripped (see normRaw). */
+  raw: string;
+}
+
+/** Unstripped normalisation: trim, collapse whitespace, lower-case. */
+function normRaw(name: string): string {
+  return name.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
 export interface RosterLookup {
@@ -86,10 +93,11 @@ export function buildRosterLookup(
 ): RosterLookup {
   const lookup: RosterLookup = { th: new Map(), en: new Map(), swapped: new Map() };
   for (const m of members) {
-    const c: Candidate = { id: m.id, active: m.isActive ?? true };
-    if (m.nameTh) put(lookup.th, stripAcademicTitles(m.nameTh), c);
+    const active = m.isActive ?? true;
+    if (m.nameTh) put(lookup.th, stripAcademicTitles(m.nameTh), { id: m.id, active, raw: normRaw(m.nameTh) });
     if (m.nameEn) {
       const en = stripAcademicTitles(m.nameEn);
+      const c: Candidate = { id: m.id, active, raw: normRaw(m.nameEn) };
       put(lookup.en, en, c);
       put(lookup.swapped, swapFirstLast(en), c);
     }
@@ -97,23 +105,37 @@ export function buildRosterLookup(
   return lookup;
 }
 
-/** undefined = key not held; null = held but ambiguous; string = the member. */
+/**
+ * undefined = key not held; string = the member. A held key always resolves:
+ * one candidate; else exactly one active; else the candidate whose unstripped
+ * name equals the entry's (when exactly one does); else the LAST candidate in
+ * load order. The last-wins fallback preserves the pre-change KKU linking
+ * (an exact Map overwritten per member), where an HR "นายสมชาย ใจดี" and a
+ * publications "สมชาย ใจดี" both active were linked rather than dropped.
+ */
 function resolve(
   map: Map<string, Candidate[]>,
   key: string | null,
-): string | null | undefined {
+  rawEntry: string | null,
+): string | undefined {
   if (!key) return undefined;
   const list = map.get(key);
   if (!list) return undefined;
   if (list.length === 1) return list[0]!.id;
   const active = list.filter((c) => c.active);
-  return active.length === 1 ? active[0]!.id : null;
+  if (active.length === 1) return active[0]!.id;
+  const pool = active.length > 0 ? active : list;
+  if (rawEntry) {
+    const exact = pool.filter((c) => c.raw === rawEntry);
+    if (exact.length === 1) return exact[0]!.id;
+  }
+  return list[list.length - 1]!.id;
 }
 
 /**
  * Thai, then English, then swapped English. Stops at the first kind that
- * HOLDS the key: an ambiguous key returns null rather than falling through,
- * and a swapped hit is never accepted when the straight English key exists.
+ * HOLDS the key: a held key never falls through to the next kind, so a
+ * swapped hit is never accepted when the straight English key exists.
  */
 export function matchRosterName(
   lookup: RosterLookup,
@@ -121,12 +143,14 @@ export function matchRosterName(
 ): string | null {
   const th = entry.nameTh ? stripAcademicTitles(entry.nameTh) : null;
   const en = entry.nameEn ? stripAcademicTitles(entry.nameEn) : null;
-  for (const [map, key] of [
-    [lookup.th, th],
-    [lookup.en, en],
-    [lookup.swapped, en],
+  const rawTh = entry.nameTh ? normRaw(entry.nameTh) : null;
+  const rawEn = entry.nameEn ? normRaw(entry.nameEn) : null;
+  for (const [map, key, raw] of [
+    [lookup.th, th, rawTh],
+    [lookup.en, en, rawEn],
+    [lookup.swapped, en, rawEn],
   ] as const) {
-    const r = resolve(map, key);
+    const r = resolve(map, key, raw);
     if (r !== undefined) return r;
   }
   return null;

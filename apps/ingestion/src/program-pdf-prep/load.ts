@@ -34,14 +34,19 @@ export type LoadProgramPdfPrepOutcome =
 /** Below this many characters a curriculum PDF cannot hold a course list. */
 export const MIN_CURRICULUM_TEXT_CHARS = 2000;
 
+/** A scanned-flagged document below this average characters per page is unusable. */
+export const MIN_CHARS_PER_PAGE_WHEN_SCANNED = 200;
+
 export const NO_TEXT_REASON =
   'The curriculum PDF has no extractable text (scanned or image-only). OCR is not supported; upload a text PDF or load the course list spreadsheet.';
 
 /** The reason a prepared PDF is unusable, or null when it has readable text. */
 export function pdfNoTextReason(prep: ProgramPdfPrep): string | null {
-  if (prep.isLikelyScanned || prep.fullText.trim().length < MIN_CURRICULUM_TEXT_CHARS) {
-    return NO_TEXT_REASON;
-  }
+  const chars = prep.fullText.trim().length;
+  if (chars < MIN_CURRICULUM_TEXT_CHARS) return NO_TEXT_REASON;
+  // A mostly-scanned document that still carries real text per page is usable.
+  const pages = Math.max(prep.pages.length, 1);
+  if (prep.isLikelyScanned && chars / pages < MIN_CHARS_PER_PAGE_WHEN_SCANNED) return NO_TEXT_REASON;
   return null;
 }
 

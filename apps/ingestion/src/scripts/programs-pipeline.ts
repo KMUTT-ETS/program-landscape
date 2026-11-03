@@ -367,6 +367,12 @@ async function processProgram(
   }
   const pdfPrep =
     sharedPdfPrep?.status === 'SUCCEEDED' ? sharedPdfPrep.prep : undefined;
+  // NO_TEXT is final for the whole run: log once and skip all five PDF
+  // phases, rather than letting each extractor re-fetch the same PDF.
+  const noTextReason = sharedPdfPrep?.status === 'NO_TEXT' ? sharedPdfPrep.reason : null;
+  if (noTextReason && (shouldRun('phase1') || shouldRun('phase2b'))) {
+    console.log(`  ⚠ ${noTextReason}`);
+  }
 
   // ── Phase 1 + Phase 2b — PDF AI extraction (parallel) ────────────
   // Five extractors hit the same prepared PDF in parallel: digest,
@@ -391,31 +397,31 @@ async function processProgram(
   if (phase1Enabled || phase2bEnabled) {
     const t = Date.now();
     const [digest, faculty, skills, pedagogy, coursesExtract] = await Promise.all([
-      phase1Enabled
+      phase1Enabled && !noTextReason
         ? runProgramDigest({ programId: program.id, ai, storage, force: args.force, pdfPrep, systemContext: sharedSystemContext }).catch((e) => ({
             status: 'FAILED' as const, reason: String(e?.message ?? e),
           }))
-        : Promise.resolve({ status: 'SKIPPED' as const, reason: 'phase1 disabled' }),
-      phase1Enabled
+        : Promise.resolve({ status: 'SKIPPED' as const, reason: noTextReason ?? 'phase1 disabled' }),
+      phase1Enabled && !noTextReason
         ? runProgramFacultyExtraction({ programId: program.id, ai, storage, force: args.force, pdfPrep, systemContext: sharedSystemContext }).catch((e) => ({
             status: 'FAILED' as const, reason: String(e?.message ?? e),
           }))
-        : Promise.resolve({ status: 'SKIPPED' as const, reason: 'phase1 disabled' }),
-      phase1Enabled
+        : Promise.resolve({ status: 'SKIPPED' as const, reason: noTextReason ?? 'phase1 disabled' }),
+      phase1Enabled && !noTextReason
         ? runProgramSkillsDetailed({ programId: program.id, ai, storage, force: args.force, pdfPrep }).catch((e) => ({
             status: 'FAILED' as const, reason: String(e?.message ?? e),
           }))
-        : Promise.resolve({ status: 'SKIPPED' as const, reason: 'phase1 disabled' }),
-      phase1Enabled
+        : Promise.resolve({ status: 'SKIPPED' as const, reason: noTextReason ?? 'phase1 disabled' }),
+      phase1Enabled && !noTextReason
         ? runProgramPedagogy({ programId: program.id, ai, storage, force: args.force, pdfPrep }).catch((e) => ({
             status: 'FAILED' as const, reason: String(e?.message ?? e),
           }))
-        : Promise.resolve({ status: 'SKIPPED' as const, reason: 'phase1 disabled' }),
-      phase2bEnabled
+        : Promise.resolve({ status: 'SKIPPED' as const, reason: noTextReason ?? 'phase1 disabled' }),
+      phase2bEnabled && !noTextReason
         ? runProgramCoursesExtract({ programId: program.id, ai, storage, pdfPrep }).catch((e) => ({
             status: 'FAILED' as const, reason: String(e?.message ?? e),
           }))
-        : Promise.resolve({ status: 'SKIPPED' as const, reason: 'phase2b disabled' }),
+        : Promise.resolve({ status: 'SKIPPED' as const, reason: noTextReason ?? 'phase2b disabled' }),
     ]);
     const phaseDuration = Date.now() - t;
     if (phase1Enabled) {
@@ -442,6 +448,7 @@ async function processProgram(
           summarise(skills, 'skills'),
           summarise(pedagogy, 'pedagogy'),
           faculty.status === 'SUCCEEDED' && faculty.degraded ? `DEGRADED — faculty: ${faculty.notes ?? ''}` : null,
+          noTextReason ? `NO_TEXT — ${noTextReason}` : null,
         ]
           .filter((x): x is string => x !== null)
           .join(' '),
