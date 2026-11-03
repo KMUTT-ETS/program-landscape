@@ -433,6 +433,7 @@ async function processProgram(
         ok:
           digest.status !== 'FAILED' &&
           faculty.status !== 'FAILED' &&
+          !(faculty.status === 'SUCCEEDED' && faculty.degraded) &&
           skills.status !== 'FAILED' &&
           pedagogy.status !== 'FAILED',
         notes: [
@@ -440,7 +441,10 @@ async function processProgram(
           summarise(faculty, 'faculty'),
           summarise(skills, 'skills'),
           summarise(pedagogy, 'pedagogy'),
-        ].join(' '),
+          faculty.status === 'SUCCEEDED' && faculty.degraded ? `DEGRADED — faculty: ${faculty.notes ?? ''}` : null,
+        ]
+          .filter((x): x is string => x !== null)
+          .join(' '),
       });
     }
     if (phase2bEnabled) {

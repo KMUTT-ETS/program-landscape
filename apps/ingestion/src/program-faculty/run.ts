@@ -1,3 +1,4 @@
+import { buildRosterLookup, matchRosterName } from './name-match';
 import { prisma, activeRevisionIdFor } from '@kku/db';
 import {
   buildProgramFacultyMessages,
@@ -86,6 +87,10 @@ export type RunProgramFacultyOutcome =
       // that no longer rely on PDF text extraction.
       programFacultyRowsFromMhesi: number;
       unmatchedNames: string[];
+      /** True when staff were extracted but none matched the roster. */
+      degraded: boolean;
+      /** Operator-facing note, set when degraded. */
+      notes: string | null;
     }
   | { status: 'SKIPPED'; reason: string }
   | { status: 'FAILED'; reason: string };
@@ -101,7 +106,7 @@ function teachTypeToRole(teachTypeId: number): 'COORDINATOR' | 'CORE' | 'SUPPORT
   return 'CORE';
 }
 
-/** Normalise for name comparison: trim, collapse whitespace, lowercase. */
+/** Normalise for de-duplicating extracted names: trim, collapse whitespace, lowercase. */
 function normName(s: string): string {
   return s.trim().replace(/\s+/g, ' ').toLowerCase();
 }
@@ -259,12 +264,7 @@ export async function runProgramFacultyExtraction(
     where: { facultyId: program.faculty.id },
     select: { id: true, nameTh: true, nameEn: true },
   });
-  const byNameTh = new Map<string, string>();
-  const byNameEn = new Map<string, string>();
-  for (const fm of facultyMembers) {
-    if (fm.nameTh) byNameTh.set(normName(fm.nameTh), fm.id);
-    if (fm.nameEn) byNameEn.set(normName(fm.nameEn), fm.id);
-  }
+  const rosterLookup = buildRosterLookup(facultyMembers);
 
   // Dedupe the AI's output by Thai name, picking the highest-priority role.
   const dedupedByName = new Map<string, ProgramFacultyMemberExtraction>();
@@ -281,9 +281,7 @@ export async function runProgramFacultyExtraction(
   let matched = 0;
 
   for (const [, s] of dedupedByName) {
-    const nameThKey = normName(s.nameTh);
-    const nameEnKey = normName(s.nameEn);
-    const facultyMemberId = byNameTh.get(nameThKey) ?? (s.nameEn ? byNameEn.get(nameEnKey) : undefined);
+    const facultyMemberId = matchRosterName(rosterLookup, { nameTh: s.nameTh, nameEn: s.nameEn });
 
     if (!facultyMemberId) {
       unmatchedNames.push(`${s.titlePrefix ?? ''}${s.nameTh}${s.nameEn ? ` / ${s.nameEn}` : ''} (${s.role})`);
@@ -357,6 +355,8 @@ export async function runProgramFacultyExtraction(
     select: { id: true },
   });
 
+  const degraded = matched === 0 && dedupedByName.size > 0;
+
   return {
     status: 'SUCCEEDED',
     aiExtractionId: created.id,
@@ -371,5 +371,9 @@ export async function runProgramFacultyExtraction(
     programFacultyRowsWritten,
     programFacultyRowsFromMhesi,
     unmatchedNames,
+    degraded,
+    notes: degraded
+      ? `matched 0 of ${dedupedByName.size} — load the Staff spreadsheet (or check names) to link teaching staff`
+      : null,
   };
 }
