@@ -36,6 +36,7 @@ All 40 catalog sources are now listed. Rows marked *(no spec yet)* have a connec
 | **B** National | `nxpo-reports` | NXPO | **`real`** | [nxpo-reports.md](./nxpo-reports.md) | PDF bulk-load |
 | **B** National | `boi-sectoral` | BOI | **`real`** | [boi-sectoral.md](./boi-sectoral.md) | PDF bulk-load |
 | **B** National | `eeco-reports` | EECO | **`real`** | [eeco-reports.md](./eeco-reports.md) | PDF bulk-load |
+| **C** Intl | `openalex-works` | OpenAlex publications | **`real`** | [openalex-works.md](./openalex-works.md) | Free key; institution id from the org profile |
 | **C** Intl | `openalex` | OpenAlex | `deprecated` | [openalex.md](./openalex.md) | Free; priority target |
 | **C** Intl | `wef-future-of-jobs` | World Economic Forum | **`real`** | [wef-future-of-jobs.md](./wef-future-of-jobs.md) | Annual PDF |
 | **C** Intl | `oecd-reports` | OECD | **`real`** | [oecd-reports.md](./oecd-reports.md) | Mixed API + PDF |

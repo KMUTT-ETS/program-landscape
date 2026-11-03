@@ -19,4 +19,6 @@ export const KKU_REFERENCE_ORGANIZATION: Institution = {
   // these became configurable.
   intakeFloorBachelor: 30,
   intakeFloorPostgrad: 8,
+  // KKU's id in OpenAlex (verified 2026-04-28; ROR 03cq4gr50).
+  openalexInstitutionId: 'I179193067',
 };

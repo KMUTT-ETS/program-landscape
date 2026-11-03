@@ -56,6 +56,7 @@ import {
 } from './sources/external-reports';
 import { WorldBankRealConnector } from './sources/world-bank';
 import { UnWppConnector } from './sources/un-wpp';
+import { OpenAlexWorksConnector } from './sources/openalex-works';
 import { TcasRealConnector } from './sources/tcas';
 import {
   AdbGmsConnector,
@@ -229,6 +230,7 @@ const ENTRIES: readonly ConnectorEntry[] = [
   // Real from day one — there is no mock (no-mock-data policy), and the
   // registry falls back to `mock` when `real` is absent, so both slots hold it.
   { slug: 'un-wpp', mock: () => new UnWppConnector(), real: () => new UnWppConnector() },
+  { slug: 'openalex-works', mock: () => new OpenAlexWorksConnector(), real: () => new OpenAlexWorksConnector() },
   {
     slug: 'adb-gms',
     mock: () => new AdbGmsConnector(),

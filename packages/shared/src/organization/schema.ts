@@ -36,6 +36,17 @@ export const OrganizationIdentityInputSchema = z.object({
    */
   intakeFloorBachelor: z.coerce.number().int().min(1).max(10_000).default(30),
   intakeFloorPostgrad: z.coerce.number().int().min(1).max(10_000).default(8),
+  /**
+   * OpenAlex institution id, e.g. I60837268 — find it at openalex.org by
+   * searching the university. Blank means "not set" (the publications
+   * connector then skips with a reason).
+   */
+  openalexInstitutionId: z
+    .string()
+    .trim()
+    .nullish()
+    .transform((v) => (v ? v : null))
+    .pipe(z.string().regex(/^I\d+$/, 'expected an OpenAlex institution id like I60837268').nullable()),
   /** null when creating the first profile; otherwise the version the form was loaded at. */
   expectedVersion: z.number().int().positive().nullable(),
 });

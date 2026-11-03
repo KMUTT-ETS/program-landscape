@@ -32,6 +32,8 @@ export interface Institution {
   intakeFloorBachelor: number;
   /** Minimum viable intake for a postgraduate programme — watch-list below. */
   intakeFloorPostgrad: number;
+  /** OpenAlex institution id (I…); null until an administrator sets it. */
+  openalexInstitutionId: string | null;
 }
 
 export class OrganizationNotLoadedError extends Error {

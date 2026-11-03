@@ -20,6 +20,7 @@ export interface OrganizationProfileDto {
   appUrl: string;
   intakeFloorBachelor: number;
   intakeFloorPostgrad: number;
+  openalexInstitutionId: string | null;
   version: number;
   updatedAt: string;
   updatedBy: string | null;
@@ -41,6 +42,7 @@ type FormState = {
   nameTh: string; nameEn: string; shortNameTh: string; shortNameEn: string;
   regionTh: string; regionEn: string; contactEmail: string; appUrl: string;
   intakeFloorBachelor: string; intakeFloorPostgrad: string;
+  openalexInstitutionId: string;
 };
 
 function toForm(p: OrganizationProfileDto | null): FormState {
@@ -52,6 +54,7 @@ function toForm(p: OrganizationProfileDto | null): FormState {
     // schema coerces back to a number on save.
     intakeFloorBachelor: String(p?.intakeFloorBachelor ?? 30),
     intakeFloorPostgrad: String(p?.intakeFloorPostgrad ?? 8),
+    openalexInstitutionId: p?.openalexInstitutionId ?? '',
   };
 }
 
@@ -71,6 +74,8 @@ const FIELDS: { key: keyof FormState; label: string; hint?: string; required?: b
     hint: 'Your council\u2019s policy. A bachelor programme recruiting fewer than this each year is treated as closure-track in the health score and the risk register.' },
   { key: 'intakeFloorPostgrad', label: 'Minimum postgraduate intake', required: true,
     hint: 'The same policy for master\u2019s and doctoral programmes, where a small cohort is normal \u2014 below it a programme goes on the watch list rather than closure-track.' },
+  { key: 'openalexInstitutionId', label: 'OpenAlex institution ID',
+    hint: 'Used by the OpenAlex publications pull. Find it at openalex.org by searching your university, e.g. KMUTT I60837268. Leave blank to skip that connector.' },
 ];
 
 export function OrganizationClient({

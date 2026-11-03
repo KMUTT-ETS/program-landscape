@@ -6064,6 +6064,9 @@ model OrganizationProfile {
   /// do not move. Read only through packages/shared/src/intake-policy.ts.
   intakeFloorBachelor Int   @default(30) @map("intake_floor_bachelor")
   intakeFloorPostgrad Int   @default(8)  @map("intake_floor_postgrad")
+  /// OpenAlex institution id (e.g. I60837268). Drives the openalex-works
+  /// publications connector; null leaves that connector skipped.
+  openalexInstitutionId String? @map("openalex_institution_id")
   /// MinIO object keys in bucket MINIO_BUCKET_BRANDING (default "branding"); null = built-in mark.
   logoLightKey    String?  @map("logo_light_key")
   logoDarkKey     String?  @map("logo_dark_key")

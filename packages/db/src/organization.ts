@@ -67,6 +67,7 @@ export function profileToInstitution(row: OrganizationProfile): Institution {
     appUrl: row.appUrl,
     intakeFloorBachelor: row.intakeFloorBachelor,
     intakeFloorPostgrad: row.intakeFloorPostgrad,
+    openalexInstitutionId: row.openalexInstitutionId,
   };
 }
 

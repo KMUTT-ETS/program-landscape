@@ -27,6 +27,7 @@ const INSTITUTION = {
   appUrl: 'https://example.test',
   intakeFloorBachelor: 30,
   intakeFloorPostgrad: 8,
+  openalexInstitutionId: null,
 };
 
 afterEach(() => setOrganizationForTest(undefined));

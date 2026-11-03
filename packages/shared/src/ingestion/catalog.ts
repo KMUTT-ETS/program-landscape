@@ -810,6 +810,18 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     mocked: false,
   },
   {
+    slug: 'openalex-works',
+    name: 'OpenAlex publications',
+    kind: 'API',
+    inputFormat: 'JSON',
+    scheduleEnabled: false,
+    cadenceCron: '0 3 1 */3 *', // quarterly, once a schedule is enabled
+    ownerContact: 'Institution administrator',
+    notes:
+      'Publications of your university from OpenAlex, found by the institution id on the organisation profile (/admin/organization). Needs a free OPENALEX_API_KEY; skipped with a reason while either is missing. Staff are matched exactly (ORCID, OpenAlex id, English name, Thai name); a work already uploaded in the Publications spreadsheet with the same DOI is enriched, not duplicated.',
+    mocked: false,
+  },
+  {
     slug: 'xlsx-population-projections',
     name: 'Population Projections (spreadsheet import)',
     kind: 'CSV',

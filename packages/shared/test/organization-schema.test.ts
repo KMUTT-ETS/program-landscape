@@ -89,3 +89,17 @@ describe('OrganizationBrandInputSchema', () => {
     expect(OrganizationBrandInputSchema.safeParse({ primaryColor: null, secondaryColor: null }).success).toBe(false);
   });
 });
+
+describe('OpenAlex institution id', () => {
+  it('accepts a well-formed id and treats blank as unset', () => {
+    expect(OrganizationIdentityInputSchema.parse({ ...base, openalexInstitutionId: ' I60837268 ' }).openalexInstitutionId).toBe('I60837268');
+    expect(OrganizationIdentityInputSchema.parse({ ...base, openalexInstitutionId: '' }).openalexInstitutionId).toBeNull();
+    expect(OrganizationIdentityInputSchema.parse(base).openalexInstitutionId).toBeNull();
+  });
+
+  it('rejects a malformed OpenAlex id', () => {
+    for (const bad of ['60837268', 'https://openalex.org/I60837268', 'I12x']) {
+      expect(OrganizationIdentityInputSchema.safeParse({ ...base, openalexInstitutionId: bad }).success).toBe(false);
+    }
+  });
+});
