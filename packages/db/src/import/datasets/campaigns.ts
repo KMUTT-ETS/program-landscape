@@ -134,6 +134,9 @@ export const campaignsDataset: ImportDataset = {
         // A row is its own round, so its plan IS the seats it offers. The
         // health drivers read enrollSeats, not planPerYear.
         if (typeof row.planPerYear === 'number') data.enrollSeats = row.planPerYear;
+        // The sheet has no separate "sent to clearinghouse" figure; the
+        // yield driver reads that column, so Confirmed stands in for it.
+        if (typeof row.confirmClearinghouse === 'number') data.sendClearinghouse = row.confirmClearinghouse;
         if (claimsRow(existing)) data.ingestionRunId = ctx.ingestionRunId;
 
         await ctx.tx.admissionCampaignStat.update({ where: { id: existing.id }, data });
@@ -160,6 +163,8 @@ export const campaignsDataset: ImportDataset = {
             totalApplicants: row.totalApplicants === null ? null : Number(row.totalApplicants),
             totalPassed: row.totalPassed === null ? null : Number(row.totalPassed),
             confirmClearinghouse:
+              row.confirmClearinghouse === null ? null : Number(row.confirmClearinghouse),
+            sendClearinghouse:
               row.confirmClearinghouse === null ? null : Number(row.confirmClearinghouse),
             regReported: row.regReported === null ? null : Number(row.regReported),
             freshnessDate,

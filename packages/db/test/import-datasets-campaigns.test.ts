@@ -92,11 +92,13 @@ describe('admission campaigns dataset', () => {
       where: { program: { code: PROGRAMME_CODE } },
       select: {
         wProgramId: true, recruitmentProgramId: true, acadYearBE: true,
-        totalApplicants: true, ingestionRunId: true, enrollSeats: true, planPerYear: true,
+        totalApplicants: true, ingestionRunId: true, enrollSeats: true, planPerYear: true, sendClearinghouse: true,
       },
     });
     // The health drivers read enrollSeats; an imported row's plan feeds it.
     expect(stored.enrollSeats).toBe(60);
+    // Confirmed stands in for the send figure the yield driver reads.
+    expect(stored.sendClearinghouse).toBe(70);
     expect(stored.planPerYear).toBe(60);
     expect(stored.wProgramId).toBeNull();
     expect(stored.recruitmentProgramId).toBeNull();
