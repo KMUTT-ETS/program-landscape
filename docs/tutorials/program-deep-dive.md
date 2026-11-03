@@ -109,12 +109,16 @@ nothing.
 - **Tier:** national, same for every Thai institution; no credentials.
 - **Configure:** nothing beyond `/admin/organization`. The Thai institution name
   must match the national TCAS data exactly; the form shows the match count.
-- **Run:**
+- **Run:** press **Run now** on `/admin/data-sources/tcas`; the Admissions
+  section's empty state links there for administrators. From a dev shell the
+  equivalent is:
 
   ```bash
   pnpm connector:run tcas
   ```
 
+  **Run now** queues the job for the ingestion worker, so the worker's
+  environment decides real or mock (`CONNECTOR_TCAS_MODE`), not your shell's.
 - **Then:** run it again after your programmes exist. Rows link to a programme
   only when its faculty and programme `nameTh` match the national spelling
   exactly; unmatched rows are kept with no programme and listed in the run
@@ -163,8 +167,12 @@ nothing.
   MHESI and only hosted by KMITL — never label it "KMITL data". And the
   Thailand × job-postings slice is a thin sample, so any figure built on it needs
   a sample-size caveat.
-- **Expect** most of the provider's skill names not to match your skill taxonomy
-  on the first run; the unmatched names are listed in the run metadata for review.
+- **Expect** none of the provider's skill names to match on the first run. A
+  fresh installation has no skill taxonomy and this connector does not create
+  one: every demand row loads with an empty skill link. Build the taxonomy next
+  with `pnpm skills:normalise --source=linkedin --auto-promote`, which also
+  re-links these rows; the full order is in
+  [Building your skill taxonomy](../adopters/README.md#building-your-skill-taxonomy).
 - **More:** [labour-market source spec](../data-sources/kmitl-skill-mapping.md),
   [Adopter guide, Tier 2](../adopters/README.md#tier-2--shared-national-and-external-sources-same-for-everyone).
 
@@ -411,6 +419,25 @@ disappears from the page. Check both. The triage SQL is in the
 [project contract](../../CLAUDE.md) (search for `realDataWhere`),
 and the trap is explained in the
 [Adopter guide](../adopters/README.md#trap-2-realdatawhere--empty-sections-with-rows-in-the-database).
+
+### Skills coverage shows 0
+
+All four cards (*Skills taught*, *Major contributors*, *Minor contributors*,
+*Demand match*) read 0 even though the pipeline ran. Check these causes in order:
+
+1. **No skill taxonomy.** `SELECT count(*) FROM skills;` returns 0. Skill
+   matching is exact, so nothing can match an empty taxonomy. Build it as
+   [Building your skill taxonomy](../adopters/README.md#building-your-skill-taxonomy)
+   describes, then re-apply the digest with `pnpm programs:digest <code> --force`.
+   Re-running `--only=phase2` is not enough: it only applies digests that are
+   still pending, and digests are auto-approved by default.
+2. **Phase 1 failed.** The pipeline log shows `digest✗` and nothing more,
+   because phase 1 drops the error message. Run the digest on its own to see it:
+   `pnpm programs:digest <code>`. On OpenRouter, see
+   [Running on OpenRouter](../ai-governance.md#running-on-openrouter).
+3. ***Demand match* alone stays 0.** It needs pipeline phase 3, run **after**
+   the taxonomy exists and the labour-market rows have been re-linked:
+   `pnpm programs:pipeline <code> --only=phase3`.
 
 ## Where to go next
 

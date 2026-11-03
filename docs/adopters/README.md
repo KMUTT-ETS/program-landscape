@@ -49,6 +49,8 @@ Verify by reading the header comment of `apps/ingestion/src/connectors/sources/u
 
 Everything institution-specific — the registrar warehouse, HR, finance, course evaluations, digital-competency scores — is bespoke to KKU's systems and needs rewriting against your equivalents. [Chapter 8](#8-data-integration--the-four-tiers-of-adoption-effort) sorts all 39 catalogued sources into tiers by how much work each one is.
 
+**You do not have to write those connectors before you see results.** Sixteen datasets can be uploaded as Excel spreadsheets from `/admin/data-setup`: your faculties, departments and programmes, then enrolment, finance, graduate outcomes, cohorts, admissions, staff, compensation, budgets, publications, class offerings, programme teaching teams and programme course lists. No code edits are needed. An upload produces the same provenance-stamped rows a connector would, so the dashboards treat both the same way. Most adopters should start there and write connectors later, to automate whatever they find themselves re-uploading. [Importing from spreadsheets](../data-import.md) is the guide.
+
 **Three things to internalise before you start:**
 
 - This is a **decision-support system for high-stakes decisions** — programme closures, mergers, faculty livelihoods. The codebase is built around provenance, audit logging, methodology versioning, and confidence disclosure. Those are not decorations; if you strip them out you have a dashboard that nobody in your Council will trust.
@@ -143,7 +145,7 @@ The single biggest determinant of whether you can still merge upstream in a year
 | Change type | Do this | Not this |
 |---|---|---|
 | Your connectors | New directories under `apps/ingestion/src/connectors/sources/<your-slug>/`, added as new `SOURCE_CATALOG` entries and new registry rows | Editing KKU's connector files in place |
-| Your faculty/department/programme data | Your own seed module, imported from `packages/db/prisma/seed.ts` | Editing KKU's faculty array inline |
+| Your faculty/department/programme data | Spreadsheet upload at `/admin/data-setup` — it lives in your database, not your fork. See [Importing from spreadsheets](../data-import.md) | Editing KKU's faculty array in `packages/db/prisma/seed.ts` |
 | Branding | Replace asset files and token *values*; keep token *names* | Renaming tokens or restructuring `tailwind-preset.ts` |
 | Methodology weights | Bump the version constant and add your variant alongside; see [chapter 12](#12-methodologies--adapting-the-scoring-to-your-institution) | Editing the KKU formula in place |
 | Your `CLAUDE.md` | Rewrite freely — this file is *meant* to diverge | — |
@@ -186,14 +188,16 @@ Merge upstream **quarterly, not continuously**. Continuous merging means you re-
 cp .env.example .env
 
 # 2. Full setup — installs deps, links .env into each app, starts
-#    postgres/redis/minio/gotenberg, runs migrations, seeds.
+#    postgres/redis/minio/gotenberg, runs migrations, registers data sources.
 pnpm setup
 
 # 3. Run all three services in parallel.
 pnpm dev
 ```
 
-`pnpm setup` expands to `pnpm install && node scripts/link-env.mjs && pnpm db:generate && pnpm db:up && pnpm minio:init && pnpm db:migrate && pnpm db:seed`. If any step fails, run them individually to isolate it.
+`pnpm setup` expands to `pnpm install && node scripts/link-env.mjs && pnpm db:generate && pnpm db:up && pnpm minio:init && pnpm db:migrate && pnpm data-sources:sync --apply`. If any step fails, run them individually to isolate it.
+
+**`pnpm setup` does not seed.** `pnpm db:seed` loads KKU's faculties, departments and demo accounts, which an adopting installation does not want. The last step only registers one `data_sources` row per catalogued source and import dataset. Without those rows every upload is refused, because rows with no recorded source would be hidden by [`realDataWhere()`](#trap-2-realdatawhere--empty-sections-with-rows-in-the-database). The step is idempotent and never deletes anything. Production deploys run the same step (`deploy.sh`).
 
 Once running:
 
@@ -207,13 +211,19 @@ Once running:
 
 ### Signing in on day one
 
-Set `ENABLE_LOCAL_AUTH=true` and `DEV_AUTH_PASSWORD=<something>` in `.env`. This gives you a credentials provider so you can log in without an OIDC identity provider. It is guarded — `assertLocalAuthSafe()` throws at module load if `ENABLE_LOCAL_AUTH=true` while `NODE_ENV=production`, so you cannot ship it by accident.
+Open `http://localhost:3000`. A database with no administrator redirects to **`/setup`**, which asks for a name, an email and a password and creates the first `SUPER_ADMIN`. Sign in with that email and password. Every later account comes from that one. The same page is how a production installation gets its first administrator, so `DEPLOYMENT.md` covers it too.
+
+`/setup` is unauthenticated: whoever submits it first owns the installation. It closes permanently on first use. Claim it as soon as the stack is up, and especially on any server others can reach. The password form is hidden once SSO is configured; `/signin?password=1` brings it back.
+
+`ENABLE_LOCAL_AUTH=true` with `DEV_AUTH_PASSWORD` is a separate, development-only mechanism. It opens any account with no stored password, which only matters if you ran `pnpm db:seed` and want to sign in as KKU's seeded demo users. It is guarded: `assertLocalAuthSafe()` throws at module load if `ENABLE_LOCAL_AUTH=true` while `NODE_ENV=production`, so you cannot ship it by accident.
 
 Wiring your own university SSO is a separate task; `docs/auth/kku-sso.md` documents KKU's OIDC configuration as a worked example of the shape you need.
 
 ### What "working" looks like at this stage
 
-Most analytical surfaces will be **empty**, and that is correct. The seed gives you faculties, a skill taxonomy, sectors, and reference data; it does not give you student, staff, financial, or programme-document data, because that data is yours and does not exist yet. Empty sections render an explicit empty state naming the connector you need to run. If you see fabricated-looking numbers, something is wrong.
+Every analytical surface will be **empty**, and that is correct. A fresh installation has no faculties, programmes, students, staff or financial data, because that data is yours. It has no skill taxonomy either, so every skill figure reads 0 until you [build one](#building-your-skill-taxonomy). Empty sections render an explicit empty state. If you see fabricated-looking numbers, something is wrong.
+
+The fastest way to fill it is the spreadsheet import. Upload faculties, departments and programmes from `/admin/data-setup`, then whichever metric datasets you hold. [Importing from spreadsheets](../data-import.md) gives the order, and [Get Program Deep-Dive working](../tutorials/program-deep-dive.md) walks through one programme end to end.
 
 ### If the app compiles but every protected route bounces you to `/signin`
 
@@ -280,8 +290,8 @@ If you are adding a surface and it does not have these, it is not finished. This
 | `NEXTAUTH_SECRET` | Required. Missing → silent auth failure, see Trap 4 |
 | `NEXTAUTH_URL`, `AUTH_TRUST_HOST` | Set to your public URL in production |
 | `ENABLE_LOCAL_AUTH`, `DEV_AUTH_PASSWORD` | Dev sign-in. Hard-fails in production |
-| `AI_PROVIDER` | `google` (default) / `anthropic` / `stub`. Tool-use (AI Analyst) requires `anthropic` |
-| `GOOGLE_AI_API_KEY` / `ANTHROPIC_API_KEY` | At least one; `stub` provider works without either |
+| `AI_PROVIDER` | `google` (default) / `anthropic` / `openrouter` / `stub`. Tool-use (AI Analyst) requires `anthropic` |
+| `GOOGLE_AI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY` | The key for your provider; `stub` works without any. Keep a Google key alongside the others: embeddings always go to Google |
 | `CONNECTOR_MODE` | Global default connector mode. Leave at `mocked` initially |
 | *(none — moved)* | Institution identity is set in the app at **/admin/organization** (names, short names, region, contact email, public URL). The Thai name must match the TCAS สถาบัน column exactly; the form checks it for you. |
 | `MINIO_*`, `REDIS_*`, `GOTENBERG_URL` | Local defaults in `.env.example` work with `pnpm db:up` |
@@ -409,7 +419,9 @@ Three design decisions in that connector generalise:
 3. Follow `prompts/14-integration-session-template.md` — see [chapter 9](#9-the-connector-contract-and-how-to-write-one).
 4. **Aggregate at source.** The KKU connectors push `GROUP BY` and small-cell suppression (`HAVING COUNT(*) >= 5`) into the SQL so per-person data never crosses the wire. Preserve this. It is the single design decision that makes the PDPA story defensible.
 
-**Honest effort estimate:** one to three weeks per connector, dominated by getting read access to systems whose owners have no reason to give it to you. Start the access conversations before you start the code. `kku-registry` and `kku-hr` are the two with the highest downstream leverage — without them the cockpit and deep-dive stay largely empty.
+**Honest effort estimate:** one to three weeks per connector, dominated by getting read access to systems whose owners have no reason to give it to you. Start the access conversations before you start the code. `kku-registry` and `kku-hr` are the two with the highest downstream leverage.
+
+**Before you write a Tier 3 connector, check whether a spreadsheet covers it.** Registrar, HR and finance figures each have an import dataset that writes the same tables: enrolment, student and alumni cohorts, admission campaigns, class offerings, staff, compensation, budgets, finance and publications (full list in [Importing from spreadsheets](../data-import.md#what-you-can-import-today)). A term's export, uploaded each term, lights up the cockpit and deep-dive in days rather than weeks. Write the connector when the manual export becomes the bottleneck. Uploads and connector runs can feed the same table. When both write the same row, it stays attributed to the connector, and the connector's next run overwrites the uploaded figures, so don't run both for the same years.
 
 ### Tier 4 — Content, not code
 
@@ -417,12 +429,13 @@ Nothing to write; things to supply.
 
 | What | Where it goes |
 |---|---|
-| Your faculties and departments | `packages/db/prisma/seed.ts` — KKU's array is a worked example with `code` / `nameTh` / `nameEn` / `kind` |
-| Your programme list | Seed, plus `/admin/programs` for ongoing edits. See [chapter 10](#10-programme-documents-and-the-ai-digest-pipeline) |
+| Your faculties and departments | Spreadsheet upload at `/admin/data-setup` (*Faculties*, *Departments*). Thai institutions: spell faculty names the way TCAS does, or admission figures will not link |
+| Your programme list | Spreadsheet upload (*Programmes*), plus `/admin/programs` for ongoing edits. See [chapter 10](#10-programme-documents-and-the-ai-digest-pipeline) |
 | Your programme curriculum PDFs | `pnpm pdf:bulk-load`, or the UI at `/admin/programs/[id]?tab=files` |
+| Course lists the PDF pipeline cannot read | Spreadsheet upload (*Programme course lists*). Takes precedence over PDF extraction for the programmes it names |
 | Your logos and colours | See [chapter 11](#11-branding-and-ui-adaptation) |
 | TH Sarabun New font files | `infra/gotenberg/fonts/` — deliberately not in git |
-| Your skill taxonomy extensions | The seed ships ~561 ESCO-derived English skills; the digest pipeline grows it |
+| Your skill taxonomy | Built from your own data with `pnpm skills:normalise`. A fresh installation has none. See [Building your skill taxonomy](#building-your-skill-taxonomy). Do not use `pnpm db:seed` for it: that loads KKU's data and 500 synthetic placeholder skills |
 
 ---
 
@@ -503,10 +516,13 @@ This is how a stack of curriculum PDFs becomes structured, queryable programme d
 ```
 Curriculum PDF  →  MinIO + PdfDocument row (content-hash deduped)
                 →  AI digest (program-digest.v1)
-                →  AiExtraction row, PENDING_REVIEW
-                →  human approval
+                →  AiExtraction row: AUTO_APPROVED when its confidence clears
+                   AI_AUTO_APPROVE_THRESHOLD (code default 0), else PENDING_REVIEW
+                   until a human approves it
                 →  materialised onto Program + ProgramSkill rows
-                →  unmatched skill names → PROPOSED_SKILL queue
+                   (ProgramSkill only for names that exactly match the taxonomy)
+                →  unmatched skill names → PROPOSED_SKILL extractions
+                →  pnpm skills:normalise --source=program_digest → new Skill rows
 ```
 
 ### Commands
@@ -516,7 +532,8 @@ Curriculum PDF  →  MinIO + PdfDocument row (content-hash deduped)
 | `pnpm pdf:bulk-load <manifest.jsonl>` | One-time historical backfill. Dry-run by default; `--commit` to actually upload |
 | `pnpm programs:digest <code\|mhesi\|seq>` | Digest one programme |
 | `pnpm programs:digest-bulk [--limit N] [--level X]` | Bulk, with auto-resume |
-| `pnpm programs:approve-pending` | Approve + materialise every pending digest |
+| `pnpm programs:approve-pending` | Approve + materialise every digest still `PENDING_REVIEW`. An auto-approved digest was applied when written and is not re-applied |
+| `pnpm skills:normalise --source=<linkedin\|program_digest> --auto-promote` | Build the skill taxonomy; see [Building your skill taxonomy](#building-your-skill-taxonomy) |
 | `pnpm programs:pipeline <code>` | The full per-programme pipeline (below) |
 | `/admin/programs/from-pdf` | The operator-facing submit wizard — new programme *or* revision |
 | `/admin/programs/[id]?tab=files` | Attach a PDF through the UI |
@@ -591,11 +608,37 @@ the validator working, not the model underperforming.
 
 `packages/shared/src/ai/prompts/program-digest.ts`, version `program-digest.v1`. A single call against the full PDF text producing a 15-field structured digest: programme metadata, course list with credits and learning outcomes, all skills the curriculum builds with weights and verbatim evidence quotes, a marketing-ready Thai recruitment summary, career paths, self-rated confidence, and caveats.
 
-Materialisation (`packages/db/src/program-digest-materialize.ts`) uses **skip-if-empty semantics** — a re-digest never overwrites a human-curated value with a blank. Extracted skill names resolve against `Skill.nameEn` (lowercased exact) then `Skill.nameTh` (exact); **no fuzzy matching**. Unmatched names become `PROPOSED_SKILL` extractions for analyst review, which is how the taxonomy grows from your curriculum vocabulary rather than staying stuck at the seeded ESCO list.
+Materialisation (`packages/db/src/program-digest-materialize.ts`) uses **skip-if-empty semantics** — a re-digest never overwrites a human-curated value with a blank. Extracted skill names resolve against `Skill.nameEn` (lowercased exact) then `Skill.nameTh` (exact); **no fuzzy matching**. Unmatched names become `PROPOSED_SKILL` extractions. These do **not** become skills by being approved: `pnpm skills:normalise --source=program_digest --auto-promote` is the step that turns them into `Skill` rows, after which the digest has to be re-applied. That is how the taxonomy grows from your curriculum vocabulary; see [Building your skill taxonomy](#building-your-skill-taxonomy).
 
 ### What this cost KKU, so you can budget
 
 228 of 297 programmes digested. Roughly **$0.04 per digest, ~$8.10 total** across six retry passes, on Gemini. The remaining 69 programmes had no PDF available — mostly medical specialty programmes and new additions. Expect a similar coverage shortfall and plan a document-acquisition workstream separately from the engineering.
+
+### Building your skill taxonomy
+
+**A fresh installation has no skills at all**: the `skills` table holds 0 rows. Until you build a taxonomy, every skill figure in the product reads 0, including all four cards of the Deep-Dive *Skills coverage* section, however many times you run the pipeline. That is because skill matching is exact. A skill the digest extracts reaches a programme (a `ProgramSkill` row) only when its name equals a taxonomy entry: `Skill.nameEn` compared lowercased, then `Skill.nameTh`. With an empty taxonomy nothing can match.
+
+`pnpm setup` does not load a taxonomy, and `pnpm db:seed` is not the answer. It loads KKU's faculties, departments and accounts along with about 60 real skills and 500 synthetic placeholders. The KMITL connector does not create skills either. It loads skill-demand rows, all with an empty `skill_id`, until a taxonomy exists to link them to.
+
+What builds the taxonomy is `pnpm skills:normalise` (`apps/ingestion/src/scripts/normalise-skill-names.ts`). It sends raw skill names to the AI in batches of 25. The model either matches each name to an existing skill or proposes it as new. A proposal becomes a real `Skill` row only when you pass `--auto-promote` **and** its confidence is at least 0.9. Lower-confidence proposals stay in `skill_aliases` with status `NEW_PROPOSED`, waiting for review. Every decision is also written to `logs/normalise-skills-<timestamp>.jsonl`.
+
+Run it in this order:
+
+| Step | Command | What it does |
+|---|---|---|
+| 1 | `pnpm connector:run kmitl-skill-mapping` | Loads labour-market skill demand (LinkedIn data via the KMITL connector). Needs credentials; see the [tutorial](../tutorials/program-deep-dive.md#labour-market-skills) |
+| 2 | `pnpm skills:normalise --source=linkedin --auto-promote` | Builds the taxonomy from those skill names, then re-links the KMITL demand and growth rows to the new skills |
+| 3 | `pnpm programs:pipeline <code> --only=phase1`, or `pnpm programs:digest <code>` | Digests the curriculum PDF. Names that match nothing become `PROPOSED_SKILL` extractions |
+| 4 | `pnpm skills:normalise --source=program_digest --auto-promote` | Adds your curriculum's own vocabulary to the taxonomy |
+| 5 | `pnpm programs:digest <code> --force` | Re-applies the digest so its skills now match. See the limitation below |
+| 6 | `pnpm programs:pipeline <code> --only=phase3` | Career mapping and demand match. It must run **after** steps 2 and 5, or the *Demand match* card stays 0 |
+
+- **Cost and time:** about USD 0.003 per batch of 25, so roughly USD 1 and 45 minutes for ~5,900 LinkedIn names. That was measured on an OpenRouter install; your model's price sets yours. The digest source is usually far smaller.
+- **Re-running is safe.** Names already decided are skipped, so a second run only retries the ones that failed. The summary's `Failed:` line is the one to read. The script exits 0 even when batches failed, for example on an OpenRouter balance refusal ([see below](#running-on-openrouter)).
+- **Without KMITL access, or outside Thailand,** skip steps 1, 2 and 6. Steps 3 to 5 still give you a taxonomy built entirely from your own curricula. The *Demand match* card then stays empty, because nothing supplies demand.
+- **`PROPOSED_SKILL` approval does not create skills.** With `AI_AUTO_APPROVE_THRESHOLD` unset (its code default is 0), those extractions are auto-approved as soon as they are written. Approval only changes their review status; only step 4 turns them into `Skill` rows.
+
+**Current limitation: re-applying a digest costs a new AI call.** Pipeline phase 2 (`programs:approve-pending`) applies only digests still in `PENDING_REVIEW`. A digest that was auto-approved was applied when it was written, so after the taxonomy grows, `--only=phase2` does nothing for it. Today the only way to apply it again is `pnpm programs:digest <code> --force`, which re-runs the AI digest (about USD 0.08 for a 320-page PDF). No command re-applies a stored digest without a new AI call. Plan step 5 into your budget for every programme digested before the taxonomy existed.
 
 ### Thai PDF output requires TH Sarabun New
 
@@ -688,9 +731,19 @@ The safe adaptation pattern: add your weights as a new version alongside KKU's r
 | `google` | Gemini — the default, and what the programme pipeline is tuned for |
 | `anthropic` | Claude — **required for the AI Analyst module**, which uses native tool-use |
 | `stub` | Deterministic placeholders; works with no API key. Useful for local development |
-| `openrouter`, `intelsphere` | Stubs that throw at call time — deliberately loud, not silent fallback |
+| `openrouter` | Any model through OpenRouter's OpenAI-compatible API. Embeddings and transient-error fallback go to Google when `GOOGLE_AI_API_KEY` is set. See [Running on OpenRouter](#running-on-openrouter) before digesting long PDFs |
+| `intelsphere` | Stub that throws at call time — deliberately loud, not silent fallback |
 
 Gemini has embeddings and Claude does not, so when `AI_PROVIDER=anthropic` the factory transparently delegates `embed()` to Google. Set both keys if you use Claude.
+
+### Running on OpenRouter
+
+OpenRouter works, but a whole-curriculum digest of a long PDF hits four problems, which show up one after another. The full table, with settings, is in [AI governance](../ai-governance.md#running-on-openrouter). In short:
+
+1. **The request times out after 2 minutes.** Set `AI_OPENROUTER_TIMEOUT_MS=600000`.
+2. **The Google fallback then fails with 429 `RESOURCE_EXHAUSTED`.** A 300-page curriculum is about 360k input tokens, and a free-tier Google key allows 250k a minute. Fix the timeout rather than relying on the fallback.
+3. **"no json found" with an empty answer.** A reasoning model spent the whole output budget thinking. Structured extraction now asks OpenRouter for minimal reasoning, which fixed it on `z-ai/glm-5.3` (73 s, USD 0.08 for the digest).
+4. **HTTP 402 "You requested up to 50000 tokens, but can only afford …".** OpenRouter checks your balance against the *requested* output cap, not actual use. Top up; the digest and `skills:normalise` both request 50,000.
 
 ### Prompts are versioned code
 
@@ -929,7 +982,7 @@ Preserve these when you write your own connectors:
 - **Explicit projections.** Every connector lists its columns; nothing is `SELECT *`. The projection *is* the trust boundary, and each connector's header comment says so.
 - **Read-only service accounts**, never superusers.
 
-Cross-border transfer deserves specific attention: every AI call sends data to Google or Anthropic outside Thailand. `docs/pdpa.md` § *Cross-border data transfer* covers KKU's analysis. Your DPO may reach a different conclusion, and if they require in-country inference the `AiService` abstraction is where you would swap the provider — but note the two non-Google/Anthropic providers in the factory are stubs that throw, so that would be real work.
+Cross-border transfer deserves specific attention: every AI call sends data outside Thailand: to Google or Anthropic, or through OpenRouter to whichever vendor serves the model you chose. `docs/pdpa.md` § *Cross-border data transfer* covers KKU's analysis. Your DPO may reach a different conclusion, and if they require in-country inference the `AiService` abstraction is where you would swap the provider — OpenRouter is a working provider but routes abroad too; the in-country option (`intelsphere`) is still a stub that throws, so that would be real work.
 
 ### The readiness gates
 
@@ -1025,17 +1078,17 @@ These are written to be pasted and run, in this order, as separate sessions. Eac
 
 ---
 
-**Prompt 4 — Seed our faculties, departments, and programmes**
+**Prompt 4 — Load our faculties, departments, and programmes**
 
-> Replace KKU's institutional seed data with ours, without breaking the seed for anything else.
+You may not need Claude Code for this. The three backbone datasets are spreadsheet uploads at `/admin/data-setup`: download each template, fill it in, upload it. Use the prompt below when your source is a messy export that needs reshaping into the templates first.
+
+> Turn our organisation data into the Program Landscape import templates. Do not edit any code or seed file.
 >
-> Read `packages/db/prisma/seed.ts` and identify the faculty array, the department seeding, and the programme seeding paths. Then create `packages/db/prisma/seed-<ouruni>.ts` exporting our faculties and departments in the same shape, and change `seed.ts` to import from it rather than holding the array inline — so we can merge KKU's upstream seed changes without conflicting on our data.
+> Read `docs/data-import.md` and the declarations in `packages/db/src/import/datasets/faculties.ts`, `departments.ts` and `programmes.ts` — those declare the exact columns, required fields and validation rules. Our faculties, departments and programmes are in [file], with columns [list them].
 >
-> Our faculties are: [attach a CSV or list with code, Thai name, English name, kind]. Our programmes are in [file], with columns [list them] — including the MHESI curriculum code, which is load-bearing: `Program.mhesiCode` is how the UniCon DS1001 and DS2004 connectors resolve `CURR_ID` to a programme.
+> Produce three workbooks matching the downloaded templates. Carry the MHESI curriculum code into the programmes sheet's *Official Code* column: `Program.mhesiCode` is how the UniCon DS1001 and DS2004 connectors resolve `CURR_ID` to a programme. Thai faculty names must be spelled the way TCAS writes them. List any row you could not map rather than guessing.
 >
-> Preserve everything else the seed does — skill taxonomy, sectors, scenario templates, reference data. Keep the seed idempotent.
->
-> **Done when:** `pnpm db:reset` completes clean, `/admin/programs` lists our programmes with correct faculty and department attribution, every programme has a non-null `mhesiCode`, and no KKU faculty rows remain.
+> **Done when:** all three workbooks upload at `/admin/data-setup` without a validation error, and `/admin/programs` lists our programmes with correct faculty and department attribution.
 
 ---
 
@@ -1092,7 +1145,7 @@ These are written to be pasted and run, in this order, as separate sessions. Eac
 > 2. Build a JSONL manifest for `pnpm pdf:bulk-load` from our PDFs at [path], keyed on programme code. Dry-run first and show me the match rate and the unmatched list before committing anything. Do not build a fuzzy filename matcher — KKU retired theirs after it mislinked about 30 programmes; unmatched PDFs get attached by hand through `/admin/programs/[id]?tab=files`.
 > 3. Run `pnpm programs:digest` on three programmes of different levels. Show me the extracted digest for each, and specifically: does `program-digest.v1` handle our curriculum document format, or does it assume KKU's layout? Report any prompt changes you would need — but do not edit a published prompt version in place; a behaviour change means a new version constant.
 > 4. Once I approve the sample, run `pnpm programs:digest-bulk` and report cost, failure count, and per-failure reason.
-> 5. Run `pnpm programs:approve-pending` and report how many skills matched our taxonomy versus landed in the `PROPOSED_SKILL` queue.
+> 5. Build the skill taxonomy as `docs/adopters/README.md` § *Building your skill taxonomy* describes. Run `pnpm skills:normalise --source=program_digest --auto-promote`, re-apply the sampled digests with `pnpm programs:digest <code> --force`, and report how many skills each programme now matches versus how many proposals stayed `NEW_PROPOSED` below the 0.9 auto-promote threshold. (`pnpm programs:approve-pending` will usually find nothing: digests are auto-approved by default, and on an empty taxonomy every skill is unmatched.)
 >
 > Then run `pnpm programs:pipeline <code> --skip=phase4` on one programme end-to-end (skipping phase 4 because our registrar connectors are not wired yet) and show me the resulting Deep-Dive page.
 >
@@ -1159,21 +1212,21 @@ Estimates assume one or two competent full-stack developers who have not seen th
 |---|---|---|
 | 0 | **Confirm your intended use is within CC BY-NC-SA's NonCommercial term, in writing from KKU.** Blocking if your use is anywhere near commercial | Days to weeks, not yours to control |
 | 1 | Local instance running; fork configured with upstream; read `CLAUDE.md`, `architecture.md`, `evaluation-pipeline.md` | 3–5 days |
-| 2 | Rebrand; fork `CLAUDE.md`; seed your faculties and departments | 1 week |
-| 3 | Seed your programme list with MHESI codes | 1–2 weeks (mostly data-gathering, not code) |
+| 2 | Rebrand; fork `CLAUDE.md`; claim `/setup`; upload your faculties and departments | 1 week |
+| 3 | Upload your programme list with MHESI codes, then whichever metric spreadsheets you already hold (enrolment, finance, staff, programme teaching staff, publications) | 1–2 weeks (data-gathering, not code) |
 | 4 | Start institutional access requests for **everything** in parallel — registrar, HR, finance, UniCon, evaluations | Start on day one; expect 4–12 weeks to resolve |
 | 5 | First UniCon connector (DS2001 or DS2004) | 1–3 days once access exists |
 | 6 | Remaining three UniCon connectors | 1 week |
 | 7 | Tier 2 external sources — KMITL, TCAS, World Bank, policy report feeds | 1–2 weeks, credential-bound |
 | 8 | Programme PDF acquisition and the digest pipeline | 2–4 weeks; document acquisition dominates |
-| 9 | First Tier 3 rewrite (registrar — highest leverage) | 2–4 weeks |
+| 9 | First Tier 3 rewrite (registrar — highest leverage), replacing the matching spreadsheet uploads | 2–4 weeks |
 | 10 | Remaining Tier 3 connectors as priority dictates | 2–4 weeks each |
 | 11 | Methodology adaptation with your Council or equivalent body | 2–4 weeks, mostly institutional not technical |
 | 12 | SSO integration; production deployment; network team engagement | 2–3 weeks |
 | 13 | DPO review and sign-off | Parallel with everything; start early |
 | 14 | 30-day green-history window per connector before Council-facing use | 30 days, unavoidable, plan for it |
 
-**A realistic first-useful-output milestone is four to six months**, dominated by data access and document acquisition rather than engineering. The engineering is largely done; what you are buying with this codebase is those months, not the ones after.
+**A realistic first-useful-output milestone is four to six months if you go connector-first**, dominated by data access and document acquisition rather than engineering. **With spreadsheet uploads it is weeks**: phases 2–3 give you a populated cockpit and deep-dive from data your offices can already export, and phases 4–10 then replace manual uploads with automation rather than standing between you and a first result. The engineering is largely done; what you are buying with this codebase is those months, not the ones after.
 
 **Sequencing advice that matters more than the estimates:** start every access request in week one, before you write any code. A connector is one to three days of work and eight weeks of waiting for a service account. Order the queue by that fact.
 
