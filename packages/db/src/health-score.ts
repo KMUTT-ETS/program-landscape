@@ -13,7 +13,7 @@ import { programJobThaiSkillCoverage } from './jobthai';
 import { DEMAND_SOURCE_LINKEDIN, demandMatchSourceWhere } from './demand-match-sources';
 import { NATIONAL_REGION, projectionRegionForInstitution } from './projection-region';
 import { eligibleProjectionRegions, pickProjectionSource } from './projection-source';
-import { getAcademicYearContext } from './academic-year';
+import { getAcademicYearContext, entryYearComplete } from './academic-year';
 import { GRANT_AWARD_LABEL, grantAward, withAward } from './grant-award';
 import { pickFinancialYear } from './financial-year';
 import { PUBLIC_TCAS_BASIS, PUBLIC_TCAS_ROUND3, publicTcasTotals } from './public-tcas-basis';
@@ -243,8 +243,16 @@ export const FLAGSHIP_REVENUE_FLOOR_THB = 3_000_000;
 //   round-3 figures for that year (ratio = applicants / quota, fill =
 //   admitted / quota; each tcas_course_code counted once, then summed). The
 //   basis is recorded as `basis: 'public-tcas-round3'` in the driver raw.
-//   tcas_registration_yield has no public equivalent and stays null. KKU's
-//   campaign data carries seats, so its scores are unchanged.
+//   tcas_registration_yield has no public equivalent and stays null. The
+//   fallback also fires for a programme with no campaign rows at all (latest
+//   complete year that has public round-3 rows). tcas_registration_yield is
+//   null, reason 'reported-not-stated', when Confirmed is stated but no row
+//   states Reported (absent is not 0). The tcas_min_score_percentile driver
+//   retries with the signature of the programme's own Thai name when its
+//   TCAS subject key finds fewer than 3 peers. KKU's campaign data carries
+//   seats and Reported, so the funnel drivers are unchanged for it; the
+//   percentile fallback can move KKU programmes that previously read null
+//   and was not measured on KKU data (none is available on this branch).
 export const HEALTH_SCORE_VERSION = 'health-score.v5.6';
 
 // ── Cost-allocation methodology (gap #5) ────────────────────────────
@@ -930,12 +938,16 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
     passed: number;
     sendCh: number;
     regReported: number;
+    /** False when no row of the year states a Reported figure (v5.6). */
+    regReportedStated: boolean;
     rounds: number;
     year: number;
     inProgressYear: number | null;
     /** Set to PUBLIC_TCAS_BASIS when seats/applicants/passed come from the
      *  public round-3 data (v5.6); absent when the campaign sheet supplied them. */
     basis?: string;
+    /** Campaign basis: some other year states seats but the latest complete one does not. */
+    seatsStatedInOtherYears?: boolean;
     /** Public basis only: no row states an admitted count (missing, not 0). */
     admittedNotPublished?: boolean;
   } | null = null;
@@ -946,6 +958,7 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
       passed: latestComplete.totalPassed,
       sendCh: latestComplete.sendClearinghouse,
       regReported: latestComplete.regReported,
+      regReportedStated: latestComplete.regReportedStated,
       rounds: latestComplete.rounds,
       year: latestComplete.entryYearBE,
       inProgressYear:
@@ -960,6 +973,7 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
     // year (enroll_seats and plan_per_year both absent). A programme whose
     // sheet carries seats but zero for one year keeps its campaign reading.
     const noSeatsAnywhere = funnelYears.every((y) => y.enrollSeats <= 0 && (y.planPerYear ?? 0) <= 0);
+    if (funnelTotals.enrollSeats <= 0 && !noSeatsAnywhere) funnelTotals.seatsStatedInOtherYears = true;
     if (funnelTotals.enrollSeats <= 0 && noSeatsAnywhere) {
       const publicRows = await prisma.tcasAdmissionStat.findMany({
         where: {
@@ -990,18 +1004,60 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
     }
   }
 
+  // v5.6: a programme with NO campaign rows at all can still be scored on the
+  // public round-3 figures (the latest complete year that has any). KKU always
+  // has campaign rows, so this branch never runs there.
+  if (funnelTotals === null && funnelYears.length === 0) {
+    const ay = await getAcademicYearContext();
+    const allPublic = await prisma.tcasAdmissionStat.findMany({
+      where: { programId, round: { in: [...PUBLIC_TCAS_ROUND3] }, ...realDataWhere() },
+      select: {
+        entryYearBE: true,
+        tcasCourseCode: true,
+        quota: true,
+        applicants: true,
+        admittedPass1: true,
+        admittedPass2: true,
+      },
+    });
+    const years = [...new Set(allPublic.map((r) => r.entryYearBE))]
+      .filter((y) => entryYearComplete(y, ay))
+      .sort((a, b) => b - a);
+    const year = years[0];
+    if (year !== undefined) {
+      const pub = publicTcasTotals(allPublic.filter((r) => r.entryYearBE === year));
+      if (pub) {
+        const newest = Math.max(...allPublic.map((r) => r.entryYearBE));
+        funnelTotals = {
+          enrollSeats: pub.quota,
+          applicants: pub.applicants,
+          passed: pub.admitted,
+          sendCh: 0,
+          regReported: 0,
+          regReportedStated: false,
+          rounds: 1,
+          year,
+          inProgressYear: newest > year ? newest : null,
+          basis: PUBLIC_TCAS_BASIS,
+          admittedNotPublished: !pub.admittedPublished,
+        };
+      }
+    }
+  }
+  const peerYear = funnelTotals?.year ?? latestComplete?.entryYearBE ?? null;
+
   // Peer competition ratio for the latest complete year — TCAS3 peer
   // rows in TcasAdmissionStat (KKU's own rows there were retired but
   // ~25,705 peer rows remain). Match by extractSubjectSignature on
   // Program.nameTh (the new funnel doesn't carry programmeName).
   let peerMedianRatio: number | null = null;
   let peerCount = 0;
-  if (latestComplete !== null && programRow?.nameTh) {
+  if (peerYear !== null && programRow?.nameTh) {
     const subjectKey = extractSubjectSignature(programRow.nameTh);
     if (subjectKey.length >= 2) {
       const peerRows = await prisma.tcasAdmissionStat.findMany({
         where: {
-          entryYearBE: latestComplete.entryYearBE,
+          entryYearBE: peerYear,
           institutionName: { not: getInstitution().nameTh },
           // Same round-3 basis as the programme's own fallback figures.
           round: { in: [...PUBLIC_TCAS_ROUND3] },
@@ -1062,6 +1118,8 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
             ...(funnelTotals.admittedNotPublished ? { reason: 'admitted-not-published' } : {}),
             passed: funnelTotals.passed,
             seats: funnelTotals.enrollSeats,
+            year: funnelTotals.year,
+            ...(funnelTotals.seatsStatedInOtherYears ? { seatsStatedInOtherYears: true } : {}),
             ...(funnelTotals.basis ? { basis: funnelTotals.basis } : {}),
           }
         : null,
@@ -1074,6 +1132,8 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
         // are bleeding attractiveness. ≥0.85 = excellent; 0.5 = mid;
         // <0.3 = serious leakage.
         if (!funnelTotals || funnelTotals.sendCh <= 0) return null;
+        // Confirmed stated but Reported not: missing, never a 0 yield.
+        if (!funnelTotals.regReportedStated) return null;
         const yieldRate = funnelTotals.regReported / funnelTotals.sendCh;
         return yieldRate >= 0.85
           ? 100
@@ -1082,7 +1142,11 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
             : Math.max(0, yieldRate * 100);
       })(),
       raw: funnelTotals
-        ? { regReported: funnelTotals.regReported, sendCh: funnelTotals.sendCh }
+        ? {
+            ...(funnelTotals.regReportedStated ? {} : { reason: 'reported-not-stated' }),
+            regReported: funnelTotals.regReported,
+            sendCh: funnelTotals.sendCh,
+          }
         : null,
     },
     {
@@ -1106,7 +1170,8 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
             : null,
         peerMedianRatio,
         peerCount,
-        year: latestComplete?.entryYearBE ?? null,
+        year: peerYear,
+        ...(funnelTotals?.seatsStatedInOtherYears ? { seatsStatedInOtherYears: true } : {}),
         ...(funnelTotals?.basis ? { basis: funnelTotals.basis } : {}),
       },
     },

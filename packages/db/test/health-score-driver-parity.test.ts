@@ -812,5 +812,50 @@ describe('TCAS funnel basis (v5.6)', () => {
     const ratio = d.find((x) => x.label === 'tcas_competition_ratio')!;
     expect(ratio.value).toBeNull();
     expect((ratio.raw as { basis?: string } | null)?.basis).toBeUndefined();
+    // Says why: other years state seats, the latest complete one does not.
+    expect((ratio.raw as { seatsStatedInOtherYears?: boolean }).seatsStatedInOtherYears).toBe(true);
+  });
+
+  it('scores a programme with NO campaign rows on the public round-3 basis', async () => {
+    mocks.campaignFindMany.mockResolvedValue([]);
+    mocks.tcasFindMany.mockResolvedValue([{ ...stat('A', 40, 200), entryYearBE: 2560 }]);
+    const d = await drivers();
+    const ratio = d.find((x) => x.label === 'tcas_competition_ratio')!;
+    expect(ratio.value).toBe(70);
+    expect((ratio.raw as { basis?: string }).basis).toBe('public-tcas-round3');
+    // No Confirmed / Reported anywhere: the yield is missing, not 0.
+    expect(d.find((x) => x.label === 'tcas_registration_yield')!.value).toBeNull();
+  });
+
+  it('stays null with no campaign rows and no public rows', async () => {
+    mocks.campaignFindMany.mockResolvedValue([]);
+    const d = await drivers();
+    expect(d.find((x) => x.label === 'tcas_competition_ratio')!.value).toBeNull();
+  });
+
+  it('registration yield is null (reported-not-stated), never 0, when Confirmed is stated but Reported is not', async () => {
+    mocks.campaignFindMany.mockResolvedValue([
+      campaign({ enrollSeats: 100, planPerYear: 100, sendClearinghouse: 60, confirmClearinghouse: 60 }),
+    ]);
+    const d = await drivers();
+    const y = d.find((x) => x.label === 'tcas_registration_yield')!;
+    expect(y.value).toBeNull();
+    expect((y.raw as { reason?: string }).reason).toBe('reported-not-stated');
+  });
+
+  it('registration yield still scores when Reported is stated (KKU shape)', async () => {
+    mocks.campaignFindMany.mockResolvedValue([
+      campaign({ enrollSeats: 100, planPerYear: 100, sendClearinghouse: 60, confirmClearinghouse: 60, regReported: 54 }),
+    ]);
+    const d = await drivers();
+    expect(d.find((x) => x.label === 'tcas_registration_yield')!.value).toBe(100); // 0.9 >= 0.85
+  });
+
+  it('a stated Reported of 0 is a real zero yield', async () => {
+    mocks.campaignFindMany.mockResolvedValue([
+      campaign({ enrollSeats: 100, planPerYear: 100, sendClearinghouse: 60, regReported: 0 }),
+    ]);
+    const d = await drivers();
+    expect(d.find((x) => x.label === 'tcas_registration_yield')!.value).toBe(0);
   });
 });

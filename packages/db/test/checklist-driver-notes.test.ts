@@ -35,6 +35,13 @@ describe('driverNullNote', () => {
     expect(usesPublicTcasBasis({ basis: 'public-tcas-round3' })).toBe(true);
     expect(usesPublicTcasBasis({})).toBe(false);
   });
+  it('separates no data, seats in other years, and Reported not stated', () => {
+    expect(driverNullNote('tcas_competition_ratio', null, none)).toMatch(/no admission-campaigns rows and no public TCAS/);
+    const other = { seats: 0, year: 2566, seatsStatedInOtherYears: true };
+    expect(driverNullNote('tcas_fill_rate', other, none)).toMatch(/\(2566\) states no planned seats although other years do/);
+    expect(driverNullNote('tcas_competition_vs_peers', { ...other, kkuRatio: null }, none)).toMatch(/other years do/);
+    expect(driverNullNote('tcas_registration_yield', { reason: 'reported-not-stated', sendCh: 5 }, none)).toMatch(/Reported column .* is empty/);
+  });
   it('returns null for drivers it does not know', () => {
     expect(driverNullNote('senior_rank_share', null, none)).toBeNull();
   });

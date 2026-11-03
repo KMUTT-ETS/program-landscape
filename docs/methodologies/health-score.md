@@ -4,8 +4,8 @@
 **Reviewed:** 2026-11-03
 **Owner:** KKU Data Office
 
-**v5.6 (2026-11-03): public TCAS round-3 fallback for the funnel drivers; no
-change for installations whose admission data states seats.** The fallback fires
+**v5.6 (2026-11-03): public TCAS round-3 fallback for the funnel drivers; the
+funnel drivers are unchanged where admission data states seats and Reported.** The fallback fires
 only when the programme's admission-campaign data states **no seat figure in any
 year** (`enroll_seats` and `plan_per_year` both absent) and the latest complete
 year therefore has no seats. An adopting university's sheet often has applicants
@@ -27,8 +27,17 @@ quota, fill = admitted / quota. Rules:
   **null**, reason `admitted-not-published`, never 0; the competition ratio is
   still scored.
 - Campaign seats, when present in any year, are never overridden.
+- A programme with **no campaign rows at all** is scored on the same basis for the
+  latest complete year that has public round-3 rows (KKU always has campaign rows).
 - `tcas_registration_yield` has no public equivalent and stays null: it needs the
-  `Confirmed` and `Reported` columns of the admission-campaigns sheet.
+  `Confirmed` and `Reported` columns of the admission-campaigns sheet. When
+  Confirmed is stated but no row of the year states Reported, it is **null**
+  (reason `reported-not-stated`), never a 0 yield.
+- **`tcas_min_score_percentile` fallback (part of v5.6):** the min-score
+  percentile falls back to the programme's own name signature when its TCAS
+  subject key finds fewer than 3 peers. A KKU programme that read null for this
+  driver can therefore now score. The KKU impact was **not measured**: no KKU
+  dataset is available on this branch.
 - **Where the basis is shown:** the driver `raw` carries
   `basis: 'public-tcas-round3'`, and the programme setup checklist (Admin,
   programme Checklist tab) marks each such driver with the note "Computed from

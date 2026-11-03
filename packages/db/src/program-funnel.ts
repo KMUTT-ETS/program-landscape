@@ -51,6 +51,10 @@ export interface ProgramFunnelYear {
   confirmClearinghouse: number;
   sendRegReported: number;
   regReported: number;
+  /** True when at least one row of the year states a Reported figure. Absent
+   *  is not 0: an import that fills Confirmed but not Reported must not read
+   *  as "nobody registered". */
+  regReportedStated: boolean;
   rounds: number;
 }
 
@@ -128,6 +132,7 @@ export async function programFunnelYears(programId: string): Promise<ProgramFunn
       confirmClearinghouse: yr.reduce((s, r) => s + n(r.confirmClearinghouse), 0),
       sendRegReported: yr.reduce((s, r) => s + n(r.sendRegReported), 0),
       regReported: yr.reduce((s, r) => s + n(r.regReported), 0),
+      regReportedStated: yr.some((r) => r.regReported !== null),
       rounds: new Set(yr.map((r) => r.round)).size,
     }));
 }

@@ -30,6 +30,16 @@ const ADMITTED_NOT_PUBLISHED =
 const NO_SEATS =
   'No planned seats for the latest complete year, and no public TCAS round-3 figures for this programme.';
 
+const NO_ADMISSION_DATA =
+  'No admission data for a complete recruitment year yet: no admission-campaigns rows and no public TCAS round-3 rows for this programme.';
+
+const YIELD_NOT_STATED =
+  'The Confirmed figure is filled but the Reported column of the admission-campaigns sheet is empty, so the registration yield is not scored (an absent figure is not a zero).';
+
+function seatsInOtherYearsNote(year: number | null): string {
+  return `The latest complete recruitment year${year ? ` (${year})` : ''} states no planned seats although other years do, so it is not scored; add Planned Seats for that year in the admission-campaigns sheet.`;
+}
+
 /** True when a driver's raw says it was computed on the public TCAS basis. */
 export function usesPublicTcasBasis(rawIn: unknown): boolean {
   return asRaw(rawIn)?.basis === 'public-tcas-round3';
@@ -41,15 +51,19 @@ export function driverNullNote(label: string, rawIn: unknown, ctx: DriverNoteCon
     case 'tcas_fill_rate':
     case 'tcas_competition_ratio':
       if (label === 'tcas_fill_rate' && raw?.reason === 'admitted-not-published') return ADMITTED_NOT_PUBLISHED;
-      if (rawIn === null || rawIn === undefined) return 'No admission data for a complete recruitment year yet.';
+      if (rawIn === null || rawIn === undefined) return NO_ADMISSION_DATA;
+      if (raw?.seatsStatedInOtherYears === true) return seatsInOtherYearsNote(num(raw?.year));
       return NO_SEATS;
     case 'tcas_competition_vs_peers': {
+      if (raw && raw.kkuRatio === null && raw.year === null) return NO_ADMISSION_DATA;
+      if (raw && raw.kkuRatio === null && raw.seatsStatedInOtherYears === true) return seatsInOtherYearsNote(num(raw?.year));
       if (raw && raw.kkuRatio === null) return `${NO_SEATS} The peer comparison needs a ratio for this programme.`;
       const year = num(raw?.year);
       return `No other institution runs a comparable subject in public TCAS${year ? ` for ${year}` : ''}.`;
     }
     case 'tcas_registration_yield':
-      if (rawIn === null || rawIn === undefined) return 'No admission data for a complete recruitment year yet.';
+      if (rawIn === null || rawIn === undefined) return NO_ADMISSION_DATA;
+      if (raw?.reason === 'reported-not-stated') return YIELD_NOT_STATED;
       return 'Needs the Confirmed and Reported columns of the admission-campaigns sheet (registered students divided by confirmed places). Public TCAS data has no registration counts.';
     case 'jobthai_demand_alignment': {
       const reason = raw?.reason;

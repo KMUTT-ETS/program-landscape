@@ -203,10 +203,11 @@ course list has no overlap item. These are not red. An item filled by AI that
 ran in a degraded mode counts as green and shows a "degraded" note with the
 reason.
 
-Admission funnel items: if the admission-campaigns sheet has no Planned Seats,
-the competition ratio and fill rate are computed from the public TCAS round-3
+Admission funnel items: if the admission-campaigns sheet has no Planned Seats (or
+the programme has no campaign rows at all), the competition ratio and fill rate are computed from the public TCAS round-3
 figures, and the checklist says "Computed from public TCAS round-3 figures".
-Registration yield needs the Confirmed and Reported columns of that sheet, and
+Registration yield needs the Confirmed and Reported columns of that sheet (it
+stays empty, not 0, if Reported is blank), and
 there is no public substitute. Fill Planned Seats, Confirmed and Reported if you
 have them.
 
