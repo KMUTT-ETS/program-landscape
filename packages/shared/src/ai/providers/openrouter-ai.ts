@@ -225,7 +225,13 @@ export class OpenrouterAiService implements AiService {
       max_tokens: req.maxOutputTokens ?? 4096,
       temperature: 0,
       response_format: { type: 'json_object' },
-      ...(req.thinking ? { reasoning: { effort: 'medium' } } : {}),
+      // `thinking` is off by default here because reasoning tokens share the
+      // output budget with the JSON. Omitting the field is NOT off: reasoning
+      // models then think at full effort (a z-ai/glm-5.3 curriculum digest
+      // spent all 50,000 output tokens reasoning and returned nothing). Some
+      // models also reject reasoning off ("Reasoning is mandatory"), so the
+      // nearest accepted setting is minimal.
+      reasoning: { effort: req.thinking ? 'medium' : 'minimal' },
     });
     const latencyMs = Date.now() - started;
     const rawText = result.choices[0]?.message.content ?? '';

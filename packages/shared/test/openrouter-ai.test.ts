@@ -101,6 +101,28 @@ describe('OpenrouterAiService', () => {
     expect(f.calls[0]!.body.response_format).toEqual({ type: 'json_object' });
   });
 
+  // `thinking` defaults off on extractStructured because reasoning tokens eat
+  // the JSON budget. Sending nothing left reasoning models (z-ai/glm-5.3)
+  // thinking at full effort: a curriculum digest spent its whole 50,000-token
+  // output on reasoning and returned an empty body. Some models refuse
+  // reasoning off outright ("Reasoning is mandatory"), so off means minimal.
+  it('extractStructured: asks for minimal reasoning unless thinking is on', async () => {
+    const { r } = recorder();
+    const f = fakeFetch([
+      { body: chatReply({ content: '{"a":1}' }) },
+      { body: chatReply({ content: '{"a":1}' }) },
+    ]);
+    const svc = new OpenrouterAiService({ apiKey: 'k', recorder: r, fetchImpl: f.impl });
+    const schema = z.object({ a: z.number() });
+    const messages = [{ role: 'user' as const, content: 'go' }];
+
+    await svc.extractStructured({ ctx, methodVersion: 'x.v1', messages }, schema);
+    await svc.extractStructured({ ctx, methodVersion: 'x.v1', messages, thinking: true }, schema);
+
+    expect(f.calls[0]!.body.reasoning).toEqual({ effort: 'minimal' });
+    expect(f.calls[1]!.body.reasoning).toEqual({ effort: 'medium' });
+  });
+
   it('extractStructured: records the failed response before rethrowing', async () => {
     const { r, rows } = recorder();
     const f = fakeFetch([{ body: chatReply({ content: 'not json' }) }]);

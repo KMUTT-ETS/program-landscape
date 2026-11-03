@@ -71,6 +71,19 @@ function blankToUndefined(value: string | undefined): string | undefined {
   return value?.trim() ? value.trim() : undefined;
 }
 
+// OpenRouter's per-request limit, in milliseconds. Unset keeps the
+// provider's built-in 120 s. A whole-curriculum digest (~360k input tokens
+// and a large structured answer) needs several minutes, and the Google
+// fallback cannot take a prompt that size on a free-tier key, so without
+// this the digest fails on every run. Anything that is not a positive whole
+// number is treated as unset rather than as "no limit".
+export function parseOpenrouterTimeoutMs(raw: string | undefined): number | undefined {
+  const value = raw?.trim();
+  if (!value || !/^\d+$/.test(value)) return undefined;
+  const ms = Number(value);
+  return ms > 0 ? ms : undefined;
+}
+
 export function normaliseModels(models: AiFactoryConfig['models']): AiFactoryConfig['models'] {
   if (!models) return undefined;
   return {
@@ -163,6 +176,7 @@ export function createAiService(config: AiFactoryConfig): AiService {
         defaultModel: orCompletion,
         embeddingModel: orEmbedding,
         modelOverrideResolver,
+        timeoutMs: parseOpenrouterTimeoutMs(process.env.AI_OPENROUTER_TIMEOUT_MS),
       });
       const googleSecondary = apiKeys.google
         ? new GoogleAiService({
