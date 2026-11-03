@@ -68,6 +68,8 @@ export interface ImportServiceDeps {
   ) => Promise<{ batchId: string; result: ImportLoadResult }>;
   startOver: (slug: string) => Promise<{ rowsDeleted: number; batchesCleared: number }>;
   prefill: (dataset: ImportDataset, opts: PrefillOptions) => Promise<readonly ImportRow[]>;
+  /** Refreshes the scope roll-up materialised views. */
+  refreshViews: () => Promise<void>;
 }
 
 export interface ImportUploadResult {
@@ -123,6 +125,9 @@ export const IMPORT_MAX_ROWS = 5_000;
 
 /** Datasets whose rows feed the scope roll-up views. */
 const METRIC_VIEW_DATASETS: ReadonlySet<string> = new Set([
+  // The department and faculty views join these two, so their rows matter too.
+  'faculties',
+  'departments',
   'programmes',
   'enrollment-metrics',
   'financial-metrics',
@@ -168,6 +173,7 @@ export class ImportService implements OnModuleInit {
       runLoad: deps?.runLoad ?? ((dataset, rows, userId, batch, term) => this.defaultRunLoad(dataset, rows, userId, batch, term)),
       startOver: deps?.startOver ?? startOverDataset,
       prefill: deps?.prefill ?? ((dataset, opts) => (dataset.prefill ? dataset.prefill(prisma, opts) : Promise.resolve([]))),
+      refreshViews: deps?.refreshViews ?? (async () => { await refreshMetricViews({ trigger: 'on-import' }); }),
     };
   }
 
@@ -288,7 +294,7 @@ export class ImportService implements OnModuleInit {
   private async refreshViewsQuietly(slug: string): Promise<void> {
     if (!METRIC_VIEW_DATASETS.has(slug)) return;
     try {
-      await refreshMetricViews({ trigger: 'on-import' });
+      await this.deps.refreshViews();
     } catch (e) {
       this.logger.warn(`import ${slug}: metric view refresh failed (run pnpm outcomes:refresh-derived): ${String(e)}`);
     }
@@ -497,6 +503,8 @@ export class ImportService implements OnModuleInit {
       );
     }
     const result = await this.deps.startOver(dataset.slug);
+    // Clearing a metric dataset leaves deleted rows in the roll-ups otherwise.
+    void this.refreshViewsQuietly(dataset.slug);
     this.logger.warn(
       `import ${dataset.slug}: start-over by ${userId ?? 'unknown'} — ` +
         `${result.rowsDeleted} rows deleted, ${result.batchesCleared} batches cleared`,

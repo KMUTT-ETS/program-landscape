@@ -74,6 +74,7 @@ function harness(overrides: Partial<ImportServiceDeps> = {}): Harness {
     runLoad: track('runLoad', Promise.resolve({ batchId: 'batch-1', result: { inserted: 1, updated: 0, deleted: 0 } })),
     startOver: track('startOver', Promise.resolve({ rowsDeleted: 3, batchesCleared: 1 })),
     prefill: track('prefill', Promise.resolve([] as ImportRow[])),
+    refreshViews: track('refreshViews', Promise.resolve(undefined)),
   };
 
   const service = new ImportService(undefined, deps as unknown as Partial<ImportServiceDeps>);
@@ -219,6 +220,18 @@ describe('ImportService.startOver', () => {
     const result = await h.service.startOver('faculties', '  Faculties  ', 'user-1');
     expect(result).toEqual({ rowsDeleted: 3, batchesCleared: 1 });
     expect(h.deps.startOver).toHaveBeenCalledWith('faculties');
+  });
+
+  it('refreshes the roll-up views after clearing a dataset that feeds them', async () => {
+    const h = harness();
+    await h.service.startOver('faculties', 'Faculties', 'user-1');
+    expect(h.deps.refreshViews).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not refresh the views after clearing a dataset that does not feed them', async () => {
+    const h = harness();
+    await h.service.startOver('research-outputs', 'Publications', 'user-1');
+    expect(h.deps.refreshViews).not.toHaveBeenCalled();
   });
 });
 
