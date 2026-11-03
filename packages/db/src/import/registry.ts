@@ -6,6 +6,10 @@ import { campaignsDataset } from './datasets/campaigns';
 import { classOfferingsDataset } from './datasets/class-offerings';
 import { compensationDataset } from './datasets/compensation';
 import { courseEvaluationsDataset } from './datasets/course-evaluations';
+import {
+  digitalCompetencyCohortsDataset,
+  digitalCompetencyModulesDataset,
+} from './datasets/digital-competency';
 import { departmentsDataset } from './datasets/departments';
 import { enrollmentDataset } from './datasets/enrollment';
 import { facultiesDataset } from './datasets/faculties';
@@ -35,6 +39,8 @@ export const IMPORT_DATASETS: readonly ImportDataset[] = [
   financialsDataset,
   graduateOutcomesDataset,
   studentCohortsDataset,
+  digitalCompetencyCohortsDataset,
+  digitalCompetencyModulesDataset,
   alumniCohortsDataset,
   staffDataset,
   compensationDataset,

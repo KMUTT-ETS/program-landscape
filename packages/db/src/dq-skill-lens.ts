@@ -57,8 +57,12 @@ import { DQ_ELIGIBLE_LEVEL, DQ_MIN_CELL_STUDENTS } from './student-dq';
 
 export const DQ_SKILL_LENS_VERSION = 'dq-skill-lens.v1';
 
-/** Connector slug behind both DQ cubes — the freshness anchor. */
-const DQ_SOURCE_SLUG = 'kku-dq';
+/** Sources behind both DQ cubes — the freshness anchor. */
+const DQ_SOURCE_SLUGS = [
+  'kku-dq',
+  'xlsx-digital-competency-cohorts',
+  'xlsx-digital-competency-modules',
+] as const;
 
 /** Weakest programmes named per module. Enough to act on, short enough
  *  that a Council reader does not have to scroll a 100-row table. */
@@ -429,13 +433,13 @@ export async function computeDqSkillLens(args: {
  * timestamp would misdate what is on screen.
  */
 async function latestDqRefreshedAt(): Promise<Date | null> {
-  const source = await prisma.dataSource.findUnique({
-    where: { slug: DQ_SOURCE_SLUG },
+  const sources = await prisma.dataSource.findMany({
+    where: { slug: { in: [...DQ_SOURCE_SLUGS] } },
     select: { id: true },
   });
-  if (!source) return null;
+  if (sources.length === 0) return null;
   const run = await prisma.ingestionRun.findFirst({
-    where: { dataSourceId: source.id, status: 'SUCCEEDED' },
+    where: { dataSourceId: { in: sources.map((x) => x.id) }, status: 'SUCCEEDED' },
     orderBy: { createdAt: 'desc' },
     select: { completedAt: true, createdAt: true },
   });

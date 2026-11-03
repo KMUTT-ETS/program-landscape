@@ -3204,7 +3204,7 @@ function DigitalCompetencySection({
             small size.
           </p>
           <p className="mt-2 text-xs text-text-tertiary">
-            If that looks wrong, re-import the digital competency results from{' '}
+            If that looks wrong, upload the Digital Competency — Cohorts and Digital Competency — Modules sheets in{' '}
             <Link
               href="/admin/data-setup"
               className="text-accent-default underline-offset-2 hover:underline"

@@ -558,6 +558,86 @@ const DATASETS: Record<string, DatasetFetcher> = {
     };
   },
 
+  'digital-competency-cohorts': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.DqStudentCubeWhereInput = q.q
+      ? { OR: [{ programName: { contains: q.q } }, { facultyName: { contains: q.q } }] }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.dqStudentCube.findMany({
+        where,
+        orderBy: [{ cohortYearBe: 'desc' }, { facultyName: 'asc' }, { programName: 'asc' }],
+        skip,
+        take: q.pageSize,
+      }),
+      prisma.dqStudentCube.count({ where }),
+    ]);
+    return {
+      title: 'Digital competency — cohorts',
+      description:
+        'One row per programme per entry cohort: students tested, with scores, and passing every module. Entry year is BUDDHIST ERA; the import template asks for Common Era and converts on load.',
+      columns: [
+        { key: 'cohortYearBe', label: 'Entry year (BE)', numeric: true },
+        { key: 'facultyName', label: 'Faculty' },
+        { key: 'programName', label: 'Programme' },
+        { key: 'studentsTested', label: 'Tested', numeric: true },
+        { key: 'studentsWithScores', label: 'With scores', numeric: true },
+        { key: 'studentsAllPassed', label: 'Passed all', numeric: true },
+      ],
+      items: rows.map((r) => ({
+        cohortYearBe: r.cohortYearBe,
+        facultyName: r.facultyName,
+        programName: r.programName,
+        studentsTested: r.studentsTested,
+        studentsWithScores: r.studentsWithScores,
+        studentsAllPassed: r.studentsAllPassed,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
+  'digital-competency-modules': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.DqModuleCubeWhereInput = q.q
+      ? { OR: [{ programName: { contains: q.q } }, { facultyName: { contains: q.q } }] }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.dqModuleCube.findMany({
+        where,
+        orderBy: [{ cohortYearBe: 'desc' }, { facultyName: 'asc' }, { programName: 'asc' }, { moduleNo: 'asc' }],
+        skip,
+        take: q.pageSize,
+      }),
+      prisma.dqModuleCube.count({ where }),
+    ]);
+    return {
+      title: 'Digital competency — modules',
+      description:
+        'One row per programme per entry cohort per module. The mean is the stored score sum divided by students taking. Entry year is BUDDHIST ERA.',
+      columns: [
+        { key: 'cohortYearBe', label: 'Entry year (BE)', numeric: true },
+        { key: 'programName', label: 'Programme' },
+        { key: 'moduleKey', label: 'Module' },
+        { key: 'takenCount', label: 'Taking', numeric: true },
+        { key: 'meanScore', label: 'Mean score', numeric: true },
+        { key: 'studentsInScope', label: 'In scope', numeric: true },
+      ],
+      items: rows.map((r) => ({
+        cohortYearBe: r.cohortYearBe,
+        programName: r.programName,
+        moduleKey: r.moduleKey,
+        takenCount: r.takenCount,
+        meanScore: r.takenCount > 0 ? Math.round((r.scoreSum / r.takenCount) * 100) / 100 : null,
+        studentsInScope: r.studentsInScope,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
   // ── Cohort progression and outcomes ──────────────────────────────────────
   'student-cohorts': async (q) => {
     const skip = (q.page - 1) * q.pageSize;

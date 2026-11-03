@@ -41,6 +41,8 @@ const DATASET_TITLES: Record<string, string> = {
   'financial-metrics': 'Financial — per program',
   'graduate-outcomes': 'Graduate outcomes (employment survey)',
   'student-cohorts': 'Student cohorts (still enrolled)',
+  'digital-competency-cohorts': 'Digital competency — cohorts',
+  'digital-competency-modules': 'Digital competency — modules',
   'alumni-cohorts': 'Alumni cohorts (outcome per cohort)',
   'admission-campaigns': 'Admission campaigns (recruitment funnel)',
   'class-offerings': 'Class offerings (sections per term)',

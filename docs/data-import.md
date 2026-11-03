@@ -18,6 +18,8 @@ This page is for the person doing the uploading.
 | **Finance** | Tuition and other revenue, per programme per year | — |
 | **Graduate Outcomes** | Employment survey results per graduating cohort | — |
 | **Student Cohorts** | How many of each entry cohort are still enrolled | — |
+| **Digital Competency — Cohorts** | Students tested, scored and passing, per programme and entry year | Programmes |
+| **Digital Competency — Modules** | Mean score on each of the 13 modules, per programme and entry year | Programmes |
 | **Alumni Cohorts** | What became of each entry cohort | — |
 | **Admission Campaigns** | The recruitment funnel, per campaign | — |
 | **Staff** | Your teaching-staff roster | Publications, Programme Teaching Staff |
@@ -189,6 +191,41 @@ Columns: **Course Code**, **Academic Year**, **Semester** (1, 2 or 3) and
 - **Faculty Code is optional, but fill it in.** The faculty satisfaction view
   groups by it, so a row without one is missing from that view.
 - Uploading the same course, term and section again updates that row.
+
+## Digital competency — cohorts and modules
+
+Two sheets feed the Digital competency section of a programme's Deep-Dive and
+the Student DQ dashboard. Load both: the score comes from the modules sheet,
+and it is withheld until the cohorts sheet shows at least six scored students.
+
+**Digital Competency — Cohorts**: one row per programme per entry year.
+Columns, all required: **Programme Code**, **Entry Year**, **Students Tested**
+(at least five, or the file is refused), **Students With Scores** (cannot
+exceed Students Tested) and **Students Passing All Modules** (cannot exceed
+Students With Scores). The pass rate shown is passing divided by with-scores.
+
+**Digital Competency — Modules**: one row per programme per entry year per
+module. Columns, all required: **Programme Code**, **Entry Year**, **Module**
+(1 to 13), **Students Taking** (at least five), **Mean Score (0–100)** and
+**Students In Scope** (cannot be fewer than Students Taking). The overall mean
+is the taker-weighted mean of modules 1 to 12; module 13 (practical) is stored
+and drawn on the radar but is left out of that mean. The guide sheet lists the
+module names.
+
+- **The 13 modules are the framework's own.** An institution that runs a
+  different test has to map it onto these axes, or the radar is sparse.
+- **Entry Year is the Common Era year**, stored as the Buddhist era (plus 543)
+  as the other cohort sheets are. A Buddhist-era year is refused.
+- **A mean outside 0–100 is refused**, naming the scale.
+- **Bachelor programmes only.** Digital competency is an undergraduate measure;
+  a row for another level is stored but no score reads it.
+- **Each sheet replaces what it uploaded before, per programme.** A programme
+  that appears in a file has its earlier rows from that same sheet replaced;
+  programmes the file does not mention are untouched, and so is anything
+  another source wrote. Upload the full set of cohorts for a programme in one
+  file.
+- Below six scored students a programme shows the count and no score, rather
+  than a figure that describes individuals.
 
 ## Years, money and rates
 

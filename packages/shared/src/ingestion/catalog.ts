@@ -777,6 +777,28 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'Course-level overall student evaluation (mean of a 1-5 scale plus respondent count), uploaded through /admin/data-setup. Feeds the student-satisfaction driver; joins programme course lists on the normalised course code.',
     mocked: false,
   },
+  {
+    slug: 'xlsx-digital-competency-cohorts',
+    name: 'Digital Competency — Cohorts (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Digital competency test headcounts per programme and entry year (tested, scored, passed all modules), uploaded through /admin/data-setup. Feeds the Deep-Dive Digital competency section and the Student DQ dashboard.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-digital-competency-modules',
+    name: 'Digital Competency — Modules (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Mean score on each of the 13 digital competency modules per programme and entry year, uploaded through /admin/data-setup. Feeds the digital competency radar and overall mean.',
+    mocked: false,
+  },
 ] as const;
 
 /** True for connectors that only work against KKU's internal systems. */
