@@ -114,7 +114,7 @@ Key invariants:
 | **Outcomes** | tcas_min_score_percentile · employment_rate · average_salary | `tcas_admission_stats` (peer subject set) + `graduate_outcomes` (PENDING — kku-alumni still mocked) |
 | **Relevance** | labour_market_alignment · demand_match_filled · demographic_resilience · strategic_sector_alignment | `program_skills × kmitl_career_skill_demands` (4-quadrant fallback) + `program_demand_matches` + `programDemographicOutlook` (computed from `demographic_projections`) + career→sector taxonomy |
 
-Version in force: `health-score.v5.4`. The external-grant award raises the Financial dimension, so the overall score, the BCG/KKU matrix, the lifecycle verdict and the risk score all see it through Financial; it can never lower any of them.
+Version in force: `health-score.v5.5`. The external-grant award raises the Financial dimension, so the overall score, the BCG/KKU matrix, the lifecycle verdict and the risk score all see it through Financial; it can never lower any of them.
 
 **Aggregation rule (critical):** faculty/department/university scopes are *not* simple averages of program scores. Since `health-score.v5.0` they carry the same driver sets as programs: per-program-calibrated drivers roll up as the mean of program values, scope-invariant drivers as ratio-of-sums (weighted by program size). Faculty overall ≠ mean of programs, deliberately; measured gap after v5.0 ~3.9 pts. Documented in §2.3 and §8.3 of the in-app paper (`apps/web/app/docs/methodology/content-en.tsx`).
 

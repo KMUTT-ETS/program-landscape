@@ -1,8 +1,19 @@
 # Health score methodology
 
-**Version:** `health-score.v5.4`
-**Reviewed:** 2026-10-03
+**Version:** `health-score.v5.5`
+**Reviewed:** 2026-11-03
 **Owner:** KKU Data Office
+
+**v5.5 (2026-11-03): region and teaching-mode band read from organisation
+data; no change for KKU.** The demographic-resilience driver
+(`computeRequiredShareAt10Y`) no longer hard-codes the Northeast projection.
+It resolves the institution's region from the organisation profile
+(`regionEn`) against the regions the projection data carries (exact, then
+case-insensitive match) and falls back to the national `TH` series when the
+profile is unset or the region is not in the data. The Deep-Dive demographic
+outlook uses the same resolved region as its comparator and has none when the
+resolved region is the national series. KKU's profile resolves to
+`Northeast`, so every KKU driver value is unchanged.
 
 **v5.4 (2026-10-03): external grants become an award on Financial.** The
 `external_grant_engagement` driver and its 30-day gate are removed, so

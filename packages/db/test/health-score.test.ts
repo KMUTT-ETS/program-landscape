@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   tcasFindFirst: vi.fn(),
   tcasFindMany: vi.fn(),
   demographicFindFirst: vi.fn(),
+  demographicFindMany: vi.fn(),
   kmitlCareerFindMany: vi.fn(),
   queryMetricByScope: vi.fn(),
   systemSettingFindUnique: vi.fn(),
@@ -71,7 +72,7 @@ vi.mock('../src/index', () => {
         findFirst: mocks.tcasFindFirst,
         findMany: mocks.tcasFindMany,
       },
-      demographicProjection: { findFirst: mocks.demographicFindFirst },
+      demographicProjection: { findFirst: mocks.demographicFindFirst, findMany: mocks.demographicFindMany },
       kmitlCareer: { findMany: mocks.kmitlCareerFindMany },
       graduateOutcome: { findFirst: mocks.graduateOutcomeFindFirst },
       programPedagogyAssessment: { findUnique: mocks.programPedagogyAssessmentFindUnique },
@@ -150,6 +151,7 @@ beforeEach(() => {
   mocks.tcasFindFirst.mockResolvedValue(null);
   mocks.tcasFindMany.mockResolvedValue([]);
   mocks.demographicFindFirst.mockResolvedValue(null);
+  mocks.demographicFindMany.mockResolvedValue([{ region: 'TH' }, { region: 'Northeast' }]);
   mocks.kmitlCareerFindMany.mockResolvedValue([]);
   mocks.systemSettingFindUnique.mockResolvedValue(null);
   mocks.graduateOutcomeFindFirst.mockResolvedValue(null);
@@ -392,8 +394,8 @@ const programRow = {
 };
 
 describe('v5.4 — capability is back to four drivers', () => {
-  it('drops external_grant_engagement and stamps v5.4', () => {
-    expect(HEALTH_SCORE_VERSION).toBe('health-score.v5.4');
+  it('drops external_grant_engagement and stamps v5.5', () => {
+    expect(HEALTH_SCORE_VERSION).toBe('health-score.v5.5');
     expect(DIMENSION_DRIVERS.capability).toEqual([
       'senior_rank_share',
       'publications_per_faculty',

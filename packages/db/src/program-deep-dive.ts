@@ -6,6 +6,7 @@ import {
   type ProgramResearchExpertise,
 } from '@kku/shared';
 import { prisma } from './index';
+import { projectionRegionForInstitution } from './projection-region';
 import {
   computeHealthScores,
   computeProgramDimensionAverages,
@@ -2490,9 +2491,15 @@ export async function universityTcasStats(): Promise<UniversityTcasStats | null>
 export type DemographicRiskLevel = 'low' | 'medium' | 'high' | 'unknown';
 
 export interface ProgramDemographicOutlook {
-  /** Always 'TH' (v2 is national-primary). The union is retained for
-   *  back-compat with downstream consumers. */
-  catchmentRegion: 'Northeast' | 'TH';
+  /** Region the projection is anchored to. Always 'TH' today (v2 is
+   *  national-primary); typed as a string so a regional primary can follow
+   *  without another API change. */
+  catchmentRegion: string;
+  /** The institution's own projection region (organisation profile
+   *  `regionEn`, resolved against the regions the data carries). Null when it
+   *  resolves to the national series - there is then no separate comparator
+   *  and `cohortPopulationRegional` is null on every row. */
+  comparatorRegion: string | null;
   source: string;
   /** The cohort the projection is anchored to — '18-22' for bachelor
    *  programmes, '23-29' for graduate programmes. */
@@ -2522,7 +2529,7 @@ export interface ProgramDemographicOutlook {
     year: number;
     /** NATIONAL 18-22 (or 23-29) cohort population. */
     cohortPopulation: number;
-    /** Northeast catchment cohort — kept as a comparator. */
+    /** The institution's regional cohort (`comparatorRegion`) — a comparator. */
     cohortPopulationRegional: number | null;
     /** Share of the NATIONAL cohort needed to maintain today's intake.
      *  Null when intake is unknown. */
@@ -2669,6 +2676,9 @@ export async function programDemographicOutlook(
   });
   if (allRows.length === 0) return null;
 
+  const resolvedRegion = projectionRegionForInstitution([...new Set(allRows.map((r) => r.region))]);
+  const comparatorRegion = resolvedRegion === 'TH' ? null : resolvedRegion;
+
   const nowCE = now.getUTCFullYear();
   const horizons = [0, 5, 10, 15];
   const projections: ProgramDemographicOutlook['projections'] = [];
@@ -2678,9 +2688,9 @@ export async function programDemographicOutlook(
     const nationalRow = allRows.find(
       (r) => r.region === 'TH' && r.year === targetYear,
     );
-    const regionalRow = allRows.find(
-      (r) => r.region === 'Northeast' && r.year === targetYear,
-    );
+    const regionalRow = comparatorRegion
+      ? allRows.find((r) => r.region === comparatorRegion && r.year === targetYear)
+      : undefined;
     if (!nationalRow) continue;
     if (anchorNational === null) anchorNational = nationalRow.population;
     const requiredShare =
@@ -2746,6 +2756,7 @@ export async function programDemographicOutlook(
 
   return {
     catchmentRegion: 'TH',
+    comparatorRegion,
     source: allRows[0]!.source,
     ageCohort,
     baselineYearOneIntake,

@@ -10,6 +10,7 @@ import { programFunnelYears, scopeFunnelLatestYear } from './program-funnel';
 import { JOBTHAI_MIN_LINK_SCORE, JOBTHAI_MIN_POSTINGS_FOR_SIGNAL, JOBTHAI_MIN_RELEVANT_SKILLS } from './jobthai-bridge';
 import { programJobThaiSkillCoverage } from './jobthai';
 import { DEMAND_SOURCE_LINKEDIN, demandMatchSourceWhere } from './demand-match-sources';
+import { projectionRegionForInstitution } from './projection-region';
 import { getAcademicYearContext } from './academic-year';
 import { GRANT_AWARD_LABEL, grantAward, withAward } from './grant-award';
 import { pickFinancialYear } from './financial-year';
@@ -222,7 +223,13 @@ export const FLAGSHIP_REVENUE_FLOOR_THB = 3_000_000;
 //   teaching staff member per year, last 3 complete Thai FY, log curve
 //   ฿0.1 M → 0 to ฿3 M → +10 (packages/db/src/grant-award.ts). Never lowers
 //   a score, never touches completeness, null base earns nothing.
-export const HEALTH_SCORE_VERSION = 'health-score.v5.4';
+//
+// v5.5 (2026-11-03) — the demographic-resilience driver reads the
+//   institution's region from the organisation profile (regionEn, matched
+//   against the regions the projection carries; no match or no profile ->
+//   the national 'TH' series) instead of a hard-coded 'Northeast', and the
+//   teaching-mode band is read from organisation data. No change for KKU.
+export const HEALTH_SCORE_VERSION = 'health-score.v5.5';
 
 // ── Cost-allocation methodology (gap #5) ────────────────────────────
 // The Financial dimension's `net_contribution_per_student` +
@@ -2337,18 +2344,26 @@ async function _computeKmitlProgramAlignmentImpl(): Promise<Map<string, number>>
   return out;
 }
 
+const DEMOGRAPHIC_PROJECTION_SOURCE = 'NESDC-PopProj-2010-2040';
+
 async function computeRequiredShareAt10Y(
   programId: string,
   level: 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA',
 ): Promise<number | null> {
   const cohort = level === 'BACHELOR' ? '18-22' : '23-29';
   const targetYear = new Date().getUTCFullYear() + 10;
+  const regionRows = await prisma.demographicProjection.findMany({
+    where: { source: DEMOGRAPHIC_PROJECTION_SOURCE },
+    distinct: ['region'],
+    select: { region: true },
+  });
+  const region = projectionRegionForInstitution(regionRows.map((r) => r.region));
   const projection = await prisma.demographicProjection.findFirst({
     where: {
-      region: 'Northeast',
+      region,
       ageCohort: cohort,
       year: targetYear,
-      source: 'NESDC-PopProj-2010-2040',
+      source: DEMOGRAPHIC_PROJECTION_SOURCE,
     },
     select: { population: true },
   });
