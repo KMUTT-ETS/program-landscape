@@ -39,7 +39,14 @@ import { courseCodeRegex, isCourseCode } from '../../curriculum/course-code-patt
 // empty class-offerings join and is corrected on the next pipeline run).
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PROGRAM_COURSES_EXTRACT_VERSION = 'program-courses-extract.v4';
+// v5 (2026-11-03, adopter plan 5): the prompt no longer names one
+// university ("ของ ม.ขก." now reads the organisation's short Thai name),
+// describes the three หมวด as the TYPICAL shape rather than a requirement
+// (other universities' มคอ.2 nest the list differently), and shows both
+// course-code shapes in the row format — KKU's six-digit codes and the
+// common three-letter + three-digit form ("ABC 101"). Category rules,
+// schema and output format unchanged.
+export const PROGRAM_COURSES_EXTRACT_VERSION = 'program-courses-extract.v5';
 
 // credits.max(60): inherited v1's max(20) but that rejected entire
 // extractions on prod for any program whose curriculum lists a
@@ -378,7 +385,7 @@ export function buildProgramCoursesExtractMessages(
 
 ★ ขอบเขต (สำคัญ) ★
 ข้อความ user ที่จะให้คุณ คือ **เฉพาะส่วน "รายวิชา"** ของหลักสูตร (ตัดส่วนหน้าเอกสาร, คำอธิบายรายวิชา, และภาคผนวกทั้งหมดออกแล้ว)
-ส่วนนี้แบ่งเป็น 3 หมวด:
+ส่วนนี้มักแบ่งเป็น 3 หมวด (ตามปกติ — บางสถาบันจัดโครงสร้างต่างออกไปหรือใช้ชื่อหมวดต่างกัน ให้ยึดหัวข้อที่ปรากฏจริงในเอกสาร):
   1. หมวดวิชาศึกษาทั่วไป
   2. หมวดวิชาเฉพาะ (อาจมีกลุ่มย่อย เช่น กลุ่มวิชาแกน, กลุ่มวิชาเฉพาะด้าน)
   3. หมวดวิชาเลือกเสรี
@@ -387,12 +394,13 @@ export function buildProgramCoursesExtractMessages(
 - ห้ามใส่รหัสวิชาที่ไม่ปรากฏในข้อความที่ให้
 - ห้ามแก้รหัสวิชาให้ "ดูถูกต้องกว่า"
 
-หน้าที่: สกัดทุกรายวิชาในทั้ง 3 หมวด พร้อมรหัส ชื่อ TH/EN และจำนวนหน่วยกิต
+หน้าที่: สกัดทุกรายวิชาในทุกหมวดที่ปรากฏ พร้อมรหัส ชื่อ TH/EN และจำนวนหน่วยกิต
 
 รูปแบบของแต่ละรายวิชาในเอกสาร:
   <รหัสวิชา> <ชื่อภาษาไทย> <ชื่อภาษาอังกฤษ> <หน่วยกิต (B-C-D)>
+รหัสวิชามีได้ทั้งแบบตัวอักษร + ตัวเลข 6 หลัก (เช่น "LW 011 116") และแบบตัวอักษร 2-4 ตัว + ตัวเลข 3 หลัก (เช่น "ABC 101")
 
-ปกติ ${input.levelTh} ของ ม.ขก. มี ${target} ในส่วนรายวิชา
+ปกติ ${input.levelTh} ของ ${inst.shortNameTh} มี ${target} ในส่วนรายวิชา
 
 [หมายเหตุ — pattern matching ฝั่ง runner]
 runner ได้ทำ pattern matching ในส่วนเดียวกันและพบรหัส candidate ${candidateHint}
@@ -448,7 +456,7 @@ promoting an elective to required is built on this field.
 รูปแบบ JSON ผลลัพธ์ (ออก JSON เดี่ยวเท่านั้น ห้ามมี markdown ห้ามมีคำอธิบายล่วงหน้า):
 {
   "courses": [
-    { "code": "<รหัสวิชาในรูปแบบไม่มีเว้นวรรค เช่น LW011116 หรือ GE179114>",
+    { "code": "<รหัสวิชาในรูปแบบไม่มีเว้นวรรค เช่น LW011116 หรือ ABC101>",
       "nameTh": "<ชื่อวิชาภาษาไทย>",
       "nameEn": "<ชื่อวิชาภาษาอังกฤษ ถ้ามี>",
       "credits": <จำนวนหน่วยกิต | null>,

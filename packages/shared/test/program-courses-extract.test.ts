@@ -23,6 +23,7 @@ const PREVIOUSLY_PUBLISHED = [
   'program-courses-extract.v2.2',
   'program-courses-extract.v2.3',
   'program-courses-extract.v3',
+  'program-courses-extract.v4',
 ];
 
 describe('program-courses-extract — version', () => {

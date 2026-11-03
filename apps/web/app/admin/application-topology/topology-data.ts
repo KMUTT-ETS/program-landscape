@@ -710,7 +710,7 @@ const connectorNodes: TopologyNode[] = [
       notes: [
         'Dry run counts only and makes no model call; --apply writes',
         'Idempotent: a vector is re-embedded only when the sha256 of its text changes',
-        'Course categories come from a separate phase-2b backfill (program-courses-extract.v4), run first',
+        'Course categories come from a separate phase-2b backfill (program-courses-extract.v5), run first',
         'Bundled to dist/ for prod operator-run.',
       ],
     },
@@ -759,7 +759,7 @@ const connectorNodes: TopologyNode[] = [
     subtitle: 'Phase 1 · digest + faculty + skills + pedagogy',
     details: {
       description:
-        'Per-PDF Gemini extraction — 4 prompts run in parallel: program-digest.v2 (course list + recruitment summary + generalised skills), program-faculty.v1 (responsible lecturers), program-skills-detailed.v2 (ESCO-tagged skill weights), program-pedagogy.v1.1 (teaching-method distribution).',
+        'Per-PDF Gemini extraction — 4 prompts run in parallel: program-digest.v4 (course list + recruitment summary + generalised skills), program-faculty.v3 (responsible lecturers), program-skills-detailed.v4 (ESCO-tagged skill weights), program-pedagogy.v1.1 (teaching-method distribution).',
       cadence: 'Per-PDF · programs-pipeline phase 1',
       notes: [
         'Writes AiExtraction rows (4 types); materialise step lifts approved digests into Program + ProgramCourse + ProgramSkill',
@@ -856,7 +856,7 @@ const connectorNodes: TopologyNode[] = [
     lane: 'ai',
     kind: 'ai-task',
     label: 'Course list extraction',
-    subtitle: 'Phase 2b · program-courses-extract.v4',
+    subtitle: 'Phase 2b · program-courses-extract.v5',
     details: {
       description:
         "Reads the course list out of the มคอ.2 — code, title, credits, description, and the หมวด each course sits under (ศึกษาทั่วไป / บังคับ / เลือก / วิทยานิพนธ์). The category is what makes elective-to-required advice possible downstream.",

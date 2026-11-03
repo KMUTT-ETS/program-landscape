@@ -37,7 +37,12 @@ import type { AiMessage } from '../types';
 // exemption list). No extraction-logic change.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PROGRAM_SKILLS_DETAILED_VERSION = 'program-skills-detailed.v3';
+// v4 (2026-11-03, adopter plan 5): PLO heading hints widened to the
+// wordings other universities print (ผลลัพธ์การเรียนรู้ระดับหลักสูตร,
+// ผลลัพธ์การเรียนรู้ที่คาดหวังของหลักสูตร, Programme Learning Outcomes
+// (PLOs)); the worked example uses a neutral course code instead of a
+// KKU-style one. Output schema and extraction rules unchanged.
+export const PROGRAM_SKILLS_DETAILED_VERSION = 'program-skills-detailed.v4';
 
 const SkillEntrySchema = z.object({
   /** Thai name (verbatim from curriculum where possible). */
@@ -105,7 +110,7 @@ export function buildProgramSkillsDetailedMessages(
   const system = `คุณคือผู้ช่วยที่อ่านเอกสาร มคอ.2 ของมหาวิทยาลัยไทยและสกัดทักษะที่หลักสูตรสร้างให้นักศึกษา
 
 หลักการ:
-1. **อ่าน Program Learning Outcomes (PLO)** ก่อน — มักอยู่ในส่วนที่ 2 หรือ 3 ของ มคอ.2 ภายใต้หัวข้อ "ผลการเรียนรู้ที่คาดหวัง" หรือ "Program Learning Outcomes" หรือ "PLO" หรือ "มาตรฐานผลการเรียนรู้"
+1. **อ่าน Program Learning Outcomes (PLO)** ก่อน — มักอยู่ในส่วนที่ 2 หรือ 3 ของ มคอ.2 ภายใต้หัวข้อ "ผลการเรียนรู้ที่คาดหวัง" หรือ "ผลลัพธ์การเรียนรู้ระดับหลักสูตร" หรือ "ผลลัพธ์การเรียนรู้ที่คาดหวังของหลักสูตร" หรือ "Program Learning Outcomes" หรือ "Programme Learning Outcomes (PLOs)" หรือ "PLO" หรือ "มาตรฐานผลการเรียนรู้"
 2. **เดินผ่านรายวิชาทั้งหมด** ในส่วน "หมวดวิชา" ระบุว่าวิชาใดเป็น "วิชาบังคับ" (compulsory / required) และวิชาใดเป็น "วิชาเลือก" (elective) จากคำอธิบายรายวิชา (course description) สกัดทักษะที่วิชานั้นๆ สอน
 3. **คำนวณน้ำหนัก 2 ค่าต่อทักษะ**:
    - compulsoryContribution: สรุปจากวิชา**บังคับ** (นักศึกษาทุกคนต้องเรียน) → MAJOR contribution
@@ -178,10 +183,10 @@ PLO 2: บัณฑิตใช้ซอฟต์แวร์ CAD/CAE ในก�
 PLO 3: บัณฑิตทำงานเป็นทีมในโครงการวิศวกรรมและสื่อสารผลงานทางวิชาการได้"
 
 [คำอธิบายวิชาตัวอย่าง]
-"EN013 201 เทอร์โมไดนามิกส์ (3 หน่วยกิต) - **บังคับ**
+"ABC 201 เทอร์โมไดนามิกส์ (3 หน่วยกิต) - **บังคับ**
 หลักของกฎข้อที่หนึ่งและสองของเทอร์โมไดนามิกส์, การประยุกต์ใช้กับวัฏจักรเครื่องยนต์...
 
-EN013 491 หัวข้อพิเศษ (3 หน่วยกิต) - **เลือก**
+ABC 491 หัวข้อพิเศษ (3 หน่วยกิต) - **เลือก**
 หัวข้อขั้นสูงในวิศวกรรมเครื่องกล กำหนดโดยอาจารย์ผู้สอน..."
 
 [Output ตัวอย่าง]

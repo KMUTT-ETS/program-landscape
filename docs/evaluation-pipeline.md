@@ -313,10 +313,10 @@ grounding, confidence rubric, tell-ban, versioning, data-channel manifest) live 
 
 | Prompt | Output materialises into | When fired |
 |---|---|---|
-| `program-digest.v2` | `Program.*` (metadata + recruitmentSummary) + `ProgramSkill` (via materialise on approval) + `PROPOSED_SKILL` AiExtraction rows for the analyst queue | One-shot Gemini call against full curriculum PDF text; bulk via `pnpm programs:digest-bulk` |
-| `program-courses-extract.v4` | `program_courses` rows (canonical course-code list) | Regex-anchored candidate list + LLM completion, scoped to the มคอ.2 รายวิชา section; v4 also reads each course's หมวด grouping (`category`) from the section headings |
-| `program-faculty-extraction.v1` | `ProgramFaculty` curated roster links | Manual analyst trigger |
-| `program-skills-detailed.v2` | Deeper `ProgramSkill` enrichment beyond program-digest (compulsory/elective weight split, PLO linkage) | Manual |
+| `program-digest.v4` | `Program.*` (metadata + recruitmentSummary) + `ProgramSkill` (via materialise on approval) + `PROPOSED_SKILL` AiExtraction rows for the analyst queue | One-shot Gemini call against full curriculum PDF text; bulk via `pnpm programs:digest-bulk` |
+| `program-courses-extract.v5` | `program_courses` rows (canonical course-code list) | Regex-anchored candidate list + LLM completion, scoped to the มคอ.2 รายวิชา section; accepts KKU six-digit and three-letter + three-digit codes (v5 drops KKU-only wording); v4 added reading each course's หมวด grouping (`category`) from the section headings |
+| `program-faculty-extraction.v3` | `ProgramFaculty` curated roster links | Manual analyst trigger |
+| `program-skills-detailed.v4` | Deeper `ProgramSkill` enrichment beyond program-digest (compulsory/elective weight split, PLO linkage) | Manual |
 | `course-skill-extraction.v1` (`course-skills.v1`) | `CourseSkill` rows | On course-description AiExtraction approval |
 | `job-posting-skill-extraction.v1` (`job-posting-skills.v1`) | `JobPostingSkill` rows | On job-posting AiExtraction approval |
 | `graduate-employment-survey.v1` | Structured graduate-outcome rows | Survey-PDF intake |
@@ -476,7 +476,7 @@ course embeddings, `program_learning_outcomes` (from the latest
 `PROGRAM_SKILLS_DETAILED` extraction), `program_market_profiles`, and
 `program_faculties × faculty_members` (active staff only). The index uses the
 course layers only; PLO alignment is computed and shown as context. Course categories come
-from `program-courses-extract.v4` (phase 2b); descriptions and CLOs from approved
+from `program-courses-extract.v5` (phase 2b); descriptions and CLOs from approved
 `PROGRAM_DIGEST` payloads; embeddings from `gemini-embedding-001` at 1536
 dimensions, written by `pnpm programs:overlap-prep`.
 
@@ -590,7 +590,7 @@ Every score row carries a `methodologyVersion`. Bumping rules:
 | Methodology doc rephrasing without code change | **no bump** | n/a |
 
 Per-prompt versions:
-- `program-digest.v1` · `program-peer-review.v2` · `program-peer-selection.v3` · `program-ai-readiness.v2` · `risk-assessment.v2` · `program-strategic-narrative.v3` · `expertise-narrative.v2` · `analyst-system.v1` · `analyst-safety.v1` · `outcome-review.v1` · `program-overlap-recommendation.v1`
+- `program-digest.v4` · `program-peer-review.v2` · `program-peer-selection.v3` · `program-ai-readiness.v2` · `risk-assessment.v2` · `program-strategic-narrative.v3` · `expertise-narrative.v2` · `analyst-system.v1` · `analyst-safety.v1` · `outcome-review.v1` · `program-overlap-recommendation.v1`
 
 Per-scorer versions:
 - `health-score.v3.4` (current; v1/v2/v2.1 retained for audit)

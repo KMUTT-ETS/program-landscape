@@ -41,7 +41,13 @@ import { getInstitution } from '../../institution';
 // data labels), not analysis prose.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PROGRAM_DIGEST_VERSION = 'program-digest.v3';
+// v4 (2026-11-03, adopter plan 5): no institution-specific literals in the
+// rendered prompt (a stray "สจล." now reads the organisation's short Thai
+// name; the example course code is a neutral pair); the รายวิชา section
+// hint is phrased as an example ("e.g. ข้อ 3.1.3") since numbering differs
+// between universities; `maxCourses` default 80 → 250 so descriptions and
+// learning outcomes can cover a full course list. Schema unchanged.
+export const PROGRAM_DIGEST_VERSION = 'program-digest.v4';
 
 const ProgramSkillExtractionSchema = z.object({
   // Thai rendering of the canonical skill.
@@ -68,7 +74,7 @@ const ProgramSkillExtractionSchema = z.object({
 export type ProgramSkillExtraction = z.infer<typeof ProgramSkillExtractionSchema>;
 
 const ProgramCourseExtractionSchema = z.object({
-  code: z.string().default(''),         // e.g., "EN013 201" — empty if not present
+  code: z.string().default(''),         // e.g., "ABC 101" or "ABC 101 201" — empty if not present
   nameTh: z.string(),
   nameEn: z.string().default(''),
   credits: z.number().nullable().default(null),
@@ -139,7 +145,7 @@ export interface ProgramDigestInput {
   // 30-150k tokens of a typical มคอ.2 in one prompt cleanly.
   pdfText: string;
   // Soft cap on courses to enumerate. Some PDFs list 60+ courses;
-  // truncating keeps token cost bounded. Default 80, override per-call.
+  // truncating keeps token cost bounded. Default 250, override per-call.
   maxCourses?: number;
   // Live system grounding — pulled by the caller from DS2004 / DS2003 /
   // DS1001 / kku-hr. When present, the LLM treats these as factual
@@ -165,7 +171,7 @@ export interface ProgramSystemFacts {
 export function buildProgramDigestMessages(input: ProgramDigestInput): AiMessage[] {
   const inst = getInstitution();
   const meta = input.programMetaFromSheet;
-  const maxCourses = input.maxCourses ?? 80;
+  const maxCourses = input.maxCourses ?? 250;
 
   const system = `คุณเป็นผู้เชี่ยวชาญด้านการวิเคราะห์หลักสูตรอุดมศึกษาไทย (มคอ.2) ของ${inst.nameTh} และผู้เชี่ยวชาญด้านการพัฒนากำลังคน (workforce development)
 
@@ -214,7 +220,7 @@ export function buildProgramDigestMessages(input: ProgramDigestInput): AiMessage
    - หลังจากรวมและสรุปแล้ว โดยทั่วไปจะได้ทักษะที่แตกต่างกันประมาณ 10-30 รายการ — ไม่ต้องเพิ่มจำนวนเกินจำเป็น
 3. **น้ำหนัก (weight)**: 1.0 = ทักษะแกนของหลักสูตร, 0.6-0.8 = หลักสูตรสร้างชัดเจนแต่ไม่ใช่จุดเน้น, 0.2-0.4 = แตะ-แต่ไม่ลึก
 4. **Evidence quote**: ต้องเป็นข้อความ "verbatim" จากเอกสาร — ไม่สรุป ไม่แปล (ถ้าเอกสารเป็นภาษาไทย ก็เป็นภาษาไทย)
-5. **รายวิชา**: ใส่ทุกวิชาที่ระบุใน "ข้อ 3.1.3" / "หมวดวิชาเฉพาะ" / โครงสร้างหลักสูตร — ถ้ามีมากกว่า ${maxCourses} วิชา ให้เลือกวิชาแกน + วิชาเอกของสาขา
+5. **รายวิชา**: ใส่ทุกวิชาที่ระบุในส่วนรายวิชาของหลักสูตร (เช่น "ข้อ 3.1.3" / "หมวดวิชาเฉพาะ" / โครงสร้างหลักสูตร — เลขข้อต่างกันไปตามสถาบัน) — ถ้ามีมากกว่า ${maxCourses} วิชา ให้เลือกวิชาแกน + วิชาเอกของสาขา
 6. **บทแนะนำหลักสูตร (recruitmentSummaryTh)**:
    - 200-400 คำ ภาษาไทย
    - ผู้รับสาร: นักเรียน ม.6 / ผู้สนใจสมัครเรียน
@@ -251,7 +257,7 @@ BANNED PHRASES (do not use these words/phrases or their close paraphrases in cav
 
 สำคัญมาก: ตอบกลับเป็น JSON object เดี่ยว ({...}) ไม่ใช่ array ([...]) ห้ามห่อในวงเล็บเหลี่ยม`;
 
-  const sheetMeta = `[ข้อมูลจากตารางหลักสูตรหลัก สจล./${inst.shortNameEn} - ใช้เป็นฐานข้อมูลในการตรวจสอบ]
+  const sheetMeta = `[ข้อมูลจากตารางหลักสูตรหลัก ${inst.shortNameTh}/${inst.shortNameEn} - ใช้เป็นฐานข้อมูลในการตรวจสอบ]
 - คณะ: ${meta.facultyNameTh}
 - ระดับ: ${meta.levelTh}
 - ชื่อปริญญา: ${meta.degreeNameFromSheet}

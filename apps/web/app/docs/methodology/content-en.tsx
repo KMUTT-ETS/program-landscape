@@ -1791,7 +1791,7 @@ otherwise                                         → SUNSET`}</Pre>
             composes a market profile per programme (names, degree names, recruitment summary,
             careers) and embeds all three with <Code>gemini-embedding-001</Code> at 1536
             dimensions, L2-normalised. Course categories come from a re-run of the course
-            extractor (<Code>program-courses-extract.v4</Code>). Descriptions cover about a
+            extractor (<Code>program-courses-extract.v5</Code>). Descriptions cover about a
             quarter of major credits, so <Strong>every major course is embedded on its names</Strong>,
             with its description and CLOs added where they exist.
           </P>
