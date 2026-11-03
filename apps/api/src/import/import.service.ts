@@ -262,7 +262,8 @@ export class ImportService implements OnModuleInit {
       // dedupe — only once the rows are committed.
       await markImportBatchSucceeded(created.id);
       await finishImportRun(runId, { loaded: rows.length, failed: 0, status: 'SUCCEEDED' });
-      await this.refreshViewsQuietly(dataset.slug);
+      // Fire-and-forget: the refresh takes seconds and must not hold the request.
+      void this.refreshViewsQuietly(dataset.slug);
       return { batchId: created.id, result };
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);

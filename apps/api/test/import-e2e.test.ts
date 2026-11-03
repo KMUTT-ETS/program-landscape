@@ -305,10 +305,16 @@ describe('the metrics an adopter actually came for', () => {
     expect(rows.map((r) => r.enrolled)).toEqual([120]);
 
     // The roll-up views are what program scores read; the upload refreshes them.
-    const rolled = await prisma.$queryRaw<Array<{ n: bigint }>>`
-      SELECT COUNT(*)::bigint AS n FROM mv_program_metrics m
-      JOIN programs p ON p.id = m.program_id WHERE p.code = ${PROGRAMME_CODE}`;
-    expect(Number(rolled[0]?.n ?? 0n)).toBeGreaterThan(0);
+    // The refresh is fire-and-forget, so poll briefly.
+    let rolled = 0;
+    for (let i = 0; i < 50 && rolled === 0; i += 1) {
+      const r = await prisma.$queryRaw<Array<{ n: bigint }>>`
+        SELECT COUNT(*)::bigint AS n FROM mv_program_metrics m
+        JOIN programs p ON p.id = m.program_id WHERE p.code = ${PROGRAMME_CODE}`;
+      rolled = Number(r[0]?.n ?? 0n);
+      if (rolled === 0) await new Promise((res) => setTimeout(res, 200));
+    }
+    expect(rolled).toBeGreaterThan(0);
   });
 
   it('loads a finance row against the imported programme', async () => {
