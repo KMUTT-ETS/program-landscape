@@ -1,4 +1,5 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { KKU_REFERENCE_ORGANIZATION, setOrganizationForTest } from '@kku/shared';
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest';
 
 // Mocks prisma + queryMetricByScope so the test runs without a DB.
 // Exercises the two rules we can't afford to regress on:
@@ -127,7 +128,7 @@ vi.mock('../src/scope', async () => {
   };
 });
 
-import { computeHealthScores, DIMENSION_DRIVERS, HEALTH_SCORE_VERSION } from '../src/health-score';
+import { computeHealthScores, computeRequiredShareAt10Y, DIMENSION_DRIVERS, HEALTH_SCORE_VERSION } from '../src/health-score';
 import {
   deriveAcademicYear,
   defaultNextStartDate,
@@ -530,5 +531,44 @@ describe('financial — external-grant award', () => {
     for (const key of ['attractiveness', 'capability', 'outcomes', 'relevance'] as const) {
       expect(row.dimensions[key].award).toBeUndefined();
     }
+  });
+});
+
+describe('demographic region wiring (v5.5)', () => {
+  const REGIONS = [{ region: 'TH' }, { region: 'Northeast' }, { region: 'Central' }];
+  const withRegion = (regionEn: string | null) =>
+    setOrganizationForTest({ ...KKU_REFERENCE_ORGANIZATION, regionEn });
+  afterEach(() => setOrganizationForTest(KKU_REFERENCE_ORGANIZATION));
+
+  beforeEach(() => {
+    mocks.demographicFindMany.mockResolvedValue(REGIONS);
+    mocks.demographicFindFirst.mockResolvedValue({ population: 1_000_000 });
+    mocks.enrollmentMetricFindMany.mockResolvedValue([{ enrolled: 200 }]);
+  });
+
+  it('profile region Central -> projection queried for Central', async () => {
+    withRegion('Central');
+    const r = await computeRequiredShareAt10Y('p1', 'BACHELOR');
+    expect(mocks.demographicFindFirst.mock.calls[0]![0].where.region).toBe('Central');
+    expect(r).toEqual({ share: 200 / 1_000_000, region: 'Central', reason: null });
+  });
+
+  it('KKU profile -> Northeast', async () => {
+    const r = await computeRequiredShareAt10Y('p1', 'BACHELOR');
+    expect(mocks.demographicFindFirst.mock.calls[0]![0].where.region).toBe('Northeast');
+    expect(r.region).toBe('Northeast');
+  });
+
+  it('unset region -> null with a reason, no projection query', async () => {
+    withRegion(null);
+    const r = await computeRequiredShareAt10Y('p1', 'BACHELOR');
+    expect(r.share).toBeNull();
+    expect(r.reason).toMatch(/^region-not-set/);
+    expect(mocks.demographicFindFirst).not.toHaveBeenCalled();
+  });
+
+  it('unmatched region -> null with a reason', async () => {
+    withRegion('Bangkok');
+    expect((await computeRequiredShareAt10Y('p1', 'BACHELOR')).reason).toMatch(/^region-not-set/);
   });
 });

@@ -4,16 +4,19 @@
 **Reviewed:** 2026-11-03
 **Owner:** KKU Data Office
 
-**v5.5 (2026-11-03): region and teaching-mode band read from organisation
-data; no change for KKU.** The demographic-resilience driver
-(`computeRequiredShareAt10Y`) no longer hard-codes the Northeast projection.
-It resolves the institution's region from the organisation profile
-(`regionEn`) against the regions the projection data carries (exact, then
-case-insensitive match) and falls back to the national `TH` series when the
-profile is unset or the region is not in the data. The Deep-Dive demographic
-outlook uses the same resolved region as its comparator and has none when the
-resolved region is the national series. KKU's profile resolves to
-`Northeast`, so every KKU driver value is unchanged.
+**v5.5 (2026-11-03): demographic region read from organisation data; no change
+for KKU.** The demographic-resilience driver (`computeRequiredShareAt10Y`) no
+longer hard-codes the Northeast projection. It resolves the institution's region
+from the organisation profile (`regionEn`) against the regions the projection
+data carries (exact, then case-insensitive match; the NESDC data has Northeast,
+Central, North and South). Its curve is calibrated for a regional cohort, so the
+national `TH` series is never substituted: when the region is unset or matches
+none of those, the driver is **null** (reason `region-not-set`: set the
+organisation region to one of the projection regions) and completeness drops. The
+resolved region is recorded in the driver's `raw`. The Deep-Dive demographic
+outlook uses the same region as its comparator and has none when unresolved.
+KKU's profile resolves to `Northeast`, so every KKU value is unchanged. The
+teaching-mode band part of v5.5 lands in the next task.
 
 **v5.4 (2026-10-03): external grants become an award on Financial.** The
 `external_grant_engagement` driver and its 30-day gate are removed, so

@@ -6,7 +6,7 @@ import {
   type ProgramResearchExpertise,
 } from '@kku/shared';
 import { prisma } from './index';
-import { projectionRegionForInstitution } from './projection-region';
+import { NATIONAL_REGION, projectionRegionForInstitution } from './projection-region';
 import {
   computeHealthScores,
   computeProgramDimensionAverages,
@@ -2677,7 +2677,7 @@ export async function programDemographicOutlook(
   if (allRows.length === 0) return null;
 
   const resolvedRegion = projectionRegionForInstitution([...new Set(allRows.map((r) => r.region))]);
-  const comparatorRegion = resolvedRegion === 'TH' ? null : resolvedRegion;
+  const comparatorRegion = resolvedRegion === NATIONAL_REGION ? null : resolvedRegion;
 
   const nowCE = now.getUTCFullYear();
   const horizons = [0, 5, 10, 15];
@@ -2686,7 +2686,7 @@ export async function programDemographicOutlook(
   for (const h of horizons) {
     const targetYear = nowCE + h;
     const nationalRow = allRows.find(
-      (r) => r.region === 'TH' && r.year === targetYear,
+      (r) => r.region === NATIONAL_REGION && r.year === targetYear,
     );
     const regionalRow = comparatorRegion
       ? allRows.find((r) => r.region === comparatorRegion && r.year === targetYear)
@@ -2755,7 +2755,7 @@ export async function programDemographicOutlook(
   }
 
   return {
-    catchmentRegion: 'TH',
+    catchmentRegion: NATIONAL_REGION,
     comparatorRegion,
     source: allRows[0]!.source,
     ageCohort,

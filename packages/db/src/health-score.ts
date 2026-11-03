@@ -10,7 +10,7 @@ import { programFunnelYears, scopeFunnelLatestYear } from './program-funnel';
 import { JOBTHAI_MIN_LINK_SCORE, JOBTHAI_MIN_POSTINGS_FOR_SIGNAL, JOBTHAI_MIN_RELEVANT_SKILLS } from './jobthai-bridge';
 import { programJobThaiSkillCoverage } from './jobthai';
 import { DEMAND_SOURCE_LINKEDIN, demandMatchSourceWhere } from './demand-match-sources';
-import { projectionRegionForInstitution } from './projection-region';
+import { NATIONAL_REGION, projectionRegionForInstitution } from './projection-region';
 import { getAcademicYearContext } from './academic-year';
 import { GRANT_AWARD_LABEL, grantAward, withAward } from './grant-award';
 import { pickFinancialYear } from './financial-year';
@@ -227,8 +227,9 @@ export const FLAGSHIP_REVENUE_FLOOR_THB = 3_000_000;
 // v5.5 (2026-11-03) — the demographic-resilience driver reads the
 //   institution's region from the organisation profile (regionEn, matched
 //   against the regions the projection carries; no match or no profile ->
-//   the national 'TH' series) instead of a hard-coded 'Northeast', and the
-//   teaching-mode band is read from organisation data. No change for KKU.
+//   the driver is null, never the national series) instead of a hard-coded
+//   'Northeast'. The teaching-mode band follows in a later task. No change
+//   for KKU.
 export const HEALTH_SCORE_VERSION = 'health-score.v5.5';
 
 // ── Cost-allocation methodology (gap #5) ────────────────────────────
@@ -2158,7 +2159,8 @@ async function scoreRelevanceProgram(
     where: { id: programId },
     select: { kmitlCareerIds: true, level: true },
   });
-  const demoOutlook = await computeRequiredShareAt10Y(programId, program?.level ?? 'BACHELOR');
+  const demo = await computeRequiredShareAt10Y(programId, program?.level ?? 'BACHELOR');
+  const demoOutlook = demo.share;
   let demoValue: number | null = null;
   if (demoOutlook !== null) {
     // requiredShare 0.05% (5e-4) → 50; 0.001% → ~100; 0.2% → ~0.
@@ -2194,7 +2196,7 @@ async function scoreRelevanceProgram(
       raw: kmitlAlignment,
     },
     { label: 'demand_match_filled', value: demandMatchValue, raw: { totalRelevant: matchRows.length } },
-    { label: 'demographic_resilience', value: demoValue, raw: { requiredShare10y: demoOutlook } },
+    { label: 'demographic_resilience', value: demoValue, raw: { requiredShare10y: demoOutlook, region: demo.region, reason: demo.reason } },
     // `targetedCareers` is the raw-payload field surfaced on the
     // hover tooltip for this driver. It's the COUNT of LinkedIn-demand
     // career groups the program has been mapped to — used to
@@ -2346,10 +2348,21 @@ async function _computeKmitlProgramAlignmentImpl(): Promise<Map<string, number>>
 
 const DEMOGRAPHIC_PROJECTION_SOURCE = 'NESDC-PopProj-2010-2040';
 
-async function computeRequiredShareAt10Y(
+export interface RequiredShareResult {
+  share: number | null;
+  /** The projection region used; null when none resolved. */
+  region: string | null;
+  /** Why the share is null, when it is. */
+  reason: string | null;
+}
+
+// The 0.002 curve in the driver is calibrated for a REGIONAL cohort, so the
+// national 'TH' series is never substituted: an unset or unmatched region
+// leaves the driver null (a data gap, not a score).
+export async function computeRequiredShareAt10Y(
   programId: string,
   level: 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA',
-): Promise<number | null> {
+): Promise<RequiredShareResult> {
   const cohort = level === 'BACHELOR' ? '18-22' : '23-29';
   const targetYear = new Date().getUTCFullYear() + 10;
   const regionRows = await prisma.demographicProjection.findMany({
@@ -2358,6 +2371,16 @@ async function computeRequiredShareAt10Y(
     select: { region: true },
   });
   const region = projectionRegionForInstitution(regionRows.map((r) => r.region));
+  if (region === NATIONAL_REGION) {
+    return {
+      share: null,
+      region: null,
+      reason:
+        'region-not-set: set the organisation region to one of the projection regions (' +
+        regionRows.map((r) => r.region).filter((r) => r !== NATIONAL_REGION).join(', ') +
+        ')',
+    };
+  }
   const projection = await prisma.demographicProjection.findFirst({
     where: {
       region,
@@ -2367,21 +2390,21 @@ async function computeRequiredShareAt10Y(
     },
     select: { population: true },
   });
-  if (!projection || projection.population <= 0) return null;
+  if (!projection || projection.population <= 0) return { share: null, region, reason: 'no-projection' };
   const enrollment = await prisma.enrollmentMetric.findMany({
     where: { programId, ...realDataWhere() },
     orderBy: { academicYear: 'desc' },
     take: 2,
     select: { enrolled: true },
   });
-  if (enrollment.length === 0) return null;
+  if (enrollment.length === 0) return { share: null, region, reason: 'no-enrollment' };
   // Use the prior year if it's higher (in-progress current year is
   // partial — enrolled count would be too small).
   const baseline = enrollment.length >= 2 && enrollment[1]!.enrolled > enrollment[0]!.enrolled
     ? enrollment[1]!.enrolled
     : enrollment[0]!.enrolled;
-  if (baseline === 0) return null;
-  return baseline / projection.population;
+  if (baseline === 0) return { share: null, region, reason: 'no-enrollment' };
+  return { share: baseline / projection.population, region, reason: null };
 }
 
 async function collectProgramIdsForScope(scopeId: string, scope: ScopeLevel): Promise<string[]> {

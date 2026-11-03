@@ -11,7 +11,7 @@ import {
   getInstitution,
 } from '@kku/shared';
 
-const NATIONAL_REGION = 'TH';
+export const NATIONAL_REGION = 'TH';
 
 export function resolveProjectionRegion(
   regionEn: string | null | undefined,
