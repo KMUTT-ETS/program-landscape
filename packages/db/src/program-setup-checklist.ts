@@ -26,6 +26,7 @@ import {
   programTcasStats,
   researchExpertiseReadiness,
 } from './program-deep-dive';
+import { driverNullNote, type DriverNoteContext } from './checklist-driver-notes';
 import { programRecruitment } from './program-recruitment';
 import { curriculumRevisionReadiness } from './program-curriculum-revision';
 import { programOverlapSection } from './program-overlap/read';
@@ -213,6 +214,8 @@ function waitingFor(key: string, programId: string, taxonomyEmpty = false): Chec
 }
 
 const LOW_CONFIDENCE = 0.5;
+
+const NEEDS_KMITL_CONTEXT: ReadonlySet<string> = new Set(['labour_market_alignment', 'demand_match_filled']);
 
 interface Verdict {
   status: ChecklistStatus;
@@ -514,6 +517,25 @@ export async function programSetupChecklist(programId: string): Promise<SetupChe
         })),
   }));
 
+  let kmitlMemo: Promise<DriverNoteContext> | null = null;
+  const kmitlContext = (): Promise<DriverNoteContext> => {
+    kmitlMemo ??= Promise.all([
+      prisma.kmitlCareerSkillDemand.count(),
+      prisma.kmitlCareerSkillDemand.count({ where: { skillId: { not: null } } }),
+    ])
+      .then(([kmitlRows, kmitlLinked]) => ({ kmitlRows, kmitlLinked }))
+      .catch(() => ({ kmitlRows: 1, kmitlLinked: 1 }));
+    return kmitlMemo;
+  };
+  const jobThaiLoaded = (): Promise<boolean> =>
+    prisma.ingestionRun
+      .findFirst({
+        where: { status: 'SUCCEEDED', dataSource: { slug: 'jobthai' } },
+        select: { id: true },
+      })
+      .then((r) => r !== null)
+      .catch(() => true);
+
   const dimensions = scores[0]?.dimensions;
   for (const dimension of Object.keys(DIMENSION_DRIVERS) as HealthDimension[]) {
     const drivers = dimensions?.[dimension].drivers ?? [];
@@ -526,7 +548,14 @@ export async function programSetupChecklist(programId: string): Promise<SetupChe
       else if (driver.value !== null) verdict = ok();
       else if (driver.raw === DRIVER_NOT_COMPUTED || (driver.raw as { notComputedAtThisScope?: boolean } | null)?.notComputedAtThisScope) {
         verdict = empty('Not computed for this programme.');
-      } else verdict = empty(rawReason(driver.raw));
+      } else if (label === 'jobthai_demand_alignment' && !(await jobThaiLoaded())) {
+        // A commercial feed most installations never connect: not a gap.
+        verdict = na('JobThai postings are not loaded on this installation (commercial feed).');
+      } else {
+        const ctx = NEEDS_KMITL_CONTEXT.has(label) ? await kmitlContext() : { kmitlRows: 0, kmitlLinked: 0 };
+        // A short plain sentence beats the scorer's bare token ('no-links').
+        verdict = empty(driverNullNote(label, driver.raw, ctx) ?? rawReason(driver.raw));
+      }
       const key = `driver.${label}`;
       items.push({
         key,

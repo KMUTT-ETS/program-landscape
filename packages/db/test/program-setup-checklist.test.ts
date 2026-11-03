@@ -179,6 +179,23 @@ describeScratchDb('programSetupChecklist', () => {
     }
   });
 
+  it('JobThai is not-applicable until a JobThai run has succeeded, then reads as a gap', async () => {
+    const before = byKey((await programSetupChecklist(ids.bach!))!.items, 'driver.jobthai_demand_alignment');
+    expect(before.status).toBe('not-applicable');
+    expect(before.note).toBe('JobThai postings are not loaded on this installation (commercial feed).');
+    await makeRun('jobthai', false);
+    const after = byKey((await programSetupChecklist(ids.bach!))!.items, 'driver.jobthai_demand_alignment');
+    expect(after.status).toBe('empty');
+    expect(after.note).toMatch(/JobThai/);
+  });
+
+  it('an empty driver carries a human reason instead of a blank note', async () => {
+    const c = (await programSetupChecklist(ids.bach!))!;
+    const yieldItem = byKey(c.items, 'driver.tcas_registration_yield');
+    expect(yieldItem.status).toBe('empty');
+    expect(yieldItem.note).toBeTruthy();
+  });
+
   it('an empty skill taxonomy makes the skill-dependent items wait on the pipeline, and a filled one does not', async () => {
     const keys = ['section.skills', 'section.ai-readiness', 'driver.labour_market_alignment', 'driver.demand_match_filled'];
     const spy = vi.spyOn(prisma.skill, 'count');
