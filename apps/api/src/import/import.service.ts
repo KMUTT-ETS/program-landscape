@@ -15,6 +15,7 @@ import {
   readDeclaredScopes,
   readDeclaredTerm,
   recordImportBatch,
+  refreshMetricViews,
   startImportRun,
   startOverDataset,
   validateSheet,
@@ -119,6 +120,14 @@ export const IMPORT_MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
  * failed batch. Raise this only together with batched loaders.
  */
 export const IMPORT_MAX_ROWS = 5_000;
+
+/** Datasets whose rows feed the scope roll-up views. */
+const METRIC_VIEW_DATASETS: ReadonlySet<string> = new Set([
+  'programmes',
+  'enrollment-metrics',
+  'financial-metrics',
+  'graduate-outcomes',
+]);
 
 const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -253,6 +262,7 @@ export class ImportService implements OnModuleInit {
       // dedupe — only once the rows are committed.
       await markImportBatchSucceeded(created.id);
       await finishImportRun(runId, { loaded: rows.length, failed: 0, status: 'SUCCEEDED' });
+      await this.refreshViewsQuietly(dataset.slug);
       return { batchId: created.id, result };
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
@@ -262,6 +272,24 @@ export class ImportService implements OnModuleInit {
       await markImportBatchFailed(created.id, message).catch(() => undefined);
       await this.finishQuietly(runId, rows.length, message);
       throw e;
+    }
+  }
+
+  /**
+   * The scope roll-ups (program, department, faculty, university) are
+   * materialised views over these tables, and nothing else refreshes them
+   * for an adopter: without this a first upload succeeds and every program
+   * score that reads a roll-up (net contribution per student, enrolment
+   * trend) stays empty until someone runs `pnpm outcomes:refresh-derived`.
+   * Best-effort: the rows are already committed, so a failed refresh must
+   * not turn a good upload into an error.
+   */
+  private async refreshViewsQuietly(slug: string): Promise<void> {
+    if (!METRIC_VIEW_DATASETS.has(slug)) return;
+    try {
+      await refreshMetricViews({ trigger: 'on-import' });
+    } catch (e) {
+      this.logger.warn(`import ${slug}: metric view refresh failed (run pnpm outcomes:refresh-derived): ${String(e)}`);
     }
   }
 
