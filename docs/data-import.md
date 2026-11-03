@@ -567,10 +567,13 @@ file. The message names the row and column, and never repeats the value.
 **Small groups are refused** where a dataset carries headcounts, so no
 individual's figures can be worked out from an average.
 
-**A much smaller file is questioned.** If your upload has fewer than half the
-rows currently stored, it is refused as a probable partial export — with a
-button to upload it anyway if you know it is right. If you split a large file
-and see this on the last small part, confirm the upload in the panel.
+**A much smaller file is questioned, where it could remove rows.** Datasets
+that replace a term or a programme's list (class offerings, programme course
+lists) refuse a file with fewer than half the rows currently stored for that
+term or programme, as a probable partial export — with a button to upload it
+anyway if you know it is right. Every other dataset only adds or updates rows,
+so a short file can never lose anything and is accepted; you can split a large
+file into parts without confirming the last small one.
 
 ## Things worth knowing about spreadsheets
 

@@ -177,12 +177,10 @@ describe('ImportService.uploadFile — success path', () => {
     expect(h.deps.runLoad).toHaveBeenCalled();
   });
 
-  it('refuses a shrinking file, and accepts it when shrinking is allowed', async () => {
-    const shrinking = harness({ heldCount: () => Promise.resolve(100) });
-    await expect(upload(shrinking, workbook(VALID_ROWS))).rejects.toThrow(/100/);
-
-    const allowed = harness({ heldCount: () => Promise.resolve(100) });
-    await expect(upload(allowed, workbook(VALID_ROWS), 'faculties.xlsx', true)).resolves.toBeDefined();
+  it('does not refuse a short file for an upsert dataset', async () => {
+    // Upserts cannot lose rows; the guard is for term- and programme-scoped writes.
+    const h = harness({ heldCount: () => Promise.resolve(100) });
+    await expect(upload(h, workbook(VALID_ROWS))).resolves.toBeDefined();
   });
 
   it('propagates a load failure', async () => {

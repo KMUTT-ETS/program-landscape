@@ -627,7 +627,13 @@ export function validateSheet(
         ? ctx.heldRowCountForTerm
         : ctx.heldRowCount;
 
-  if (!ctx.allowShrink && shrinkBaseline > 0 && accepted.length * 2 < shrinkBaseline) {
+  // Only a strategy that DELETES can lose rows to a short file. An upsert
+  // only ever adds or updates, so refusing the small tail of a file split
+  // into parts would block a legitimate upload and protect nothing.
+  const deletes =
+    dataset.strategy.kind === 'term-scoped' || dataset.strategy.kind === 'programme-scoped';
+
+  if (deletes && !ctx.allowShrink && shrinkBaseline > 0 && accepted.length * 2 < shrinkBaseline) {
     errors.push({
       sheet,
       row: 0,

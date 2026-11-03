@@ -404,13 +404,9 @@ describe('validateSheet — whole-file guards', () => {
     expect(errors[0].message).toMatch(/10/);
   });
 
-  it('refuses a file under half of what is held', () => {
+  it('does not apply the shrink guard to an upsert dataset (it cannot lose rows)', () => {
+    // The last small part of a file split in several must be accepted.
     const result = validateSheet(d, sheet(ALL_HEADERS, [row()]), ctx({ heldRowCount: 100 }));
-    expect(errorsOf(result)[0].message).toMatch(/100/);
-  });
-
-  it('accepts the same file when shrinking is allowed', () => {
-    const result = validateSheet(d, sheet(ALL_HEADERS, [row()]), ctx({ heldRowCount: 100, allowShrink: true }));
     expect(result.ok).toBe(true);
   });
 
@@ -809,13 +805,13 @@ describe('the shrink guard on a term-scoped dataset', () => {
     expect(result.ok).toBe(false);
   });
 
-  it('is unchanged for a dataset that is not term-scoped', () => {
+  it('does not fire for an upsert dataset, which cannot lose rows', () => {
     const result = validateSheet(
       makeDataset(),
       sheet(ALL_HEADERS, [row({ Code: 'A1' })]),
       ctx({ allowShrink: false, heldRowCount: 40 }),
     );
-    expect(result.ok).toBe(false);
+    expect(result.ok).toBe(true);
   });
 });
 
