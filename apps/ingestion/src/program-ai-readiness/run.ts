@@ -1,6 +1,7 @@
 import { prisma, activeRevisionIdFor } from '@kku/db';
 import {
   buildProgramAiReadinessMessages,
+  extractStructuredWithParseRetry,
   ProgramAiReadinessAssessmentSchema,
   PROGRAM_AI_READINESS_VERSION,
   type AiService,
@@ -165,7 +166,8 @@ export async function runProgramAiReadiness(
     deterministicScores: det,
   });
 
-  const response = await params.ai.extractStructured(
+  const response = await extractStructuredWithParseRetry(
+    params.ai,
     {
       ctx: {
         module: 'programs',
@@ -179,6 +181,7 @@ export async function runProgramAiReadiness(
       maxOutputTokens: 50000,
     },
     ProgramAiReadinessAssessmentSchema,
+    'program-ai-readiness',
   );
 
   // Provenance: which curriculum revision produced this row. NULL is the
