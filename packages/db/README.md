@@ -11,7 +11,8 @@ needs a new metric, the table lands here first.
 ```bash
 pnpm db:up         # start postgres (docker)
 pnpm db:migrate    # apply pending migrations
-pnpm db:seed       # populate dev data
+pnpm data-sources:sync --apply  # create data_sources rows
+pnpm db:seed:kku   # populate KKU dev data (db:seed = generic reference seed)
 pnpm db:reset      # drop + migrate + seed (dev only)
 ```
 
@@ -253,5 +254,5 @@ The seed produces (deterministically, via `mulberry32(20260422)`):
 - 7 users (one per role: VIEWER / COUNCIL / EXECUTIVE / DEAN / DEPT_HEAD /
   ANALYST / ADMIN)
 
-Re-run with `pnpm db:seed`. Upserts are keyed on natural columns, so the
+Re-run with `pnpm db:seed:kku`. Upserts are keyed on natural columns, so the
 seed is idempotent.

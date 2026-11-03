@@ -39,4 +39,9 @@ describe('.env.example', () => {
       }
     });
   });
+
+  it('has no active REPLACE_ME placeholder assignments', () => {
+    const active = lines.filter((l) => /^[A-Za-z0-9_]+=REPLACE_ME\s*$/.test(l));
+    expect(active).toEqual([]);
+  });
 });

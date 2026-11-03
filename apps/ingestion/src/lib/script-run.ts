@@ -40,7 +40,7 @@ export interface ScriptRunHandle {
  *
  * @param sourceSlug The `DataSource.slug` to attribute the run to. Must
  *   resolve to an existing row — throws if not found (operator should
- *   either pick a different slug or run `pnpm db:seed` to populate the
+ *   either pick a different slug or run `pnpm data-sources:sync --apply` to populate the
  *   catalog).
  * @param fn The work to perform. Use `handle.runId` on every metric-table
  *   write inside.
@@ -56,7 +56,7 @@ export async function withScriptRun<T>(
   if (!source) {
     throw new Error(
       `withScriptRun: no DataSource with slug='${sourceSlug}'. ` +
-        `Add it to packages/shared/src/ingestion/catalog.ts + run pnpm db:seed.`,
+        `Add it to packages/shared/src/ingestion/catalog.ts + run pnpm data-sources:sync --apply.`,
     );
   }
   if (source.mocked) {

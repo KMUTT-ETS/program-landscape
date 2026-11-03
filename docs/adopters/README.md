@@ -195,9 +195,9 @@ pnpm setup
 pnpm dev
 ```
 
-`pnpm setup` expands to `pnpm install && node scripts/link-env.mjs && pnpm db:generate && pnpm db:up && pnpm minio:init && pnpm db:migrate && pnpm data-sources:sync --apply`. If any step fails, run them individually to isolate it.
+`pnpm setup` expands to `pnpm install && node scripts/link-env.mjs && pnpm db:generate && pnpm db:up && pnpm minio:init && pnpm db:migrate && pnpm data-sources:sync --apply && pnpm db:seed:reference`. If any step fails, run them individually to isolate it.
 
-**`pnpm setup` does not seed.** `pnpm db:seed` loads KKU's faculties, departments and demo accounts, which an adopting installation does not want. The last step only registers one `data_sources` row per catalogued source and import dataset. Without those rows every upload is refused, because rows with no recorded source would be hidden by [`realDataWhere()`](#trap-2-realdatawhere--empty-sections-with-rows-in-the-database). The step is idempotent and never deletes anything. Production deploys run the same step (`deploy.sh`).
+**`pnpm setup` runs only the generic reference seed.** `pnpm db:seed:reference` (also what `pnpm db:seed` runs) loads Thai policy sectors, a neutral cost-method placeholder and the external report list. It loads no KKU data. `pnpm db:seed:kku` is KKU's own development seed (faculties, departments, demo accounts, synthetic skills): never run it for an adopting installation. Before the seed, `pnpm data-sources:sync --apply` registers one `data_sources` row per catalogued source and import dataset, with schedules off. Without those rows every upload is refused, because rows with no recorded source would be hidden by [`realDataWhere()`](#trap-2-realdatawhere--empty-sections-with-rows-in-the-database). Both steps are idempotent and never delete anything. Production deploys run the sync step (`deploy.sh`).
 
 Once running:
 
@@ -215,7 +215,7 @@ Open `http://localhost:3000`. A database with no administrator redirects to **`/
 
 `/setup` is unauthenticated: whoever submits it first owns the installation. It closes permanently on first use. Claim it as soon as the stack is up, and especially on any server others can reach. The password form is hidden once SSO is configured; `/signin?password=1` brings it back.
 
-`ENABLE_LOCAL_AUTH=true` with `DEV_AUTH_PASSWORD` is a separate, development-only mechanism. It opens any account with no stored password, which only matters if you ran `pnpm db:seed` and want to sign in as KKU's seeded demo users. It is guarded: `assertLocalAuthSafe()` throws at module load if `ENABLE_LOCAL_AUTH=true` while `NODE_ENV=production`, so you cannot ship it by accident.
+`ENABLE_LOCAL_AUTH=true` with `DEV_AUTH_PASSWORD` is a separate, development-only mechanism. It opens any account with no stored password, which only matters if you ran `pnpm db:seed:kku` and want to sign in as KKU's seeded demo users. It is guarded: `assertLocalAuthSafe()` throws at module load if `ENABLE_LOCAL_AUTH=true` while `NODE_ENV=production`, so you cannot ship it by accident.
 
 Wiring your own university SSO is a separate task; `docs/auth/kku-sso.md` documents KKU's OIDC configuration as a worked example of the shape you need.
 
@@ -435,7 +435,7 @@ Nothing to write; things to supply.
 | Course lists the PDF pipeline cannot read | Spreadsheet upload (*Programme course lists*). Takes precedence over PDF extraction for the programmes it names |
 | Your logos and colours | See [chapter 11](#11-branding-and-ui-adaptation) |
 | TH Sarabun New font files | `infra/gotenberg/fonts/` — deliberately not in git |
-| Your skill taxonomy | Built from your own data with `pnpm skills:normalise`. A fresh installation has none. See [Building your skill taxonomy](#building-your-skill-taxonomy). Do not use `pnpm db:seed` for it: that loads KKU's data and 500 synthetic placeholder skills |
+| Your skill taxonomy | Built from your own data with `pnpm skills:normalise`. A fresh installation has none. See [Building your skill taxonomy](#building-your-skill-taxonomy). Do not use `pnpm db:seed:kku` for it: that loads KKU's data and 500 synthetic placeholder skills |
 
 ---
 
@@ -618,7 +618,7 @@ Materialisation (`packages/db/src/program-digest-materialize.ts`) uses **skip-if
 
 **A fresh installation has no skills at all**: the `skills` table holds 0 rows. Until you build a taxonomy, every skill figure in the product reads 0, including all four cards of the Deep-Dive *Skills coverage* section, however many times you run the pipeline. That is because skill matching is exact. A skill the digest extracts reaches a programme (a `ProgramSkill` row) only when its name equals a taxonomy entry: `Skill.nameEn` compared lowercased, then `Skill.nameTh`. With an empty taxonomy nothing can match.
 
-`pnpm setup` does not load a taxonomy, and `pnpm db:seed` is not the answer. It loads KKU's faculties, departments and accounts along with about 60 real skills and 500 synthetic placeholders. The KMITL connector does not create skills either. It loads skill-demand rows, all with an empty `skill_id`, until a taxonomy exists to link them to.
+`pnpm setup` does not load a taxonomy, and `pnpm db:seed:kku` is not the answer. It loads KKU's faculties, departments and accounts along with about 60 real skills and 500 synthetic placeholders. The KMITL connector does not create skills either. It loads skill-demand rows, all with an empty `skill_id`, until a taxonomy exists to link them to.
 
 What builds the taxonomy is `pnpm skills:normalise` (`apps/ingestion/src/scripts/normalise-skill-names.ts`). It sends raw skill names to the AI in batches of 25. The model either matches each name to an existing skill or proposes it as new. A proposal becomes a real `Skill` row only when you pass `--auto-promote` **and** its confidence is at least 0.9. Lower-confidence proposals stay in `skill_aliases` with status `NEW_PROPOSED`, waiting for review. Every decision is also written to `logs/normalise-skills-<timestamp>.jsonl`.
 

@@ -5,7 +5,7 @@ import { prisma } from './index';
 // First-run bootstrap: how an installation that has never been seeded gets
 // its first administrator.
 //
-// A fresh install is genuinely stuck without this. `pnpm db:seed` is a KKU
+// A fresh install is genuinely stuck without this. `pnpm db:seed:kku` is a KKU
 // convenience and adopters do not run it; SSO provisioning deliberately
 // creates every user as PROGRAM_USER (v1.0.7 — defaulting to
 // UNIVERSITY_USER was a mass scope bypass); and promoting anyone to admin

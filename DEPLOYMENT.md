@@ -174,6 +174,12 @@ ORG_SEED_KKU=1 ./scripts/deploy.sh                 # KKU's own server; other ins
 > them. After upgrading, switch on any new connector you want in
 > `/admin/data-sources`. Mock connectors never run in production unless
 > `ALLOW_MOCK_CONNECTOR_RUNS=true`.
+>
+> From this release, sources whose connector resolves to a mock are no longer
+> scheduled, and manual runs of them are recorded `SKIPPED`
+> (`MOCK_NOT_ALLOWED`). KKU operators should review `/admin/data-sources` and
+> confirm `.env.prod` sets `CONNECTOR_<SLUG>_MODE=real` for every source they
+> still want running.
 
 ### Alternative: stream the images, skip the archive entirely
 

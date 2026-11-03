@@ -115,7 +115,7 @@ async function audit(): Promise<Finding[]> {
       findings.push({
         slug: entry.slug,
         issue: 'missing-row',
-        detail: 'in SOURCE_CATALOG but absent from data_sources — run pnpm db:seed',
+        detail: 'in SOURCE_CATALOG but absent from data_sources — run pnpm data-sources:sync --apply',
         fixable: false,
       });
       continue;

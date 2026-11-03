@@ -188,7 +188,7 @@ pnpm setup       # install deps, set up local infra
 pnpm dev         # run web + api + ingestion in parallel
 pnpm db:up       # start postgres + redis + minio + gotenberg
 pnpm db:reset    # drop + migrate + seed (dev only)
-pnpm db:seed     # seed without dropping
+pnpm db:seed     # generic reference seed without dropping (KKU dev data: pnpm db:seed:kku)
 pnpm db:migrate  # apply pending migrations
 pnpm test        # unit + integration
 pnpm e2e         # playwright
@@ -306,7 +306,7 @@ The docs site (VitePress) has no content of its own. It renders `docs/**/*.md` p
 - **`MIN_PASSWORD_LENGTH` is 12, against `hashPassword`'s floor of 4.** Four characters suits a throwaway dev login and not an unauthenticated form that mints a permanent `SUPER_ADMIN`. There is no reset flow and no second admin to ask, so the confirmation field is load-bearing: a typo locks the installation behind a string nobody knows.
 - **No migration.** `SystemSetting` is an existing key/value table and `User.passwordHash` already exists. The wizard does NOT create the `OrganizationProfile` — `brandingForRequest()` returns null gracefully and the chrome falls back to product defaults, so branding stays at `/admin/organization` and the public surface stays one job wide.
 - **Verified live on dev** (which is itself in the locked-out state — 0 users): `/` → 307 `/signin` → 307 `/setup` → 200; after claiming, `/setup` → 307 `/signin`; a real credentials POST returned 302 with a session cookie, and a wrong password returned `CredentialsSignin` with none. Probe data removed afterwards.
-- **Trap found while verifying: `pnpm data-sources:sync` was 41 sources behind on this dev box**, including `xlsx-departments`, which fails 18 of the 24 `import-e2e` tests with "Run `pnpm db:seed` to create it". Nothing in the repo deletes a `DataSource`; the dev database had simply drifted. `pnpm data-sources:sync --apply` fixes it and never deletes. **An api e2e failure naming a missing `xlsx-*` source is this, not a code regression.**
+- **Trap found while verifying: `pnpm data-sources:sync` was 41 sources behind on this dev box**, including `xlsx-departments`, which fails 18 of the 24 `import-e2e` tests with "Run `pnpm data-sources:sync --apply` to create it". Nothing in the repo deletes a `DataSource`; the dev database had simply drifted. `pnpm data-sources:sync --apply` fixes it and never deletes. **An api e2e failure naming a missing `xlsx-*` source is this, not a code regression.**
 - **Also: a deleted user's sign-in audit row makes `packages/db/test/usage-queries.test.ts` fail.** `auditLog.userId` is `ON DELETE SET NULL`, and `usageSummary` does not count the orphaned row while the raw `audit_logs` count does. Pre-existing fragility, surfaced by leaving one probe row behind; not fixed.
 
 *Institute data import from spreadsheets — phase 1 (2026-10-18; branch `feat/institute-xlsx-import`, off `develop`, NOT merged, NOT released):*

@@ -15,7 +15,7 @@
     "dev": "concurrently -n web,api,ingest -c blue,green,magenta \"pnpm --filter web dev\" \"pnpm --filter api start:dev\" \"pnpm --filter ingestion start:dev\"",
     "db:up": "docker compose up -d postgres redis minio gotenberg",
     "db:down": "docker compose down",
-    "db:reset": "docker compose down -v && pnpm db:up && pnpm minio:init && pnpm db:generate && pnpm db:migrate && pnpm db:seed",
+    "db:reset": "docker compose down -v && pnpm db:up && pnpm minio:init && pnpm db:generate && pnpm db:migrate && pnpm data-sources:sync --apply && pnpm db:seed",
     "db:generate": "pnpm --filter @kku/db generate",
     "db:migrate": "pnpm --filter @kku/db prisma migrate deploy",
     "db:migrate:safe": "node scripts/pre-deploy-snapshot.mjs && pnpm --filter @kku/db prisma migrate deploy",

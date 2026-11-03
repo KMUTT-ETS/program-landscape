@@ -310,7 +310,7 @@ dated line to its session log.
 Then check the catalogue flags. The `data_sources` row has independent `status`
 and `mocked` columns, and `prisma/seed.ts` rewrites both from the catalogue
 (`packages/shared/src/ingestion/catalog.ts`) on every seed, so the catalogue entry
-must say `mocked: false` or the next `pnpm db:seed` quietly re-mocks the
+must say `mocked: false` or the next `pnpm data-sources:sync --apply` quietly re-mocks the
 connector. In this repository the `kku-registry` entry already does. Confirm with:
 
 ```bash

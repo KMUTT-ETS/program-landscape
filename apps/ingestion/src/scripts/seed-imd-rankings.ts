@@ -71,7 +71,7 @@ function parseArgs(argv: string[]): { file: string; dryRun: boolean } {
 async function upsertDataSourceRow(dryRun: boolean): Promise<void> {
   // Make sure the DataSource row for `imd-rankings` exists so the
   // /admin/data-sources (Connector / feeds) page lists it. The
-  // catalog drives `pnpm db:seed`, but we want this CLI to be
+  // catalog drives `pnpm data-sources:sync`, but we want this CLI to be
   // self-sufficient — re-runnable in a live environment without
   // touching the destructive full-DB seed.
   const entry = SOURCE_CATALOG.find((e) => e.slug === 'imd-rankings');
