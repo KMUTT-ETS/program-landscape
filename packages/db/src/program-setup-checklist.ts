@@ -63,7 +63,9 @@ export interface SetupChecklist {
   programCode: string;
   level: 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA';
   generatedAt: string;
-  summary: { ok: number; empty: number; notApplicable: number; degraded: number };
+  /** `ready` = ok + degraded + notApplicable: a degraded AI output still counts
+   *  as passing for the "N of M ready" figure (D8), and not-applicable is not a gap. */
+  summary: { ok: number; empty: number; notApplicable: number; degraded: number; ready: number };
   items: ChecklistItem[];
 }
 
@@ -193,7 +195,11 @@ const LOW_CONFIDENCE = 0.5;
 interface Verdict {
   status: ChecklistStatus;
   note: string | null;
+  /** True when the item could not be checked: the page must not send anyone to upload data. */
+  noWaiting?: boolean;
 }
+const CHECK_FAILED = 'Could not be checked — see server log.';
+const failed = (): Verdict => ({ status: 'empty', note: CHECK_FAILED, noWaiting: true });
 const ok = (note: string | null = null): Verdict => ({ status: 'ok', note });
 const empty = (note: string | null = null): Verdict => ({ status: 'empty', note });
 const na = (note: string): Verdict => ({ status: 'not-applicable', note });
@@ -410,7 +416,7 @@ export async function programSetupChecklist(programId: string): Promise<SetupChe
       check: async () => {
         const [n, fallback] = await Promise.all([
           prisma.programCourse.count({ where: { programId } }),
-          prisma.programCourse.count({ where: { programId, methodVersion: { contains: 'regex', mode: 'insensitive' } } }),
+          prisma.programCourse.count({ where: { programId, methodVersion: { endsWith: '-fallback' } } }),
         ]);
         if (n === 0) return empty();
         return fallback > 0
@@ -454,8 +460,14 @@ export async function programSetupChecklist(programId: string): Promise<SetupChe
   ];
 
   const [sectionVerdicts, scores] = await Promise.all([
-    Promise.all(sections.map((s) => s.check().catch((): Verdict => empty('Could not be checked.')))),
-    computeHealthScores('program', programId).catch(() => []),
+    Promise.all(sections.map((s) => s.check().catch((err: unknown): Verdict => {
+        console.warn(`[setup-checklist] ${s.key} failed: ${err instanceof Error ? err.name : 'error'}`);
+        return failed();
+      }))),
+    computeHealthScores('program', programId).catch((err: unknown) => {
+      console.warn(`[setup-checklist] health score failed: ${err instanceof Error ? err.name : 'error'}`);
+      return [];
+    }),
   ]);
 
   const items: ChecklistItem[] = sections.map((s, i) => ({
@@ -464,7 +476,7 @@ export async function programSetupChecklist(programId: string): Promise<SetupChe
     title: s.title,
     status: sectionVerdicts[i]!.status,
     note: sectionVerdicts[i]!.note,
-    waitingOn: waitingFor(s.key, programId),
+    waitingOn: sectionVerdicts[i]!.noWaiting ? [] : waitingFor(s.key, programId),
   }));
 
   const dimensions = scores[0]?.dimensions;
@@ -473,7 +485,8 @@ export async function programSetupChecklist(programId: string): Promise<SetupChe
     for (const label of DIMENSION_DRIVERS[dimension]) {
       const driver = drivers.find((d) => d.label === label);
       let verdict: Verdict;
-      if (!dimensions) verdict = empty('The health score could not be computed.');
+      if (!dimensions) verdict = failed();
+      else if (!bachelor && label.startsWith('tcas_')) verdict = na('TCAS covers bachelor programmes only.');
       else if (!driver) verdict = na('This driver does not apply to this programme.');
       else if (driver.value !== null) verdict = ok();
       else if (driver.raw === DRIVER_NOT_COMPUTED || (driver.raw as { notComputedAtThisScope?: boolean } | null)?.notComputedAtThisScope) {
@@ -486,7 +499,7 @@ export async function programSetupChecklist(programId: string): Promise<SetupChe
         title: humanise(label),
         status: verdict.status,
         note: verdict.note,
-        waitingOn: waitingFor(key, programId),
+        waitingOn: verdict.noWaiting || verdict.status === 'not-applicable' ? [] : waitingFor(key, programId),
       });
     }
   }
@@ -502,6 +515,7 @@ export async function programSetupChecklist(programId: string): Promise<SetupChe
       empty: tally('empty'),
       notApplicable: tally('not-applicable'),
       degraded: tally('degraded'),
+      ready: items.length - tally('empty'),
     },
     items,
   };

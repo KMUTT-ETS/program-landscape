@@ -1,8 +1,10 @@
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { prisma } from '../src';
 import { CHECKLIST_SOURCES, programSetupChecklist } from '../src/program-setup-checklist';
 import { DIMENSION_DRIVERS } from '../src/health-score';
+import { IMPORT_DATASETS } from '../src/import/registry';
+import { SOURCE_CATALOG } from '@kku/shared';
 import { SCRATCH_DB, describeScratchDb } from './helpers/scratch-db';
 
 const FACULTY_CODE = 'SC-FAC';
@@ -90,6 +92,12 @@ describeScratchDb('programSetupChecklist', () => {
     expect(byKey(c.items, 'section.tcas').status).toBe('not-applicable');
     expect(byKey(c.items, 'section.digital-competency').status).toBe('not-applicable');
     expect(byKey(c.items, 'section.tcas').status).not.toBe('empty');
+    for (const label of ['tcas_competition_ratio', 'tcas_fill_rate', 'tcas_registration_yield', 'tcas_competition_vs_peers', 'tcas_min_score_percentile']) {
+      const item = byKey(c.items, `driver.${label}`);
+      expect(item.status).toBe('not-applicable');
+      expect(item.note).toBe('TCAS covers bachelor programmes only.');
+      expect(item.waitingOn).toEqual([]);
+    }
   });
 
   it('imported rows (xlsx run) turn cohorts and financials ok', async () => {
@@ -124,5 +132,32 @@ describeScratchDb('programSetupChecklist', () => {
     const c = (await programSetupChecklist(ids.grad!))!;
     expect(byKey(c.items, 'section.cohorts').status).toBe('empty');
     expect(byKey(c.items, 'section.financials').status).toBe('empty');
+  });
+
+  it('a -fallback course row marks the course list degraded; summary.ready counts it', async () => {
+    await prisma.programCourse.create({
+      data: {
+        programId: ids.bach!, courseCode: 'SCX101', courseCodeRaw: 'SCX 101', courseNameTh: 'ทดสอบ', courseNameEn: 'Test',
+        credits: 3, methodVersion: 'program-courses-extract.v4-fallback',
+      },
+    });
+    const c = (await programSetupChecklist(ids.bach!))!;
+    expect(byKey(c.items, 'section.course-list').status).toBe('degraded');
+    expect(byKey(c.items, 'section.course-list').note).toMatch(/regex fallback/);
+    expect(c.summary.ready).toBe(c.summary.ok + c.summary.degraded + c.summary.notApplicable);
+    await prisma.programCourse.deleteMany({ where: { programId: ids.bach! } });
+  });
+});
+
+describe('CHECKLIST_SOURCES slugs', () => {
+  it('every dataset and connector slug exists', () => {
+    const datasets = new Set(IMPORT_DATASETS.map((d) => d.slug));
+    const connectors = new Set(SOURCE_CATALOG.map((e) => e.slug));
+    for (const list of Object.values(CHECKLIST_SOURCES)) {
+      for (const w of list) {
+        if (w.kind === 'dataset') expect(datasets.has(w.slug), w.slug).toBe(true);
+        if (w.kind === 'connector') expect(connectors.has(w.slug), w.slug).toBe(true);
+      }
+    }
   });
 });
