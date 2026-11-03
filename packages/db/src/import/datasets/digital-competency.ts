@@ -10,6 +10,7 @@ import type {
   ImportRow,
 } from '../types';
 import { buddhistYearColumn, toBuddhistEra } from './cohorts';
+import { assertProgrammeCodesExist, ownRunIds } from './own-runs';
 
 // Tier 2. Digital competency: the two aggregate tables behind the Student DQ
 // dashboard and the Deep-Dive's Digital competency section.
@@ -64,24 +65,8 @@ async function resolveProgrammes(
       { id: p.id, nameTh: p.nameTh, facultyId: p.facultyId, facultyName: p.faculty.nameTh },
     ]),
   );
-  for (const code of codes) {
-    if (!byCode.has(code)) {
-      throw new ApiError(
-        'VALIDATION_FAILED',
-        `Programme code "${code}" does not exist. Upload the Programmes sheet first.`,
-      );
-    }
-  }
+  assertProgrammeCodesExist(codes, new Set(byCode.keys()));
   return byCode;
-}
-
-/** Runs written by one dataset's own uploads, current run included. */
-async function ownRunIds(tx: ImportLoadContext['tx'], slug: string): Promise<string[]> {
-  const runs = await tx.ingestionRun.findMany({
-    where: { dataSource: { slug } },
-    select: { id: true },
-  });
-  return runs.map((r) => r.id);
 }
 
 export const digitalCompetencyCohortsDataset: ImportDataset = {

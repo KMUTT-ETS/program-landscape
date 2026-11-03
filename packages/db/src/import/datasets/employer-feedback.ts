@@ -1,9 +1,8 @@
 import type { PrismaClient } from '@prisma/client';
 
-import { ApiError } from '@kku/shared';
-
 import type { ImportDataset, ImportLoadContext, ImportLoadResult, ImportRow } from '../types';
 import { yearColumn } from './enrollment';
+import { assertProgrammeCodesExist, ownRunIds } from './own-runs';
 
 // Tier 2. Employer feedback: the "Top employers" list in the Deep-Dive's
 // graduate outcomes section.
@@ -18,12 +17,10 @@ import { yearColumn } from './enrollment';
 const SLUG = 'xlsx-employer-feedback';
 export const ALL_EMPLOYERS = 'All employers';
 
-async function ownRunIds(tx: ImportLoadContext['tx']): Promise<string[]> {
-  const runs = await tx.ingestionRun.findMany({
-    where: { dataSource: { slug: SLUG } },
-    select: { id: true },
-  });
-  return runs.map((r) => r.id);
+function isAllEmployers(value: unknown): boolean {
+  if (typeof value !== 'string') return true;
+  const trimmed = value.trim();
+  return trimmed === '' || trimmed.toLowerCase() === ALL_EMPLOYERS.toLowerCase();
 }
 
 export const employerFeedbackDataset: ImportDataset = {
@@ -55,6 +52,9 @@ export const employerFeedbackDataset: ImportDataset = {
         'The employer’s organisation name. Leave blank for a single figure covering all employers ' +
         `together; it is stored as "${ALL_EMPLOYERS}". Organisations only — never a person’s name.`,
       example: 'Example Manufacturing Co.',
+      // A blank and a typed "All employers" are one key, so the duplicate check
+      // catches a file that states the all-employers figure twice.
+      identity: (value) => (isAllEmployers(value) ? '\u0000blank' : String(value).trim()),
     },
     {
       header: 'Satisfaction (0–1)',
@@ -99,16 +99,9 @@ export const employerFeedbackDataset: ImportDataset = {
       select: { id: true, code: true },
     });
     const idByCode = new Map(found.map((p) => [p.code, p.id]));
-    for (const code of codes) {
-      if (!idByCode.has(code)) {
-        throw new ApiError(
-          'VALIDATION_FAILED',
-          `Programme code "${code}" does not exist. Upload the Programmes sheet first.`,
-        );
-      }
-    }
+    assertProgrammeCodesExist(codes, new Set(idByCode.keys()));
 
-    const runIds = await ownRunIds(ctx.tx);
+    const runIds = await ownRunIds(ctx.tx, SLUG);
     const deleted = await ctx.tx.employerFeedback.deleteMany({
       where: { programId: { in: [...idByCode.values()] }, ingestionRunId: { in: runIds } },
     });
@@ -118,8 +111,7 @@ export const employerFeedbackDataset: ImportDataset = {
       data: rows.map((row) => ({
         programId: idByCode.get(String(row.programmeCode))!,
         year: Number(row.surveyYear),
-        employerName:
-          typeof row.employer === 'string' && row.employer.trim() !== '' ? row.employer.trim() : ALL_EMPLOYERS,
+        employerName: isAllEmployers(row.employer) ? ALL_EMPLOYERS : String(row.employer).trim(),
         satisfactionScore: Number(row.satisfaction),
         skillGapsJson: [],
         sampleSize: Number(row.respondents),

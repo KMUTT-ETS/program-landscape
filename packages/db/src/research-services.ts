@@ -14,6 +14,7 @@ import { summariseStaffGrants, type StaffGrantEntry, type StaffGrantsSummary } f
 import { prisma } from './index';
 import { realDataWhere } from './data-quality';
 import { GRANTS_SOURCES } from './grant-award';
+import { IMPORTED_GRANT_KEY_PREFIX } from './import/datasets/external-grants';
 
 export type GrantType = 'RESEARCH' | 'ACADEMIC_SERVICE' | 'CONSULTING' | 'OTHER';
 
@@ -229,6 +230,46 @@ async function loadRows(f: GrantsFilter): Promise<GrantProjectRow[]> {
     },
     select: PROJECT_SELECT,
   });
+}
+
+/**
+ * Which of GRANTS_SOURCES actually hold project rows. Imported projects carry
+ * the `xlsx:` key prefix; everything else came from the connector. Drives the
+ * source credit on grants surfaces, so an adopter with only imported grants is
+ * never shown crediting a connector it does not run.
+ */
+export async function grantsSourcesWithRows(): Promise<(typeof GRANTS_SOURCES)[number][]> {
+  const [imported, connector] = await Promise.all([
+    prisma.researchServiceProject.count({
+      where: { sourceProposalKey: { startsWith: IMPORTED_GRANT_KEY_PREFIX } },
+    }),
+    prisma.researchServiceProject.count({
+      where: { sourceProposalKey: { not: { startsWith: IMPORTED_GRANT_KEY_PREFIX } } },
+    }),
+  ]);
+  return [
+    ...(connector > 0 ? (['kku-research-services'] as const) : []),
+    ...(imported > 0 ? (['xlsx-external-grants'] as const) : []),
+  ];
+}
+
+const GRANT_SOURCE_CREDITS: Record<(typeof GRANTS_SOURCES)[number], { id: string; name: string }> = {
+  'kku-research-services': {
+    id: 'kku-research-services',
+    name: 'KKU Research & Academic Services (external grants)',
+  },
+  'xlsx-external-grants': {
+    id: 'xlsx-external-grants',
+    name: 'External grants (imported from spreadsheets)',
+  },
+};
+
+/** Source credits for the grants surfaces; the connector's when no rows exist yet. */
+export async function grantsSourceCredits(): Promise<{ id: string; name: string }[]> {
+  const held = await grantsSourcesWithRows();
+  return (held.length > 0 ? held : (['kku-research-services'] as const)).map(
+    (slug) => GRANT_SOURCE_CREDITS[slug],
+  );
 }
 
 /** Completion time of the latest successful sync, or null before the first. */

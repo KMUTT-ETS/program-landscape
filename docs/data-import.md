@@ -14,31 +14,33 @@ This page is for the person doing the uploading.
 | **Faculties** | The faculties, colleges and institutes that own programmes | Everything |
 | **Departments** | Departments within a faculty. Optional | Programmes |
 | **Programmes** | The curricula you offer | Every metric |
-| **Enrolment** | Applications through to graduation, per programme per year | — |
-| **Finance** | Tuition and other revenue, per programme per year | — |
-| **Graduate Outcomes** | Employment survey results per graduating cohort | — |
-| **Employer Feedback** | Employer satisfaction per programme and survey year | Programmes |
-| **Student Cohorts** | How many of each entry cohort are still enrolled | — |
-| **External Grants** | Externally funded projects with whole-project budgets | Faculties |
-| **External Grant Team** | Which staff member is on which grant | External Grants, Staff |
+| **Enrolment** | Applications through to graduation, per programme per year | Programmes |
+| **Finance** | Tuition and other revenue, per programme per year | Programmes |
+| **Graduate Outcomes** | Employment survey results per graduating cohort | Programmes |
+| **Employer Feedback** | Employer satisfaction per programme and survey year; shown in the Deep-Dive's Outcomes section | Programmes |
+| **Student Cohorts** | How many of each entry cohort are still enrolled | Programmes |
 | **Digital Competency — Cohorts** | Students tested, scored and passing, per programme and entry year | Programmes |
 | **Digital Competency — Modules** | Mean score on each of the 13 modules, per programme and entry year | Programmes |
-| **Alumni Cohorts** | What became of each entry cohort | — |
-| **Admission Campaigns** | The recruitment funnel, per campaign | — |
-| **Staff** | Your teaching-staff roster | Publications, Programme Teaching Staff |
-| **Compensation** | Aggregate salary by faculty, department and rank | — |
-| **Staff Salary by Funding** | Monthly salary by faculty, rank and funding source | Faculties |
-| **Budgets** | Budget by division and fund category | — |
-| **Publications** | Research outputs, one row per paper per author | — |
-| **Class Offerings** | Every class section taught in one term | — |
-| **Programme Teaching Staff** | Which staff teach which programmes | — |
+| **Alumni Cohorts** | What became of each entry cohort | Programmes |
+| **Staff** | Your teaching-staff roster | Publications, Programme Teaching Staff, External Grant Team |
+| **Compensation** | Aggregate salary by faculty, department and rank | Faculties |
+| **Staff Salary by Funding** | Monthly salary by faculty, rank and funding source | Faculties, Staff, Programme Teaching Staff (for the Deep-Dive card) |
+| **Budgets** | Budget by division and fund category | Faculties |
+| **Publications** | Research outputs, one row per paper per author | Staff |
+| **Admission Campaigns** | The recruitment funnel, per campaign | Programmes |
+| **Class Offerings** | Every class section taught in one term | Faculties |
+| **Programme Teaching Staff** | Which staff teach which programmes | Programmes, Staff |
+| **External Grants** | Externally funded projects with whole-project budgets | Faculties |
+| **External Grant Team** | Which staff member is on which grant | External Grants, Staff |
 | **Programme course lists** | The course list of each programme | Programmes |
 | **Course Evaluations** | Overall student rating of each course, per term | Programme course lists |
 
 Load them top to bottom. The first three are the backbone everything else
-refers to by code; **Staff** must come before both **Publications** and
-**Programme Teaching Staff**, which name people by their employee code.
-Everything else can be uploaded in any order once the backbone exists.
+refers to by code; **Staff** must come before **Publications**, **Programme
+Teaching Staff** and **External Grant Team**, which name people by their
+employee code. Beyond that, a sheet only needs the sheets named in its row
+above: it refers to their codes, and a file naming a code that does not exist
+yet is refused.
 
 **Faculties columns.** Faculty Code, Name (Thai) and Name (English) are
 required. Kind is optional (default ACADEMIC). **Teaching Mode** is optional
@@ -195,6 +197,10 @@ Columns: **Course Code**, **Academic Year**, **Semester** (1, 2 or 3) and
 - **Faculty Code is optional, but fill it in.** The faculty satisfaction view
   groups by it, so a row without one is missing from that view.
 - Uploading the same course, term and section again updates that row.
+- **Rows are course-level.** Each is stored as one OVERALL row for the section,
+  with no per-question breakdown. Imported rows count in the Student
+  Satisfaction measure but are excluded from AUNQA theme evidence and from the
+  teaching-talent view, which need per-question detail.
 
 ## External grants — projects and team
 
@@ -266,6 +272,13 @@ module names.
   file.
 - Below six scored students a programme shows the count and no score, rather
   than a figure that describes individuals.
+- **A module row below five takers is refused.** Merge small groups (for example
+  across entry years) or leave the row out; the module then shows no score.
+- **The DQ dashboard's coverage panel is blank for imports.** It needs the
+  per-student export that only the DQ connector reads, so it describes nothing
+  you upload.
+- **Workshop modules cannot be imported.** Only the theory modules (1 to 13) are
+  accepted; a workshop module number is refused.
 
 ## Employer feedback
 
@@ -284,6 +297,11 @@ section. One row per programme per survey year per employer. Columns:
 - **Replaces per programme.** A programme that appears in the file has its
   earlier rows from this sheet replaced; programmes the file does not mention
   are untouched.
+- **Where it appears.** Employer feedback is shown in the **Outcomes** section
+  of the programme's Deep-Dive, which lists the top employers even when there
+  is no graduate-outcome survey for the programme yet.
+- A blank Employer and a typed "All employers" are the same row, so a file
+  stating both for one programme and year is refused as a duplicate.
 
 ## Staff salary by funding
 
@@ -301,11 +319,16 @@ Year**, **Headcount**, and **Mean**, **Min** and **Max Monthly Salary (THB)**.
   quotes the salaries.
 - **Fiscal Year is the Common Era year**; it is stored in the Buddhist era
   (2024 becomes 2567), which is how the admin data view will show it.
+- **Rank** is one of LECTURER (lecturer), ASST_PROF (assistant professor),
+  ASSOC_PROF (associate professor) or PROF (professor).
 - **Funding Source is shown as written**, so keep one spelling per source.
+  Extra spaces are ignored when comparing rows.
 - The card needs your staff, their programme assignments and enrolment as well;
   it uses the latest year in this sheet and each staff member's rank.
 - **Merges**: a row for the same year, faculty, rank and source is updated.
-  If the HR connector is also running, it never removes rows from this sheet.
+  If the HR connector is also running, it never removes rows from this sheet;
+  but if it writes the same year, faculty, rank and funding source, its next run's
+  figures replace yours.
 
 ## Years, money and rates
 

@@ -3068,45 +3068,56 @@ function JobThaiDemandCards({ data }: { data: DeepDiveJobThaiSkills | undefined 
 }
 
 function OutcomesSection({ data }: { data: DeepDiveOutcomes | null }) {
-  if (!data || !data.latest) {
+  if (!data || (!data.latest && data.topEmployers.length === 0)) {
     return <EmptyCard title="Outcomes" note="No graduate outcome surveys yet." />;
   }
   const l = data.latest;
   return (
     <Section id="outcomes" title="Outcomes">
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      {l ? (
+        <>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <Card>
+              <div className="text-xs uppercase tracking-wide text-text-tertiary">
+                Employment rate
+              </div>
+              <div className="mt-1 font-tabular text-2xl font-semibold">
+                {(l.employmentRate * 100).toFixed(1)}%
+              </div>
+              <div className="text-xs text-text-tertiary">
+                ~1 year after graduation · {l.sampleSize.toLocaleString('en-US')} graduates surveyed
+              </div>
+            </Card>
+            <Card>
+              <div className="text-xs uppercase tracking-wide text-text-tertiary">
+                Average starting salary
+              </div>
+              <div className="mt-1 font-tabular text-2xl font-semibold">
+                {l.averageSalary.toLocaleString('en-US')} THB
+              </div>
+              <div className="text-xs text-text-tertiary">monthly, self-reported</div>
+            </Card>
+            <Card>
+              <div className="text-xs uppercase tracking-wide text-text-tertiary">
+                Job matches field of study
+              </div>
+              <div className="mt-1 font-tabular text-2xl font-semibold">
+                {(l.jobRelevanceScore * 100).toFixed(0)}%
+              </div>
+              <div className="text-xs text-text-tertiary">graduates working in their discipline</div>
+            </Card>
+          </div>
+        </>
+      ) : (
         <Card>
-          <div className="text-xs uppercase tracking-wide text-text-tertiary">
-            Employment rate
-          </div>
-          <div className="mt-1 font-tabular text-2xl font-semibold">
-            {(l.employmentRate * 100).toFixed(1)}%
-          </div>
-          <div className="text-xs text-text-tertiary">
-            ~1 year after graduation · {l.sampleSize.toLocaleString('en-US')} graduates surveyed
-          </div>
+          <p className="text-sm text-text-tertiary">No graduate outcome surveys yet.</p>
         </Card>
-        <Card>
-          <div className="text-xs uppercase tracking-wide text-text-tertiary">
-            Average starting salary
-          </div>
-          <div className="mt-1 font-tabular text-2xl font-semibold">
-            {l.averageSalary.toLocaleString('en-US')} THB
-          </div>
-          <div className="text-xs text-text-tertiary">monthly, self-reported</div>
-        </Card>
-        <Card>
-          <div className="text-xs uppercase tracking-wide text-text-tertiary">
-            Job matches field of study
-          </div>
-          <div className="mt-1 font-tabular text-2xl font-semibold">
-            {(l.jobRelevanceScore * 100).toFixed(0)}%
-          </div>
-          <div className="text-xs text-text-tertiary">graduates working in their discipline</div>
-        </Card>
-      </div>
+      )}
       <Card className="mt-3">
         <h4 className="mb-2 text-sm font-semibold">Where graduates work — top employers</h4>
+        {data.topEmployers.length === 0 && (
+          <p className="text-sm text-text-tertiary">No employer feedback has been recorded yet.</p>
+        )}
         <ul className="flex flex-col gap-1 text-sm">
           {data.topEmployers.slice(0, 10).map((e, i) => (
             <li key={i} className="flex justify-between">

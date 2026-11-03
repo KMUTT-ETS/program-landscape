@@ -122,6 +122,14 @@ describe('staff-salary-by-funding dataset', () => {
     expect(validate([sheetRow({ 'Max Monthly Salary (THB)': 45_000 })]).errors.length).toBeGreaterThan(0);
   });
 
+  it('treats Funding Source spellings that differ only in spacing as one key', () => {
+    const result = validate([
+      sheetRow({ 'Funding Source': 'Government budget' }),
+      sheetRow({ 'Funding Source': '  Government   budget ' }),
+    ]);
+    expect(result.ok).toBe(false);
+  });
+
   it('refuses a Buddhist-era year', () => {
     expect(validate([sheetRow({ 'Fiscal Year': 2567 })]).errors.length).toBeGreaterThan(0);
   });

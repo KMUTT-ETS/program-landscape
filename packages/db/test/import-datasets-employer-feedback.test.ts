@@ -101,6 +101,12 @@ describe('employer feedback dataset', () => {
     expect(validate([sRow({ 'Survey Year': 2567 })]).ok).toBe(false);
   });
 
+  it('treats a blank Employer and a typed "All employers" as the same key', () => {
+    const result = validate([sRow({ Employer: null }), sRow({ Employer: '  all EMPLOYERS ' })]);
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((e) => /duplicate|already|same/i.test(e.message))).toBe(true);
+  });
+
   it('blank employer becomes All employers', async () => {
     await load([imp(P1, 2024, null, 0.8, 10)], runA);
     const stored = await prisma.employerFeedback.findFirstOrThrow({ where: { programId: ids[P1] } });

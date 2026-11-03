@@ -9,8 +9,7 @@ import type {
   ImportLoadResult,
   ImportRow,
 } from '../types';
-import { toBuddhistEra } from './cohorts';
-import { yearColumn } from './enrollment';
+import { buddhistYearColumn, toBuddhistEra } from './cohorts';
 import { PROVENANCE_SELECT, claimsRow } from './provenance';
 
 // Tier 2. Monthly salary by faculty, rank and funding source: the figures
@@ -35,6 +34,10 @@ export const RANK_LEVEL_LABEL: Record<Rank, string> = {
   ASST_PROF: 'ผศ.',
   LECTURER: 'อ.',
 };
+
+function normaliseFunding(value: unknown): string {
+  return String(value).trim().replace(/\s+/g, ' ');
+}
 
 const MAX_MONTHLY_THB = 500_000;
 
@@ -87,7 +90,9 @@ export const staffSalaryByFundingDataset: ImportDataset = {
       type: 'enum',
       required: true,
       enumValues: RANKS,
-      guide: 'Academic rank these figures cover. Same values as the Compensation sheet.',
+      guide:
+        'Academic rank these figures cover: LECTURER (lecturer), ASST_PROF (assistant professor), ' +
+        'ASSOC_PROF (associate professor) or PROF (professor). Same values as the Compensation sheet.',
       example: 'ASST_PROF',
     },
     {
@@ -97,10 +102,12 @@ export const staffSalaryByFundingDataset: ImportDataset = {
       required: true,
       guide:
         'Who pays the salary, in your own words — for example "Government budget" or ' +
-        '"University revenue". It is shown as written; use one spelling per source.',
+        '"University revenue". It is shown as written; use one spelling per source ' +
+        '(extra spaces are ignored when comparing rows).',
       example: 'Government budget',
+      identity: (value) => normaliseFunding(value),
     },
-    yearColumn('Fiscal Year', 'fiscalYear', 'The budget year these figures are for.'),
+    buddhistYearColumn('Fiscal Year', 'fiscalYear', 'The budget year these figures are for.'),
     {
       header: 'Headcount',
       key: 'headcount',
@@ -154,7 +161,7 @@ export const staffSalaryByFundingDataset: ImportDataset = {
         );
       }
       const level = RANK_LEVEL_LABEL[String(row.rank) as Rank];
-      const salType = String(row.fundingSource).trim();
+      const salType = normaliseFunding(row.fundingSource);
       const fiscalYear = toBuddhistEra(Number(row.fiscalYear));
       const headcount = Number(row.headcount);
       const meanSalary = Number(row.meanSalary);
@@ -195,7 +202,11 @@ export const staffSalaryByFundingDataset: ImportDataset = {
     return { inserted, updated, deleted: 0 };
   },
 
-  count: (prisma: PrismaClient): Promise<number> => prisma.staffCompensationCube.count(),
+  // Own rows only: the table is shared with the kku-hr-processed connector.
+  count: (prisma: PrismaClient): Promise<number> =>
+    prisma.staffCompensationCube.count({
+      where: { ingestionRun: { dataSource: { slug: 'xlsx-staff-salary-by-funding' } } },
+    }),
 
   clear: async (tx, runIds): Promise<number> => {
     const result = await tx.staffCompensationCube.deleteMany({
