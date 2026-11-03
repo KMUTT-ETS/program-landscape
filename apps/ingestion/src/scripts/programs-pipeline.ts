@@ -69,14 +69,15 @@
 //
 //   Phase 7 — Strategic narrative (Pro thinking)
 //      - programs:narrative                 (gemini-3.1-pro-preview)
-//      Runs LAST among the narrative chain — consumes every prior phase.
+//      Runs LAST — after phase 8 — and consumes every prior phase, the risk
+//      assessment included (it would otherwise read the RISK channel as
+//      missing on a first run).
 //
 //   Phase 8 — Risk analysis (deterministic + Pro narrative)
 //      - risks:assess <code>                (math + gemini-3.1-pro-preview)
 //      Subprocess. Consumes Phase 4 (financials, enrolment) + Phase 5
-//      (peer subject + white-spaces) — independent of narrative, so it
-//      could run in parallel with Phase 7, but kept sequential for
-//      simpler operator-visible progress.
+//      (peer subject + white-spaces). Does not read the narrative, so it
+//      runs BEFORE Phase 7, which consumes its risk assessment.
 //
 // Cost optimization landed:
 //   - Per-method model routing — extraction tasks stay on flash; peer
@@ -746,28 +747,6 @@ async function processProgram(
     }
   }
 
-  // ── Phase 7 — Strategic narrative (Pro thinking) ─────────────────
-  // Runs after every other AI phase because it consumes their persisted
-  // signals (health, AI readiness, lifecycle, TCAS, financials, demand,
-  // demographic, peer review). Pre-computes the official Council
-  // brief so the Deep-Dive UI shows it on first load.
-  if (shouldRun('phase7')) {
-    const t = Date.now();
-    const r = await generateProgramStrategicNarrative({ programId: program.id, ai }).catch((e) => ({
-      status: 'FAILED' as const, reason: String(e?.message ?? e),
-    }));
-    phases.push({
-      name: 'phase7 strategic narrative (Pro)',
-      durationMs: Date.now() - t,
-      costUsd: r.status === 'SUCCEEDED' ? r.costUsd : 0,
-      ok: r.status !== 'FAILED',
-      notes:
-        r.status === 'SUCCEEDED'
-          ? `${r.contentLength} chars · conf ${r.confidence.toFixed(2)}`
-          : `${r.status}${'reason' in r ? ': ' + r.reason : ''}`,
-    });
-  }
-
   // ── Phase OV — Programme overlap (program-overlap.v1) ────────────
   // Re-scores every same-level pair that involves THIS programme and writes
   // a scoped ProgramOverlapRun; readers merge it over the latest full run.
@@ -792,7 +771,7 @@ async function processProgram(
   // Subprocess: risks-assess.ts owns its own dotenv, prisma, ai service.
   // Treated the same as the Oracle/MSSQL phase 4 scripts. Consumes
   // financial + enrolment (phase 4) and peer subject (phase 5). Runs
-  // last so any of its inputs are already persisted.
+  // after its inputs are persisted and before phase 7, which reads its output.
   if (shouldRun('phase8')) {
     const t = Date.now();
     const r = await runChildScript('risks-assess.ts', [program.code]);
@@ -802,6 +781,31 @@ async function processProgram(
       costUsd: 0, // cost recorded on AiInference, not extractable from subprocess stdout
       ok: r.ok,
       notes: r.ok ? 'risk assessment + narrative + measures persisted' : 'risks-assess subprocess failed',
+    });
+  }
+
+  // ── Phase 7 — Strategic narrative (Pro thinking) ─────────────────
+  // Runs after every other phase INCLUDING phase 8: it consumes their
+  // persisted signals (health, AI readiness, lifecycle, TCAS, financials,
+  // demand, demographic, peer review, and the risk assessment). Phase 8 does
+  // not read the narrative, so on a first run the narrative would otherwise be
+  // written while the RISK channel was still empty (confidence 0.69 against
+  // 0.85 once phase 7 was re-run). Pre-computes the official Council
+  // brief so the Deep-Dive UI shows it on first load.
+  if (shouldRun('phase7')) {
+    const t = Date.now();
+    const r = await generateProgramStrategicNarrative({ programId: program.id, ai }).catch((e) => ({
+      status: 'FAILED' as const, reason: String(e?.message ?? e),
+    }));
+    phases.push({
+      name: 'phase7 strategic narrative (Pro)',
+      durationMs: Date.now() - t,
+      costUsd: r.status === 'SUCCEEDED' ? r.costUsd : 0,
+      ok: r.status !== 'FAILED',
+      notes:
+        r.status === 'SUCCEEDED'
+          ? `${r.contentLength} chars · conf ${r.confidence.toFixed(2)}`
+          : `${r.status}${'reason' in r ? ': ' + r.reason : ''}`,
     });
   }
 

@@ -38,7 +38,7 @@
  * runs BEFORE `phase5` (AI benchmarking) inside `runProgram()`, because the
  * readiness scorer feeds the peer review. Reordering this array changes what
  * operators see, not what runs — the execution order lives in the sequence of
- * `shouldRun(...)` blocks in the pipeline script.
+ * `shouldRun(...)` blocks in the pipeline script (phase8 executes before phase7).
  */
 export const PROGRAM_PIPELINE_PHASES = [
   'phase1',
@@ -148,7 +148,7 @@ export const PROGRAM_PHASE_META: Record<ProgramPipelinePhase, ProgramPhaseMeta> 
   phase7: {
     label: 'Phase 7 · Strategic narrative',
     shortLabel: 'Strategic narrative',
-    detail: 'Pro thinking — runs LAST, depends on 1-6',
+    detail: 'Pro thinking — runs LAST (after risk analysis), depends on 1-6 and 8',
     approxCostUsd: 0.3,
   },
   phaseOV: {

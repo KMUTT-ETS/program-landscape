@@ -544,7 +544,7 @@ Attach PDFs through the UI or `pdf:bulk-load`. KKU previously had a fuzzy filena
 
 ### The full pipeline
 
-`pnpm programs:pipeline <code|seq|id>` (or `--all [--limit=N]`) composes what used to be nine hand-run scripts, in dependency order. Read the header of `apps/ingestion/src/scripts/programs-pipeline.ts` for the authoritative version; in summary:
+`pnpm programs:pipeline <code|seq|id>` (or `--all [--limit=N]`) composes what used to be nine hand-run scripts, in dependency order (the table lists them in execution order, so phase 7 comes last). Read the header of `apps/ingestion/src/scripts/programs-pipeline.ts` for the authoritative version; in summary:
 
 | Phase | What | Notes |
 |---|---|---|
@@ -557,9 +557,9 @@ Attach PDFs through the UI or `pdf:bulk-load`. KKU previously had a fuzzy filena
 | 5 | Peer selection + peer review | Sequential |
 | RE | Research expertise | **Insert-only**, skip-if-exists; never auto-regenerated |
 | CR | Curriculum revision | After RE (reads its output). **Insert-only**, like RE |
-| 7 | Strategic narrative | Consumes every prior phase |
-| OV | Programme overlap | After 7. When several programmes are processed it is deferred and run once as a batch |
+| OV | Programme overlap | After CR. When several programmes are processed it is deferred and run once as a batch |
 | 8 | Risk analysis | Deterministic maths + narrative |
+| 7 | Strategic narrative | **Executes last** — it consumes every prior phase, the risk assessment included |
 
 `--skip=phase4` is the flag you want when your registrar connectors are not wired yet. `--only=phase5` runs one phase.
 
