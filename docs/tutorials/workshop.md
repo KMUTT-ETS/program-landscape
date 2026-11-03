@@ -51,7 +51,7 @@ good time to talk.
 2. Upload order matters. If a file is refused, read the message together. It
    names the rows.
 3. The pipeline costs about USD 0.80 per programme. It was measured on one bachelor programme with a 126-course curriculum; longer curricula cost more. Tell attendees to run one.
-4. Run `pnpm skills:normalise --source=linkedin --auto-promote` once, after the `kmitl-skill-mapping` run and before the pipeline. Start it early: it takes about an hour.
+4. Run `pnpm skills:normalise --source=linkedin --auto-promote` once, after the `kmitl-skill-mapping` run and before the pipeline. Start it early: it takes about two hours.
 5. Embeddings need a Google key. A free key may stop after about 1,000 courses. Tell attendees with more courses to use a paid key or to re-run on later days.
 
 ## Common failures and fixes

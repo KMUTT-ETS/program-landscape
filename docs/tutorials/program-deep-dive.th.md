@@ -45,7 +45,7 @@
 6. **Enrolment** (`enrollment-metrics`), **Finance** (`financial-metrics`) และ **Graduate Outcomes** (`graduate-outcomes`)
 7. **Student Cohorts** (`student-cohorts`), **Alumni Cohorts** (`alumni-cohorts`) และ **Admission Campaigns** (`admission-campaigns`)
 8. **Publications** (`research-outputs`)
-9. **Programme course lists** (`programme-courses`)
+9. **Programme course lists** (`programme-courses`) กรุณากรอกคอลัมน์ **Category** ด้วยค่าตามเทมเพลต (General education, Core, Major required, Major elective, Free elective, Thesis / project) หากเว้นว่าง ระบบจะถือว่าเป็น Unknown ซึ่งการตรวจความซ้ำซ้อนจะนับเป็นวิชาเอก และการปรับปรุงหลักสูตรจะไม่ให้คำแนะนำเรื่องการยกระดับรายวิชานั้น
 10. **University Rankings** (`ranked-universities`) เทมเพลตมีรายการเริ่มต้นอยู่แล้ว จะอัปโหลดตามนั้นหรือแก้ไขก่อนก็ได้
 
 ท่านควรเห็นการอัปโหลดแต่ละครั้งปรากฏในประวัติ "Uploads" พร้อมจำนวนแถวที่จัดเก็บ
@@ -92,7 +92,7 @@ connector ถูกปิดไว้ในการติดตั้งให�
 pnpm skills:normalise --source=linkedin --auto-promote
 ```
 
-   คำสั่งนี้เพิ่มชื่อทักษะของตลาดเข้าใน taxonomy ของท่าน เพื่อให้ทักษะของหลักสูตรจับคู่กับชื่อเหล่านั้นได้ ประมวลผลชื่อเป็นชุดละ 25 ชื่อ ในการติดตั้งหนึ่งแห่ง ประมวลผลประมาณ 5,850 ชื่อ ใช้เวลาประมาณหนึ่งชั่วโมง และมีค่าใช้จ่ายราวหนึ่งดอลลาร์ หากไม่ทำ ระบบจะข้ามการจับคู่อุปสงค์ (demand match) และตัวขับเคลื่อน labour-market alignment กับ demand-match จะว่างอยู่ แท็บ "Setup checklist" จะแจ้งเรื่องนี้
+   คำสั่งนี้เพิ่มชื่อทักษะของตลาดเข้าใน taxonomy ของท่าน เพื่อให้ทักษะของหลักสูตรจับคู่กับชื่อเหล่านั้นได้ ประมวลผลชื่อเป็นชุดละ 25 ชื่อ ในการติดตั้งหนึ่งแห่ง ประมวลผลประมาณ 5,850 ชื่อ ใช้เวลาประมาณสองชั่วโมง และมีค่าใช้จ่ายราว 1.50 ดอลลาร์สหรัฐ หากไม่ทำ ระบบจะข้ามการจับคู่อุปสงค์ (demand match) และตัวขับเคลื่อน labour-market alignment กับ demand-match จะว่างอยู่ แท็บ "Setup checklist" จะแจ้งเรื่องนี้
 2. หรืออัปโหลด **Career Skill Demand** ที่ `/admin/data-setup/raw/career-skill-demand` หลังขั้นตอนที่ 5 สร้างทักษะแล้ว
 
 ## ขั้นตอนที่ 4: แนบไฟล์ PDF หลักสูตร

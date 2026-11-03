@@ -61,7 +61,11 @@ Upload in this order.
 7. **Student Cohorts** (`student-cohorts`), **Alumni Cohorts**
    (`alumni-cohorts`) and **Admission Campaigns** (`admission-campaigns`).
 8. **Publications** (`research-outputs`).
-9. **Programme course lists** (`programme-courses`).
+9. **Programme course lists** (`programme-courses`). Fill the **Category** column
+   with one of the template's values (General education, Core, Major required,
+   Major elective, Free elective, Thesis / project). A blank reads as Unknown: the
+   overlap check counts it as a major course, and curriculum revision gives no
+   promotion advice for it.
 10. **University Rankings** (`ranked-universities`). The template already holds a
     starter list. Upload it as it is, or edit it first.
 
@@ -124,8 +128,8 @@ pnpm skills:normalise --source=linkedin --auto-promote
 
    It adds the market's skill names to your taxonomy, so a programme's skills
    can match them. It handles the names in batches of 25. On one installation it
-   processed about 5,850 names, which took about an hour and cost roughly a
-   dollar. Without it the demand match is skipped, and the labour-market
+   processed about 5,850 names, which took about two hours and cost roughly
+   USD 1.50. Without it the demand match is skipped, and the labour-market
    alignment and demand-match drivers stay empty. The setup checklist says so.
 2. Or upload **Career Skill Demand** at `/admin/data-setup/raw/career-skill-demand`
    after Step 5 has built the skills.
