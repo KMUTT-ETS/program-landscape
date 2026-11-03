@@ -58,6 +58,23 @@ describe('runOverlapPhase', () => {
     expect(r.notes).toContain('4 vector(s) re-embedded');
   });
 
+  it('scores anyway and reports DEGRADED when prep hits a provider quota', async () => {
+    mocks.prep.mockRejectedValueOnce(Object.assign(new Error('RESOURCE_EXHAUSTED'), { status: 429 }));
+    const r = await runOverlapPhase(ai, undefined);
+    expect(mocks.calls).toEqual(['overlap', 'recs']);
+    expect(r.ok).toBe(true);
+    expect(r.notes).toContain('DEGRADED — embeddings incomplete (provider quota)');
+    expect(r.notes).toContain('run the pipeline again later to add the content layer');
+    expect(r.notes).toContain('10 pairs scored');
+  });
+
+  it('fails the phase on a non-transient prep error (wrong model id)', async () => {
+    mocks.prep.mockRejectedValueOnce(Object.assign(new Error('model not found'), { status: 404 }));
+    const r = await runOverlapPhase(ai, undefined);
+    expect(r.ok).toBe(false);
+    expect(mocks.overlap).not.toHaveBeenCalled();
+  });
+
   it('does not score when prep fails, and never throws', async () => {
     mocks.prep.mockRejectedValueOnce(new Error('embed down'));
     const r = await runOverlapPhase(ai, undefined);

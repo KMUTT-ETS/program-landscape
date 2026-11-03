@@ -182,11 +182,14 @@ Longer curricula cost more. Check `/admin/ai-cost` after the first programme.
 (`AI_GOOGLE_EMBEDDING_MODEL`), so a Google key is needed even when `AI_PROVIDER`
 is anthropic or openrouter. A free-tier key embedded about 1,000 course texts and
 then reached its daily limit. The step waits, retries, gives up, and picks up
-where it stopped on the next run. A university with about 5,000 courses needs a
-paid key, or must run the pipeline (or `pnpm programs:overlap-prep --apply`)
-again on later days. Until every course is embedded, the overlap index uses
-shared course codes only. Then run `pnpm programs:overlap --apply`, or the
-pipeline, to score again.
+where it stopped on the next run. When it gives up, the overlap phase does not
+fail. It still scores overlap on shared course codes, so the Deep-Dive overlap
+section fills, and the phase is reported as DEGRADED with the note "embeddings
+incomplete (provider quota)". A university with about 5,000 courses needs a
+paid key, or must run the pipeline again on later days to add the content layer
+(`pnpm programs:overlap-prep --apply` and `pnpm programs:overlap --apply` do the
+same by hand). Until every course is embedded, the overlap index uses shared
+course codes only.
 
 On a fresh installation the pipeline also builds your skill taxonomy by itself.
 After it reads the curriculum, phase 2 sees that the programme's skills match
