@@ -1986,7 +1986,7 @@ async function studentSatisfactionDriver(args: {
       coursesObserved: Number(r.courses),
       yearsObserved: Number(r.years),
       normalisation: '3.5 → 0, 5.0 → 100 (anchored linear)',
-      source: 'kku-evaluations.v1',
+      source: 'course-evaluations.v1',
     },
   };
 }
