@@ -12,6 +12,18 @@
 
 export const PUBLIC_TCAS_BASIS = 'public-tcas-round3';
 
+/** Stored `round` values for TCAS round 3 (older years: '3'; later: '3.1'/'3.2').
+ *  The fallback and its peers read ONLY these, so the label stays true when
+ *  rounds 1, 2 and 4 land in the same table. */
+export const PUBLIC_TCAS_ROUND3 = ['3', '3.1', '3.2'] as const;
+
+/** Admitted count of one public row. pass2 is NOT additive to pass1: summing
+ *  them exceeds the quota on 70% of rows that carry admits (2514 of 3561 on
+ *  the dev data) against 6% for the larger of the two, and a 3.1/3.2 pair
+ *  repeats the same figures. */
+export const admittedCount = (admittedPass1: number, admittedPass2: number): number =>
+  Math.max(admittedPass1, admittedPass2);
+
 export interface PublicTcasRow {
   tcasCourseCode: string;
   quota: number;
@@ -25,6 +37,8 @@ export interface PublicTcasTotals {
   applicants: number;
   admitted: number;
   courses: number;
+  /** False when no row states an admitted count: the figure is missing, not 0. */
+  admittedPublished: boolean;
 }
 
 /** Sum the rows of ONE entry year, counting each course code once. Null when
@@ -32,7 +46,7 @@ export interface PublicTcasTotals {
 export function publicTcasTotals(rows: readonly PublicTcasRow[]): PublicTcasTotals | null {
   const byCode = new Map<string, { quota: number; applicants: number; admitted: number }>();
   for (const r of rows) {
-    const admitted = Math.max(r.admittedPass1, r.admittedPass2);
+    const admitted = admittedCount(r.admittedPass1, r.admittedPass2);
     const cur = byCode.get(r.tcasCourseCode);
     if (!cur) {
       byCode.set(r.tcasCourseCode, { quota: r.quota, applicants: r.applicants, admitted });
@@ -51,5 +65,5 @@ export function publicTcasTotals(rows: readonly PublicTcasRow[]): PublicTcasTota
     admitted += v.admitted;
   }
   if (quota <= 0) return null;
-  return { quota, applicants, admitted, courses: byCode.size };
+  return { quota, applicants, admitted, courses: byCode.size, admittedPublished: admitted > 0 };
 }

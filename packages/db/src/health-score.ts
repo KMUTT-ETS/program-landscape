@@ -16,7 +16,7 @@ import { eligibleProjectionRegions, pickProjectionSource } from './projection-so
 import { getAcademicYearContext } from './academic-year';
 import { GRANT_AWARD_LABEL, grantAward, withAward } from './grant-award';
 import { pickFinancialYear } from './financial-year';
-import { PUBLIC_TCAS_BASIS, publicTcasTotals } from './public-tcas-basis';
+import { PUBLIC_TCAS_BASIS, PUBLIC_TCAS_ROUND3, publicTcasTotals } from './public-tcas-basis';
 import {
   dqCompetencyByScope,
   dqDriverScore,
@@ -936,6 +936,8 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
     /** Set to PUBLIC_TCAS_BASIS when seats/applicants/passed come from the
      *  public round-3 data (v5.6); absent when the campaign sheet supplied them. */
     basis?: string;
+    /** Public basis only: no row states an admitted count (missing, not 0). */
+    admittedNotPublished?: boolean;
   } | null = null;
   if (latestComplete !== null) {
     funnelTotals = {
@@ -954,9 +956,18 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
     // v5.6: no planned seats in the campaign sheet -> the public TCAS round-3
     // figures for this programme and year stand in for seats / applicants /
     // passed. Campaign seats, when present, are never overridden.
-    if (funnelTotals.enrollSeats <= 0) {
+    // Trigger: the programme's campaign data states no seat figure in ANY
+    // year (enroll_seats and plan_per_year both absent). A programme whose
+    // sheet carries seats but zero for one year keeps its campaign reading.
+    const noSeatsAnywhere = funnelYears.every((y) => y.enrollSeats <= 0 && (y.planPerYear ?? 0) <= 0);
+    if (funnelTotals.enrollSeats <= 0 && noSeatsAnywhere) {
       const publicRows = await prisma.tcasAdmissionStat.findMany({
-        where: { programId, entryYearBE: latestComplete.entryYearBE, ...realDataWhere() },
+        where: {
+          programId,
+          entryYearBE: latestComplete.entryYearBE,
+          round: { in: [...PUBLIC_TCAS_ROUND3] },
+          ...realDataWhere(),
+        },
         select: {
           tcasCourseCode: true,
           quota: true,
@@ -973,6 +984,7 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
           applicants: pub.applicants,
           passed: pub.admitted,
           basis: PUBLIC_TCAS_BASIS,
+          admittedNotPublished: !pub.admittedPublished,
         };
       }
     }
@@ -991,6 +1003,8 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
         where: {
           entryYearBE: latestComplete.entryYearBE,
           institutionName: { not: getInstitution().nameTh },
+          // Same round-3 basis as the programme's own fallback figures.
+          round: { in: [...PUBLIC_TCAS_ROUND3] },
           programmeName: { contains: subjectKey, mode: 'insensitive' },
           quota: { gt: 0 },
           ...realDataWhere(),
@@ -1037,12 +1051,15 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
       label: 'tcas_fill_rate',
       value: (() => {
         if (!funnelTotals || funnelTotals.enrollSeats <= 0) return null;
+        // Public basis with no admitted figures: missing, never a 0 fill.
+        if (funnelTotals.admittedNotPublished) return null;
         // passed/seats ≥ 0.5 → 100, linear below.
         const fill = funnelTotals.passed / funnelTotals.enrollSeats;
         return fill >= 0.5 ? 100 : clamp((fill / 0.5) * 100);
       })(),
       raw: funnelTotals
         ? {
+            ...(funnelTotals.admittedNotPublished ? { reason: 'admitted-not-published' } : {}),
             passed: funnelTotals.passed,
             seats: funnelTotals.enrollSeats,
             ...(funnelTotals.basis ? { basis: funnelTotals.basis } : {}),

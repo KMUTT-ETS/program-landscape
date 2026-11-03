@@ -782,4 +782,35 @@ describe('TCAS funnel basis (v5.6)', () => {
     const d = await drivers();
     expect(d.find((x) => x.label === 'tcas_competition_ratio')!.value).toBeNull();
   });
+
+  it('fill rate is null, not 0, when the public rows state no admitted counts; ratio still scores', async () => {
+    mocks.campaignFindMany.mockResolvedValue([campaign()]);
+    mocks.tcasFindMany.mockResolvedValue([stat('A', 40, 200)]);
+    const d = await drivers();
+    const fill = d.find((x) => x.label === 'tcas_fill_rate')!;
+    expect(fill.value).toBeNull();
+    expect((fill.raw as { reason?: string }).reason).toBe('admitted-not-published');
+    expect(d.find((x) => x.label === 'tcas_competition_ratio')!.value).toBe(70);
+  });
+
+  it('reads only round-3 rows, for the programme and for its peers', async () => {
+    mocks.campaignFindMany.mockResolvedValue([campaign()]);
+    mocks.tcasFindMany.mockResolvedValue([stat('A', 40, 200, 10)]);
+    await drivers();
+    const wheres = mocks.tcasFindMany.mock.calls.map((c) => (c[0] as { where: { round?: { in: string[] } } }).where);
+    expect(wheres.length).toBeGreaterThan(0);
+    for (const w of wheres) expect(w.round).toEqual({ in: ['3', '3.1', '3.2'] });
+  });
+
+  it('keeps campaign figures when any year of the campaign states seats', async () => {
+    mocks.campaignFindMany.mockResolvedValue([
+      campaign(),
+      campaign({ acadYearBE: 2555, enrollSeats: 80, planPerYear: 80 }),
+    ]);
+    mocks.tcasFindMany.mockResolvedValue([stat('A', 40, 200, 10)]);
+    const d = await drivers();
+    const ratio = d.find((x) => x.label === 'tcas_competition_ratio')!;
+    expect(ratio.value).toBeNull();
+    expect((ratio.raw as { basis?: string } | null)?.basis).toBeUndefined();
+  });
 });
