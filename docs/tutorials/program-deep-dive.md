@@ -209,7 +209,8 @@ figures, and the checklist says "Computed from public TCAS round-3 figures".
 Registration yield needs the Confirmed and Reported columns of that sheet (it
 stays empty, not 0, if Reported is blank), and
 there is no public substitute. Fill Planned Seats, Confirmed and Reported if you
-have them.
+have them. Planned Seats is the seats of that one round or campaign row: do not
+repeat the annual plan on every round row, because the rows are added together.
 
 The JobThai driver shows "not applicable" on an installation without JobThai.
 JobThai is a commercial feed, so this is not a failure.

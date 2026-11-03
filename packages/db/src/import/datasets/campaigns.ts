@@ -82,7 +82,7 @@ export const campaignsDataset: ImportDataset = {
         'and each is its own row.',
       example: 'Civil Engineering, regular programme',
     },
-    funnelColumn('Planned Seats', 'planPerYear', 'Seats you intended to fill.'),
+    funnelColumn('Planned Seats', 'planPerYear', "Seats offered by this row's round or campaign. Do not repeat the annual plan on every round row: the seats of a programme-year are the sum of its rows."),
     funnelColumn('Total Applicants', 'totalApplicants', 'People who applied.'),
     funnelColumn('Total Passed', 'totalPassed', 'People who passed selection.'),
     funnelColumn('Confirmed', 'confirmClearinghouse', 'People who confirmed their place.'),

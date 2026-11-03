@@ -142,7 +142,7 @@ pipeline อนุมัติ digest ของหลักสูตรในน
 
 บางรายการไม่เกี่ยวกับบางหลักสูตร หลักสูตรระดับบัณฑิตศึกษาไม่มีรายการ TCAS หรือ digital competency หลักสูตรที่ไม่มีหลักสูตรอื่นในระดับเดียวกันที่มีรายการรายวิชา จะไม่มีรายการ overlap รายการเหล่านี้ไม่เป็นสีแดง รายการที่ AI เติมซึ่งทำงานในโหมด degraded นับเป็นสีเขียว และแสดงหมายเหตุ "degraded" พร้อมเหตุผล
 
-รายการเกี่ยวกับ admission funnel: หากแผ่นงาน admission-campaigns ไม่มี Planned Seats (หรือหลักสูตรไม่มีแถวใน admission-campaigns เลย) อัตราการแข่งขันและอัตราการเติมเต็มที่นั่งจะคำนวณจากตัวเลขรอบที่ 3 ของ TCAS ที่เปิดเผยต่อสาธารณะ และ checklist จะแสดงข้อความ "Computed from public TCAS round-3 figures" ส่วน Registration yield ต้องใช้คอลัมน์ Confirmed และ Reported ของแผ่นงานนั้น (หากไม่กรอก Reported ค่าจะว่าง ไม่ใช่ 0) และไม่มีข้อมูลสาธารณะมาทดแทนได้ ให้กรอก Planned Seats, Confirmed และ Reported หากมี
+รายการเกี่ยวกับ admission funnel: หากแผ่นงาน admission-campaigns ไม่มี Planned Seats (หรือหลักสูตรไม่มีแถวใน admission-campaigns เลย) อัตราการแข่งขันและอัตราการเติมเต็มที่นั่งจะคำนวณจากตัวเลขรอบที่ 3 ของ TCAS ที่เปิดเผยต่อสาธารณะ และ checklist จะแสดงข้อความ "Computed from public TCAS round-3 figures" ส่วน Registration yield ต้องใช้คอลัมน์ Confirmed และ Reported ของแผ่นงานนั้น (หากไม่กรอก Reported ค่าจะว่าง ไม่ใช่ 0) และไม่มีข้อมูลสาธารณะมาทดแทนได้ ให้กรอก Planned Seats, Confirmed และ Reported หากมี Planned Seats คือจำนวนที่นั่งของแถวรอบหรือโครงการนั้นเพียงแถวเดียว อย่าใส่แผนรายปีซ้ำทุกแถวรอบ เพราะระบบนำแถวมารวมกัน
 
 ตัวขับเคลื่อน JobThai แสดง "not applicable" ในการติดตั้งที่ไม่มี JobThai JobThai เป็นฟีดเชิงพาณิชย์ จึงไม่ใช่ความล้มเหลว
 
