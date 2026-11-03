@@ -17,6 +17,7 @@ This page is for the person doing the uploading.
 | **Enrolment** | Applications through to graduation, per programme per year | — |
 | **Finance** | Tuition and other revenue, per programme per year | — |
 | **Graduate Outcomes** | Employment survey results per graduating cohort | — |
+| **Employer Feedback** | Employer satisfaction per programme and survey year | Programmes |
 | **Student Cohorts** | How many of each entry cohort are still enrolled | — |
 | **External Grants** | Externally funded projects with whole-project budgets | Faculties |
 | **External Grant Team** | Which staff member is on which grant | External Grants, Staff |
@@ -264,6 +265,24 @@ module names.
   file.
 - Below six scored students a programme shows the count and no score, rather
   than a figure that describes individuals.
+
+## Employer feedback
+
+One sheet feeds the **Top employers** list in the Deep-Dive's graduate outcomes
+section. One row per programme per survey year per employer. Columns:
+**Programme Code**, **Survey Year**, **Employer** (optional), **Satisfaction
+(0–1)** and **Respondents**, all but Employer required.
+
+- **Leave Employer blank** for one figure covering all employers together; it
+  is stored and shown as "All employers". Organisation names only — never a
+  person's name.
+- **Satisfaction is a proportion between 0 and 1** — write 87 % as 0.87. A
+  value above 1 is refused, because 87 would render as 8700 %.
+- **Respondents must be at least five**, or the file is refused.
+- **Survey Year is the Common Era year**; a Buddhist-era year is refused.
+- **Replaces per programme.** A programme that appears in the file has its
+  earlier rows from this sheet replaced; programmes the file does not mention
+  are untouched.
 
 ## Years, money and rates
 

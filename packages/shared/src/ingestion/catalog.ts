@@ -778,6 +778,17 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     mocked: false,
   },
   {
+    slug: 'xlsx-employer-feedback',
+    name: 'Employer Feedback (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Employer satisfaction (0-1) per programme, survey year and employer, uploaded through /admin/data-setup. Feeds the Top employers list in the Deep-Dive graduate outcomes section. Rows covering fewer than five respondents are refused.',
+    mocked: false,
+  },
+  {
     slug: 'xlsx-digital-competency-cohorts',
     name: 'Digital Competency — Cohorts (spreadsheet import)',
     kind: 'CSV',

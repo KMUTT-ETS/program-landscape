@@ -3615,7 +3615,7 @@ export async function programOutcomes(programId: string) {
   });
   const latest = outcomes[0];
   const employer = await prisma.employerFeedback.findMany({
-    where: { programId },
+    where: { programId, ...realDataWhere() },
     orderBy: { year: 'desc' },
     take: 10,
   });

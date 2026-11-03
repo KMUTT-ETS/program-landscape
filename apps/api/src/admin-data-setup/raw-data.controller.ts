@@ -657,6 +657,60 @@ const DATASETS: Record<string, DatasetFetcher> = {
     };
   },
 
+  'employer-feedback': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.EmployerFeedbackWhereInput = q.q
+      ? {
+          OR: [
+            { employerName: { contains: q.q, mode: 'insensitive' } },
+            {
+              program: {
+                OR: [
+                  { code: { contains: q.q, mode: 'insensitive' } },
+                  { nameEn: { contains: q.q, mode: 'insensitive' } },
+                  { nameTh: { contains: q.q } },
+                ],
+              },
+            },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.employerFeedback.findMany({
+        where,
+        include: { program: { select: { code: true, nameEn: true } } },
+        orderBy: [{ year: 'desc' }, { programId: 'asc' }, { employerName: 'asc' }],
+        skip,
+        take: q.pageSize,
+      }),
+      prisma.employerFeedback.count({ where }),
+    ]);
+    return {
+      title: 'Employer feedback',
+      description:
+        'One row per programme per survey year per employer ("All employers" when the sheet left it blank). Satisfaction is a 0–1 proportion. Rows covering fewer than five respondents are refused on import.',
+      columns: [
+        { key: 'year', label: 'Survey year', numeric: true },
+        { key: 'programCode', label: 'Programme' },
+        { key: 'programNameEn', label: 'Name (EN)' },
+        { key: 'employerName', label: 'Employer' },
+        { key: 'satisfactionScore', label: 'Satisfaction', numeric: true },
+        { key: 'sampleSize', label: 'Respondents', numeric: true },
+      ],
+      items: rows.map((r) => ({
+        year: r.year,
+        programCode: r.program.code,
+        programNameEn: r.program.nameEn,
+        employerName: r.employerName,
+        satisfactionScore: r.satisfactionScore,
+        sampleSize: r.sampleSize,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
   'digital-competency-cohorts': async (q) => {
     const skip = (q.page - 1) * q.pageSize;
     const where: Prisma.DqStudentCubeWhereInput = q.q

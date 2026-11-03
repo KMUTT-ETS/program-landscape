@@ -1901,13 +1901,17 @@ model EmployerFeedback {
   skillGapsJson     Json     @map("skill_gaps_json")
   sampleSize        Int      @map("sample_size")
   freshnessDate     DateTime @map("freshness_date") @db.Date
+  /// Set by the spreadsheet import; null on rows written by anything else.
+  ingestionRunId    String?  @map("ingestion_run_id")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
-  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+  program      Program       @relation(fields: [programId], references: [id], onDelete: Cascade)
+  ingestionRun IngestionRun? @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
 
   @@index([programId])
   @@index([year])
+  @@index([ingestionRunId])
   @@map("employer_feedback")
 }
 
@@ -3535,6 +3539,7 @@ model IngestionRun {
   studentCohortDistributions    StudentCohortDistribution[]
   financialMetrics              FinancialMetric[]
   graduateOutcomes              GraduateOutcome[]
+  employerFeedbacks             EmployerFeedback[]
   researchOutputs               ResearchOutput[]
   facultyCompensations          FacultyCompensation[]
   researchServiceProjects       ResearchServiceProject[]
