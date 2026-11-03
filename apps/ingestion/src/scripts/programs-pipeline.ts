@@ -154,6 +154,8 @@ import { generateProgramPeerReview } from '../program-peers/review';
 import { generateProgramStrategicNarrative } from '../program-narrative/run';
 import { runProgramAiReadiness } from '../program-ai-readiness/run';
 import { runOverlapPhase } from '../program-overlap/phase';
+import { ensureProgramSkills } from '../program-skills/ensure-skill-taxonomy';
+import { realEnsureSkillsDeps } from '../program-skills/ensure-skill-taxonomy-deps';
 
 // Phase list + display metadata live in @kku/shared — see the header comment
 // in packages/shared/src/pipeline/program-phases.ts for why (five hand-kept
@@ -498,12 +500,17 @@ async function processProgram(
   // it's safe to run AFTER phase 2b's already-finished course writes.
   if (shouldRun('phase2')) {
     const r = await runApprovePending(program.id);
+    // Build the skill taxonomy from the digest's own vocabulary when its
+    // names do not match, and re-apply the stored digest (no new AI digest),
+    // so phases 3, 6 and 7 below see the skills.
+    const tTax = Date.now();
+    const tax = await ensureProgramSkills(program.id, realEnsureSkillsDeps(ai));
     phases.push({
       name: 'phase2 approve+materialise',
-      durationMs: r.ms,
+      durationMs: r.ms + (Date.now() - tTax),
       costUsd: 0,
       ok: r.ok,
-      notes: r.notes,
+      notes: `${r.notes}; skills: ${tax.notes}`,
     });
   }
 

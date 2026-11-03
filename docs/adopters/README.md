@@ -624,7 +624,13 @@ Materialisation (`packages/db/src/program-digest-materialize.ts`) uses **skip-if
 
 What builds the taxonomy is `pnpm skills:normalise` (`apps/ingestion/src/scripts/normalise-skill-names.ts`). It sends raw skill names to the AI in batches of 25. The model either matches each name to an existing skill or proposes it as new. A proposal becomes a real `Skill` row only when you pass `--auto-promote` **and** its confidence is at least 0.9. Lower-confidence proposals stay in `skill_aliases` with status `NEW_PROPOSED`, waiting for review. Every decision is also written to `logs/normalise-skills-<timestamp>.jsonl`.
 
-Run it in this order:
+**On a fresh install the pipeline builds the taxonomy for you.** Phase 2 of `pnpm programs:pipeline` checks the programme's stored digest. If its skill names match nothing in the taxonomy, it runs the normaliser for the `program_digest` source with auto-promote (confidence at least 0.9), then re-applies the **same stored digest** to the programme. That is a database write, not a new AI digest, so phases 3, 6 and 7 later in the same run already see the skills. If every name already matches, it does nothing. Set `PIPELINE_BUILD_SKILL_TAXONOMY=0` to switch this off. `pnpm skills:normalise` stays as the manual tool, and is what you use for the LinkedIn source.
+
+For the usual case, then, it is: digest the programmes, then run the pipeline.
+
+To re-apply stored digests yourself, with no AI call, run `pnpm programs:approve-pending --rematerialise` (every approved digest) or add `--program-id=<id>` for one programme.
+
+The manual route, in order:
 
 | Step | Command | What it does |
 |---|---|---|
@@ -632,7 +638,7 @@ Run it in this order:
 | 2 | `pnpm skills:normalise --source=linkedin --auto-promote` | Builds the taxonomy from those skill names, then re-links the KMITL demand and growth rows to the new skills |
 | 3 | `pnpm programs:pipeline <code> --only=phase1`, or `pnpm programs:digest <code>` | Digests the curriculum PDF. Names that match nothing become `PROPOSED_SKILL` extractions |
 | 4 | `pnpm skills:normalise --source=program_digest --auto-promote` | Adds your curriculum's own vocabulary to the taxonomy |
-| 5 | `pnpm programs:digest <code> --force` | Re-applies the digest so its skills now match. See the limitation below |
+| 5 | `pnpm programs:approve-pending --rematerialise` | Re-applies the stored digests so their skills now match. No AI call |
 | 6 | `pnpm programs:pipeline <code> --only=phase3` | Career mapping and demand match. It must run **after** steps 2 and 5, or the *Demand match* card stays 0 |
 
 - **Cost and time:** about USD 0.003 per batch of 25, so roughly USD 1 and 45 minutes for ~5,900 LinkedIn names. That was measured on an OpenRouter install; your model's price sets yours. The digest source is usually far smaller.
@@ -640,7 +646,7 @@ Run it in this order:
 - **Without KMITL access, or outside Thailand,** skip steps 1, 2 and 6. Steps 3 to 5 still give you a taxonomy built entirely from your own curricula. The *Demand match* card then stays empty, because nothing supplies demand.
 - **`PROPOSED_SKILL` approval does not create skills.** With `AI_AUTO_APPROVE_THRESHOLD` unset (its code default is 0), those extractions are auto-approved as soon as they are written. Approval only changes their review status; only step 4 turns them into `Skill` rows.
 
-**Current limitation: re-applying a digest costs a new AI call.** Pipeline phase 2 (`programs:approve-pending`) applies only digests still in `PENDING_REVIEW`. A digest that was auto-approved was applied when it was written, so after the taxonomy grows, `--only=phase2` does nothing for it. Today the only way to apply it again is `pnpm programs:digest <code> --force`, which re-runs the AI digest (about USD 0.08 for a 320-page PDF). No command re-applies a stored digest without a new AI call. Plan step 5 into your budget for every programme digested before the taxonomy existed.
+**Re-applying a digest costs no AI call.** `--rematerialise` writes the stored digest again. Re-running the AI digest (`pnpm programs:digest <code> --force`) is only needed when you want the curriculum re-read.
 
 ### Thai PDF output requires TH Sarabun New
 

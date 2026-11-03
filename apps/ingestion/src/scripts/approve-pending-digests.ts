@@ -13,6 +13,9 @@
 // Usage:
 //   pnpm programs:approve-pending                           # approve all
 //   pnpm programs:approve-pending --reviewer <email>        # override default
+//   pnpm programs:approve-pending --rematerialise           # re-apply every
+//       already-approved digest (no AI call). Add --program-id=<id> for one.
+//       Use after the skill taxonomy grows (pnpm skills:normalise).
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { scriptExitCode } from '../lib/organization-exit';
@@ -58,8 +61,43 @@ interface RowOutcome {
   error?: string;
 }
 
+/** Re-applies the latest approved digest per programme. Never calls the AI. */
+async function rematerialiseApproved(): Promise<void> {
+  const only = args.find((a) => a.startsWith('--program-id='))?.slice('--program-id='.length);
+  const rows = await prisma.aiExtraction.findMany({
+    where: {
+      extractionKind: 'PROGRAM_DIGEST',
+      reviewStatus: { in: ['APPROVED', 'AUTO_APPROVED'] },
+      sourceEntityType: 'program',
+      ...(only ? { sourceEntityId: only } : {}),
+    },
+    select: { id: true, sourceEntityId: true },
+    orderBy: { createdAt: 'desc' },
+  });
+  const latest = new Map<string, string>();
+  for (const r of rows) if (!latest.has(r.sourceEntityId)) latest.set(r.sourceEntityId, r.id);
+  console.log(`Re-applying ${latest.size} approved digest(s) (no AI call)\n`);
+  let linked = 0;
+  let failed = 0;
+  for (const [programId, id] of latest) {
+    try {
+      const r = await materialiseProgramDigest(id);
+      linked += r.skillsLinked;
+      console.log(`${programId} ✓ linked=${r.skillsLinked} proposed=${r.skillsProposed}`);
+    } catch (err) {
+      failed += 1;
+      console.log(`${programId} ✗ ${(err instanceof Error ? err.message : String(err)).slice(0, 100)}`);
+    }
+  }
+  console.log(`\nProgramSkill rows linked: ${linked}; failed: ${failed}`);
+}
+
 async function main(): Promise<void> {
   await loadOrganization();
+  if (args.includes('--rematerialise')) {
+    await rematerialiseApproved();
+    return;
+  }
   const reviewer = await prisma.user.findUnique({
     where: { email: REVIEWER_EMAIL },
     select: { id: true, email: true },
