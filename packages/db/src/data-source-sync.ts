@@ -25,6 +25,14 @@ import { prisma as defaultPrisma } from './index';
  *
  * Safe to run on every deploy: it creates what is missing, corrects what has
  * drifted, and touches nothing else.
+ *
+ * `scheduleEnabled` OWNERSHIP (decision D1). The catalog decides it only when
+ * a row is CREATED, and then always as `false`: a fresh install starts with
+ * every source off, so an adopting university runs nothing it has not turned on.
+ * After that the column belongs to the operator (admin UI) and a sync never
+ * flips it — KKU's production keeps its current schedules across upgrades. The
+ * one exception is a `deprecated` catalog entry: a retired source whose stored
+ * schedule is on is forced off (reported as a `'scheduleEnabled'` change).
  */
 export interface DataSourceSyncResult {
   /** Slugs inserted by this run. */
@@ -55,7 +63,6 @@ const SYNCED_COLUMNS = [
   'acceptsPdfUploads',
   'baseUrl',
   'cadenceCron',
-  'scheduleEnabled',
   'ownerContact',
   'notes',
   'status',
@@ -66,7 +73,6 @@ type SyncedColumn = (typeof SYNCED_COLUMNS)[number];
 
 /** The row shape the catalog dictates, for one entry. */
 function desiredRow(entry: (typeof SOURCE_CATALOG)[number]): Record<SyncedColumn, unknown> {
-  const scheduleEnabled = entry.deprecated ? false : (entry.scheduleEnabled ?? true);
   // `status` is the human-readable label the admin surfaces render, and it has
   // to account for `deprecated` as well as `mocked`: deriving it from `mocked`
   // alone re-labelled every superseded source as "active" on each seed, which
@@ -80,7 +86,6 @@ function desiredRow(entry: (typeof SOURCE_CATALOG)[number]): Record<SyncedColumn
     acceptsPdfUploads: entry.acceptsPdfUploads ?? false,
     baseUrl: entry.baseUrl ?? null,
     cadenceCron: entry.cadenceCron ?? null,
-    scheduleEnabled,
     ownerContact: entry.ownerContact ?? null,
     notes: entry.notes ?? null,
     status,
@@ -120,18 +125,26 @@ export async function syncDataSourcesFromCatalog(
     const current = bySlug.get(entry.slug);
 
     if (current === undefined) {
-      await client.dataSource.create({ data: { slug: entry.slug, ...desired } as never });
+      await client.dataSource.create({
+        data: { slug: entry.slug, ...desired, scheduleEnabled: false } as never,
+      });
       result.created.push(entry.slug);
       continue;
     }
 
-    const changes = SYNCED_COLUMNS.filter((c) => current[c] !== desired[c]);
+    const changes: string[] = SYNCED_COLUMNS.filter((c) => current[c] !== desired[c]);
+    // Deprecated sources are the only case where a sync turns a schedule off.
+    const forceOff = entry.deprecated === true && current.scheduleEnabled === true;
+    if (forceOff) changes.push('scheduleEnabled');
     if (changes.length === 0) {
       result.unchanged += 1;
       continue;
     }
-    await client.dataSource.update({ where: { slug: entry.slug }, data: desired as never });
-    result.updated.push({ slug: entry.slug, changes: [...changes] });
+    await client.dataSource.update({
+      where: { slug: entry.slug },
+      data: (forceOff ? { ...desired, scheduleEnabled: false } : desired) as never,
+    });
+    result.updated.push({ slug: entry.slug, changes });
   }
 
   const catalogSlugs = new Set(SOURCE_CATALOG.map((e) => e.slug));
