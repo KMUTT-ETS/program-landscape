@@ -48,7 +48,9 @@ function flag(name: string): string | undefined {
   const i = args.indexOf(`--${name}`);
   return i === -1 ? undefined : args[i + 1];
 }
-const REVIEWER_EMAIL = flag('reviewer') ?? 'admin@kku.ac.th';
+// No default address: an adopting university has no admin@kku.ac.th. Without
+// --reviewer the sign-off goes to the installation's first administrator.
+const REVIEWER_EMAIL = flag('reviewer');
 const REVIEW_NOTE = 'Bulk operator sign-off via approve-pending-digests script.';
 
 interface RowOutcome {
@@ -98,11 +100,20 @@ async function main(): Promise<void> {
     await rematerialiseApproved();
     return;
   }
-  const reviewer = await prisma.user.findUnique({
-    where: { email: REVIEWER_EMAIL },
-    select: { id: true, email: true },
-  });
-  if (!reviewer) throw new Error(`Reviewer user not found: ${REVIEWER_EMAIL}`);
+  const reviewer = REVIEWER_EMAIL
+    ? await prisma.user.findUnique({ where: { email: REVIEWER_EMAIL }, select: { id: true, email: true } })
+    : await prisma.user.findFirst({
+        where: { role: { in: ['SUPER_ADMIN', 'SYSTEM_ADMIN'] } },
+        orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
+        select: { id: true, email: true },
+      });
+  if (!reviewer) {
+    throw new Error(
+      REVIEWER_EMAIL
+        ? `Reviewer user not found: ${REVIEWER_EMAIL}`
+        : 'No administrator account exists to sign off the digests. Create one at /setup, or pass --reviewer <email>.',
+    );
+  }
   console.log(`Reviewer: ${reviewer.email}`);
 
   const pending = await prisma.aiExtraction.findMany({
