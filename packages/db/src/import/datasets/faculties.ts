@@ -83,7 +83,13 @@ export const facultiesDataset: ImportDataset = {
       key: 'nameTh',
       type: 'text',
       required: true,
-      guide: 'The faculty name in Thai, as it should appear on screen and in reports.',
+      guide:
+        'The faculty name in Thai, as it should appear on screen and in reports. ' +
+        'Write it exactly as the national TCAS admission data (mytcas.com) spells ' +
+        'it, e.g. คณะวิศวกรรมศาสตร์ — with no campus or university suffix. The TCAS ' +
+        'connector links admission figures to a programme only when this name ' +
+        'matches TCAS letter for letter; otherwise the Admissions section of the ' +
+        'programme page stays empty.',
       example: 'คณะวิศวกรรมศาสตร์',
     },
     {

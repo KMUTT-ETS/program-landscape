@@ -33,6 +33,13 @@ refers to by code; **Staff** must come before both **Publications** and
 **Programme Teaching Staff**, which name people by their employee code.
 Everything else can be uploaded in any order once the backbone exists.
 
+**Thai institutions: spell faculty names the way TCAS does.** The TCAS
+connector links national admission figures (mytcas.com) to a programme only
+when the faculty's Thai name matches the TCAS spelling letter for letter — for
+example `คณะวิศวกรรมศาสตร์`, with no campus or university suffix. A name such
+as `คณะวิศวกรรมศาสตร์ (วิทยาเขตหลัก)` links nothing, and every programme
+page's Admissions section stays empty.
+
 **Do not skip Programme Teaching Staff.** It is a link table rather than a
 set of figures, which makes it easy to leave for later, and three things you
 have already uploaded stay silent until it exists. A publication attaches to
