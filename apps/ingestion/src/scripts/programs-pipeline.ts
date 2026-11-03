@@ -100,6 +100,7 @@
 //   pnpm programs:pipeline <code> --only=phase5    # peers only
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { kkuLinkageConfigured } from '../lib/kku-linkage-config';
 import { organizationErrorForExitCode, scriptExitCode } from '../lib/organization-exit';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -519,7 +520,17 @@ async function processProgram(
   }
 
   // ── Phase 4 — Oracle / MSSQL data linkage (parallel via subprocess) ─
-  if (shouldRun('phase4')) {
+  const linkage = kkuLinkageConfigured();
+  if (shouldRun('phase4') && !linkage.ok) {
+    phases.push({
+      name: 'phase4 Oracle/MSSQL (parallel)',
+      durationMs: 0,
+      costUsd: 0,
+      ok: true,
+      notes:
+        'skipped — KKU registry/HR databases not configured; load student cohorts, alumni cohorts and finance from the spreadsheet datasets',
+    });
+  } else if (shouldRun('phase4')) {
     const t = Date.now();
     const subs: Array<Promise<{ name: string; ok: boolean; ms: number }>> = [];
     for (const script of [
