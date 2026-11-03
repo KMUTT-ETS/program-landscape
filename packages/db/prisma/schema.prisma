@@ -413,12 +413,23 @@ enum IngestionRunStatus {
 // Organization (university → faculty → department → program)
 // ══════════════════════════════════════════════════════════════════════════
 
+enum SfrBand {
+  CLINICAL
+  STEM_LAB
+  STUDIO
+  PROFESSIONAL
+  HUMANITIES
+}
+
 model Faculty {
   id             String      @id @default(cuid())
   code           String      @unique
   nameTh         String      @map("name_th")
   nameEn         String      @map("name_en")
   kind           FacultyKind @default(ACADEMIC)
+  /// Teaching mode: picks the student:staff-ratio band the Capability score
+  /// uses. Null reads as PROFESSIONAL (the mid band).
+  sfrBand        SfrBand?    @map("sfr_band")
   /// Set only by the spreadsheet importer, so start-over can tell its own
   /// rows from seeded or connector-written ones. realDataWhere() is never
   /// applied to this table, so a null changes nothing about visibility.

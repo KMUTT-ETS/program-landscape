@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import type { SfrBand } from '@prisma/client';
 import { z } from 'zod';
 import { getInstitution, intakeComplianceFor, intakeFloors } from '@kku/shared';
 import type { IntakeCompliance } from '@kku/shared';
@@ -228,8 +229,10 @@ export const FLAGSHIP_REVENUE_FLOOR_THB = 3_000_000;
 //   institution's region from the organisation profile (regionEn, matched
 //   against the regions the projection carries; no match or no profile ->
 //   the driver is null, never the national series) instead of a hard-coded
-//   'Northeast'. The teaching-mode band follows in a later task. No change
-//   for KKU.
+//   'Northeast'. The student:staff-ratio band comes from the faculty's
+//   Teaching Mode (Faculty.sfrBand; default Professional) instead of a
+//   hard-coded faculty-code map; KKU's bands were backfilled by migration,
+//   so its scores are unchanged.
 export const HEALTH_SCORE_VERSION = 'health-score.v5.5';
 
 // ── Cost-allocation methodology (gap #5) ────────────────────────────
@@ -1427,8 +1430,7 @@ async function scoreCapabilityProgram(programId: string): Promise<HealthScore> {
   // Latest-year enrolment + faculty discipline (drives the SFR band).
   // QS/THE both weight student-faculty ratio heavily — and apply
   // different thresholds by subject (clinical = strict, humanities =
-  // lenient). Pull the program's faculty.code so we can pick the
-  // right band.
+  // lenient). Pull the program's faculty teaching-mode band.
   const [latestEnrollment, programRow] = await Promise.all([
     prisma.enrollmentMetric.findFirst({
       where: { programId, ...realDataWhere() },
@@ -1437,11 +1439,11 @@ async function scoreCapabilityProgram(programId: string): Promise<HealthScore> {
     }),
     prisma.program.findUnique({
       where: { id: programId },
-      select: { faculty: { select: { code: true } } },
+      select: { faculty: { select: { sfrBand: true } } },
     }),
   ]);
   const enrolled = latestEnrollment?.enrolled ?? 0;
-  const sfrBand = sfrBandFor(programRow?.faculty?.code);
+  const sfrBand = sfrBandFor(programRow?.faculty?.sfrBand);
 
   // Publications: research outputs in the last 3 years for the same
   // faculty members.
@@ -1527,7 +1529,6 @@ async function scoreCapabilityProgram(programId: string): Promise<HealthScore> {
 //
 // Each band: linear from "world-class" at the lower bound to 0 at the
 // upper bound; below lower → 100; above upper → 0.
-type SfrBand = 'CLINICAL' | 'STEM_LAB' | 'STUDIO' | 'PROFESSIONAL' | 'HUMANITIES';
 const SFR_BANDS: Record<SfrBand, { lower: number; upper: number }> = {
   CLINICAL:     { lower: 6,  upper: 16 },
   STEM_LAB:     { lower: 10, upper: 28 },
@@ -1536,45 +1537,13 @@ const SFR_BANDS: Record<SfrBand, { lower: number; upper: number }> = {
   HUMANITIES:   { lower: 22, upper: 48 },
 };
 
-// Faculty-code → SFR band. Anchored to KKU's 24 faculties as of 2026-05.
-// Graduate School / MBA / International College roll up small cohorts of
-// mixed discipline; default them to PROFESSIONAL (mid-band) — analyst
-// can refine later via per-program override if needed.
-const SFR_BAND_BY_FACULTY: Record<string, SfrBand> = {
-  // Clinical / patient-supervised
-  MD:   'CLINICAL',
-  DT:   'CLINICAL',
-  VM:   'CLINICAL',
-  NU:   'CLINICAL',
-  AMS:  'CLINICAL',
-  PH:   'CLINICAL',
-  PHA:  'CLINICAL',
-  // Lab-intensive sciences + engineering
-  AG:   'STEM_LAB',
-  SC:   'STEM_LAB',
-  EN:   'STEM_LAB',
-  TC:   'STEM_LAB',
-  COC:  'STEM_LAB',
-  // Studio / individual-instruction
-  AR:   'STUDIO',
-  FAR:  'STUDIO',
-  // Professional / cohort-based
-  BS:   'PROFESSIONAL',
-  LAW:  'PROFESSIONAL',
-  EC:   'PROFESSIONAL',
-  COPA: 'PROFESSIONAL',
-  IC:   'PROFESSIONAL',
-  NK:   'PROFESSIONAL',
-  GS:   'PROFESSIONAL',
-  MBA:  'PROFESSIONAL',
-  // Humanities + lecture-heavy social science / education
-  HU:   'HUMANITIES',
-  ED:   'HUMANITIES',
-};
-
-function sfrBandFor(facultyCode: string | null | undefined): SfrBand {
-  if (!facultyCode) return 'PROFESSIONAL'; // defensive default — middle of the road
-  return SFR_BAND_BY_FACULTY[facultyCode] ?? 'PROFESSIONAL';
+/**
+ * The band for a faculty: its stored teaching mode, or PROFESSIONAL (the mid
+ * band) when none is set. Faculties on a fresh install carry none; KKU's were
+ * backfilled by migration 20261103120000_faculty_sfr_band.
+ */
+export function sfrBandFor(sfrBand: SfrBand | null | undefined): SfrBand {
+  return sfrBand ?? 'PROFESSIONAL';
 }
 
 function scoreStudentFacultyRatio(ratio: number, band: SfrBand): number {
@@ -1600,15 +1569,15 @@ async function scoreCapabilityScope(scopeId: string, scope: ScopeLevel): Promise
         scope === 'faculty'
           ? { id: scopeId }
           : { departments: { some: { id: scopeId } } },
-      select: { code: true },
+      select: { sfrBand: true },
     });
-    scopeBand = sfrBandFor(fac?.code);
+    scopeBand = sfrBandFor(fac?.sfrBand);
   } else if (scope === 'program') {
     const p = await prisma.program.findUnique({
       where: { id: scopeId },
-      select: { faculty: { select: { code: true } } },
+      select: { faculty: { select: { sfrBand: true } } },
     });
-    scopeBand = sfrBandFor(p?.faculty?.code);
+    scopeBand = sfrBandFor(p?.faculty?.sfrBand);
   }
   const links = await prisma.programFaculty.findMany({
     where: { programId: { in: programIds } },

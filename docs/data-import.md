@@ -33,6 +33,16 @@ refers to by code; **Staff** must come before both **Publications** and
 **Programme Teaching Staff**, which name people by their employee code.
 Everything else can be uploaded in any order once the backbone exists.
 
+**Faculties columns.** Faculty Code, Name (Thai) and Name (English) are
+required. Kind is optional (default ACADEMIC). **Teaching Mode** is optional
+and sets the student-to-staff ratio the faculty's Capability score is judged
+against: *Clinical* (patient-supervised, strictest), *Lab-based*
+(laboratory-intensive science and engineering), *Studio* (individual
+instruction in design or art), *Professional* (cohort-based professional
+programmes), or *Humanities* (lecture-heavy humanities, social science and
+education, most lenient). Leave it blank and a new faculty is scored as
+Professional; on a re-upload a blank keeps the value already stored.
+
 **Thai institutions: spell faculty names the way TCAS does.** The TCAS
 connector links national admission figures (mytcas.com) to a programme only
 when the faculty's Thai name matches the TCAS spelling letter for letter — for

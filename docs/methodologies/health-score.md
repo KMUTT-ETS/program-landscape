@@ -4,8 +4,8 @@
 **Reviewed:** 2026-11-03
 **Owner:** KKU Data Office
 
-**v5.5 (2026-11-03): demographic region read from organisation data; no change
-for KKU.** The demographic-resilience driver (`computeRequiredShareAt10Y`) no
+**v5.5 (2026-11-03): demographic region and teaching-mode band read from
+organisation data; no change for KKU.** The demographic-resilience driver (`computeRequiredShareAt10Y`) no
 longer hard-codes the Northeast projection. It resolves the institution's region
 from the organisation profile (`regionEn`) against the regions the projection
 data carries (exact, then case-insensitive match; the NESDC data has Northeast,
@@ -15,8 +15,13 @@ none of those, the driver is **null** (reason `region-not-set`: set the
 organisation region to one of the projection regions) and completeness drops. The
 resolved region is recorded in the driver's `raw`. The Deep-Dive demographic
 outlook uses the same region as its comparator and has none when unresolved.
-KKU's profile resolves to `Northeast`, so every KKU value is unchanged. The
-teaching-mode band part of v5.5 lands in the next task.
+KKU's profile resolves to `Northeast`, so every KKU value is unchanged.
+
+The student:staff-ratio band in Capability now comes from the faculty's
+**Teaching Mode** (`Faculty.sfrBand`: Clinical, Lab-based, Studio, Professional
+or Humanities), set in the Faculties spreadsheet, instead of a fixed map of KKU
+faculty codes. A faculty with no teaching mode uses Professional, the mid band.
+KKU's bands were backfilled by migration, so its scores are unchanged.
 
 **v5.4 (2026-10-03): external grants become an award on Financial.** The
 `external_grant_engagement` driver and its 30-day gate are removed, so

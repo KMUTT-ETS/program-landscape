@@ -1,4 +1,4 @@
-import type { FacultyKind, Prisma, PrismaClient } from '@prisma/client';
+import type { FacultyKind, Prisma, PrismaClient, SfrBand } from '@prisma/client';
 
 import type { ImportDataset, ImportLoadContext, ImportLoadResult, ImportRow } from '../types';
 
@@ -9,6 +9,18 @@ import type { ImportDataset, ImportLoadContext, ImportLoadResult, ImportRow } fr
 // way an adopting university can get started without editing code.
 
 const KINDS = ['ACADEMIC', 'ADMIN', 'INSTITUTE', 'RESEARCH_CENTER'] as const;
+
+// Sheet wording -> stored band. Typed text rather than the 'enum' column
+// type because the sheet words ("Lab-based") are not the stored values and
+// the match is case-insensitive.
+const TEACHING_MODES: Readonly<Record<string, SfrBand>> = {
+  clinical: 'CLINICAL',
+  'lab-based': 'STEM_LAB',
+  studio: 'STUDIO',
+  professional: 'PROFESSIONAL',
+  humanities: 'HUMANITIES',
+};
+const TEACHING_MODE_LABELS = 'Clinical, Lab-based, Studio, Professional, Humanities';
 
 // ── What a start-over on this dataset would destroy ──────────────────────
 //
@@ -111,6 +123,26 @@ export const facultiesDataset: ImportDataset = {
         'faculty — it defaults to ACADEMIC.',
       example: 'ACADEMIC',
     },
+    {
+      header: 'Teaching Mode',
+      key: 'sfrBand',
+      type: 'text',
+      required: false,
+      guide:
+        'How the faculty teaches, which sets the student-to-staff ratio its ' +
+        'Capability score is judged against. Clinical: patient-supervised, ' +
+        'the strictest ratio. Lab-based: laboratory-intensive science and ' +
+        'engineering. Studio: individual instruction in design or art. ' +
+        'Professional: cohort-based professional programmes (the default). ' +
+        'Humanities: lecture-heavy humanities, social science and education, ' +
+        'the most lenient. Leave blank to keep the current value (Professional ' +
+        'for a new faculty).',
+      example: 'Lab-based',
+      check: (value): string | null =>
+        typeof value === 'string' && TEACHING_MODES[value.trim().toLowerCase()] === undefined
+          ? `"${value}" is not allowed. Use one of: ${TEACHING_MODE_LABELS}.`
+          : null,
+    },
   ],
   strategy: { kind: 'upsert', match: { kind: 'unique', columns: ['code'] } },
   dependents: ['departments', 'programmes', 'faculty-members'],
@@ -125,6 +157,8 @@ export const facultiesDataset: ImportDataset = {
         nameTh: String(row.nameTh),
         nameEn: String(row.nameEn),
         kind: (row.kind ? String(row.kind) : 'ACADEMIC') as FacultyKind,
+        // Blank: untouched on update (key absent), null on insert.
+        ...(row.sfrBand ? { sfrBand: TEACHING_MODES[String(row.sfrBand).trim().toLowerCase()] } : {}),
       };
       const existing = await ctx.tx.faculty.findUnique({ where: { code }, select: { id: true } });
       if (existing) {
