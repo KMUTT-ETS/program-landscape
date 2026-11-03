@@ -18,10 +18,11 @@ import { getInstitution } from '../../institution';
 // employment rate; this was the audit's #1 finding
 // (docs/superpowers/notes/2026-08-16-prompt-audit.md).
 //
-// v3 (2026-11-03): the demographic region label sent to the model is the
-// organisation's own region ("<region> Thailand", or "Thailand" when none is
-// set) instead of a KKU-only "Northeast" branch. Prompt text unchanged; the
-// input it receives changes, so this is a behaviour change (see
+// v3 (2026-11-03): the system prompt names the organisation's own short name
+// instead of "KKU", and the demographic block's region label is now
+// "Thailand" for everyone: the cohort figures under it are the NATIONAL
+// series, which the previous KKU-only branch had labelled "Northeast Thailand".
+// The input the model receives changes, so this is a behaviour change (see
 // docs/prompt-standard.md, Versioning).
 //
 // Hard rules (kept verbatim from v1):

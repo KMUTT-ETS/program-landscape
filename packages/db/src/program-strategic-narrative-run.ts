@@ -213,10 +213,7 @@ export async function generateProgramStrategicNarrative(
         : null,
     demographic: demographic
       ? {
-          regionLabel:
-            demographic.comparatorRegion
-              ? `${demographic.comparatorRegion} Thailand`
-              : 'Thailand',
+          regionLabel: 'Thailand', // the series is NATIONAL; the regional comparator is not shown here
           requiredShareAt10Y:
             demographic.projections.find(
               (p) => p.year === new Date().getUTCFullYear() + 10,

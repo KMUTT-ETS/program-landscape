@@ -8,7 +8,7 @@ import path from 'node:path';
 // were wrong — some by two majors (pdf-classify.v1 vs the shipped v2,
 // gap-insights.v1 vs v2), and one node named a prompt that does not exist at
 // all ("strategic-narrative.v1"; the module exports
-// program-strategic-narrative.v2).
+// program-strategic-narrative.v3).
 //
 // A version string on an operator-facing diagram is a claim about what the
 // platform runs. Wrong is worse than absent: it sends someone reading the

@@ -181,7 +181,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'program-strategic-narrative',
-    currentVersion: 'program-strategic-narrative.v1',
+    currentVersion: 'program-strategic-narrative.v3',
     label: 'Program strategic narrative',
     description: 'Council-grade strategic brief — official Thai format with disciplined drafting.',
     module: 'pipeline',

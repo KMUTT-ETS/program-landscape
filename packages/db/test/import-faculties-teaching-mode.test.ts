@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -46,24 +44,5 @@ describe('faculties Teaching Mode column', () => {
 
   it('blank teaching mode is allowed', () => {
     expect(validate([row()]).ok).toBe(true);
-  });
-});
-
-describe('faculty_sfr_band migration', () => {
-  const sql = readFileSync(
-    join(__dirname, '../prisma/migrations/20261103120000_faculty_sfr_band/migration.sql'),
-    'utf8',
-  );
-
-  it('backfill applies only when the profile is KKU', () => {
-    expect(sql).toContain('EXISTS (SELECT 1 FROM organization_profile');
-    expect(sql).toContain("name_en = 'Khon Kaen University'");
-    expect(sql).toContain('"sfr_band" IS NULL');
-    for (const code of [
-      'MD', 'DT', 'VM', 'NU', 'AMS', 'PH', 'PHA', 'AG', 'SC', 'EN', 'TC', 'COC',
-      'AR', 'FAR', 'BS', 'LAW', 'EC', 'COPA', 'IC', 'NK', 'GS', 'MBA', 'HU', 'ED',
-    ]) {
-      expect(sql, code).toContain(`'${code}'`);
-    }
   });
 });

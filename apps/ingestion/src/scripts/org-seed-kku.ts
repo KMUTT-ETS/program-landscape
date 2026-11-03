@@ -19,6 +19,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
+  backfillKkuSfrBands,
   loadOrganization,
   getOrganizationProfile,
   prisma,
@@ -74,6 +75,11 @@ async function fillBrand(): Promise<void> {
   });
 }
 
+async function backfillSfr(): Promise<void> {
+  const { updated } = await backfillKkuSfrBands(prisma);
+  console.log(`[org-seed-kku] teaching-mode bands set on ${updated} KKU faculties (null only)`);
+}
+
 async function main(): Promise<void> {
   await loadOrganization();
   const args = parseOrgSeedArgs(process.argv.slice(2));
@@ -92,6 +98,7 @@ async function main(): Promise<void> {
   if (existing) {
     console.log(`[org-seed-kku] profile already exists (${existing.nameEn}, version ${existing.version}) — identity left unchanged`);
     await fillBrand();
+    await backfillSfr();
     return;
   }
   const identity = kkuSeedIdentity({
@@ -104,6 +111,7 @@ async function main(): Promise<void> {
     `[org-seed-kku] seeded ${row.nameEn} (version ${row.version}); contact email: ${row.contactEmail ? 'set' : 'not set'}`,
   );
   await fillBrand();
+  await backfillSfr();
 }
 
 main()

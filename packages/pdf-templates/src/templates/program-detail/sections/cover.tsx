@@ -10,8 +10,9 @@ import type { ProgramDetailData } from '../schema';
 // `.cover-standfirst`, `.cover-foot` in magazine-css.ts) but reuses the
 // outer `.cover-page` shell and `.title-th`/`.title-en` typography from
 // base-css.ts rather than restating them.
-const REPORT_KICKER =
-  'Program Landscape — KKU Curriculum Intelligence Platform · Program detail report (internal)';
+function reportKicker(tagline: string): string {
+  return `Program Landscape${tagline ? ` — ${tagline}` : ''} · Program detail report (internal)`;
+}
 
 const STANDFIRST_TH =
   'รายงานฉบับนี้รวบรวมคะแนนสุขภาพหลักสูตร แนวโน้มวงจรชีวิต อุปสงค์และอุปทานตลาดแรงงาน ' +
@@ -41,7 +42,7 @@ export function renderCoverPage(data: ProgramDetailData): React.ReactElement {
   return (
     <section className="cover-page">
       <div className="cover-band">
-        <p className="cover-kicker">{REPORT_KICKER}</p>
+        <p className="cover-kicker">{reportKicker(data.organizationTagline)}</p>
         <h1 className="title-th">{data.nameTh}</h1>
         <p className="title-en" lang="en">
           {data.nameEn}

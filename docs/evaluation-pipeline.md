@@ -194,7 +194,7 @@ Rule-based template, **not** AI-generated. Composed from:
 - Top 2 lifting drivers + top 2 dragging drivers (by absolute contribution)
 - Optional "AI peer review not yet generated" footer when modernityVerdict is null
 
-The Council brief AI prompt (`program-strategic-narrative.v1`) is separate — it consumes the lifecycle output as input, not vice versa.
+The Council brief AI prompt (`program-strategic-narrative.v3`) is separate — it consumes the lifecycle output as input, not vice versa.
 
 ---
 
@@ -226,7 +226,7 @@ The discipline-aware path is what gives the Risk Score's L2 component the "music
 `programAiReadiness()` is called by:
 - `programLifecycleVerdict` (driver 1 — the heaviest)
 - `scoreL2AiDisruption` (Risk Score, readiness deficit + disruption signal components)
-- `program-strategic-narrative.v1` (AI prompt input)
+- `program-strategic-narrative.v3` (AI prompt input)
 - Deep-Dive's AI Readiness section
 
 ---
@@ -350,7 +350,7 @@ grounding, confidence rubric, tell-ban, versioning, data-channel manifest) live 
 
 | Prompt | Surface | Notes |
 |---|---|---|
-| `program-strategic-narrative.v1` | `program_strategic_narratives.contentMarkdown` | Deep-Dive header brief; 250–400 words; 5-section markdown structure (Executive summary / Strategic position / Critical risks / Opportunities / Recommended actions); **no greetings, no closings** — hard rules in system prompt. Never sees graduate outcomes, demand match, trend signals, risk, or cohort data — the largest single grounding gap in the estate (see prompt audit) |
+| `program-strategic-narrative.v3` | `program_strategic_narratives.contentMarkdown` | Deep-Dive header brief; 250–400 words; 5-section markdown structure (Executive summary / Strategic position / Critical risks / Opportunities / Recommended actions); **no greetings, no closings** — hard rules in system prompt. Never sees graduate outcomes, demand match, trend signals, risk, or cohort data — the largest single grounding gap in the estate (see prompt audit) |
 | `expertise-narrative.v2` | `user_expertise_narratives` (profile page only) | Pure expertise extraction from education + publication titles; bilingual TH+EN narrative + parallel keyword arrays |
 | `gap-brief.v1` | `/gap-analysis` Council brief | One call over the ≤ 60 gap-map rows on screen: ≤ 5 findings, each citing one field's own numbers, plus what the data cannot tell. **Every finding is reconciled against the row it names before it is returned** — a mismatched verdict is corrected, and one resolving to `supply-unknown` or to an ambiguous field name is dropped rather than guessed. Replaced `gap-insights` and its 3 modes at v1.9.7. On-demand, not stored |
 | `scenario-insights.v1` | `/scenarios` AI panel | 5 modes incl. devils-advocate (argues *against* apparent-best scenario). On-demand, not stored |

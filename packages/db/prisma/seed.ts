@@ -16,6 +16,7 @@ import {
   UserRole,
 } from '@prisma/client';
 import { seedReference, tagSkillSectors } from '../src/seed-reference';
+import { backfillKkuSfrBands } from '../src/kku-sfr-band';
 import { formatDataSourceSync, syncDataSourcesFromCatalog } from '../src/data-source-sync';
 
 const prisma = new PrismaClient();
@@ -296,6 +297,7 @@ async function main() {
     });
     facultyByCode.set(f.code, row);
   }
+  await backfillKkuSfrBands(prisma);
 
   // ── Departments ─────────────────────────────────────────────────────────
   const departmentByCode = new Map<string, { id: string; facultyId: string }>();

@@ -695,7 +695,7 @@ const DigitalCompetencySchema = z.object({
   /** The suppression floor, quoted in the copy so it moves with the
    *  query layer instead of being written twice. */
   minCellStudents: z.number().finite().default(5),
-  /** KKU's own pass mark, disclosed wherever the score is shown. */
+  /** The organisation's own pass mark, disclosed wherever the score is shown. */
   passMark: z.number().finite().nullable().default(null),
   modules: z
     .array(
@@ -791,6 +791,8 @@ const CurriculumRevisionSchema = z.object({
 
 export const ProgramDetailDataSchema = z.object({
   // Cover
+  /** The organisation's tagline ("<short name> Curriculum Intelligence Platform"), shown on the cover. */
+  organizationTagline: z.string().default(''),
   programCode: z.string(),
   nameTh: z.string(),
   nameEn: z.string(),

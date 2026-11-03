@@ -1171,7 +1171,7 @@ export async function programAiReadiness(programId: string): Promise<ProgramAiRe
       priority: 'medium',
       title: 'Spin up an AI / domain research collaboration',
       detail:
-        'Identify 2-3 faculty for cross-disciplinary AI research projects with KKU\'s College of Computing or external partners (NECTEC, AI Thailand, ASEAN AI consortium). Target: at least 15% of departmental publications touching AI within 3 years.',
+        'Identify 2-3 faculty for cross-disciplinary AI research projects with your institution\'s computing faculty or external partners (NECTEC, AI Thailand, ASEAN AI consortium). Target: at least 15% of departmental publications touching AI within 3 years.',
       effortHorizon: 'long',
     });
   }
