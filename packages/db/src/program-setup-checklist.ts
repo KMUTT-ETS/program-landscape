@@ -105,8 +105,9 @@ const skillTaxonomy: ChecklistWaitingOn = {
   kind: 'pipeline',
   slug: 'skills-normalise',
   label:
-    'Build the skill taxonomy: run `pnpm skills:normalise --source=program_digest --auto-promote`, ' +
-    're-apply the digest, then re-run the programme pipeline (docs/adopters/README.md, "Building your skill taxonomy")',
+    'Run the pipeline again (it builds the skill taxonomy). ' +
+    'Manual alternative: `pnpm skills:normalise --source=program_digest --auto-promote` ' +
+    '(docs/adopters/README.md, "Building your skill taxonomy")',
   href: '/admin/programs/{programId}?tab=pipeline',
 };
 /** Items that read nothing until the taxonomy has skills in it. */

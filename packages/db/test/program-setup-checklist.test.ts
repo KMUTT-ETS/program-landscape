@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { prisma } from '../src';
 import { CHECKLIST_SOURCES, programSetupChecklist } from '../src/program-setup-checklist';
@@ -179,16 +179,28 @@ describeScratchDb('programSetupChecklist', () => {
     }
   });
 
-  it('an empty skill taxonomy makes the skill-dependent items wait on skills:normalise', async () => {
-    const skills = await prisma.skill.count();
-    if (skills > 0) return; // scratch DB is expected to be empty of skills
-    const c = (await programSetupChecklist(ids.bach!))!;
-    for (const key of ['section.skills', 'section.ai-readiness', 'driver.labour_market_alignment', 'driver.demand_match_filled']) {
-      const item = byKey(c.items, key);
-      if (item.status !== 'empty') continue;
-      expect(item.waitingOn[0]!.slug).toBe('skills-normalise');
-      expect(item.waitingOn[0]!.label).toMatch(/skills:normalise/);
-      expect(item.waitingOn[0]!.href).not.toContain('{programId}');
+  it('an empty skill taxonomy makes the skill-dependent items wait on the pipeline, and a filled one does not', async () => {
+    const keys = ['section.skills', 'section.ai-readiness', 'driver.labour_market_alignment', 'driver.demand_match_filled'];
+    const spy = vi.spyOn(prisma.skill, 'count');
+    try {
+      spy.mockResolvedValue(0);
+      const empty = (await programSetupChecklist(ids.bach!))!;
+      for (const key of keys) {
+        const item = byKey(empty.items, key);
+        // Nothing seeds these on the scratch programme, so each must be empty.
+        expect(item.status).toBe('empty');
+        expect(item.waitingOn[0]!.slug).toBe('skills-normalise');
+        expect(item.waitingOn[0]!.label).toMatch(/Run the pipeline again/);
+        expect(item.waitingOn[0]!.label).toMatch(/skills:normalise/);
+        expect(item.waitingOn[0]!.href).not.toContain('{programId}');
+      }
+      spy.mockResolvedValue(5);
+      const filled = (await programSetupChecklist(ids.bach!))!;
+      for (const key of keys) {
+        expect(byKey(filled.items, key).waitingOn.map((w) => w.slug)).not.toContain('skills-normalise');
+      }
+    } finally {
+      spy.mockRestore();
     }
   });
 });
