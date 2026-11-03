@@ -4,6 +4,8 @@
 
 This document is your path *through* the existing documentation, not a replacement for it. Where `docs/` already covers something properly, this guide points at it and tells you what to read it for.
 
+> **ภาษาไทย:** มีฉบับภาษาไทยของคู่มือนี้ที่ [`README.th.md`](./README.th.md)
+
 Written 2026-08-27 against the `main` branch. Where a claim below could drift, the file path is given so you can re-verify it against the code you actually received.
 
 ---

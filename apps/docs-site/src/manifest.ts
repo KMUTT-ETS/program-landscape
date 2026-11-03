@@ -17,8 +17,18 @@ export const EXCLUDED: readonly string[] = [
   'guides/council-th.md',
   'guides/executive.md',
   'guides/analyst.md',
-  'adopters/README.th.md',
 ];
+
+/**
+ * English pages that must have a Thai twin (`<name>.th.md` next to them). check-site verifies
+ * each twin exists, mirrors the English structure and links both ways.
+ */
+export const BILINGUAL_PAGES: readonly string[] = ['adopters/README.md'];
+
+/** 'adopters/README.md' -> 'adopters/README.th.md'. */
+export function twinOf(docsRel: string): string {
+  return docsRel.replace(/\.md$/, '.th.md');
+}
 
 export function isExcluded(docsRel: string): boolean {
   return EXCLUDED.some((e) => (e.endsWith('/') ? docsRel.startsWith(e) : docsRel === e));
@@ -57,6 +67,7 @@ export const RETIRED_NAME_ALLOWLIST: readonly string[] = [
   `/${GENERATED_DIR_NAME}/project-contract`,
   '/glossary-th-en',
   '/adopters/README',
+  '/adopters/README.th',
 ];
 
 export function toPosix(p: string): string {

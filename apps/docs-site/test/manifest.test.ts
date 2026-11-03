@@ -25,6 +25,7 @@ describe('manifest', () => {
   it('turns folder exclusions into globs and keeps file exclusions as-is', () => {
     expect(excludedGlobs()).toContain('superpowers/**');
     expect(excludedGlobs()).toContain('user-manual.md');
+    expect(isExcluded('adopters/README.th.md')).toBe(false);
   });
 
   it('maps docs-relative paths to routes', () => {

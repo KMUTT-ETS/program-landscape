@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildSidebar } from '../.vitepress/sidebar';
-import { checkSidebarCoverage, collectSidebarLinks, findRetiredNames, htmlRoute } from '../src/check-site';
+import { checkBilingualTwins, checkSidebarCoverage, collectSidebarLinks, findRetiredNames, htmlRoute } from '../src/check-site';
 import { listRenderedPages, pageRoute, toPosix } from '../src/manifest';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -21,7 +21,7 @@ if (!fs.existsSync(distDir)) {
     if (!rel.endsWith('.html') || rel === '404.html') continue;
     html.set(htmlRoute(rel), fs.readFileSync(path.join(distDir, ...rel.split('/')), 'utf8'));
   }
-  const problems = [...checkSidebarCoverage(routes, links), ...findRetiredNames(html)];
+  const problems = [...checkSidebarCoverage(routes, links), ...findRetiredNames(html), ...checkBilingualTwins(docsDir)];
   if (problems.length > 0) {
     for (const p of problems) console.error(`docs-site check [${p.kind}]: ${p.detail}`);
     process.exitCode = 1;

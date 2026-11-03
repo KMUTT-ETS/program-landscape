@@ -503,10 +503,13 @@ load(ctx, normalized) → LoadResult       // write, idempotently
 ```
 Curriculum PDF  →  MinIO + PdfDocument row (content-hash deduped)
                 →  AI digest (program-digest.v1)
-                →  AiExtraction row, PENDING_REVIEW
-                →  human approval
+                →  AiExtraction row: AUTO_APPROVED when its confidence clears
+                   AI_AUTO_APPROVE_THRESHOLD (code default 0), else PENDING_REVIEW
+                   until a human approves it
                 →  materialised onto Program + ProgramSkill rows
-                →  unmatched skill names → PROPOSED_SKILL queue
+                   (ProgramSkill only for names that exactly match the taxonomy)
+                →  unmatched skill names → PROPOSED_SKILL extractions
+                →  pnpm skills:normalise --source=program_digest → new Skill rows
 ```
 
 ### คำสั่ง
@@ -516,7 +519,8 @@ Curriculum PDF  →  MinIO + PdfDocument row (content-hash deduped)
 | `pnpm pdf:bulk-load <manifest.jsonl>` | นำเข้าข้อมูลย้อนหลังครั้งเดียว ค่าตั้งต้นเป็น dry-run ใส่ `--commit` เพื่ออัปโหลดจริง |
 | `pnpm programs:digest <code\|mhesi\|seq>` | สรุปหลักสูตรเดียว |
 | `pnpm programs:digest-bulk [--limit N] [--level X]` | ทำเป็นชุด และทำต่อจากที่ค้างไว้ได้เอง |
-| `pnpm programs:approve-pending` | อนุมัติและเขียนผลสรุปที่ค้างอยู่ทั้งหมดลงฐานข้อมูล |
+| `pnpm programs:approve-pending` | อนุมัติและเขียนผลสรุปที่ยังเป็น `PENDING_REVIEW` ทั้งหมดลงฐานข้อมูล ผลสรุปที่อนุมัติอัตโนมัติถูกเขียนลงไปแล้วตั้งแต่ตอนสร้าง จึงไม่เขียนซ้ำ |
+| `pnpm skills:normalise --source=<linkedin\|program_digest> --auto-promote` | สร้างอนุกรมวิธานทักษะ ดู [การสร้างอนุกรมวิธานทักษะของคุณ](#การสร้างอนุกรมวิธานทักษะของคุณ) |
 | `pnpm programs:pipeline <code>` | pipeline เต็มรายหลักสูตร (อธิบายด้านล่าง) |
 | `/admin/programs/from-pdf` | หน้าจอนำส่งสำหรับผู้ดูแล — หลักสูตรใหม่ *หรือ* ฉบับปรับปรุง |
 | `/admin/programs/[id]?tab=files` | แนบ PDF ผ่านหน้าจอ |
@@ -551,7 +555,7 @@ Curriculum PDF  →  MinIO + PdfDocument row (content-hash deduped)
 ```
 DRAFT → ANALYSING → IN_REVIEW → APPROVED
                               ↘ REJECTED
-(ฉบับที่อนุมัติแล้วแต่ถูกฉบับถัดไปแทนที่) → SUPERSEDED
+(an approved revision later displaced by another) → SUPERSEDED
 ```
 
 `Program.activeRevisionId` ชี้ไปที่ฉบับที่ใช้งานจริง ผลวิเคราะห์ทุกชิ้นที่ pipeline สร้าง — บทวิเคราะห์เชิงยุทธศาสตร์ ความพร้อมด้าน AI การจัดการเรียนการสอน การทาบทานกับสถาบันเทียบเคียง ความเชี่ยวชาญด้านวิจัย ทักษะ รายวิชา และตัวการเปรียบเทียบฉบับปรับปรุงเอง — ล้วนมี `programRevisionId` กำกับ หน้าหลักสูตรจึงแสดงหลักสูตรที่สอดคล้องกันภายในชุดเดียว และผลของฉบับที่ถูกแทนที่ยังอยู่ครบและระบุที่มาได้ แทนที่จะถูกเขียนทับ
@@ -573,6 +577,32 @@ DRAFT → ANALYSING → IN_REVIEW → APPROVED
 ### ต้นทุนที่ มข. จ่ายไป เอาไว้ตั้งงบ
 
 สรุปไปได้ 228 จาก 297 หลักสูตร ตกราว **$0.04 ต่อหลักสูตร รวมประมาณ $8.10** ผ่านการรันซ้ำหกรอบ บน Gemini อีก 69 หลักสูตรที่เหลือไม่มี PDF ให้ใช้ ส่วนใหญ่เป็นหลักสูตรแพทย์เฉพาะทางและหลักสูตรที่เพิ่งเปิดใหม่ ให้เผื่อใจว่าจะขาดความครอบคลุมในสัดส่วนใกล้เคียงกัน และวางแผนงานจัดหาเอกสารแยกออกจากงานวิศวกรรม
+
+### การสร้างอนุกรมวิธานทักษะของคุณ
+
+**การติดตั้งใหม่ไม่มีทักษะเลย**: ตาราง `skills` มี 0 แถว จนกว่าจะสร้างอนุกรมวิธานทักษะ ตัวเลขทักษะทุกตัวในผลิตภัณฑ์จะเป็น 0 รวมถึงการ์ดทั้งสี่ใบของส่วน *Skills coverage* ใน Deep-Dive ไม่ว่าจะรัน pipeline กี่ครั้งก็ตาม เหตุผลคือการจับคู่ทักษะต้องตรงตัว ทักษะที่ digest สกัดได้จะไปถึงหลักสูตร (แถว `ProgramSkill`) ก็ต่อเมื่อชื่อตรงกับรายการในอนุกรมวิธาน โดยเทียบ `Skill.nameEn` แบบตัวพิมพ์เล็กก่อน แล้วจึงเทียบ `Skill.nameTh` ถ้าอนุกรมวิธานว่าง ก็ไม่มีอะไรจับคู่ได้
+
+`pnpm setup` ไม่โหลดอนุกรมวิธานทักษะ และ `pnpm db:seed:kku` ก็ไม่ใช่คำตอบ คำสั่งนี้โหลดคณะ ภาควิชา และบัญชีผู้ใช้ของ มข. พร้อมทักษะจริงราว 60 รายการและทักษะสมมติอีก 500 รายการ connector ของ KMITL ก็ไม่สร้างทักษะเช่นกัน มันโหลดแถวอุปสงค์ทักษะที่ `skill_id` ว่างทั้งหมด จนกว่าจะมีอนุกรมวิธานให้ผูก
+
+สิ่งที่สร้างอนุกรมวิธานคือ `pnpm skills:normalise` (`apps/ingestion/src/scripts/normalise-skill-names.ts`) คำสั่งนี้ส่งชื่อทักษะดิบให้ AI ทีละชุด ชุดละ 25 ชื่อ โมเดลจะจับคู่แต่ละชื่อกับทักษะที่มีอยู่ หรือเสนอเป็นทักษะใหม่ ข้อเสนอจะกลายเป็นแถว `Skill` จริงก็ต่อเมื่อคุณใส่ `--auto-promote` **และ** ความเชื่อมั่นไม่ต่ำกว่า 0.9 ข้อเสนอที่ความเชื่อมั่นต่ำกว่านั้นจะค้างอยู่ใน `skill_aliases` ด้วยสถานะ `NEW_PROPOSED` เพื่อรอการตรวจ ทุกการตัดสินใจถูกเขียนลง `logs/normalise-skills-<timestamp>.jsonl` ด้วย
+
+รันตามลำดับนี้:
+
+| ขั้น | คำสั่ง | ทำอะไร |
+|---|---|---|
+| 1 | `pnpm connector:run kmitl-skill-mapping` | โหลดอุปสงค์ทักษะของตลาดแรงงาน (ข้อมูล LinkedIn ผ่าน connector ของ KMITL) ต้องมี credential ดู [tutorial](../tutorials/program-deep-dive.md#labour-market-skills) |
+| 2 | `pnpm skills:normalise --source=linkedin --auto-promote` | สร้างอนุกรมวิธานจากชื่อทักษะเหล่านั้น แล้วผูกแถวอุปสงค์และแถวการเติบโตของ KMITL เข้ากับทักษะใหม่ |
+| 3 | `pnpm programs:pipeline <code> --only=phase1` หรือ `pnpm programs:digest <code>` | สรุป PDF หลักสูตร ชื่อที่จับคู่ไม่ได้จะกลายเป็นรายการ `PROPOSED_SKILL` |
+| 4 | `pnpm skills:normalise --source=program_digest --auto-promote` | เพิ่มคำศัพท์จากหลักสูตรของคุณเองเข้าอนุกรมวิธาน |
+| 5 | `pnpm programs:digest <code> --force` | เขียนผลสรุปลงอีกครั้งเพื่อให้ทักษะจับคู่ได้ ดูข้อจำกัดด้านล่าง |
+| 6 | `pnpm programs:pipeline <code> --only=phase3` | จับคู่เส้นทางอาชีพและจับคู่อุปสงค์ ต้องรัน **หลัง** ขั้น 2 และ 5 ไม่เช่นนั้นการ์ด *Demand match* จะยังเป็น 0 |
+
+- **ต้นทุนและเวลา:** ราว USD 0.003 ต่อชุด 25 ชื่อ รวมประมาณ USD 1 และ 45 นาทีสำหรับชื่อจาก LinkedIn ราว 5,900 ชื่อ ตัวเลขนี้วัดจากการติดตั้งที่ใช้ OpenRouter ราคาจริงของคุณขึ้นกับโมเดลที่ใช้ แหล่ง digest มักเล็กกว่ามาก
+- **รันซ้ำได้อย่างปลอดภัย** ชื่อที่ตัดสินแล้วจะถูกข้าม การรันรอบสองจึงลองใหม่เฉพาะชื่อที่ล้มเหลว บรรทัด `Failed:` ในสรุปคือบรรทัดที่ต้องอ่าน สคริปต์จบด้วย exit 0 แม้บางชุดล้มเหลว เช่นกรณี OpenRouter ปฏิเสธเพราะยอดเงินไม่พอ ([ดูด้านล่าง](#การใช้งานผ่าน-openrouter))
+- **ถ้าไม่มีสิทธิ์เข้าถึง KMITL หรืออยู่นอกประเทศไทย** ให้ข้ามขั้น 1, 2 และ 6 ขั้น 3 ถึง 5 ยังให้อนุกรมวิธานที่สร้างจากหลักสูตรของคุณเองทั้งหมด การ์ด *Demand match* จะว่างอยู่ เพราะไม่มีใครให้ข้อมูลอุปสงค์
+- **การอนุมัติ `PROPOSED_SKILL` ไม่สร้างทักษะ** ถ้าไม่ได้ตั้ง `AI_AUTO_APPROVE_THRESHOLD` (ค่าตั้งต้นในโค้ดคือ 0) รายการเหล่านี้จะอนุมัติอัตโนมัติทันทีที่ถูกเขียน การอนุมัติเปลี่ยนแค่สถานะการตรวจ มีเพียงขั้น 4 ที่เปลี่ยนรายการเหล่านี้เป็นแถว `Skill`
+
+**ข้อจำกัดปัจจุบัน: การเขียนผลสรุปซ้ำต้องเรียก AI ใหม่** เฟส 2 ของ pipeline (`programs:approve-pending`) เขียนเฉพาะผลสรุปที่ยังเป็น `PENDING_REVIEW` ผลสรุปที่อนุมัติอัตโนมัติถูกเขียนไปแล้วตั้งแต่ตอนสร้าง ดังนั้นหลังจากอนุกรมวิธานโตขึ้น `--only=phase2` จะไม่ทำอะไรกับมัน วิธีเดียวในตอนนี้คือ `pnpm programs:digest <code> --force` ซึ่งรัน digest ด้วย AI ใหม่ทั้งหมด (ราว USD 0.08 สำหรับ PDF 320 หน้า) ยังไม่มีคำสั่งที่เขียนผลสรุปที่เก็บไว้ซ้ำโดยไม่เรียก AI ใหม่ ให้รวมขั้น 5 ไว้ในงบของทุกหลักสูตรที่ทำ digest ก่อนมีอนุกรมวิธาน
 
 ### การออก PDF ภาษาไทยต้องใช้ TH Sarabun New
 
@@ -665,9 +695,19 @@ design token เก็บเป็น **ค่าสามตัวแบบ OKL
 | `google` | Gemini — ค่าตั้งต้น และเป็นตัวที่ pipeline หลักสูตรถูกปรับจูนมาให้ใช้ |
 | `anthropic` | Claude — **จำเป็นสำหรับโมดูล AI Analyst** ที่ใช้ tool-use แบบเนทีฟ |
 | `stub` | ค่าตอบแบบกำหนดผลได้แน่นอน ทำงานได้โดยไม่ต้องมี API key มีประโยชน์ตอนพัฒนาบนเครื่องตัวเอง |
-| `openrouter`, `intelsphere` | เป็น stub ที่ throw ตอนถูกเรียก จงใจให้ดัง ไม่ใช่ถอยไปใช้อย่างอื่นเงียบ ๆ |
+| `openrouter` | โมเดลใดก็ได้ผ่าน API ของ OpenRouter ที่เข้ากันได้กับ OpenAI ส่วน embeddings และการถอยไปใช้ตัวสำรองเมื่อเกิดข้อผิดพลาดชั่วคราวจะไปที่ Google เมื่อตั้ง `GOOGLE_AI_API_KEY` อ่าน [การใช้งานผ่าน OpenRouter](#การใช้งานผ่าน-openrouter) ก่อนทำ digest กับ PDF ยาว |
+| `intelsphere` | เป็น stub ที่ throw ตอนถูกเรียก จงใจให้ดัง ไม่ใช่ถอยไปใช้อย่างอื่นเงียบ ๆ |
 
 Gemini มี embeddings แต่ Claude ไม่มี ตอนตั้ง `AI_PROVIDER=anthropic` ตัว factory จึงส่งงาน `embed()` ต่อไปให้ Google เองโดยที่ผู้เรียกไม่ต้องรู้ ถ้าใช้ Claude ให้ตั้งคีย์ทั้งสองตัว
+
+### การใช้งานผ่าน OpenRouter
+
+OpenRouter ใช้งานได้ แต่การทำ digest ทั้งหลักสูตรจาก PDF ยาวจะเจอปัญหาสี่ข้อ ซึ่งโผล่ขึ้นมาทีละข้อต่อกัน ตารางฉบับเต็มพร้อมค่าตั้งอยู่ใน [AI governance](../ai-governance.md#running-on-openrouter) สรุปสั้น ๆ ได้ว่า:
+
+1. **คำขอหมดเวลาหลัง 2 นาที** ให้ตั้ง `AI_OPENROUTER_TIMEOUT_MS=600000`
+2. **ตัวสำรองของ Google ล้มเหลวด้วย 429 `RESOURCE_EXHAUSTED`** หลักสูตร 300 หน้ามี input ราว 360k token แต่ key ของ Google แบบฟรีรับได้ 250k ต่อนาที ให้แก้เรื่องหมดเวลา อย่าพึ่งตัวสำรอง
+3. **"no json found" พร้อมคำตอบว่าง** โมเดลแบบ reasoning ใช้โควตา output ทั้งหมดไปกับการคิด ตอนนี้การสกัดข้อมูลแบบมีโครงสร้างขอให้ OpenRouter ใช้การคิดขั้นต่ำ ซึ่งแก้ปัญหาได้บน `z-ai/glm-5.3` (73 วินาที USD 0.08 ต่อ digest)
+4. **HTTP 402 "You requested up to 50000 tokens, but can only afford …"** OpenRouter ตรวจยอดเงินของคุณเทียบกับเพดาน output ที่ *ขอ* ไม่ใช่ที่ใช้จริง ให้เติมเงิน ทั้ง digest และ `skills:normalise` ขอ 50,000
 
 ### prompt คือโค้ดที่กำกับเวอร์ชัน
 

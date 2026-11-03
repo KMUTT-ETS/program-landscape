@@ -130,6 +130,10 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
       items: [{ text: 'Staff Profile API', link: '/integrations/staff-profile-api' }],
     },
     {
+      text: 'ภาษาไทย (Thai)',
+      items: [{ text: 'คู่มือสำหรับสถาบันผู้นำไปใช้', link: '/adopters/README.th' }],
+    },
+    {
       text: 'Reference',
       items: [
         { text: 'pnpm scripts', link: gen('scripts') },

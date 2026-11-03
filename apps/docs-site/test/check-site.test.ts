@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   checkSidebarCoverage,
+  checkTwinPair,
+  fencedBlocks,
+  structuralHeadings,
   collectSidebarLinks,
   findRetiredNames,
   htmlRoute,
@@ -60,5 +63,40 @@ describe('findRetiredNames', () => {
     const details = findRetiredNames(html).map((p) => p.detail);
     expect(details).toContain('/a contains retired name "ทักษทัศน์"');
     expect(details).toContain('/b contains retired name "KKU Curriculum Landscape"');
+  });
+});
+
+describe('bilingual twin check', () => {
+  const en = ['# T', '[ไทย](./A.th.md)', '## One', '### Two', '```bash', 'pnpm x', '```', '#### skipped'].join('\n');
+  const th = ['# ท', '[English](./A.md)', '## หนึ่ง', '### สอง', '```bash', 'pnpm x', '```'].join('\n');
+
+  it('counts only ## and ### headings outside code', () => {
+    expect(structuralHeadings(en + '\n```\n## not a heading\n```')).toEqual(['## One', '### Two']);
+    expect(fencedBlocks(en)).toEqual(['pnpm x']);
+  });
+
+  it('passes a faithful twin', () => {
+    expect(checkTwinPair('a/A.md', en, th)).toEqual([]);
+  });
+
+  it('reports a missing twin', () => {
+    expect(checkTwinPair('a/A.md', en, null)[0]?.detail).toContain('A.th.md is missing');
+  });
+
+  it('reports heading drift', () => {
+    const p = checkTwinPair('a/A.md', en, th.replace('### สอง\n', ''));
+    expect(p.map((x) => x.detail).join()).toContain('heading drift');
+  });
+
+  it('reports code drift', () => {
+    const p = checkTwinPair('a/A.md', en, th.replace('pnpm x', 'pnpm y'));
+    expect(p.map((x) => x.detail).join()).toContain('code drift');
+  });
+
+  it('reports missing links in either direction', () => {
+    const a = checkTwinPair('a/A.md', en.replace('./A.th.md', './B.md'), th);
+    expect(a[0]?.detail).toContain('must link to A.th.md');
+    const b = checkTwinPair('a/A.md', en, th.replace('./A.md', './B.md'));
+    expect(b[0]?.detail).toContain('must link back to A.md');
   });
 });
