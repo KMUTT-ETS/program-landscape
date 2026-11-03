@@ -1360,10 +1360,9 @@ async function seedDecisionSamples() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// External AI sources (Phase 5) — catalog of intelligence feeds.
-// Seeded in PAUSED state so the operator activates each one explicitly
-// after deciding cadence + verifying any required env keys.
-// Idempotent: upserts by slug, no destructive updates.
+// KKU-only external AI source (the Thai Khon Kaen news search). The generic
+// feed catalogue lives in src/seed-reference.ts. PAUSED until an operator
+// activates it; idempotent upsert by slug.
 // ─────────────────────────────────────────────────────────────────────────
 async function seedKkuExternalAiSource() {
   const seeds = [

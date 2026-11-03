@@ -210,12 +210,12 @@ const SECTOR_KEYWORDS: Array<[RegExp, string]> = [
 ];
 
 /** Best-effort keyword tagging of skills into strategic sectors. Idempotent. */
-export async function tagSkillSectors(client: PrismaClient): Promise<{ tagged: number }> {
+export async function tagSkillSectors(client: PrismaClient): Promise<{ ensured: number }> {
   const sectorIdByCode = new Map(
     (await client.sector.findMany({ select: { id: true, code: true } })).map((s) => [s.code, s.id]),
   );
   const skills = await client.skill.findMany({ select: { id: true, code: true, nameEn: true } });
-  let tagged = 0;
+  let ensured = 0;
   for (const [needle, sectorCode] of SECTOR_KEYWORDS) {
     const sectorId = sectorIdByCode.get(sectorCode);
     if (!sectorId) continue;
@@ -226,8 +226,8 @@ export async function tagSkillSectors(client: PrismaClient): Promise<{ tagged: n
         update: {},
         create: { skillId: sk.id, sectorId, weight: 1.0 },
       });
-      tagged++;
+      ensured++;
     }
   }
-  return { tagged };
+  return { ensured };
 }

@@ -92,12 +92,12 @@ describe('tagSkillSectors', () => {
     await seedReference(client);
     store.skill.set('a', { id: 's1', code: 'ztest-a', nameEn: 'ztest solar panel design' });
     store.skill.set('b', { id: 's2', code: 'ztest-b', nameEn: 'ztest nursing care' });
-    const { tagged } = await tagSkillSectors(client);
+    const { ensured } = await tagSkillSectors(client);
     const idOf = (c: string) => store.sector.get(c)!.id;
     const pairs = [...store.skillSector.values()].map((r) => `${r.skillId}:${r.sectorId}`);
     expect(pairs).toContain(`s1:${idOf('BCG-GREEN')}`);
     expect(pairs).toContain(`s2:${idOf('SC-MED')}`);
-    expect(tagged).toBe(pairs.length);
+    expect(ensured).toBe(pairs.length);
     // re-run does not duplicate
     await tagSkillSectors(client);
     expect(store.skillSector.size).toBe(pairs.length);
