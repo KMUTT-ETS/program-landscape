@@ -314,7 +314,7 @@ export function extractFallbackCourseFromContext(
   const prefix = /^[A-Z]+/.exec(code)![0]!;
   const digits = code.slice(prefix.length);
   const digitPat =
-    digits.length === 6 ? `${digits.slice(0, 3)}\\s?${digits.slice(3)}` : `${digits}(?!\\s?\\d)`;
+    digits.length === 6 ? `${digits.slice(0, 3)}\\s?${digits.slice(3)}` : `${digits}(?!\\d)(?!\\s?\\d{3})`;
   const codePat = `${prefix}\\s?${digitPat}`;
   const re = new RegExp(`\\b${codePat}(?!\\d)\\b`, 'g');
 

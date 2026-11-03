@@ -23,6 +23,17 @@ describe('course code pattern', () => {
     expect(isCourseCode('EN 241 1000')).toBe(false);
     expect(courseCodeRegex('g').exec('EN 241 1000')).toBeNull();
   });
+  it('matches a 3-digit code followed by a credit digit', () => {
+    expect(courseCodeRegex().exec('MEE 221 3(3-0-6)')![0]).toBe('MEE 221');
+  });
+  it('rejects MEE 2210 and matches the full KKU code across a newline', () => {
+    expect(courseCodeRegex().exec('MEE 2210')).toBeNull();
+    expect(courseCodeRegex().exec('EN 241\n100')![0]).toBe('EN 241\n100');
+  });
+  it('fallback parses a 3-digit row with a Thai name', () => {
+    const r = extractFallbackCourseFromContext('MEE 221 กลศาสตร์ 3 (3-0-6) Mechanics', 'MEE221');
+    expect(r?.credits).toBe(3);
+  });
   it('does not match double space (as before)', () => {
     expect(courseCodeRegex().exec('EN  241 100')).toBeNull();
   });
