@@ -87,6 +87,7 @@ export * from './api-clients';
 export * from './program-overlap';
 export * from './landscape-atlas';
 export * from './import';
+export { IMPORTED_GRANT_KEY_PREFIX } from './import/datasets/external-grants';
 export { PROGRAMME_COURSES_IMPORT_VERSION } from './import/datasets/programme-courses';
 export * from './program-course-ownership';
 export * from './kku-sfr-band';

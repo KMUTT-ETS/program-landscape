@@ -195,9 +195,16 @@ describe('external grants datasets', () => {
     expect(a.points!).toBeGreaterThan(0);
   });
 
-  it('freshness reads either grants source', async () => {
+  it('freshness reads the import run alone, with no connector run', async () => {
+    // The connector's run is not a SUCCEEDED run for the freshness lookup.
+    await prisma.ingestionRun.update({ where: { id: connectorRun }, data: { status: 'FAILED' } });
     const f = await grantsFreshness();
     expect(f).not.toBeNull();
+    const run = await prisma.ingestionRun.findUniqueOrThrow({
+      where: { id: f!.runId },
+      select: { dataSource: { select: { slug: true } } },
+    });
+    expect(run.dataSource.slug).toBe('xlsx-external-grants');
   });
 
   it('clear only deletes this dataset’s runs', async () => {

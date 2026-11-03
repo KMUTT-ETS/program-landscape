@@ -15,7 +15,12 @@ import type {
   NormalizedRecord,
   RawRecord,
 } from '@kku/shared';
-import { prisma } from '@kku/db';
+import { IMPORTED_GRANT_KEY_PREFIX, prisma } from '@kku/db';
+
+// Spreadsheet-imported grants share these tables; the snapshot replace and its
+// shrink guard only ever see the connector's own rows.
+const OWN_PROJECTS = { sourceProposalKey: { not: { startsWith: IMPORTED_GRANT_KEY_PREFIX } } } as const;
+const OWN_MEMBERS = { project: OWN_PROJECTS } as const;
 
 import { ApiConnector } from '../../base/api-connector';
 import { NonRetryableError } from '../../base/base-connector';
@@ -140,7 +145,7 @@ export class KkuResearchServicesRealConnector extends ApiConnector implements Co
       const f = this.fetched;
       const { projects, cos } = f;
 
-      const current = await prisma.researchServiceProject.count();
+      const current = await prisma.researchServiceProject.count({ where: OWN_PROJECTS });
       const refusal = shrinkGuardMessage(projects.length, current);
       if (refusal) throw new NonRetryableError('SNAPSHOT_SHRANK', refusal);
 
@@ -148,8 +153,8 @@ export class KkuResearchServicesRealConnector extends ApiConnector implements Co
 
       await prisma.$transaction(
         async (tx) => {
-          await tx.researchServiceProjectMember.deleteMany({});
-          await tx.researchServiceProject.deleteMany({});
+          await tx.researchServiceProjectMember.deleteMany({ where: OWN_MEMBERS });
+          await tx.researchServiceProject.deleteMany({ where: OWN_PROJECTS });
           for (let i = 0; i < plan.projects.length; i += CHUNK) {
             await tx.researchServiceProject.createMany({
               data: plan.projects

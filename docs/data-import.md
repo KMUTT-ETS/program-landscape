@@ -228,6 +228,7 @@ naming the row) and **Role** (Lead or Co-investigator).
 - **Re-uploading updates.** Projects are matched on Project Code and team rows
   on the pair of codes. Nothing is removed by an upload; use start over for
   that. Start over for either sheet never touches projects a connector wrote.
+- **Imported grants coexist with the KKU connector.** Neither replaces the other's rows: the connector's daily refresh leaves imported projects alone, and an upload never touches the connector's.
 
 ## Digital competency — cohorts and modules
 

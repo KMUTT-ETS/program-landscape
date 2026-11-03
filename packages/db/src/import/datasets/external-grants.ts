@@ -41,6 +41,10 @@ const ROLES: Readonly<Record<string, ResearchServiceMemberRole>> = {
   'Co-investigator': 'CO_INVESTIGATOR',
 };
 
+/** Prefix of `sourceProposalKey` on imported projects. The kku-research-services
+ *  connector's daily replace and shrink guard exclude it, so it must stay in step. */
+export const IMPORTED_GRANT_KEY_PREFIX = 'xlsx:';
+
 const PROJECTS_SLUG = 'xlsx-external-grants';
 const TEAM_SLUG = 'xlsx-external-grant-team';
 
@@ -189,7 +193,7 @@ export const externalGrantsDataset: ImportDataset = {
           data: {
             id: projectId(code),
             sourceProposalId: nextProposalId--,
-            sourceProposalKey: `xlsx:${code}`,
+            sourceProposalKey: `${IMPORTED_GRANT_KEY_PREFIX}${code}`,
             ...data,
             ingestionRunId: ctx.ingestionRunId,
           },
