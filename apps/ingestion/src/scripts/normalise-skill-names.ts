@@ -61,6 +61,7 @@ function loadDotEnv(envPath: string): void {
 import { loadOrganization, prisma } from '@kku/db';
 import { createIngestionAiService } from '../lib/ai-service';
 import { openNormaliserLog, runSkillNormaliser, type CliArgs } from '../program-skills/skill-normaliser-run';
+import { withSkillTaxonomyLock } from '../program-skills/taxonomy-lock';
 
 function parseArgs(argv: string[]): CliArgs {
   const a = { source: 'all', limit: null, batchSize: 25, dryRun: false, autoPromote: false } as CliArgs;
@@ -92,7 +93,10 @@ async function main(): Promise<void> {
   const ai = createIngestionAiService();
   const logFile = openNormaliserLog();
   console.log(`  audit log → ${logFile}`);
-  const grand = await runSkillNormaliser(ai, args, logFile);
+  // A real run creates skills: take the same lock the pipeline's phase 2 takes.
+  const grand = args.dryRun
+    ? await runSkillNormaliser(ai, args, logFile)
+    : await withSkillTaxonomyLock(() => runSkillNormaliser(ai, args, logFile));
 
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log(`Total candidates: ${grand.totalCandidates}`);

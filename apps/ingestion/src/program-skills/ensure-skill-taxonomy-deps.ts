@@ -3,6 +3,7 @@ import type { AiService } from '@kku/shared';
 
 import { openNormaliserLog, promotePriorProposals, runSkillNormaliser } from './skill-normaliser-run';
 import type { EnsureSkillsDeps } from './ensure-skill-taxonomy';
+import { withSkillTaxonomyLock } from './taxonomy-lock';
 
 interface DigestSkillShape {
   extractedSkills?: Array<{ nameEn?: string | null; nameTh?: string | null }>;
@@ -55,7 +56,10 @@ export function realEnsureSkillsDeps(ai: AiService): EnsureSkillsDeps {
       const r = await materialiseProgramDigest(id);
       return { skillsLinked: r.skillsLinked, skillsProposed: r.skillsProposed };
     },
-    runNormaliser: async (programId) => {
+    // Serialised across concurrent pipeline jobs: both the prior-proposal
+    // promotion and the normaliser's auto-promote find-then-create skills by
+    // name, and Skill has no unique name constraint.
+    runNormaliser: (programId) => withSkillTaxonomyLock(async () => {
       const proposals = await prisma.aiExtraction.findMany({
         where: { extractionKind: 'PROPOSED_SKILL', sourceEntityType: 'program', sourceEntityId: programId },
         select: { payloadJson: true },
@@ -71,6 +75,6 @@ export function realEnsureSkillsDeps(ai: AiService): EnsureSkillsDeps {
         openNormaliserLog(),
       );
       return { promoted, matched: t.matched, newProposed: t.newProposed, failed: t.failed, costUsd: t.costUsd };
-    },
+    }),
   };
 }
