@@ -534,10 +534,14 @@ describe('financial — external-grant award', () => {
   });
 });
 
-// One mock serves two queries: the region listing ({ region }) and the source
-// picker ({ source, region }). Every region belongs to one national source.
-const projectionRows = (regions: string[]) => async (args: { select?: { source?: boolean } }) =>
-  regions.map((region) => (args.select?.source ? { source: 'NESDC-PopProj-2010-2040', region } : { region }));
+// One mock serves the picker's eligibility query: every region has the
+// current year and +10 under one national source.
+const projectionRows = (regions: string[]) => async () => {
+  const y = new Date().getUTCFullYear();
+  return regions.flatMap((region) =>
+    [y, y + 10].map((year) => ({ source: 'NESDC-PopProj-2010-2040', region, year })),
+  );
+};
 
 describe('demographic region wiring (v5.5)', () => {
   const REGIONS = [{ region: 'TH' }, { region: 'Northeast' }, { region: 'Central' }];
@@ -555,7 +559,7 @@ describe('demographic region wiring (v5.5)', () => {
     withRegion('Central');
     const r = await computeRequiredShareAt10Y('p1', 'BACHELOR');
     expect(mocks.demographicFindFirst.mock.calls[0]![0].where.region).toBe('Central');
-    expect(r).toEqual({ share: 200 / 1_000_000, region: 'Central', reason: null });
+    expect(r).toEqual({ share: 200 / 1_000_000, region: 'Central', source: 'NESDC-PopProj-2010-2040', reason: null });
   });
 
   it('KKU profile -> Northeast', async () => {

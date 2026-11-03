@@ -13,6 +13,14 @@ import type { ImportDataset, ImportLoadContext, ImportLoadResult, ImportRow } fr
 // Stored with source `xlsx:<Source Name>`, so two editions can sit side by
 // side and a re-upload of the same edition updates it in place.
 
+const NATIONAL_SPELLINGS = new Set(['th', 'thailand', 'ประเทศไทย']);
+
+/** 'TH', 'th', 'Thailand', 'ประเทศไทย' (any case, trimmed) all mean the national series. */
+export function normaliseRegion(value: string): string {
+  const trimmed = value.trim();
+  return NATIONAL_SPELLINGS.has(trimmed.toLowerCase()) ? 'TH' : trimmed;
+}
+
 export const AGE_GROUPS = ['15-17', '18-22', '23-29'] as const;
 export const SPREADSHEET_SOURCE_PREFIX = 'xlsx:';
 
@@ -32,10 +40,12 @@ export const populationProjectionsDataset: ImportDataset = {
       type: 'text',
       required: true,
       guide:
-        'The area the figure covers. Write TH for the national total. A regional row only drives the ' +
+        'The area the figure covers. Write TH for the national total ("Thailand" and "ประเทศไทย" are ' +
+        'also accepted and stored as TH). A regional row only drives the ' +
         'demographic health score when its text matches your organisation profile’s region exactly ' +
         '(for example "Northeast"); the national figure is never substituted for it.',
       example: 'TH',
+      identity: (value) => normaliseRegion(String(value ?? '')),
     },
     {
       header: 'Year',
@@ -96,7 +106,7 @@ export const populationProjectionsDataset: ImportDataset = {
     let updated = 0;
     for (const row of rows) {
       const key = {
-        region: String(row.region).trim(),
+        region: normaliseRegion(String(row.region)),
         year: Number(row.year),
         ageCohort: String(row.ageGroup),
         source: `${SPREADSHEET_SOURCE_PREFIX}${String(row.sourceName).trim()}`,

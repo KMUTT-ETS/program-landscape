@@ -17,6 +17,18 @@ resolved region is recorded in the driver's `raw`. The Deep-Dive demographic
 outlook uses the same region as its comparator and has none when unresolved.
 KKU's profile resolves to `Northeast`, so every KKU value is unchanged.
 
+**Projection source for the demographic driver (2026-11-04; no version bump,
+formula unchanged).** The driver and the Deep-Dive outlook read the population
+projection from the best available edition: an uploaded Population Projections
+spreadsheet (`xlsx:<name>`), then UN WPP 2024 (`UN-WPP2024`), then the NESDC
+starter series. A source is eligible only with a national `TH` row for the
+cohort at the current year **and** at current year + 10, and, for the driver,
+the resolved region at both years too. The UN series is **national only**, so
+the regional driver needs a regional series from the spreadsheet or NESDC; when
+no eligible source carries the region the driver stays null
+(`region-not-set` / `no-projection`). The chosen source is recorded in the
+driver's `raw.source`. KKU data resolves to NESDC, so KKU values are unchanged.
+
 The student:staff-ratio band in Capability now comes from the faculty's
 **Teaching Mode** (`Faculty.sfrBand`: Clinical, Lab-based, Studio, Professional
 or Humanities), set in the Faculties spreadsheet, instead of a fixed map of KKU

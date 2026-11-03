@@ -12,7 +12,7 @@ import { JOBTHAI_MIN_LINK_SCORE, JOBTHAI_MIN_POSTINGS_FOR_SIGNAL, JOBTHAI_MIN_RE
 import { programJobThaiSkillCoverage } from './jobthai';
 import { DEMAND_SOURCE_LINKEDIN, demandMatchSourceWhere } from './demand-match-sources';
 import { NATIONAL_REGION, projectionRegionForInstitution } from './projection-region';
-import { pickProjectionSource } from './projection-source';
+import { eligibleProjectionRegions, pickProjectionSource } from './projection-source';
 import { getAcademicYearContext } from './academic-year';
 import { GRANT_AWARD_LABEL, grantAward, withAward } from './grant-award';
 import { pickFinancialYear } from './financial-year';
@@ -2166,7 +2166,7 @@ async function scoreRelevanceProgram(
       raw: kmitlAlignment,
     },
     { label: 'demand_match_filled', value: demandMatchValue, raw: { totalRelevant: matchRows.length } },
-    { label: 'demographic_resilience', value: demoValue, raw: { requiredShare10y: demoOutlook, region: demo.region, reason: demo.reason } },
+    { label: 'demographic_resilience', value: demoValue, raw: { requiredShare10y: demoOutlook, region: demo.region, source: demo.source ?? null, reason: demo.reason } },
     // `targetedCareers` is the raw-payload field surfaced on the
     // hover tooltip for this driver. It's the COUNT of LinkedIn-demand
     // career groups the program has been mapped to — used to
@@ -2320,6 +2320,8 @@ export interface RequiredShareResult {
   share: number | null;
   /** The projection region used; null when none resolved. */
   region: string | null;
+  /** The projection source used; null when none was picked. */
+  source?: string | null;
   /** Why the share is null, when it is. */
   reason: string | null;
 }
@@ -2333,26 +2335,23 @@ export async function computeRequiredShareAt10Y(
 ): Promise<RequiredShareResult> {
   const cohort = level === 'BACHELOR' ? '18-22' : '23-29';
   const targetYear = new Date().getUTCFullYear() + 10;
-  // Regions any edition carries for this cohort; the best source for the
-  // resolved region is picked below.
-  const regionRows = await prisma.demographicProjection.findMany({
-    where: { ageCohort: cohort },
-    distinct: ['region'],
-    select: { region: true },
-  });
-  const region = projectionRegionForInstitution(regionRows.map((r) => r.region));
+  // Regions carried by an eligible source (national row now and at +10); the
+  // best source for the resolved region is picked below.
+  const regions = await eligibleProjectionRegions({ cohort });
+  const region = projectionRegionForInstitution(regions);
   if (region === NATIONAL_REGION) {
     return {
       share: null,
       region: null,
+      source: null,
       reason:
         'region-not-set: set the organisation region to one of the projection regions (' +
-        regionRows.map((r) => r.region).filter((r) => r !== NATIONAL_REGION).join(', ') +
+        regions.filter((r) => r !== NATIONAL_REGION).join(', ') +
         ')',
     };
   }
   const source = await pickProjectionSource({ cohort, needRegion: region });
-  if (!source) return { share: null, region, reason: 'no-projection' };
+  if (!source) return { share: null, region, source: null, reason: 'no-projection' };
   const projection = await prisma.demographicProjection.findFirst({
     where: {
       region,
@@ -2362,21 +2361,21 @@ export async function computeRequiredShareAt10Y(
     },
     select: { population: true },
   });
-  if (!projection || projection.population <= 0) return { share: null, region, reason: 'no-projection' };
+  if (!projection || projection.population <= 0) return { share: null, region, source, reason: 'no-projection' };
   const enrollment = await prisma.enrollmentMetric.findMany({
     where: { programId, ...realDataWhere() },
     orderBy: { academicYear: 'desc' },
     take: 2,
     select: { enrolled: true },
   });
-  if (enrollment.length === 0) return { share: null, region, reason: 'no-enrollment' };
+  if (enrollment.length === 0) return { share: null, region, source, reason: 'no-enrollment' };
   // Use the prior year if it's higher (in-progress current year is
   // partial — enrolled count would be too small).
   const baseline = enrollment.length >= 2 && enrollment[1]!.enrolled > enrollment[0]!.enrolled
     ? enrollment[1]!.enrolled
     : enrollment[0]!.enrolled;
-  if (baseline === 0) return { share: null, region, reason: 'no-enrollment' };
-  return { share: baseline / projection.population, region, reason: null };
+  if (baseline === 0) return { share: null, region, source, reason: 'no-enrollment' };
+  return { share: baseline / projection.population, region, source, reason: null };
 }
 
 async function collectProgramIdsForScope(scopeId: string, scope: ScopeLevel): Promise<string[]> {

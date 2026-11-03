@@ -7,7 +7,7 @@ import {
 } from '@kku/shared';
 import { prisma } from './index';
 import { NATIONAL_REGION, projectionRegionForInstitution } from './projection-region';
-import { pickProjectionSource } from './projection-source';
+import { eligibleProjectionRegions, pickProjectionSource } from './projection-source';
 import {
   computeHealthScores,
   computeProgramDimensionAverages,
@@ -2681,12 +2681,9 @@ export async function programDemographicOutlook(
   });
   if (nationalRows.length === 0) return null;
 
-  const regionRows = await prisma.demographicProjection.findMany({
-    where: { ageCohort },
-    distinct: ['region'],
-    select: { region: true },
-  });
-  const resolvedRegion = projectionRegionForInstitution(regionRows.map((r) => r.region));
+  const resolvedRegion = projectionRegionForInstitution(
+    await eligibleProjectionRegions({ cohort: ageCohort }),
+  );
   let comparatorRegion = resolvedRegion === NATIONAL_REGION ? null : resolvedRegion;
   let comparatorSource: string | null = null;
   let comparatorRows: typeof nationalRows = [];

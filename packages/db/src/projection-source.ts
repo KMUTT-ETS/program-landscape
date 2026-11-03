@@ -22,6 +22,8 @@ export function sourceRank(source: string): number {
   return 3;
 }
 
+export const ELIGIBILITY_HORIZON_YEARS = 10;
+
 export interface PickProjectionSourceOptions {
   /** Age cohort the caller reads, e.g. '18-22'. */
   cohort: string;
@@ -32,33 +34,78 @@ export interface PickProjectionSourceOptions {
   client?: PrismaClient;
 }
 
+interface EligibleSource {
+  source: string;
+  /** Regions with a row at BOTH checked years. */
+  regions: Set<string>;
+}
+
+/**
+ * Sources with a national row for the cohort at the current year AND at
+ * current year + 10 (the driver's target year and the outlook's +10 horizon),
+ * best first. A source covering only the near years never outranks one that
+ * reaches the horizon.
+ */
+async function eligibleSources(opts: {
+  cohort: string;
+  year?: number;
+  client?: PrismaClient;
+  regions?: readonly string[];
+}): Promise<EligibleSource[]> {
+  const client = opts.client ?? defaultPrisma;
+  const year = opts.year ?? new Date().getUTCFullYear();
+  const years = [year, year + ELIGIBILITY_HORIZON_YEARS];
+  const rows = await client.demographicProjection.findMany({
+    where: {
+      ageCohort: opts.cohort,
+      year: { in: years },
+      ...(opts.regions ? { region: { in: [...opts.regions] } } : {}),
+    },
+    select: { source: true, region: true, year: true },
+  });
+  const seen = new Map<string, Map<string, Set<number>>>(); // source -> region -> years
+  for (const r of rows) {
+    const byRegion = seen.get(r.source) ?? new Map<string, Set<number>>();
+    const ys = byRegion.get(r.region) ?? new Set<number>();
+    ys.add(r.year);
+    byRegion.set(r.region, ys);
+    seen.set(r.source, byRegion);
+  }
+  const out: EligibleSource[] = [];
+  for (const [source, byRegion] of seen) {
+    const complete = new Set(
+      [...byRegion.entries()].filter(([, ys]) => years.every((y) => ys.has(y))).map(([r]) => r),
+    );
+    if (!complete.has(NATIONAL_REGION)) continue;
+    out.push({ source, regions: complete });
+  }
+  return out.sort((a, b) => sourceRank(a.source) - sourceRank(b.source) || a.source.localeCompare(b.source));
+}
+
 /**
  * The best source with a national ('TH') row for the cohort at the current
- * year (and the requested region, when one is needed). Within a preference
- * tier the name sorts alphabetically so the pick is deterministic. Null when
- * no source qualifies.
+ * year and at +10 (and the requested region at both, when one is needed).
+ * Within a preference tier the name sorts alphabetically so the pick is
+ * deterministic. Null when no source qualifies.
  */
 export async function pickProjectionSource(
   opts: PickProjectionSourceOptions,
 ): Promise<string | null> {
-  const client = opts.client ?? defaultPrisma;
-  const year = opts.year ?? new Date().getUTCFullYear();
-  const regions = opts.needRegion && opts.needRegion !== NATIONAL_REGION
+  const need = opts.needRegion && opts.needRegion !== NATIONAL_REGION
     ? [NATIONAL_REGION, opts.needRegion]
     : [NATIONAL_REGION];
-  const rows = await client.demographicProjection.findMany({
-    where: { ageCohort: opts.cohort, year, region: { in: regions } },
-    select: { source: true, region: true },
-  });
-  const regionsBySource = new Map<string, Set<string>>();
-  for (const r of rows) {
-    const set = regionsBySource.get(r.source) ?? new Set<string>();
-    set.add(r.region);
-    regionsBySource.set(r.source, set);
-  }
-  const eligible = [...regionsBySource.entries()]
-    .filter(([, set]) => regions.every((region) => set.has(region)))
-    .map(([source]) => source)
-    .sort((a, b) => sourceRank(a) - sourceRank(b) || a.localeCompare(b));
-  return eligible[0] ?? null;
+  const eligible = await eligibleSources({ ...opts, regions: need });
+  return eligible.find((e) => need.every((r) => e.regions.has(r)))?.source ?? null;
+}
+
+/** Regions (national excluded) carried by at least one eligible source. */
+export async function eligibleProjectionRegions(opts: {
+  cohort: string;
+  year?: number;
+  client?: PrismaClient;
+}): Promise<string[]> {
+  const eligible = await eligibleSources(opts);
+  const regions = new Set<string>();
+  for (const e of eligible) for (const r of e.regions) regions.add(r);
+  return [...regions].sort();
 }

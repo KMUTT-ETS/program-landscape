@@ -81,6 +81,17 @@ describe('population projections dataset', () => {
     expect(validate([sRow()]).ok).toBe(true);
   });
 
+  it('normalises national spellings to TH, in the stored row and in the duplicate check', async () => {
+    for (const spelling of ['th', ' Thailand ', 'ประเทศไทย']) {
+      await load([imp(spelling, 2040, '23-29', 3_000_000, 'PP Test Edition A')], runA);
+    }
+    const rows = await prisma.demographicProjection.findMany({ where: { source: SHEET_SOURCE_A, year: 2040 } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.region).toBe('TH');
+    expect(validate([sRow({ Region: 'TH' }), sRow({ Region: 'thailand' })]).ok).toBe(false);
+    await prisma.demographicProjection.deleteMany({ where: { source: SHEET_SOURCE_A, year: 2040 } });
+  });
+
   it('refuses unknown age group', () => {
     expect(validate([sRow({ 'Age Group': '30-34' })]).ok).toBe(false);
   });
