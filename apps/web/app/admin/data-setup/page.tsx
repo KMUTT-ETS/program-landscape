@@ -380,7 +380,7 @@ export default async function AdminDataSetupPage() {
           <CategoryCard
             tone="glossy"
             icon={<TrendingUp />}
-            title="Labour-market skills demand (LinkedIn via MHESI)"
+            title="Labour-market skills demand (KMITL Skill Mapping or the Career Skill Demand spreadsheet)"
             description="Aggregated skill demand from LinkedIn — profiles, Thai job postings, and university graduate data. The data is owned by LinkedIn; the institutional subscription / licence is held by MHESI. KMITL hosts the API endpoint on behalf of MHESI and is not the data owner. Drives the gap-analyzer's labour-market demand source and the health-score's labour-market-alignment driver."
             primary={{
               label: `${stats.laborMarketSkills.kmitlSkillDemandRows.toLocaleString()} demand rows`,
@@ -475,8 +475,8 @@ export default async function AdminDataSetupPage() {
             <RawDatasetLink slug="staff-salary-by-funding" label="Staff salary by funding" />
             <RawDatasetLink slug="career-skill-demand" label="Career skill demand (uploaded)" />
             <RawDatasetLink slug="kmitl-careers" label="Labour-market career taxonomy" />
-            <RawDatasetLink slug="kmitl-skill-demands" label="LinkedIn skill demand (15.8k)" />
-            <RawDatasetLink slug="kmitl-skill-growths" label="LinkedIn skill growth (7.4k)" />
+            <RawDatasetLink slug="kmitl-skill-demands" label="Skill demand" />
+            <RawDatasetLink slug="kmitl-skill-growths" label="Skill growth" />
             <RawDatasetLink slug="research-outputs" label="Research outputs" />
             <RawDatasetLink slug="skill-aliases" label="Skill alias cache" />
             <RawDatasetLink slug="proposed-skills" label="Proposed skills (review queue)" />
