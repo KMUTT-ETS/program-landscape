@@ -25,7 +25,7 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
       items: [
         { text: 'Adopter guide', link: '/adopters/README' },
         { text: 'Licensing', link: '/licensing' },
-        { text: 'Fresh checkout setup', link: '/guides/fresh-checkout-setup' },
+        { text: 'Getting started', link: '/tutorials/getting-started' },
         { text: 'Architecture', link: '/architecture' },
         { text: 'Evaluation pipeline', link: '/evaluation-pipeline' },
         { text: 'Project contract & decision log', link: gen('project-contract') },
@@ -35,8 +35,11 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
       text: 'Tutorials',
       items: [
         { text: 'Overview', link: '/tutorials/README' },
+        { text: 'Getting started', link: '/tutorials/getting-started' },
         { text: 'Get Program Deep-Dive working', link: '/tutorials/program-deep-dive' },
-        { text: 'Adapt the registrar connector', link: '/tutorials/adapt-the-registrar-connector' },
+        { text: 'Workshop guide', link: '/tutorials/workshop' },
+        { text: 'Fresh checkout setup (moved)', link: '/guides/fresh-checkout-setup' },
+        { text: 'Adapt the registrar connector (advanced)', link: '/tutorials/adapt-the-registrar-connector' },
       ],
     },
     {

@@ -545,10 +545,21 @@ Re-uploading a byte-for-byte identical file does nothing and says so.
 
 ## Rules the upload enforces
 
-**The columns must match exactly.** Not just the ones the system needs — extra
-columns are refused too. This is deliberate: a misspelled header would otherwise
-be read as an empty column, and a stray column of personal data would be
-accepted silently.
+**Required columns must be present; unknown columns are refused.** You may
+leave out an optional column. You may not leave out a required one, and you may
+not add a column the dataset does not describe. This is deliberate: a stray
+column of personal data would otherwise be accepted silently.
+
+**Every code must already exist.** A row that names a programme, faculty,
+department or employee code that is not in an earlier upload refuses the
+whole file, and the message lists each row: "... is not a known programmes code.
+Upload that dataset first, or correct the value." Add the missing rows to the
+earlier sheet, or delete the rows that name them. Older exports often name
+retired programmes, so expect this once.
+
+**One upload holds at most 5000 rows.** A larger file is refused with "This file
+has 8002 rows; the limit is 5000. Split it into smaller files." Split big files
+(publications are the usual case) into parts and upload each one.
 
 **No personal identifiers.** A cell containing a national ID number fails the
 file. The message names the row and column, and never repeats the value.
@@ -558,7 +569,8 @@ individual's figures can be worked out from an average.
 
 **A much smaller file is questioned.** If your upload has fewer than half the
 rows currently stored, it is refused as a probable partial export — with a
-button to upload it anyway if you know it is right.
+button to upload it anyway if you know it is right. If you split a large file
+and see this on the last small part, confirm the upload in the panel.
 
 ## Things worth knowing about spreadsheets
 

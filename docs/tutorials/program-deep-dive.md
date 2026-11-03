@@ -1,448 +1,199 @@
 # Tutorial: get Program Deep-Dive working
 
-**Outcome.** `/programs/<id>` shows real content, not empty states, in every
-section it can — first for one programme, then for the whole portfolio.
+**Outcome.** `/programs/<id>` shows real content, not empty states, for a
+programme of your university. The "Setup checklist" tab for that programme is
+green.
 
-**Starting point.** A running local instance from
-[Fresh checkout setup](../guides/fresh-checkout-setup.md) (stack up, signed in as an
-admin). Every command below runs from the repo root.
+**Starting point.** A running app with the first administrator signed in. If you
+do not have one, do [Getting started](./getting-started.md) first. Every command
+below runs from the repository root.
 
-**Time and cost.** About an hour for the one-programme path, plus however long
-your data-source access takes. AI spend is roughly **USD 0.80 per programme**
-across all phases (the per-phase figures come from `PROGRAM_PHASE_META` in
-`packages/shared/src/pipeline/program-phases.ts` and are approximations), so run
-one programme before a full run.
+**Time and cost.** About half a day with your files ready. AI spend is about
+USD 0.80 per programme, so run one programme first and the rest later.
 
-**Before you start, set your institution's identity** at `/admin/organization`
-(names, short names, region). Admissions data is matched on the Thai institution
-name, and the form shows how many TCAS rows it matches.
+## The order of work
 
-## How Deep-Dive gets its data
+Follow the steps in this order. A later step names codes from an earlier one, and
+an upload that names a code the system does not know yet is refused.
 
-Deep-Dive computes nothing on its own. Each section reads tables that something
-else fills. If a section is empty, one of those is missing, and the page's empty
-state usually names it.
+## Step 1: Set the organisation profile
 
-| Section on the page | Needs | Filled by |
+1. Open `/admin/organization`. The "Identity" tab is open.
+2. Fill in the fields.
+   - "Thai name": it must match the institution column of the TCAS sheets
+     character for character. The TCAS connector finds your programmes by this name.
+   - "English name", "Thai short name", "English short name".
+   - "Region (Thai)" and "Region (English)": use one of Northeast, Central,
+     North or South in English. This gives you the regional population
+     comparison. A university in Bangkok uses Central.
+   - "OpenAlex institution ID": the id of your university on openalex.org,
+     for example a value that starts with `I`.
+   - "Contact email" is optional. Set "Public app URL", "Minimum bachelor intake"
+     and "Minimum postgraduate intake" if you know them.
+3. Click "Create organisation". The next time you come back the button reads
+   "Save changes".
+
+You should see the page reload with your names in the header.
+
+## Step 2: Upload the organisation and the programmes
+
+Every dataset has its own page under `/admin/data-setup`. Open
+`/admin/data-setup`, click a dataset, and on its page `/admin/data-setup/raw/<slug>`
+use the same three controls each time.
+
+1. Click "Download template". Open it in a spreadsheet program and fill it in.
+2. Click "Upload filled template" and choose your file.
+3. Look at the "Uploads" history. Your file is listed there.
+
+If a file is refused, nothing is stored. The message names the rows and columns.
+Fix the file and upload it again. "Start over" on the same page clears a dataset.
+
+Upload in this order.
+
+1. **Faculties.** Fill in "Teaching Mode" for each faculty.
+2. **Departments.**
+3. **Programmes.**
+4. **Staff** (slug `faculty-members`).
+5. **Programme Teaching Staff** (slug `program-faculty`).
+6. **Enrolment** (`enrollment-metrics`), **Finance** (`financial-metrics`) and
+   **Graduate Outcomes** (`graduate-outcomes`).
+7. **Student Cohorts** (`student-cohorts`), **Alumni Cohorts**
+   (`alumni-cohorts`) and **Admission Campaigns** (`admission-campaigns`).
+8. **Publications** (`research-outputs`).
+9. **Programme course lists** (`programme-courses`).
+10. **University Rankings** (`ranked-universities`). The template already holds a
+    starter list. Upload it as it is, or edit it first.
+
+You should see each upload appear in its "Uploads" history with the number of
+rows stored.
+
+When you have these files, upload them as well:
+
+- **Course Evaluations**, **Digital Competency** (cohorts and modules),
+  **External Grants** and **External Grant Team**, **Employer Feedback** and
+  **Staff Salary by Funding**.
+- **Population Projections**.
+- **Career Skill Demand**, but only after step 6 has built the skills, and only
+  if you have no KMITL key (see [Labour-market skills](#labour-market-skills)).
+
+Rules that decide whether a file is accepted are in
+[Importing from spreadsheets](../data-import.md). The three you will meet are:
+
+- Optional columns may be left out of a sheet. Required columns may not, and a
+  column the dataset does not know is refused.
+- A row that names a programme, faculty, department or employee code that is not
+  in an earlier upload refuses the whole file and lists each row. Add the
+  missing rows to the earlier sheet, or delete those rows.
+- One upload holds at most 5000 rows. Split a bigger file into parts.
+
+## Step 3: Run the public connectors
+
+Connectors are switched off on a fresh install. Run each one once by hand.
+
+1. Open `/admin/data-sources` and click the source.
+2. On `/admin/data-sources/<slug>`, click "Run now".
+3. Wait for the run to show as succeeded in its history.
+
+Run these.
+
+| Source (slug) | What it needs | What you should see |
 |---|---|---|
-| Executive snapshot — verdict, narrative, AI readiness | most of the rows below, plus the narrative and readiness assessments | [pipeline](#step-5--run-the-pipeline-on-one-programme) phases 6 and 7 |
-| Admissions — TCAS funnel and round-3 detail | TCAS admission statistics linked to the programme | [TCAS](#tcas-admissions) |
-| Students — cohorts, lifecycle | cohort and alumni-status rows | pipeline phase 4 — see [Registrar](#registrar-enrolment-cohorts-alumni-status) |
-| Students — demographic outlook | youth-cohort projections, and the programme's latest intake | [Thailand demographics](#thailand-demographics) and [Registrar](#registrar-enrolment-cohorts-alumni-status) |
-| Outcomes | graduate outcome records | no connector exists yet — see [Graduate outcomes](#graduate-outcomes) |
-| Curriculum & Faculty — skills, courses | the programme's curriculum PDF, digested and approved | pipeline phases 1, 2, 2b |
-| Curriculum & Faculty — skills, demand side | labour-market skill demand | [Labour-market skills](#labour-market-skills) |
-| Curriculum & Faculty — faculty | a staff roster, matched to the staff named in the curriculum PDF | [Staff roster](#staff-roster-hr) |
-| Curriculum & Faculty — research expertise, revision | staff publications | [Research outputs](#research-outputs), pipeline phases RE and CR |
-| Overlap | same-level pair scores | pipeline phase OV |
-| Financials | tuition and cost rows | pipeline phase 4 — see [Finance](#finance-tuition-and-budget); preview-quality |
-| Benchmarking | AI-selected peers and review | pipeline phase 5 |
+| `tcas` | Nothing. It reads the public TCAS files. Run it after Step 2, because it matches programmes by Thai faculty and programme name. | A count of matched programmes. |
+| `un-wpp` | Nothing. It downloads about 68 MB of UN population figures. | A succeeded run with rows loaded. |
+| `kmitl-skill-mapping` | `KMITL_SKILL_MAPPING_CLIENT_ID` and `KMITL_SKILL_MAPPING_SECRET_KEY` in `.env`. | Skill demand loaded. Skip it if you have no key. |
+| `openalex-works` | `OPENALEX_API_KEY` in `.env` (a free key) and the OpenAlex institution ID from Step 1. | Research outputs loaded. |
+| `job-108` | Nothing. Switch it on if you want government job announcements in the demand map. | Job announcements loaded. |
 
-The full table-by-table map is in
-[Evaluation pipeline §7.1](../evaluation-pipeline.md#71-by-table--who-reads-it).
-
-## Step 1 — Configure an AI provider
-
-Without a key the AI phases produce placeholders only. In your root environment
-file set:
-
-```bash
-AI_PROVIDER=google
-GOOGLE_AI_API_KEY=<your key>
-```
-
-Restart `pnpm dev` after changing it. Leave `AI_PROVIDER=stub` if you only want
-to look at the deterministic sections. Usage policy and logging for AI calls are in
-[AI governance](../ai-governance.md).
-
-## Step 2 — Create the programme rows
-
-Submit each curriculum document at `/admin/programs/from-pdf` and choose **A new
-programme**. It creates the programme record from the details extracted from the
-file and attaches the file in one step. Programmes created this way already have
-their PDF, so you can skip Step 3 for them.
-
-If you already hold a list of programmes (a spreadsheet or a registry export),
-load them with your own seed instead and attach the files in Step 3. The
-repository's `pnpm programs:seed-from-sheet` is the reference deployment's seed
-for its own master sheet: it reads a fixed sheet URL and is not a general importer.
-
-How a curriculum PDF becomes programme data is described in
-[PDF ingestion](../pdf-ingestion.md) and in the
-[Adopter guide](../adopters/README.md#10-programme-documents-and-the-ai-digest-pipeline).
-
-## Step 3 — Attach a curriculum PDF to existing programmes
-
-Open `/admin/programs?view=pipeline`. The **missing-pdf** bucket lists
-programmes with no curriculum document. Attach the PDF per programme at
-`/admin/programs/<id>?tab=files`.
-
-There is deliberately no bulk filename matcher: the reference deployment retired
-its fuzzy one after it mislinked about 30 programmes, and it should not be
-rebuilt. `pnpm pdf:bulk-load` is for policy and report PDFs by URL, not for
-linking programmes.
-
-## Step 4 — Configure the data sources
-
-Open `/admin/data-setup` ("Feed the system"). It shows, per category, how much is
-loaded. This step walks through the sources Deep-Dive reads, easiest first. For
-each one: what it feeds, what to configure, and how to know it worked.
-
-How hard each source is for you depends on its tier in the
-[Adopter guide](../adopters/README.md#8-data-integration--the-four-tiers-of-adoption-effort):
-public and national sources work as they are, while the sources that read an
-institution's own systems — registrar, HR, finance, research — must be written
-against yours. Until a source is wired, the sections it feeds stay empty. That is
-the intended behaviour, and there is no mock-data fallback. The four
-institution-specific sources need a connector adapted to your systems first — see
-[Institution-specific sources](#institution-specific-sources-adapt-the-connector-first).
-
-Verify any source the same way: open `/admin/data-sources/<slug>` and look for a
-**SUCCEEDED** run with a non-zero record count, and read the run's metadata. A
-run can succeed with zero records, and a mocked run succeeds while writing
-nothing.
-
-### TCAS admissions
-
-- **Feeds:** the Admissions section (funnel and round-3 score detail) and the
-  attractiveness drivers of the [health score](../methodologies/health-score.md).
-- **Tier:** national, same for every Thai institution; no credentials.
-- **Configure:** nothing beyond `/admin/organization`. The Thai institution name
-  must match the national TCAS data exactly; the form shows the match count.
-- **Run:** press **Run now** on `/admin/data-sources/tcas`; the Admissions
-  section's empty state links there for administrators. From a dev shell the
-  equivalent is:
-
-  ```bash
-  pnpm connector:run tcas
-  ```
-
-  **Run now** queues the job for the ingestion worker, so the worker's
-  environment decides real or mock (`CONNECTOR_TCAS_MODE`), not your shell's.
-- **Then:** run it again after your programmes exist. Rows link to a programme
-  only when its faculty and programme `nameTh` match the national spelling
-  exactly; unmatched rows are kept with no programme and listed in the run
-  metadata.
-- **Not applicable** outside Thailand.
-- **More:** [Fresh checkout setup — loading the first public data
-  sources](../guides/fresh-checkout-setup.md#loading-the-first-public-data-sources),
-  [TCAS source spec](../data-sources/tcas.md).
-
-### Thailand demographics
-
-- **Feeds:** the demographic outlook, and the demographic-resilience part of the
-  health score.
-- **Tier:** national; nothing to configure.
-- **Run:** a seed script, not a connector — the figures are in the script and
-  nothing is downloaded:
-
-  ```bash
-  pnpm demographics:seed
-  ```
-
-- **Verify:** the Demographic outlook section appears on a programme. It also
-  needs the programme's latest intake, which comes from the
-  [registrar](#registrar-enrolment-cohorts-alumni-status) enrolment figures, so it
-  can stay empty until that source is loaded.
-- **Not applicable** outside Thailand.
+Without the OpenAlex key the run is recorded as skipped with the message
+"OPENALEX_API_KEY is not set. Create a free key at
+https://openalex.org/settings/api and add it to the environment." Add the key to
+`.env`, restart `pnpm dev`, and run it again.
 
 ### Labour-market skills
 
-- **Feeds:** the demand side of the Skills section, the relevance drivers of the
-  health score, and pipeline phase 3 (careers and demand match).
-- **Tier:** shared external source; you need your own credentials.
-- **Configure:** request a client ID and secret key from the provider, then set
-  the three `KMITL_SKILL_MAPPING_*` keys (`BASE_URL`, `CLIENT_ID`, `SECRET_KEY`)
-  and `CONNECTOR_KMITL_SKILL_MAPPING_MODE=real` in your root environment file.
-  Wrap any value containing `#` in single quotes: an unquoted `#` truncates the
-  value silently.
-- **Check the credentials, then load:**
+Programmes are compared with the skills employers ask for. There are two ways
+to load them.
 
-  ```bash
-  pnpm kmitl:capture ping
-  pnpm connector:run kmitl-skill-mapping
-  ```
+1. Run `kmitl-skill-mapping` as above, if you have a key.
+2. Or upload **Career Skill Demand** at `/admin/data-setup/raw/career-skill-demand`
+   after Step 6 has built the skills.
 
-- **Two rules for how you present it.** The data is LinkedIn data subscribed by
-  MHESI and only hosted by KMITL — never label it "KMITL data". And the
-  Thailand × job-postings slice is a thin sample, so any figure built on it needs
-  a sample-size caveat.
-- **Expect** none of the provider's skill names to match on the first run. A
-  fresh installation has no skill taxonomy and this connector does not create
-  one: every demand row loads with an empty skill link. Build the taxonomy next
-  with `pnpm skills:normalise --source=linkedin --auto-promote`, which also
-  re-links these rows; the full order is in
-  [Building your skill taxonomy](../adopters/README.md#building-your-skill-taxonomy).
-- **More:** [labour-market source spec](../data-sources/kmitl-skill-mapping.md),
-  [Adopter guide, Tier 2](../adopters/README.md#tier-2--shared-national-and-external-sources-same-for-everyone).
+## Step 4: Attach the curriculum PDF
 
-### Institution-specific sources: adapt the connector first
+1. Check the file first. The command prints counts only.
 
-The next four sources — registrar, staff roster, research, finance — read your
-own systems. **The repository ships no ready-made connector for them.** What it
-ships is the reference deployment's connectors (`kku-registry`, `kku-hr`,
-`kku-research`, `kku-finance`), which contain that institution's SQL, table names
-and code mappings. You must adapt the connector for each source before running it.
+```bash
+pnpm curriculum:check "<file.pdf>"
+```
 
-**Nothing in this tutorial seeds mock data.** In the default `mocked` mode a
-connector is a stub that writes nothing to the database — its run metadata says
-`mocked — no DB writes`. The danger is that such a run still shows
-**SUCCEEDED** with a non-zero record count. If you run a source's connector before
-adapting it, you get a green run and an empty section. Open the run at
-`/admin/data-sources/<slug>` and read its metadata: a real run of a reference
-connector says `connectorMode: real`, a mocked one says `mocked — no DB writes`.
-The `data_sources` flag cannot tell you, because the catalogue already marks the
-reference sources as real.
+You should see how many courses and sections it found.
 
-For each source, work through these steps in order:
+2. Open `/admin/programs/<id>?tab=files`.
+3. Choose the role `CURRENT_CURRICULUM` and click "Choose PDF".
 
-1. **Prepare.** Fill in the source's spec, put credentials in your secret store,
-   and capture a sample payload as a test fixture. The per-source session
-   playbook and its pre-session checklist are in the
-   [connector session template](../../prompts/14-integration-session-template.md).
-2. **Adapt the connector.** Edit
-   `apps/ingestion/src/connectors/sources/<slug>/connector.ts` (and its
-   `transforms.ts`) for your system: the SQL projection, the mapping from your
-   system's identifiers to your programmes and staff, and the status codes.
-   Keep the three safeguards the reference connectors share: aggregate at the
-   source so per-person rows never leave the database, refuse to load when the
-   source returns zero rows (a snapshot replace would otherwise wipe the table),
-   and stamp every row with the run id (see
-   [the `realDataWhere` trap](../adopters/README.md#trap-2-realdatawhere--empty-sections-with-rows-in-the-database)).
-3. **Register and switch it on.** Pair your real class with the mock in
-   `apps/ingestion/src/connectors/registry.ts`, set `CONNECTOR_<SLUG>_MODE=real`
-   (slug uppercased, non-alphanumerics to `_`) and restart the ingestion worker.
-   Setting the flag without registering a real class falls back to the mock
-   with a warning.
-4. **Keep the two flags in step.** The `data_sources` row has independent
-   `status` and `mocked` columns; both must be updated. Run
-   `pnpm data-sources:audit` after every flip.
-5. **Run and prove it.** `pnpm connector:run <slug>` runs the same code as the
-   worker. The playbook's exit criterion is at least three successful runs with
-   zero failures, and a recorded row-count fingerprint.
+You should see the file listed with its role.
 
-Plan on one to three weeks per source, most of it spent getting read access. The
-full contract (`healthCheck`, `fetch`, `transform`, `load`) and the reasoning
-are in [the connector contract](../adopters/README.md#9-the-connector-contract-and-how-to-write-one).
-The adopter guide also lists the UniCon DS feeds as the nearly-portable starting
-point for Thai universities
-([Tier 1](../adopters/README.md#tier-1--works-nearly-as-is-the-mhesi-unicon-ds-family));
-they load their own tables, so check which sections you need actually read them
-before relying on them.
+If the pipeline cannot read the course list from your PDF, upload the list
+instead with **Programme course lists** (Step 2). An uploaded list is never
+overwritten by the pipeline.
 
-The commands under each source below are the **reference deployment's**, shown so
-you can see the shape of the work. They run only after the steps above.
+## Step 5: Run the pipeline
 
-### Registrar: enrolment, cohorts, alumni status
+1. Open `/admin/programs/<id>?tab=pipeline`.
+2. Click "Run pipeline".
+3. Wait. The phases show their status as they finish.
 
-- **Feeds:** the connector loads enrolment and demographic counts per programme
-  and entry year, which the Demographic outlook, the per-student financial
-  figures and the health score read. The Students section's cohort and alumni
-  charts come from pipeline phase 4, a separate set of scripts.
-- **Tier:** reads your own system, so it must be written against it. The
-  reference deployment's connector (`kku-registry`) reads an Oracle warehouse and
-  is the template to copy, including its rule to aggregate at the source so
-  per-student rows never leave the database.
-- **Reference configuration:** the five `KKU_REGISTRY_DB_*` keys and
-  `CONNECTOR_KKU_REGISTRY_MODE=real`. The registrar's text names have no stable
-  programme code, so they are bridged to programmes through an explicit mapping
-  table. Your connector will need an equivalent bridge:
+The pipeline uses the AI provider you set in `.env` (`AI_PROVIDER` is google,
+anthropic or openrouter). It costs about USD 0.80 per programme.
 
-  ```bash
-  pnpm registry:seed-mappings
-  pnpm connector:run kku-registry
-  ```
-
-- **Watch for:** with an empty mapping table the run still reports success but
-  loads zero records, and every row lands in the run's `unmappedSamples` list.
-  That list is your worklist.
-- **Phase 4 is not portable.** The pipeline's cohort, alumni and financial
-  linking scripts (`programs:link-cohorts`, `programs:link-alumni`,
-  `programs:link-financials`) query the reference deployment's registrar and HR
-  views directly. At another institution, run the pipeline with
-  `--skip=phase4` and fill those tables from spreadsheets instead — the
-  *Student Cohorts*, *Alumni Cohorts* and *Finance* datasets in
-  [the data import guide](../data-import.md) write the same tables. The
-  Deep-Dive's empty cohort and funnel sections link admins straight to those
-  imports.
-- **Step by step:** [Adapt the registrar connector](./adapt-the-registrar-connector.md)
-  walks through this source from schema discovery to a verified run.
-- **More:** [registrar source spec](../data-sources/kku-registry.md),
-  [Adopter guide, Tier 3](../adopters/README.md#tier-3--must-be-rewritten-per-institution),
-  [the connector contract](../adopters/README.md#9-the-connector-contract-and-how-to-write-one).
-
-### Staff roster (HR)
-
-- **Feeds:** the Faculty part of Curriculum & Faculty, the capability drivers of
-  the health score, and the matching of publications to people.
-- **Why it matters:** pipeline phase 1 reads the staff named in the curriculum
-  PDF; the roster is what those names are matched against.
-- **Tier:** reads your own system; written per institution. The reference
-  connector (`kku-hr`) shows the pattern: hash identifiers at the boundary,
-  suppress small groups server-side, and read only the columns you need.
-- **Reference configuration:** the `KKU_HR_DB_*` keys,
-  `CONNECTOR_KKU_HR_MODE=real`, then:
-
-  ```bash
-  pnpm hr:seed-mappings
-  pnpm connector:run kku-hr
-  ```
-
-- **Your data-protection officer must approve the projection independently.**
-  Another institution's approval does not transfer — see
-  [PDPA and governance](../pdpa.md).
-- **More:** [HR source spec](../data-sources/kku-hr.md).
-
-### Research outputs
-
-- **Feeds:** research expertise and curriculum revision (phases RE and CR), the
-  publications driver of the health score, and the AI-readiness research signal.
-- **Order matters:** load the staff roster first. Publications are matched to
-  roster members by name, and unmatched authors are kept with no person attached.
-- **Tier:** depends on where your publications live. The reference connector
-  (`kku-research`) reads an internal publications mirror, so adapt it as above;
-  the earlier public-API approach (OpenAlex and Scopus) is documented in its spec
-  and is the usual starting point if you have no internal mirror.
-- **Reference run:** `pnpm connector:run kku-research`, after adapting.
-- **More:** [research source spec](../data-sources/kku-research.md).
-
-### Finance: tuition and budget
-
-- **Feeds:** the Financials section and the financial drivers of the health score.
-- **Tier:** reads your own systems; written per institution. The reference
-  connector (`kku-finance`) reads tuition and budget in one run
-  (`pnpm connector:run kku-finance`, after adapting).
-- **Treat the output as preview-quality.** Cost allocation is unfinished even in
-  the reference deployment and is marked as preview until its governance
-  sign-off. See [Cost allocation](../methodologies/cost-allocation.md).
-- **More:** [finance source spec](../data-sources/kku-finance.md).
-
-### Graduate outcomes
-
-The Outcomes section reads graduate-outcome records. No connector fills them yet,
-even in the reference deployment (the alumni source is a stub), so this section is
-expected to be empty until your institution supplies the data. Do not read an
-empty Outcomes section as a failed setup.
-
-### What you can skip
-
-You do not need every source to get a useful Deep-Dive. With only the curriculum
-PDFs, the AI provider and the two national feeds (TCAS, demographics), these
-sections work: Executive snapshot (partly), Admissions, Demographic outlook,
-Skills, Courses, Overlap and Benchmarking. Add the registrar, staff roster,
-research and finance sources to fill Students, Faculty, research expertise and
-Financials.
-
-## Step 5 — Run the pipeline on one programme
-
-Pick a programme with a PDF attached and run it end to end. `<code>` is the
-programme's code as shown in `/admin/programs`; its sequence number or database id
-also work:
+You can also run it from the terminal.
 
 ```bash
 pnpm programs:pipeline <code>
 ```
 
-Useful variations:
+## Step 6: Get the Setup checklist green
 
-```bash
-pnpm programs:pipeline <code> --skip=phase4   # registrar/finance links not wired
-pnpm programs:pipeline <code> --only=phase5   # peers only
-```
+1. On the same programme page, open the "Setup checklist" tab.
+2. Read each item. A red item names the dataset or step that is missing.
+3. Fix it, then reload the tab.
 
-The phases, in execution order, are 1 and 2b (in parallel), 2, 3, 4, 6, 5, RE, CR,
-7, OV, 8. Phase 6 runs before 5 because the readiness score feeds the peer
-review. Phase 7 (narrative) is the last of the narrative chain and depends on the
-phases before it; it is also the "done" marker the status command uses.
+Some items do not apply to a programme. Postgraduate programmes have no TCAS or
+digital competency items. A programme with no same-level sibling that has a
+course list has no overlap item. These are not red. An item filled by AI that
+ran in a degraded mode counts as green and shows a "degraded" note with the
+reason.
 
-If phase 2b cannot read the course list from your PDF (it reports "Could not
-locate the รายวิชา section"), upload the list instead with the **Programme course lists**
-dataset at `/admin/data-setup`. An uploaded list is never overwritten by
-the pipeline; see [Data import](../data-import.md#programme-course-lists--the-fallback-when-the-pdf-cannot-be-read).
+Only real data turns an item green. Sample rows never do.
 
-`--only` and `--skip` silently drop ids they do not recognise, so a typo runs
-nothing. Valid ids are `phase1`, `phase2`, `phase2b`, `phase3`, `phase4`,
-`phase5`, `phase6`, `phaseRE`, `phaseCR`, `phase7`, `phaseOV`, `phase8`.
+You should see every item green or not applicable.
 
-Phase OV prepares its own inputs (PLOs, course descriptions, embeddings) before
-it scores, so a single-programme run needs no separate prep step. It compares the
-programme against same-level siblings, so the Overlap section stays hidden until
-at least one sibling reaches the display threshold.
+## Step 7: Open the Deep-Dive
 
-The scoring each phase feeds is described in the
-[Evaluation pipeline](../evaluation-pipeline.md).
+1. Open `/programs/<id>`. If you are an administrator, the header has a
+   "Setup checklist" link back to the tab.
+2. Scroll through the sections.
 
-## Step 6 — Check the result
+You should see real content in each section that has its data. A section that is
+still empty says what it needs.
 
-Open `/programs`, pick the programme, and walk the section rail. Compare each
-section with the table at the top. An empty section is expected when its source
-is missing — that is the intended behaviour, not a failure. If you see numbers you
-cannot trace, investigate rather than trust them.
+## Step 8: Scale to the whole portfolio
 
-## Step 7 — Scale to the portfolio
-
-Once one programme looks right, use the launcher on `/admin/data-setup`
-("Full program documents"):
-
-- **Full run** — every phase on every canonical programme, or only the
-  not-yet-narrated ones with **Resume**.
-- **Partial run** — tick only the phases you want. The picker has no dependency
-  engine, so respect the order above; phase CR skips without research expertise.
-
-Or from the CLI:
-
-```bash
-pnpm programs:pipeline --all --limit=5   # smoke-test cap
-pnpm programs:pipeline --all
-pnpm programs:pipeline-status --watch    # progress, rate, ETA
-```
-
-With more than one programme selected, phase OV runs once after the loop rather
-than once per programme. To run the overlap step on its own, or to preview what
-it will do, prepare the data and then run the comparison. The prep script is a
-dry run unless given `--apply`:
-
-```bash
-pnpm programs:overlap-prep               # counts only, no model calls
-pnpm programs:overlap-prep --apply
-pnpm programs:overlap --apply
-```
-
-The method is in [Programme overlap](../methodologies/program-overlap.md).
+1. Check the one programme you finished against its source documents.
+2. Run the pipeline for the rest from `/admin/data-setup`, or one programme at a
+   time from its pipeline tab. Plan for USD 0.80 for each programme.
 
 ## When a section is empty but the rows exist
 
-Almost always the provenance filter. Rows count only when they carry an
-`ingestion_run_id` whose data source has `mocked = false`; a legacy row with a
-NULL run id, or a source whose `mocked` flag was never cleared, silently
-disappears from the page. Check both. The triage SQL is in the
-[project contract](../../CLAUDE.md) (search for `realDataWhere`),
-and the trap is explained in the
-[Adopter guide](../adopters/README.md#trap-2-realdatawhere--empty-sections-with-rows-in-the-database).
-
-### Skills coverage shows 0
-
-All four cards (*Skills taught*, *Major contributors*, *Minor contributors*,
-*Demand match*) read 0 even though the pipeline ran. Check these causes in order:
-
-1. **No skill taxonomy.** `SELECT count(*) FROM skills;` returns 0. Skill
-   matching is exact, so nothing can match an empty taxonomy. Build it as
-   [Building your skill taxonomy](../adopters/README.md#building-your-skill-taxonomy)
-   describes, then re-apply the digest with `pnpm programs:digest <code> --force`.
-   Re-running `--only=phase2` is not enough: it only applies digests that are
-   still pending, and digests are auto-approved by default.
-2. **Phase 1 failed.** The pipeline log shows `digest✗` and nothing more,
-   because phase 1 drops the error message. Run the digest on its own to see it:
-   `pnpm programs:digest <code>`. On OpenRouter, see
-   [Running on OpenRouter](../ai-governance.md#running-on-openrouter).
-3. ***Demand match* alone stays 0.** It needs pipeline phase 3, run **after**
-   the taxonomy exists and the labour-market rows have been re-linked:
-   `pnpm programs:pipeline <code> --only=phase3`.
+Rows that came from an upload carry the upload that made them. The app hides
+rows it cannot trace. If an upload succeeded and nothing shows, run
+`pnpm data-sources:sync --apply` and upload again. See
+[If an upload does not appear](../data-import.md#if-an-upload-does-not-appear).
 
 ## Where to go next
 
-- [Evaluation pipeline](../evaluation-pipeline.md) — how the scorers interlock.
-- [Health score](../methodologies/health-score.md) and
-  [Programme health & lifecycle](../methodologies/program-health-and-lifecycle.md).
-- [Source catalogue](../data-sources/README.md) — every source and its status.
-- [PDF ingestion](../pdf-ingestion.md) — what happens to an attached curriculum PDF.
+- [Importing from spreadsheets](../data-import.md) for every dataset and rule.
+- [Workshop guide](./workshop.md) if you are running this for a group.
+- [Adapt the registrar connector](./adapt-the-registrar-connector.md), advanced
+  and optional, a KKU example of reading a student-records system directly.
+- [Evaluation pipeline](../evaluation-pipeline.md) for how the scores are built.

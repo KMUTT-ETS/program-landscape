@@ -9,8 +9,8 @@ hero:
       text: Start with the adopter guide
       link: /adopters/README
     - theme: alt
-      text: Fresh checkout setup
-      link: /guides/fresh-checkout-setup
+      text: Getting started
+      link: /tutorials/getting-started
 features:
   - title: Start
     details: What the platform is, the licence, the architecture and how the scores fit together.
