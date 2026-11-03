@@ -257,7 +257,7 @@ interface SectionSpec {
 export async function programSetupChecklist(programId: string): Promise<SetupChecklist | null> {
   const program = await prisma.program.findUnique({
     where: { id: programId },
-    select: { id: true, code: true, level: true },
+    select: { id: true, code: true, level: true, nameEn: true },
   });
   if (!program) return null;
   const bachelor = program.level === 'BACHELOR';
@@ -295,7 +295,18 @@ export async function programSetupChecklist(programId: string): Promise<SetupChe
           where: { programId },
           select: { confidence: true },
         });
-        if (!row) return empty();
+        if (!row) {
+          // The pipeline does not persist phase results, but a failed AI call
+          // leaves a confidence-0 inference row whose prompt names the programme.
+          const last = await prisma.aiInference.findFirst({
+            where: { kind: 'program-ai-readiness', prompt: { contains: program.nameEn } },
+            orderBy: { createdAt: 'desc' },
+            select: { confidence: true },
+          });
+          return last && (last.confidence ?? 0) === 0
+            ? empty('The AI readiness phase failed on the last pipeline run — run the pipeline again.')
+            : empty();
+        }
         return row.confidence < LOW_CONFIDENCE ? degraded(`degraded — confidence ${row.confidence.toFixed(2)}`) : ok();
       },
     },

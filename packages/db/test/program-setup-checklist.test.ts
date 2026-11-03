@@ -30,6 +30,9 @@ async function cleanup(): Promise<void> {
   const pid = progs.map((p) => p.id);
   await prisma.studentCohortDistribution.deleteMany({ where: { programId: { in: pid } } });
   await prisma.financialMetric.deleteMany({ where: { programId: { in: pid } } });
+  await prisma.aiInference.deleteMany({
+    where: { kind: 'program-ai-readiness', OR: Object.values(CODES).map((c) => ({ prompt: { contains: c } })) },
+  });
   await prisma.program.deleteMany({ where: { code: { in: Object.values(CODES) } } });
   await prisma.faculty.deleteMany({ where: { code: FACULTY_CODE } });
 }
@@ -98,6 +101,21 @@ describeScratchDb('programSetupChecklist', () => {
       expect(item.note).toBe('TCAS covers bachelor programmes only.');
       expect(item.waitingOn).toEqual([]);
     }
+  });
+
+  it('AI readiness: a failed last phase gets a rerun note, otherwise the plain empty state', async () => {
+    const before = byKey((await programSetupChecklist(ids.grad!))!.items, 'section.ai-readiness');
+    expect(before.status).toBe('empty');
+    expect(before.note ?? '').not.toMatch(/failed/);
+    await prisma.aiInference.create({
+      data: {
+        module: 'programs', kind: 'program-ai-readiness', prompt: `Programme ${CODES.grad}`,
+        model: 'test-model', response: '', confidence: 0,
+      },
+    });
+    const after = byKey((await programSetupChecklist(ids.grad!))!.items, 'section.ai-readiness');
+    expect(after.status).toBe('empty');
+    expect(after.note).toBe('The AI readiness phase failed on the last pipeline run — run the pipeline again.');
   });
 
   it('imported rows (xlsx run) turn cohorts and financials ok', async () => {
