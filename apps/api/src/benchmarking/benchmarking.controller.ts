@@ -142,9 +142,7 @@ export class BenchmarkingController {
   @Authorized('programs:read:all')
   @Provenance({
     sources: [
-      { id: 'the-rankings', name: 'THE rankings (mocked)' },
-      { id: 'qs-rankings', name: 'QS rankings (mocked)' },
-      { id: 'scimago', name: 'SCImago (mocked)' },
+      { id: 'xlsx-ranked-universities', name: 'University rankings (spreadsheet import, or the bundled starter list)' },
     ],
   })
   async subjects(@Query(new ZodValidationPipe(SubjectsQuerySchema)) q: SubjectsQuery) {

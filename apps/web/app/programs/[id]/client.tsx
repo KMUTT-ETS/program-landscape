@@ -2345,9 +2345,13 @@ function DemographicOutlookSection({
         </table>
 
         <p className="mt-3 border-t border-border-subtle pt-2 text-xs text-text-tertiary">
-          Source: {data.source} (NESDC mid-variant population projection). The projection is
+          Source: {data.source} (mid-variant population projection). The projection is
           national{data.comparatorRegion !== null
-            ? `; the ${data.comparatorRegion}-catchment column is a comparator`
+            ? `; the ${data.comparatorRegion}-catchment column is a comparator${
+                data.comparatorSource && data.comparatorSource !== data.source
+                  ? ` taken from ${data.comparatorSource}`
+                  : ''
+              }`
             : ''}.
           {fifteenYear && fifteenYear.cohortDeclinePct > 30 && (
             <span className="text-warning">
