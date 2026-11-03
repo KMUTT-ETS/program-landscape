@@ -10,8 +10,7 @@ green.
 do not have one, do [Getting started](./getting-started.md) first. Every command
 below runs from the repository root.
 
-**Time and cost.** About half a day with your files ready. AI spend is about
-about USD 0.80 per programme, so run one programme first and the rest later.
+**Time and cost.** About half a day with your files ready. AI spend is about USD 0.80 per programme, so run one programme first and the rest later.
 
 ## The order of work
 

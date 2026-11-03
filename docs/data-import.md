@@ -440,7 +440,7 @@ Salaries are **monthly**, in baht, on the Graduate Outcomes sheet and
 **annual** on the Compensation sheet — each says which in its guide column.
 Commas are fine.
 
-Two year columns are stored converted to the Buddhist era, because that is
+Some year columns are stored converted to the Buddhist era, because that is
 how the registrar data they sit beside is recorded: **Student Cohorts**,
 **Alumni Cohorts**, **Admission Campaigns** and **Class Offerings**. You
 always write the Common Era year; the admin data view shows it plus 543.
@@ -598,7 +598,7 @@ Each dataset has a **Start over** control at the foot of its page. It deletes
 the rows that were imported and leaves anything that came from a connector or
 the original setup alone. You must type the dataset's name to confirm.
 
-Two things to understand before using it:
+A few things to understand before using it:
 
 - **Your uploaded files are kept.** Start over, then upload them again, and you
   are back where you were. This is the only way back, so do not delete the

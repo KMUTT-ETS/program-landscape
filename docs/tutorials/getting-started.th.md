@@ -1,6 +1,6 @@
 # Getting started: จากการ clone ใหม่จนแอปทำงานได้
 
-> **English:** [`getting-started.md`](./getting-started.md) เป็นฉบับที่ใช้บังคับ หากข้อความขัดแย้งกัน ให้ถือฉบับภาษาอังกฤษเป็นหลัก
+> **English:** [`getting-started.md`](./getting-started.md)
 
 **ผลลัพธ์** ท่านมี Program Landscape ทำงานบนเครื่องแล็ปท็อปของท่าน ท่านได้สร้างบัญชีผู้ดูแลระบบคนแรกแล้ว และลงชื่อเข้าใช้แล้ว
 
