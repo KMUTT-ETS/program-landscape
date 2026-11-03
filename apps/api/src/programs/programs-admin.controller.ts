@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   HttpCode,
+  NotFoundException,
   Param,
   Patch,
   Post,
@@ -32,6 +33,7 @@ import {
   Provenance,
   ZodValidationPipe,
 } from '../common';
+import { programSetupChecklist, type SetupChecklist } from '@kku/db';
 import type { SessionUser } from '@kku/shared';
 import type { ProgramPipelinePhase } from '../ai-jobs/ai-jobs-queue.service';
 import { ProgramsService } from './programs.service';
@@ -72,6 +74,20 @@ export class ProgramsAdminController {
     q: AdminProgramListQuery,
   ) {
     return this.svc.list(q);
+  }
+
+  // Which Deep-Dive sections and health drivers have real data for this
+  // programme, and what each empty one is waiting on. Read-only.
+  @Get(':id/setup-checklist')
+  @Authorized('programs:manage:all')
+  @Provenance({
+    sources: [{ id: 'program-setup-checklist', name: 'Programme setup checklist (live readers)' }],
+    methodologyVersion: 'setup-checklist.v1',
+  })
+  async setupChecklist(@Param('id') id: string): Promise<SetupChecklist> {
+    const checklist = await programSetupChecklist(id);
+    if (!checklist) throw new NotFoundException('Programme not found');
+    return checklist;
   }
 
   @Get(':id')

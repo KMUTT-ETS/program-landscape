@@ -25,6 +25,7 @@ export * from './ai-model-health';
 export * from './external-ai-runner';
 export * from './health-score';
 export * from './program-deep-dive';
+export * from './program-setup-checklist';
 export * from './program-strategic-narrative-run';
 export * from './program-research-expertise';
 export * from './program-research-expertise-run';
