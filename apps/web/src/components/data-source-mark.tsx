@@ -51,11 +51,25 @@ export function acknowledgementHref(source: DataSourceMarkSlug): string {
 /** Driver labels in the health score whose value is computed from a marked source. */
 export const DRIVER_SOURCE_MARK: Record<string, DataSourceMarkSlug> = {
   jobthai_demand_alignment: 'jobthai',
-  external_grant_award: 'kku-research-services',
 };
 
 /** The mark for a health-score driver, or nothing when the driver has no marked source. */
 export function DriverSourceMark({ label, size }: { label: string; size?: number }) {
+  // The grant award reads whichever source holds the rows (a connector or an
+  // imported dataset) and the driver does not say which, so it carries a
+  // neutral chip rather than crediting a source it may not have used.
+  if (label === 'external_grant_award') {
+    const h = size ?? 14;
+    return (
+      <span
+        title="Data from external grants"
+        style={{ height: h, lineHeight: `${h}px`, fontSize: Math.max(8, h - 6) }}
+        className="inline-flex shrink-0 items-center whitespace-nowrap rounded-[3px] border border-default px-1 align-[-0.125em] font-medium text-text-secondary"
+      >
+        External grants
+      </span>
+    );
+  }
   const source = DRIVER_SOURCE_MARK[label];
   return source ? <DataSourceMark source={source} size={size} /> : null;
 }

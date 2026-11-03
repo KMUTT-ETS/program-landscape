@@ -17,6 +17,7 @@ const SIGNIN_AND_ADMIN_FILES = [
   path.join(app, 'signin', 'page.tsx'),
   path.join(app, 'admin', 'data-setup', 'page.tsx'),
   path.join(app, 'admin', 'programs', 'page.tsx'),
+  path.join(app, 'admin', 'programs', '[id]', 'setup-checklist.tsx'),
   path.join(app, 'programs', 'page.tsx'),
   path.join(app, 'page.tsx'),
   path.join(src, 'components', 'shell', 'role-switcher.tsx'),

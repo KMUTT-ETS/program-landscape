@@ -194,6 +194,11 @@ export default async function ProgramDeepDivePage({
         subtitle={`${overview.program.code} · ${overview.program.nameTh} · ${overview.program.faculty.nameEn}${overview.program.department ? ` · ${overview.program.department.nameEn}` : ''}`}
         actions={
           <div className="flex items-center gap-2">
+            {isAdminGrade(user.effectiveRole ?? user.role) && (
+              <Button variant="ghost" size="sm" asChild>
+                <Link href={`/admin/programs/${id}?tab=checklist`}>Setup checklist</Link>
+              </Button>
+            )}
             <Button variant="ghost" size="sm" asChild>
               <Link href={`/programs/${id}/print`} target="_blank" rel="noopener noreferrer">
                 <Printer className="size-icon-md" />
