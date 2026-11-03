@@ -33,7 +33,7 @@ Ask every attendee to finish this list before the day.
 | 0:15 | Fresh clone to running app, claim the administrator | [Getting started](./getting-started.md) |
 | 0:45 | Organisation profile, then faculties, departments, programmes | [Get Program Deep-Dive working](./program-deep-dive.md) steps 1 and 2 |
 | 1:30 | Break | |
-| 1:45 | Staff, enrolment, finance, outcomes, course lists | steps 2 |
+| 1:45 | Staff, enrolment, finance, outcomes, course lists | step 2 |
 | 2:30 | Public connectors and the curriculum PDF | steps 3 and 4 |
 | 3:00 | Run the pipeline on one programme | step 5 |
 | 3:20 | Setup checklist to green, then the Deep-Dive | steps 6 and 7 |

@@ -26,7 +26,7 @@ pnpm dev            # run web + api + ingestion in parallel
 ```
 
 Full walkthrough, including what to do after a fresh `git clone`:
-**[`docs/guides/fresh-checkout-setup.md`](docs/guides/fresh-checkout-setup.md)**.
+**[`docs/tutorials/getting-started.md`](docs/tutorials/getting-started.md)**.
 
 Then open:
 

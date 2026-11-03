@@ -73,7 +73,7 @@ When you have these files, upload them as well:
   **External Grants** and **External Grant Team**, **Employer Feedback** and
   **Staff Salary by Funding**.
 - **Population Projections**.
-- **Career Skill Demand**, but only after step 6 has built the skills, and only
+- **Career Skill Demand**, but only after Step 5 has built the skills, and only
   if you have no KMITL key (see [Labour-market skills](#labour-market-skills)).
 
 Rules that decide whether a file is accepted are in
@@ -116,7 +116,7 @@ to load them.
 
 1. Run `kmitl-skill-mapping` as above, if you have a key.
 2. Or upload **Career Skill Demand** at `/admin/data-setup/raw/career-skill-demand`
-   after Step 6 has built the skills.
+   after Step 5 has built the skills.
 
 ## Step 4: Attach the curriculum PDF
 
@@ -180,8 +180,9 @@ still empty says what it needs.
 ## Step 8: Scale to the whole portfolio
 
 1. Check the one programme you finished against its source documents.
-2. Run the pipeline for the rest from `/admin/data-setup`, or one programme at a
-   time from its pipeline tab. Plan for USD 0.80 for each programme.
+2. Run the pipeline for the rest from `/admin/programs`: tick the programmes and
+   choose **Run pipeline · N program(s)**. Or run one programme at a time from its
+   pipeline tab. Plan for USD 0.80 for each programme.
 
 ## When a section is empty but the rows exist
 
