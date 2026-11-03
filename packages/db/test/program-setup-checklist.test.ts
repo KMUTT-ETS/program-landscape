@@ -109,13 +109,28 @@ describeScratchDb('programSetupChecklist', () => {
     expect(before.note ?? '').not.toMatch(/failed/);
     await prisma.aiInference.create({
       data: {
-        module: 'programs', kind: 'program-ai-readiness', prompt: `Programme ${CODES.grad}`,
+        module: 'programs', kind: 'program-ai-readiness', prompt: `# Program: ${CODES.grad}\nFaculty: F\nLevel: MASTER\nThai name: โปรแกรม ${CODES.grad}\n`,
         model: 'test-model', response: '', confidence: 0,
       },
     });
     const after = byKey((await programSetupChecklist(ids.grad!))!.items, 'section.ai-readiness');
     expect(after.status).toBe('empty');
     expect(after.note).toBe('The AI readiness phase failed on the last pipeline run — run the pipeline again.');
+    // A programme whose English name merely starts with the failed one's does not cross-match.
+    const other = await prisma.program.create({
+      data: {
+        code: `${CODES.grad}-X`, nameTh: `โปรแกรม ${CODES.grad}-X`, nameEn: `${CODES.grad} (International)`,
+        facultyId: (await prisma.program.findUniqueOrThrow({ where: { id: ids.grad! }, select: { facultyId: true } })).facultyId,
+        level: 'MASTER', status: 'ACTIVE', sequenceNoFromSheet: -9699,
+      },
+      select: { id: true },
+    });
+    try {
+      const o = byKey((await programSetupChecklist(other.id))!.items, 'section.ai-readiness');
+      expect(o.note ?? '').not.toMatch(/failed/);
+    } finally {
+      await prisma.program.delete({ where: { id: other.id } });
+    }
   });
 
   it('imported rows (xlsx run) turn cohorts and financials ok', async () => {

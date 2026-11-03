@@ -257,7 +257,7 @@ interface SectionSpec {
 export async function programSetupChecklist(programId: string): Promise<SetupChecklist | null> {
   const program = await prisma.program.findUnique({
     where: { id: programId },
-    select: { id: true, code: true, level: true, nameEn: true },
+    select: { id: true, code: true, level: true, nameEn: true, nameTh: true },
   });
   if (!program) return null;
   const bachelor = program.level === 'BACHELOR';
@@ -298,8 +298,18 @@ export async function programSetupChecklist(programId: string): Promise<SetupChe
         if (!row) {
           // The pipeline does not persist phase results, but a failed AI call
           // leaves a confidence-0 inference row whose prompt names the programme.
+          // No entity id is stored, so anchor on the prompt's exact header
+          // lines ("# Program: <en>\n" and "Thai name: <th>\n"; the code is
+          // not in the prompt). A short or empty name matches nothing.
+          if (program.nameEn.trim().length < 3 || program.nameTh.trim().length < 3) return empty();
           const last = await prisma.aiInference.findFirst({
-            where: { kind: 'program-ai-readiness', prompt: { contains: program.nameEn } },
+            where: {
+              kind: 'program-ai-readiness',
+              AND: [
+                { prompt: { contains: `# Program: ${program.nameEn}\n` } },
+                { prompt: { contains: `\nThai name: ${program.nameTh}\n` } },
+              ],
+            },
             orderBy: { createdAt: 'desc' },
             select: { confidence: true },
           });
