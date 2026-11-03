@@ -191,6 +191,37 @@ original methodVersion — never silently overwritten.
 | Re-extract doesn't re-run old extractor | Method version bumped — old rows kept | Use `POST /pdfs/bulk-reprocess` to regenerate with new version |
 | Worker OOMs on 200+ page PDF | Chunking not wired | Deferred to prompt 04 — for now, split the PDF externally |
 
+## Curriculum PDFs (programme extraction)
+
+The programme pipeline reads each programme's current curriculum PDF with
+native text extraction (no OCR). Supported shape: a text PDF with a numbered
+course-list section titled `รายวิชา` (e.g. `3.1.3 รายวิชา`) holding `หมวดวิชา`
+sub-headings and course codes of 2-4 capital letters followed by three digits
+(`MEE 221`) or by 3+3 digits (`EN 241 100`). The course list ends at the
+description section (`คำอธิบายรายวิชา`, also tolerated as `ค าอธิบายรายวิชา`),
+at `ภาคผนวก`, or at the next numbered sibling heading.
+
+**No-text PDFs.** If the PDF is flagged as scanned, or yields fewer than 2000
+characters of text, every curriculum phase (digest, faculty, skills,
+pedagogy, courses-extract) is reported as SKIPPED with: "The curriculum PDF
+has no extractable text (scanned or image-only). OCR is not supported; upload
+a text PDF or load the course list spreadsheet." The fallback is the
+`programme-courses` spreadsheet import (see `docs/data-import.md`).
+
+**Check a PDF before loading it.** Run on a local file:
+
+```bash
+pnpm curriculum:check <path-to-pdf>
+```
+
+It prints only counts, booleans and page numbers (pages, characters, scanned
+flag, course-code counts by shape, whether the course-list section was found
+and its length, candidate code count, first offset/page of the PLO, roster
+and appendix headings). It never prints text, names or code lists, so its
+output is safe to share. A healthy PDF reads: not scanned, slice found,
+candidate codes in the hundreds. In a production container the bundled copy
+runs as `node /app/dist/scripts/curriculum-pdf-check.js <path>`.
+
 ## Tests
 
 - `apps/ingestion/test/pdf-intake.test.ts` — pipeline state transitions,

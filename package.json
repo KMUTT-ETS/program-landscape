@@ -48,6 +48,7 @@
     "evaluations:translate-questions": "tsx apps/ingestion/src/scripts/translate-evaluation-questions.ts",
     "narratives:regenerate": "tsx apps/ingestion/src/scripts/regenerate-narratives.ts",
     "expertise:generate": "tsx apps/ingestion/src/scripts/generate-research-expertise.ts",
+    "curriculum:check": "tsx apps/ingestion/src/scripts/curriculum-pdf-check.ts",
     "curriculum:revision-generate": "tsx apps/ingestion/src/scripts/generate-curriculum-revision.ts",
     "programs:seed-from-sheet": "tsx apps/ingestion/src/scripts/seed-programs-from-sheet.ts",
     "programs:digest": "tsx apps/ingestion/src/scripts/digest-program.ts",

@@ -7,6 +7,7 @@ import {
   type S3Storage,
 } from '@kku/shared';
 import { Logger } from '@nestjs/common';
+import { pdfNoTextReason } from '../program-pdf-prep/load';
 import { extractNativeText } from '../pdf-intake/pipeline/native-text-extractor';
 import { loadProgramSystemContext } from '../program-system-context/load';
 
@@ -138,6 +139,8 @@ export async function runProgramDigest(
     const bytes = Buffer.from(await res.arrayBuffer());
     extracted = await extractNativeText(bytes);
   }
+  const noTextReason = pdfNoTextReason(extracted);
+  if (noTextReason) return { status: 'SKIPPED', reason: noTextReason };
 
   // Load live grounding from DS2004 + DS2003 + DS1001 + kku-hr so the
   // recruitment summary's claims about staff and student composition
@@ -178,11 +181,10 @@ export async function runProgramDigest(
       },
       messages,
       methodVersion: PROGRAM_DIGEST_VERSION,
-      // Bumped 16000 → 50000 on 2026-05-13 to fit very large
-      // curriculum digests (PLO + all-courses + recruitment summary +
-      // skills + evidence quotes) without hitting the previous ceiling.
-      // Gemini 2.5 Pro's hard cap is 65536; 50000 leaves headroom for
-      // reasoning tokens that count against the same budget.
+      // Raised 16000 → 50000 on 2026-05-13, then to the model's 65536
+      // hard cap, to fit very large curriculum digests (PLO + all-courses
+      // + recruitment summary + skills + evidence quotes). Reasoning
+      // tokens count against the same budget.
       maxOutputTokens: 65536,
     },
     ProgramDigestSchema,

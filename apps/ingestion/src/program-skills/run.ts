@@ -6,6 +6,7 @@ import {
   type AiService,
   type S3Storage,
 } from '@kku/shared';
+import { pdfNoTextReason } from '../program-pdf-prep/load';
 import { extractNativeText } from '../pdf-intake/pipeline/native-text-extractor';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -122,6 +123,8 @@ export async function runProgramSkillsDetailed(
     const bytes = Buffer.from(await res.arrayBuffer());
     extracted = await extractNativeText(bytes);
   }
+  const noTextReason = pdfNoTextReason(extracted);
+  if (noTextReason) return { status: 'SKIPPED', reason: noTextReason };
 
   // Run AI extraction
   const messages = buildProgramSkillsDetailedMessages({

@@ -14,6 +14,7 @@ import {
   type S3Storage,
 } from '@kku/shared';
 import { Logger } from '@nestjs/common';
+import { pdfNoTextReason } from '../program-pdf-prep/load';
 import { extractNativeText } from '../pdf-intake/pipeline/native-text-extractor';
 import { normaliseCourseCode } from '../lib/course-code';
 
@@ -112,6 +113,8 @@ export async function runProgramCoursesExtract(
     const bytes = Buffer.from(await res.arrayBuffer());
     extracted = await extractNativeText(bytes);
   }
+  const noTextReason = pdfNoTextReason(extracted);
+  if (noTextReason) return { status: 'SKIPPED', reason: noTextReason };
 
   // v2.3 scope clamp: extract only from the รายวิชา section (the
   // structured course list organised into 3 หมวด: ศึกษาทั่วไป /

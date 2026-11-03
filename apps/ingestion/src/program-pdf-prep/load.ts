@@ -27,8 +27,23 @@ export type ProgramPdfPrep = NativeExtractionResult;
 
 export type LoadProgramPdfPrepOutcome =
   | { status: 'SUCCEEDED'; prep: ProgramPdfPrep; pdfDocumentId: string }
+  | { status: 'NO_TEXT'; reason: string }
   | { status: 'SKIPPED'; reason: string }
   | { status: 'FAILED'; reason: string };
+
+/** Below this many characters a curriculum PDF cannot hold a course list. */
+export const MIN_CURRICULUM_TEXT_CHARS = 2000;
+
+export const NO_TEXT_REASON =
+  'The curriculum PDF has no extractable text (scanned or image-only). OCR is not supported; upload a text PDF or load the course list spreadsheet.';
+
+/** The reason a prepared PDF is unusable, or null when it has readable text. */
+export function pdfNoTextReason(prep: ProgramPdfPrep): string | null {
+  if (prep.isLikelyScanned || prep.fullText.trim().length < MIN_CURRICULUM_TEXT_CHARS) {
+    return NO_TEXT_REASON;
+  }
+  return null;
+}
 
 export async function loadProgramPdfPrep(args: {
   programId: string;
@@ -60,5 +75,7 @@ export async function loadProgramPdfPrep(args: {
   const bytes = Buffer.from(await res.arrayBuffer());
 
   const prep = await extractNativeText(bytes);
+  const noText = pdfNoTextReason(prep);
+  if (noText) return { status: 'NO_TEXT', reason: noText };
   return { status: 'SUCCEEDED', prep, pdfDocumentId: doc.pdfDocument.id };
 }
