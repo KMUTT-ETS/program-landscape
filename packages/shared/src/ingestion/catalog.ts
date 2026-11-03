@@ -766,6 +766,17 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'Course lists per programme, uploaded through /admin/data-setup. PROGRAMME-SCOPED: a programme named in the file has its whole course list replaced. Takes precedence over phase 2b PDF extraction until started over.',
     mocked: false,
   },
+  {
+    slug: 'xlsx-course-evaluations',
+    name: 'Course Evaluations (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Course-level overall student evaluation (mean of a 1-5 scale plus respondent count), uploaded through /admin/data-setup. Feeds the student-satisfaction driver; joins programme course lists on the normalised course code.',
+    mocked: false,
+  },
 ] as const;
 
 /** True for connectors that only work against KKU's internal systems. */

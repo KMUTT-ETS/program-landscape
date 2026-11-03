@@ -463,6 +463,7 @@ export default async function AdminDataSetupPage() {
             <RawDatasetLink slug="faculty-members" label="Academic staff" />
             <RawDatasetLink slug="program-faculty" label="Programme teaching staff (who teaches what)" />
             <RawDatasetLink slug="programme-courses" label="Programme course lists" />
+            <RawDatasetLink slug="course-evaluations" label="Course evaluations" />
             <RawDatasetLink slug="faculty-compensation" label="Faculty compensation (aggregate)" />
             <RawDatasetLink slug="kmitl-careers" label="Labour-market career taxonomy" />
             <RawDatasetLink slug="kmitl-skill-demands" label="LinkedIn skill demand (15.8k)" />

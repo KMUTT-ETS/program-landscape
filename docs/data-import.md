@@ -27,6 +27,7 @@ This page is for the person doing the uploading.
 | **Class Offerings** | Every class section taught in one term | — |
 | **Programme Teaching Staff** | Which staff teach which programmes | — |
 | **Programme course lists** | The course list of each programme | Programmes |
+| **Course Evaluations** | Overall student rating of each course, per term | Programme course lists |
 
 Load them top to bottom. The first three are the backbone everything else
 refers to by code; **Staff** must come before both **Publications** and
@@ -67,8 +68,9 @@ either — nothing in the application reads them today, so a template for them
 would ask you for work no screen would show.
 
 A few more are deliberately out of scope and documented as such in the design
-note under `docs/superpowers/specs/` — employer feedback, teaching evaluations
-and per-section instructor rosters, the last of these because it keys on
+note under `docs/superpowers/specs/` — employer feedback, per-instructor
+teaching evaluations (the Course Evaluations sheet is course-level only) and
+per-section instructor rosters, the last of these because it keys on
 personal email addresses. Note that per-section instructors are a different
 thing from **Programme Teaching Staff** above: one says who stood in front of
 a particular class, the other says who the programme's teaching team is, and
@@ -158,6 +160,35 @@ Things to know about what reads the list:
 - There is deliberately **no description column**: curriculum revision would
   ignore it, and overlap preparation overwrites a description whenever an
   approved digest lists the same code.
+
+## Course Evaluations — the Student Satisfaction measure
+
+One row per course section per term: the **mean of a 1–5 scale** that students
+gave the course overall, and how many answered. It feeds the Student
+Satisfaction measure in each programme's Outcomes score. There is no
+per-instructor or per-question row, and nothing in the sheet identifies a
+teacher.
+
+Columns: **Course Code**, **Academic Year**, **Semester** (1, 2 or 3) and
+**Average Rating** (1 to 5, required), **Respondents** (required), **Section**
+(blank for a single-section course), **Faculty Code**, **Course Name (Thai)** and
+**Course Name (English)**.
+
+- **Load the programme course lists first.** The measure joins the course code
+  to the programmes' course lists. A course on no programme's list counts for
+  nothing, however many rows you upload. Spaces and letter case in the code are
+  ignored.
+- **Academic Year is the Common Era year** (2025). It is stored as the Buddhist
+  era (2568), so the admin data view shows the year plus 543. A Buddhist-era year
+  typed here is refused.
+- **Average Rating is not a percentage.** 4.25 is right; 85 or 0.85 is refused.
+  The measure weights each row by its Respondents and counts semesters 1 and 2
+  only, so a summer row is stored but does not move the score.
+- **At least five respondents per row.** A row below that is refused, and the
+  message does not repeat the rating.
+- **Faculty Code is optional, but fill it in.** The faculty satisfaction view
+  groups by it, so a row without one is missing from that view.
+- Uploading the same course, term and section again updates that row.
 
 ## Years, money and rates
 

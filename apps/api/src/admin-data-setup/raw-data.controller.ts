@@ -505,6 +505,59 @@ const DATASETS: Record<string, DatasetFetcher> = {
     };
   },
 
+  'course-evaluations': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.EvaluationResponseSummaryWhereInput = q.q
+      ? {
+          OR: [
+            { courseCode: { contains: q.q.replace(/\s+/g, '').toUpperCase() } },
+            { courseNameEn: { contains: q.q, mode: 'insensitive' } },
+            { courseNameTh: { contains: q.q } },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.evaluationResponseSummary.findMany({
+        where,
+        orderBy: [{ acadYearBE: 'desc' }, { semester: 'asc' }, { courseCode: 'asc' }, { section: 'asc' }],
+        skip,
+        take: q.pageSize,
+        include: { faculty: { select: { code: true } } },
+      }),
+      prisma.evaluationResponseSummary.count({ where }),
+    ]);
+    return {
+      title: 'Course evaluations',
+      description:
+        'Overall course ratings, one row per course section per term. The academic year is shown as the Common Era year the sheet asks for (stored as Buddhist era). Rows marked Imported came from a spreadsheet upload.',
+      columns: [
+        { key: 'courseCode', label: 'Course code' },
+        { key: 'courseNameEn', label: 'Course name (English)' },
+        { key: 'academicYear', label: 'Academic year', numeric: true },
+        { key: 'semester', label: 'Semester', numeric: true },
+        { key: 'section', label: 'Section', numeric: true },
+        { key: 'averageRating', label: 'Average rating', numeric: true },
+        { key: 'respondents', label: 'Respondents', numeric: true },
+        { key: 'facultyCode', label: 'Faculty' },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        courseCode: r.courseCodeRaw,
+        courseNameEn: r.courseNameEn,
+        academicYear: r.acadYearBE - 543,
+        semester: r.semester,
+        section: r.section,
+        averageRating: Number(r.ratingAvg),
+        respondents: r.respondentCount,
+        facultyCode: r.faculty?.code ?? null,
+        imported: r.methodologyVersion === 'xlsx-import.v1',
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
   // ── Cohort progression and outcomes ──────────────────────────────────────
   'student-cohorts': async (q) => {
     const skip = (q.page - 1) * q.pageSize;
