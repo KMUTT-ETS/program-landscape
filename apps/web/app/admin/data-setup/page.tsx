@@ -456,6 +456,8 @@ export default async function AdminDataSetupPage() {
             <RawDatasetLink slug="financial-metrics" label="Financial — per program" />
             <RawDatasetLink slug="graduate-outcomes" label="Graduate outcomes (employment survey)" />
             <RawDatasetLink slug="student-cohorts" label="Student cohorts (still enrolled)" />
+            <RawDatasetLink slug="external-grants" label="External grants" />
+            <RawDatasetLink slug="external-grant-team" label="External grant team" />
             <RawDatasetLink slug="digital-competency-cohorts" label="Digital competency — cohorts" />
             <RawDatasetLink slug="digital-competency-modules" label="Digital competency — modules" />
             <RawDatasetLink slug="alumni-cohorts" label="Alumni cohorts (outcome per cohort)" />

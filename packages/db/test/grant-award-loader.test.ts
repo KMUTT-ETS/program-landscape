@@ -28,7 +28,7 @@ describe('loadGrantSourceSynced', () => {
     mocks.runCount.mockResolvedValue(1);
     await expect(loadGrantSourceSynced()).resolves.toBe(true);
     const where = mocks.runCount.mock.calls[0]?.[0]?.where;
-    expect(where).toEqual({ status: 'SUCCEEDED', dataSource: { slug: 'kku-research-services' } });
+    expect(where).toEqual({ status: 'SUCCEEDED', dataSource: { slug: { in: ['kku-research-services', 'xlsx-external-grants'] } } });
   });
 
   it('is false with no successful run', async () => {

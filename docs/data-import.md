@@ -18,6 +18,8 @@ This page is for the person doing the uploading.
 | **Finance** | Tuition and other revenue, per programme per year | — |
 | **Graduate Outcomes** | Employment survey results per graduating cohort | — |
 | **Student Cohorts** | How many of each entry cohort are still enrolled | — |
+| **External Grants** | Externally funded projects with whole-project budgets | Faculties |
+| **External Grant Team** | Which staff member is on which grant | External Grants, Staff |
 | **Digital Competency — Cohorts** | Students tested, scored and passing, per programme and entry year | Programmes |
 | **Digital Competency — Modules** | Mean score on each of the 13 modules, per programme and entry year | Programmes |
 | **Alumni Cohorts** | What became of each entry cohort | — |
@@ -191,6 +193,41 @@ Columns: **Course Code**, **Academic Year**, **Semester** (1, 2 or 3) and
 - **Faculty Code is optional, but fill it in.** The faculty satisfaction view
   groups by it, so a row without one is missing from that view.
 - Uploading the same course, term and section again updates that row.
+
+## External grants — projects and team
+
+Two sheets feed the Staff grants dashboard and the **grant award** on a
+programme's Financial score (up to +10 points, never a penalty). Load the
+projects first, then the team.
+
+**External Grants**: one row per project. Columns: **Project Code** (yours,
+unique in the file, required), **Title (Thai)** (required), **Title (English)**,
+**Type** (Research, Academic service, Consulting or Other), **Fiscal Year**
+(required), **Budget (THB)**, **Funder** and **Lead Faculty Code** (required,
+from the Faculties sheet).
+
+**External Grant Team**: one row per person per project. Columns: **Project
+Code** (must exist in the External Grants sheet), **Employee Code** (must be a
+staff member from the Staff sheet; a code that matches nobody is refused,
+naming the row) and **Role** (Lead or Co-investigator).
+
+- **Fiscal Year is the Common Era year.** The Thai fiscal year starts on 1
+  October of the previous calendar year, so fiscal year 2025 began on 1 October
+  2024. It is stored as the Buddhist era (plus 543); a Buddhist-era year is
+  refused.
+- **The award reads the last three complete fiscal years**, counting each
+  project once with its whole budget, for any project that has an active
+  teaching member of the programme on it. Budget is never split between people.
+  A project with no Budget counts for nothing.
+- **Staff are named by employee code only.** There are no name columns, and
+  nothing about a grant identifies a person beyond the code you already gave in
+  the Staff sheet.
+- **A programme only benefits through its staff.** The programme's teaching
+  staff come from the Programme Teaching Staff sheet, so a grant on a person
+  who is not linked to any programme there reaches no Deep-Dive.
+- **Re-uploading updates.** Projects are matched on Project Code and team rows
+  on the pair of codes. Nothing is removed by an upload; use start over for
+  that. Start over for either sheet never touches projects a connector wrote.
 
 ## Digital competency — cohorts and modules
 

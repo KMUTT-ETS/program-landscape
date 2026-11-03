@@ -799,6 +799,28 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'Mean score on each of the 13 digital competency modules per programme and entry year, uploaded through /admin/data-setup. Feeds the digital competency radar and overall mean.',
     mocked: false,
   },
+  {
+    slug: 'xlsx-external-grants',
+    name: 'External Grants (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Externally funded research and academic-service projects with whole-project budgets, uploaded through /admin/data-setup. Feeds the Staff grants dashboard and the grant award on the Financial score.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-external-grant-team',
+    name: 'External Grant Team (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Which staff member (by employee code) is on which external grant, uploaded through /admin/data-setup. Links grants to programmes through teaching staff.',
+    mocked: false,
+  },
 ] as const;
 
 /** True for connectors that only work against KKU's internal systems. */

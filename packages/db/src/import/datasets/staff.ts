@@ -156,7 +156,7 @@ export const staffDataset: ImportDataset = {
   // counts are computed through, and nothing on screen would say why those
   // went blank. Declared here rather than in each dataset's own task because
   // the registry refuses a dependent that does not exist yet.
-  dependents: ['research-outputs', 'program-faculty'],
+  dependents: ['research-outputs', 'program-faculty', 'external-grant-team'],
 
   load: async (ctx: ImportLoadContext, rows: readonly ImportRow[]): Promise<ImportLoadResult> => {
     const facultyCodes = [...new Set(rows.map((r) => String(r.facultyCode)))];

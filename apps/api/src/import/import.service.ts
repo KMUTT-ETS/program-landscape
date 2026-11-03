@@ -201,6 +201,14 @@ export class ImportService implements OnModuleInit {
         // by the employer-assigned code the adopter chose.
         const rows = await prisma.facultyMember.findMany({ select: { employeeCode: true } });
         references.set(slug, new Set(rows.map((r) => r.employeeCode)));
+      } else if (slug === 'external-grants') {
+        // Imported projects only: the connector's projects are not addressable
+        // by an adopter's code. Stored as `xlsx:<code>`.
+        const rows = await prisma.researchServiceProject.findMany({
+          where: { sourceProposalKey: { startsWith: 'xlsx:' } },
+          select: { sourceProposalKey: true },
+        });
+        references.set(slug, new Set(rows.map((r) => r.sourceProposalKey.slice('xlsx:'.length))));
       }
     }
     return references;

@@ -558,6 +558,105 @@ const DATASETS: Record<string, DatasetFetcher> = {
     };
   },
 
+  'external-grants': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.ResearchServiceProjectWhereInput = q.q
+      ? {
+          OR: [
+            { titleTh: { contains: q.q } },
+            { titleEn: { contains: q.q, mode: 'insensitive' } },
+            { leadFacultyName: { contains: q.q } },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.researchServiceProject.findMany({
+        where,
+        orderBy: [{ fiscalYearBe: 'desc' }, { id: 'asc' }],
+        skip,
+        take: q.pageSize,
+        include: { _count: { select: { members: true } } },
+      }),
+      prisma.researchServiceProject.count({ where }),
+    ]);
+    return {
+      title: 'External grants',
+      description:
+        'Externally funded projects, one row per project. Fiscal year is BUDDHIST ERA (the Thai fiscal year starting 1 October of the previous calendar year); the import template asks for Common Era and converts on load. Budget is the whole-project figure. Rows marked Imported came from a spreadsheet upload.',
+      columns: [
+        { key: 'project', label: 'Project' },
+        { key: 'type', label: 'Type' },
+        { key: 'fiscalYearBe', label: 'Fiscal year (BE)', numeric: true },
+        { key: 'budgetThb', label: 'Budget (THB)', numeric: true },
+        { key: 'funder', label: 'Funder' },
+        { key: 'leadFaculty', label: 'Lead faculty' },
+        { key: 'members', label: 'Team size', numeric: true },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        project: r.titleEn ?? r.titleTh,
+        type: r.typeRaw,
+        fiscalYearBe: r.fiscalYearBe,
+        budgetThb: r.budgetThb === null ? null : Number(r.budgetThb),
+        funder: r.funderName,
+        leadFaculty: r.leadFacultyName,
+        members: r._count.members,
+        imported: r.sourceProposalKey.startsWith('xlsx:'),
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
+  'external-grant-team': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.ResearchServiceProjectMemberWhereInput = q.q
+      ? {
+          OR: [
+            { project: { titleTh: { contains: q.q } } },
+            { project: { titleEn: { contains: q.q, mode: 'insensitive' } } },
+            { facultyMember: { employeeCode: { contains: q.q } } },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.researchServiceProjectMember.findMany({
+        where,
+        orderBy: [{ projectId: 'asc' }, { role: 'asc' }, { id: 'asc' }],
+        skip,
+        take: q.pageSize,
+        include: {
+          project: { select: { titleTh: true, titleEn: true, sourceProposalKey: true } },
+          facultyMember: { select: { employeeCode: true } },
+        },
+      }),
+      prisma.researchServiceProjectMember.count({ where }),
+    ]);
+    return {
+      title: 'External grant team',
+      description:
+        'Who is on each external grant. Imported rows name staff by employee code only; connector rows may carry no resolved staff member. Rows marked Imported came from a spreadsheet upload.',
+      columns: [
+        { key: 'project', label: 'Project' },
+        { key: 'role', label: 'Role' },
+        { key: 'employeeCode', label: 'Employee code' },
+        { key: 'facultyName', label: 'Faculty' },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        project: r.project.titleEn ?? r.project.titleTh,
+        role: r.role === 'LEAD' ? 'Lead' : 'Co-investigator',
+        employeeCode: r.facultyMember?.employeeCode ?? null,
+        facultyName: r.facultyName,
+        imported: r.project.sourceProposalKey.startsWith('xlsx:'),
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
   'digital-competency-cohorts': async (q) => {
     const skip = (q.page - 1) * q.pageSize;
     const where: Prisma.DqStudentCubeWhereInput = q.q

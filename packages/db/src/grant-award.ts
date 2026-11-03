@@ -15,7 +15,9 @@ export const GRANT_AWARD_LABEL = 'external_grant_award';
 export const GRANT_AWARD_FLOOR_THB = 100_000;
 export const GRANT_AWARD_CAP_THB = 3_000_000;
 export const GRANT_AWARD_MAX_POINTS = 10;
-export const GRANTS_SOURCE = 'kku-research-services';
+/** Every source that may supply external-grant rows: KKU's connector, or an
+ *  adopter's spreadsheet upload. Either one counts as "the grants source synced". */
+export const GRANTS_SOURCES = ['kku-research-services', 'xlsx-external-grants'] as const;
 export const GRANT_AWARD_CAVEAT =
   'Lower bound: about 30% of co-investigator ids match no HR record, so some programmes are understated.';
 
@@ -83,7 +85,7 @@ export function loadGrantSourceSynced(): Promise<boolean> {
   const entry = {
     at: t,
     promise: prisma.ingestionRun
-      .count({ where: { status: 'SUCCEEDED', dataSource: { slug: GRANTS_SOURCE } } })
+      .count({ where: { status: 'SUCCEEDED', dataSource: { slug: { in: [...GRANTS_SOURCES] } } } })
       .then((n) => n > 0),
   };
   sourceCache = entry;

@@ -13,9 +13,9 @@
 import { summariseStaffGrants, type StaffGrantEntry, type StaffGrantsSummary } from '@kku/shared';
 import { prisma } from './index';
 import { realDataWhere } from './data-quality';
+import { GRANTS_SOURCES } from './grant-award';
 
 export type GrantType = 'RESEARCH' | 'ACADEMIC_SERVICE' | 'CONSULTING' | 'OTHER';
-export const GRANTS_SOURCE_SLUG = 'kku-research-services';
 
 export interface GrantMemberRow {
   role: 'LEAD' | 'CO_INVESTIGATOR';
@@ -234,7 +234,7 @@ async function loadRows(f: GrantsFilter): Promise<GrantProjectRow[]> {
 /** Completion time of the latest successful sync, or null before the first. */
 export async function grantsFreshness(): Promise<{ runId: string; completedAt: Date } | null> {
   const run = await prisma.ingestionRun.findFirst({
-    where: { status: 'SUCCEEDED', dataSource: { slug: GRANTS_SOURCE_SLUG } },
+    where: { status: 'SUCCEEDED', dataSource: { slug: { in: [...GRANTS_SOURCES] } } },
     orderBy: { completedAt: 'desc' },
     select: { id: true, completedAt: true },
   });
