@@ -9,14 +9,15 @@
     "generate": "prisma generate",
     "migrate:dev": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
-    "seed": "tsx prisma/seed.ts",
+    "seed": "tsx prisma/seed-reference.ts",
+    "seed:kku": "tsx prisma/seed.ts",
     "studio": "prisma studio",
     "lint": "eslint \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts",
+    "seed": "tsx prisma/seed-reference.ts",
     "schema": "prisma/schema.prisma"
   },
   "dependencies": {

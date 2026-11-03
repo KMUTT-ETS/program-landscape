@@ -17,6 +17,7 @@ export * from '@prisma/client';
 export * from './scope';
 export * from './provenance';
 export * from './data-source-sync';
+export * from './seed-reference';
 export * from './ai-inference-recorder';
 export * from './ai-model-override-store';
 export * from './ai-model-catalog';

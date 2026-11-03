@@ -9,7 +9,7 @@
     "pnpm": ">=9.0.0"
   },
   "scripts": {
-    "setup": "pnpm install && node scripts/link-env.mjs && pnpm db:generate && pnpm db:up && pnpm minio:init && pnpm db:migrate && pnpm data-sources:sync --apply",
+    "setup": "pnpm install && node scripts/link-env.mjs && pnpm db:generate && pnpm db:up && pnpm minio:init && pnpm db:migrate && pnpm data-sources:sync --apply && pnpm db:seed:reference",
     "link-env": "node scripts/link-env.mjs",
     "minio:init": "node scripts/ensure-minio-buckets.mjs",
     "dev": "concurrently -n web,api,ingest -c blue,green,magenta \"pnpm --filter web dev\" \"pnpm --filter api start:dev\" \"pnpm --filter ingestion start:dev\"",
@@ -21,6 +21,8 @@
     "db:migrate:safe": "node scripts/pre-deploy-snapshot.mjs && pnpm --filter @kku/db prisma migrate deploy",
     "db:backup": "node scripts/pre-deploy-snapshot.mjs",
     "db:seed": "pnpm --filter @kku/db seed",
+    "db:seed:reference": "pnpm --filter @kku/db seed",
+    "db:seed:kku": "pnpm --filter @kku/db seed:kku",
     "ai:eval": "tsx scripts/ai-eval.mjs",
     "pdf:bulk-load": "tsx apps/ingestion/src/scripts/bulk-pdf-load.ts",
     "provenance:backfill": "tsx apps/ingestion/src/scripts/backfill-provenance.ts",
@@ -84,6 +86,7 @@
     "peers:select": "tsx apps/ingestion/src/scripts/select-program-peers.ts",
     "trends:analyze": "tsx apps/ingestion/src/scripts/analyze-trend-signals.ts",
     "trends:ingest-doc": "tsx apps/ingestion/src/scripts/ingest-trend-document.ts",
+    "skills:tag-sectors": "tsx apps/ingestion/src/scripts/tag-skill-sectors.ts",
     "skills:normalise": "tsx apps/ingestion/src/scripts/normalise-skill-names.ts",
     "skills:seed-automation-risk": "tsx apps/ingestion/src/scripts/seed-skill-automation-risk.ts",
     "risks:assess": "tsx apps/ingestion/src/scripts/risks-assess.ts",
