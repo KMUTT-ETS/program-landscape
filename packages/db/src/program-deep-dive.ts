@@ -23,6 +23,7 @@ import { programJobThaiSkillCoverage } from './jobthai';
 import { JOBTHAI_MIN_RELEVANT_SKILLS } from './jobthai-bridge';
 import { realDataWhere, realDataSql } from './data-quality';
 import { programFunnelYears } from './program-funnel';
+import { admittedCount } from './public-tcas-basis';
 import { academicYearContextSync, getAcademicYearContext } from './academic-year';
 import { pickFinancialYear } from './financial-year';
 import { readinessFor, type ExpertiseReadiness } from './program-research-expertise';
@@ -296,7 +297,7 @@ async function computeLastAnalysedAt(programId: string): Promise<Date | null> {
 //
 // Stage definitions:
 //   Applied        TCAS3 applicants (where TCAS3 data exists)
-//   Admitted       TCAS3 admittedPass1 + admittedPass2 (where TCAS3 exists)
+//   Admitted       TCAS3 max(admittedPass1, admittedPass2) (where TCAS3 exists)
 //   Enrolled       Total cohort entrants − RENOUNCED − NO_REPORT
 //   Persisted      Enrolled − early dropouts (FINANCIAL/ACADEMIC/VOLUNTARY/TRANSFERRED)
 //                  — STILL_ENROLLED counts here too, since those completed Year 2+
@@ -385,7 +386,7 @@ export async function programDemandFunnel(programId: string) {
     const cur = tcasByYear.get(t.entryYearBE);
     const candidate = {
       applicants: t.applicants,
-      admitted: t.admittedPass1 + t.admittedPass2,
+      admitted: admittedCount(t.admittedPass1, t.admittedPass2),
       round: t.round,
     };
     if (!cur || cur.round.localeCompare(t.round) < 0) {
@@ -2194,7 +2195,7 @@ export async function programTcasStats(
     admittedPass1: r.admittedPass1,
     admittedPass2: r.admittedPass2,
     competitionRatio: r.quota > 0 ? r.applicants / r.quota : 0,
-    fillRate: r.quota > 0 ? (r.admittedPass1 + r.admittedPass2) / r.quota : 0,
+    fillRate: r.quota > 0 ? admittedCount(r.admittedPass1, r.admittedPass2) / r.quota : 0,
     minScorePass1: r.minScorePass1,
     maxScorePass1: r.maxScorePass1,
     minScorePass2: r.minScorePass2,
@@ -2344,7 +2345,7 @@ function aggregateRows(rows: Array<{
   const totalQuota = rows.reduce((s, r) => s + r.quota, 0);
   const totalApplicants = rows.reduce((s, r) => s + r.applicants, 0);
   const totalAdmitted = rows.reduce(
-    (s, r) => s + r.admittedPass1 + r.admittedPass2,
+    (s, r) => s + admittedCount(r.admittedPass1, r.admittedPass2),
     0,
   );
   const minScores = rows
