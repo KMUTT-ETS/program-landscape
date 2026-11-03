@@ -111,3 +111,6 @@ scripts/e2e-import/fixtures/
 scripts/e2e-import/shots/
 apps/*/fixtures/e2e-import/
 apps/*/shots/
+
+# Adopter institution data prepared for import (never commit)
+/kmutt-data/
