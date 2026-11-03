@@ -415,7 +415,7 @@ export function DeepDiveClient(props: Props) {
           statLabel="competition"
         >
           <RecruitmentSection data={props.recruitment} />
-          <TcasStatsSection data={props.tcasStats} />
+          <TcasStatsSection data={props.tcasStats} canOpenDataSources={props.canOpenDataSources} />
         </MacroGroup>
 
         <MacroGroup
@@ -1885,13 +1885,31 @@ function competitionVerdict(
   };
 }
 
-function TcasStatsSection({ data }: { data: DeepDiveTcasStats | null }) {
+function TcasStatsSection({
+  data,
+  canOpenDataSources,
+}: {
+  data: DeepDiveTcasStats | null;
+  canOpenDataSources: boolean;
+}) {
   if (!data || data.history.length === 0) {
     return (
       <Section id="tcas" title="TCAS3 round-3 score detail & peer comparison">
         <EmptyCard
           title="No TCAS3 data"
-          note="Run `pnpm connector:run tcas` (with CONNECTOR_TCAS_MODE=real) to ingest mytcas.com TCAS62–TCAS68 maxmin xlsx files. Round 1 / Round 2 connectors land later."
+          note={
+            canOpenDataSources ? (
+              <>
+                Run the TCAS connector from{' '}
+                <Link href="/admin/data-sources/tcas" className="text-accent-default hover:underline">
+                  Data sources → TCAS
+                </Link>{' '}
+                to ingest the mytcas.com TCAS62–TCAS68 maxmin xlsx files. Round 1 / Round 2 connectors land later.
+              </>
+            ) : (
+              'TCAS round-3 score data has not been loaded yet. An administrator can run the TCAS connector from Data sources.'
+            )
+          }
         />
       </Section>
     );
