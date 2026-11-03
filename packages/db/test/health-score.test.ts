@@ -581,3 +581,30 @@ describe('demographic region wiring (v5.5)', () => {
     expect((await computeRequiredShareAt10Y('p1', 'BACHELOR')).reason).toMatch(/^region-not-set/);
   });
 });
+
+// ── tcas_min_score_percentile: subject key fallback ──────────────────────
+
+describe('tcas_min_score_percentile — peer subject key', () => {
+  it('falls back to the programme Thai-name signature when its TCAS name over-captures', async () => {
+    mocks.programFindUnique.mockResolvedValue({
+      ...programRow,
+      nameTh: 'หลักสูตรวิศวกรรมศาสตรบัณฑิต สาขาวิชาวิศวกรรมเครื่องกล',
+    });
+    mocks.queryMetricByScope.mockResolvedValue([]);
+    // The institution's own TCAS name carries trailing words, so its
+    // signature is "วิศวกรรมเครื่องกล ปริญญาตรี" and matches no peer.
+    mocks.tcasFindFirst.mockResolvedValue({
+      entryYearBE: 2568, round: '3.2', minScorePass1: 50,
+      programmeName: 'วศ.บ. สาขาวิชาวิศวกรรมเครื่องกล ปริญญาตรี 4 ปี',
+    });
+    const peers = [30, 40, 60, 70].map((minScorePass1) => ({
+      minScorePass1, programmeName: 'วศ.บ. สาขาวิชาวิศวกรรมเครื่องกล',
+    }));
+    mocks.tcasFindMany.mockImplementation(({ where }: { where: { programmeName?: { contains: string } } }) =>
+      Promise.resolve(where.programmeName?.contains === 'วิศวกรรมเครื่องกล' ? peers : []));
+
+    const outcomes = (await computeHealthScores('program', 'p1'))[0]!.dimensions.outcomes;
+    const driver = outcomes.drivers.find((d) => d.label === 'tcas_min_score_percentile');
+    expect(driver?.value).toBe(50);
+  });
+});

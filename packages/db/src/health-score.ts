@@ -1659,25 +1659,39 @@ async function scoreOutcomesProgram(programId: string, oRow: MetricRow | null): 
   });
   let percentile: number | null = null;
   if (kkuTcas && kkuTcas.minScorePass1 !== null) {
-    const subjectKey = extractSubjectSignature(kkuTcas.programmeName);
-    const peers = await prisma.tcasAdmissionStat.findMany({
-      where: {
-        entryYearBE: kkuTcas.entryYearBE,
-        round: kkuTcas.round,
-        minScorePass1: { not: null },
-        institutionName: { not: getInstitution().nameTh },
-        programmeName: { contains: subjectKey, mode: 'insensitive' },
-        ...realDataWhere(),
-      },
-      select: { minScorePass1: true, programmeName: true },
-    });
-    const peerScores = peers
-      .filter((p) => extractSubjectSignature(p.programmeName) === subjectKey)
-      .map((p) => p.minScorePass1!)
-      .filter((v): v is number => v !== null);
-    if (peerScores.length >= 3) {
-      const below = peerScores.filter((s) => s < kkuTcas.minScorePass1!).length;
-      percentile = (below / peerScores.length) * 100;
+    // The programme's own TCAS name is whatever the institution typed
+    // ("... สาขาวิชาวิศวกรรมเครื่องกล ปริญญาตรี 4 ปี"), and its signature can
+    // swallow trailing words that peers' names do not have. When that key
+    // finds too few peers, retry with the signature of the programme's own
+    // Thai name, as the competition-vs-peers driver does.
+    const ownName = await prisma.program.findUnique({ where: { id: programId }, select: { nameTh: true } });
+    const subjectKeys = [
+      ...new Set(
+        [extractSubjectSignature(kkuTcas.programmeName), ownName?.nameTh ? extractSubjectSignature(ownName.nameTh) : '']
+          .filter((k) => k.length >= 2),
+      ),
+    ];
+    for (const subjectKey of subjectKeys) {
+      const peers = await prisma.tcasAdmissionStat.findMany({
+        where: {
+          entryYearBE: kkuTcas.entryYearBE,
+          round: kkuTcas.round,
+          minScorePass1: { not: null },
+          institutionName: { not: getInstitution().nameTh },
+          programmeName: { contains: subjectKey, mode: 'insensitive' },
+          ...realDataWhere(),
+        },
+        select: { minScorePass1: true, programmeName: true },
+      });
+      const peerScores = peers
+        .filter((p) => extractSubjectSignature(p.programmeName) === subjectKey)
+        .map((p) => p.minScorePass1!)
+        .filter((v): v is number => v !== null);
+      if (peerScores.length >= 3) {
+        const below = peerScores.filter((s) => s < kkuTcas.minScorePass1!).length;
+        percentile = (below / peerScores.length) * 100;
+        break;
+      }
     }
   }
 
