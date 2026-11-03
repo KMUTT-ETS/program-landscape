@@ -127,6 +127,8 @@ export interface ImportLoadResult {
   inserted: number;
   updated: number;
   deleted: number;
+  /** Rows stored without a link the reader needs (e.g. a skill name that matched no skill). Reported to the operator. */
+  unresolved?: number;
 }
 
 /** Narrows what a template is pre-filled with. */

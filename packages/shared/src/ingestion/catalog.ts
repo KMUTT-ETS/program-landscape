@@ -787,6 +787,17 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     mocked: false,
   },
   {
+    slug: 'xlsx-career-skill-demand',
+    name: 'Career Skill Demand (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Labour-market demand per career and skill (share of postings, 0-100), uploaded through /admin/data-setup as the fallback for the KMITL Skill Mapping API. Written to the same tables as kmitl-skill-mapping, with negative career ids so the two never collide.',
+    mocked: false,
+  },
+  {
     slug: 'xlsx-course-evaluations',
     name: 'Course Evaluations (spreadsheet import)',
     kind: 'CSV',

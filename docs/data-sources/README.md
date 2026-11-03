@@ -53,6 +53,7 @@ All 40 catalog sources are now listed. Rows marked *(no spec yet)* have a connec
 | **A** Internal | `kku-hr-processed` | KKU HR Processed — salary aggregate | **`real`** | — *(no spec yet)* | — |
 | **A** Internal | `kku-tcas-funnel` | KKU TCAS Admission Funnel | `deprecated` | — *(no spec yet)* | Superseded by `tcas` |
 | **B** National | `job-108` | Job-108 — Thai government job announcements | **`real`** | [job-108.md](./job-108.md) | Public web, honest UA, no proxy |
+| **B** National | `xlsx-career-skill-demand` | Spreadsheet import — career skill demand | **`real`** | [../data-import.md](../data-import.md) | Fallback when KMITL API credentials are unavailable |
 | **B** National | `kmitl-skill-mapping` | LinkedIn Labour-Market Insights (MHESI subscription, KMITL-hosted) | **`real`** | [kmitl-skill-mapping.md](./kmitl-skill-mapping.md) | Institutional-partner API |
 | **B** National | `thailand-demographics` | Thailand Demographics (DOPA · NESDC · BOI repost) | `deprecated` | [un-wpp.md](./un-wpp.md) | Never had a connector; use `un-wpp` or the Population Projections spreadsheet |
 | **C** International | `un-wpp` | UN World Population Prospects 2024 | **`real`** | [un-wpp.md](./un-wpp.md) | Public bulk CSV, national cohorts |

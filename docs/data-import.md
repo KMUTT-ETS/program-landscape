@@ -19,6 +19,7 @@ This page is for the person doing the uploading.
 | **Graduate Outcomes** | Employment survey results per graduating cohort | Programmes |
 | **Employer Feedback** | Employer satisfaction per programme and survey year; shown in the Deep-Dive's Outcomes section | Programmes |
 | **Population Projections** | Projected population per region, year and age group; overrides the built-in UN series | — |
+| **Career Skill Demand** | Share of postings naming each skill, per career; the fallback for the KMITL API | — (skills from the programme pipeline) |
 | **University Rankings** | QS / THE ranks per university; the peer-selection universe (template pre-filled with a starter list) | — |
 | **Student Cohorts** | How many of each entry cohort are still enrolled | Programmes |
 | **Digital Competency — Cohorts** | Students tested, scored and passing, per programme and entry year | Programmes |
@@ -335,6 +336,33 @@ to supply **regional** figures. Columns: **Region**, **Year**, **Age Group**,
   the current year (and the region, where the reader needs one). Include the
   current year, or the sheet is passed over.
 - **Start over** removes only the rows this sheet wrote.
+
+## Career skill demand
+
+This sheet is the fallback for the KMITL Skill Mapping API, which an adopting
+university usually cannot call: its credentials are issued by KMITL directly
+on request, not self-service. It writes the same tables, so the
+labour-market alignment score, the strategic-sector score and the
+programme-career mapping read it unchanged. Columns: **Career Group**, **Career**,
+**Skill**, **Scope** (`Thailand` or `Global`), **Data Source** (`Job postings`
+or `Profiles`) and **Share of Postings (%)** (all required), and **Career
+Sub-group** (optional, stored as `General` when blank).
+
+- **Share of Postings (%)** is a percentage from 0 to 100 (write 12.5 for 12.5 %),
+  the same unit the KMITL API returns. A skill counts as demanded at 5 or
+  more; a value above 100 is refused.
+- **Career Group.** Only `IT`, `Engineer`, `Health Science`, `Smart Farmer`,
+  `New S Curve` and `Food` count as strategic sectors in the strategic-sector
+  score. Any other name is allowed and scores as non-strategic.
+- **Skill** is matched, ignoring case, against English then Thai names in your
+  skill taxonomy. A name that matches nothing is stored without a link, does
+  not score, and is counted in the message after the upload. **Upload after
+  the programme pipeline has built your skills**, and upload again later to
+  resolve more names.
+- Imported careers get negative ids so they never collide with KMITL's, and
+  keep them on re-upload. Connector runs never touch them.
+- The file merges on Career Group, Career Sub-group, Career, Skill, Scope and
+  Data Source. **Start over** removes only the rows this sheet wrote.
 
 ## University rankings
 

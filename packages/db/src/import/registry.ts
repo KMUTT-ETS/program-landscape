@@ -3,6 +3,7 @@ import { ApiError } from '@kku/shared';
 import { alumniCohortsDataset, studentCohortsDataset } from './datasets/cohorts';
 import { budgetsDataset } from './datasets/budgets';
 import { campaignsDataset } from './datasets/campaigns';
+import { careerSkillDemandDataset } from './datasets/career-skill-demand';
 import { classOfferingsDataset } from './datasets/class-offerings';
 import { compensationDataset } from './datasets/compensation';
 import { courseEvaluationsDataset } from './datasets/course-evaluations';
@@ -61,6 +62,7 @@ export const IMPORT_DATASETS: readonly ImportDataset[] = [
   externalGrantsDataset,
   externalGrantTeamDataset,
   programmeCoursesDataset,
+  careerSkillDemandDataset,
   courseEvaluationsDataset,
 ];
 

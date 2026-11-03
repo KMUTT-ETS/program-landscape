@@ -94,3 +94,4 @@ export * from './program-course-ownership';
 export * from './kku-sfr-band';
 export * from './ranked-universities-starter';
 export * from './peer-candidates';
+export * from './skill-lookup';

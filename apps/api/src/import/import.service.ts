@@ -76,6 +76,7 @@ export interface ImportUploadResult {
   inserted: number;
   updated: number;
   deleted: number;
+  unresolved?: number;
 }
 
 export interface ImportDatasetSummary {
@@ -383,6 +384,7 @@ export class ImportService implements OnModuleInit {
       inserted: result.inserted,
       updated: result.updated,
       deleted: result.deleted,
+      ...(result.unresolved !== undefined ? { unresolved: result.unresolved } : {}),
     };
   }
 

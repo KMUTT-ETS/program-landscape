@@ -473,6 +473,7 @@ export default async function AdminDataSetupPage() {
             <RawDatasetLink slug="course-evaluations" label="Course evaluations" />
             <RawDatasetLink slug="faculty-compensation" label="Faculty compensation (aggregate)" />
             <RawDatasetLink slug="staff-salary-by-funding" label="Staff salary by funding" />
+            <RawDatasetLink slug="career-skill-demand" label="Career skill demand (uploaded)" />
             <RawDatasetLink slug="kmitl-careers" label="Labour-market career taxonomy" />
             <RawDatasetLink slug="kmitl-skill-demands" label="LinkedIn skill demand (15.8k)" />
             <RawDatasetLink slug="kmitl-skill-growths" label="LinkedIn skill growth (7.4k)" />

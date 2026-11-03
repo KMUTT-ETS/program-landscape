@@ -54,6 +54,7 @@ interface UploadOutcome {
   updated: number;
   deleted: number;
   deduplicated: boolean;
+  unresolved?: number;
 }
 
 function formatBytes(bytes: number): string {
@@ -120,6 +121,11 @@ export function ImportPanel({ dataset }: { dataset: ImportPanelDataset }): React
       });
       if (outcome?.deduplicated) toast.info(sentence);
       else toast.success(sentence);
+      if (outcome?.unresolved) {
+        toast.info(
+          `${outcome.unresolved} row${outcome.unresolved === 1 ? '' : 's'} named a skill that matched none in the skill taxonomy. They are stored but do not score until the skill exists and the sheet is uploaded again.`,
+        );
+      }
       setShrinkFile(null);
       // router.refresh(), not location.reload(): a full reload tears down the
       // toast before the operator can read what happened.

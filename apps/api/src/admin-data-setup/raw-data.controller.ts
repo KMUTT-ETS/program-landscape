@@ -1417,6 +1417,63 @@ const DATASETS: Record<string, DatasetFetcher> = {
     };
   },
 
+  'career-skill-demand': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    // Imported rows hang off careers with a negative id; the API's are positive.
+    const where: Prisma.KmitlCareerSkillDemandWhereInput = {
+      kmitlCareerId: { lt: 0 },
+      ...(q.q
+        ? {
+            OR: [
+              { skillNameRaw: { contains: q.q, mode: 'insensitive' } },
+              { career: { careerName: { contains: q.q, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
+    };
+    const [rows, total] = await prisma.$transaction([
+      prisma.kmitlCareerSkillDemand.findMany({
+        where,
+        include: {
+          career: { select: { careerName: true, groupName: true, subGroupName: true } },
+          skill: { select: { nameEn: true, nameTh: true } },
+        },
+        orderBy: [{ percentage: 'desc' }],
+        skip,
+        take: q.pageSize,
+      }),
+      prisma.kmitlCareerSkillDemand.count({ where }),
+    ]);
+    return {
+      title: 'Career skill demand (uploaded)',
+      description:
+        'Rows uploaded through the Career Skill Demand sheet. A skill showing as unresolved matched nothing in the skill taxonomy and does not score; upload the sheet again once the programme pipeline has built your skills.',
+      columns: [
+        { key: 'group', label: 'Group' },
+        { key: 'subGroup', label: 'Sub-group' },
+        { key: 'careerName', label: 'Career' },
+        { key: 'skillNameRaw', label: 'Skill (as uploaded)' },
+        { key: 'skillResolved', label: 'Skill (resolved)' },
+        { key: 'dataScope', label: 'Scope' },
+        { key: 'dataSource', label: 'Source' },
+        { key: 'percentage', label: 'Share of postings (%)', numeric: true },
+      ],
+      items: rows.map((r) => ({
+        group: r.career?.groupName ?? '',
+        subGroup: r.career?.subGroupName ?? '',
+        careerName: r.career?.careerName ?? '',
+        skillNameRaw: r.skillNameRaw,
+        skillResolved: r.skill ? `${r.skill.nameEn} / ${r.skill.nameTh}` : '(unresolved)',
+        dataScope: r.dataScope,
+        dataSource: r.dataSource,
+        percentage: r.percentage,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
   // ── KMITL skill demand (the LinkedIn data) ───────────────────────────────
   'kmitl-skill-demands': async (q) => {
     const skip = (q.page - 1) * q.pageSize;

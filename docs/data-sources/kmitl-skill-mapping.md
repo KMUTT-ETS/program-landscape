@@ -150,3 +150,12 @@ A running log as the integration lands + matures. Date each entry.
 - `YYYY-MM-DD` — Phase D: health-score demand dimension lit up, gap-analyzer kmitl source default.
 - `YYYY-MM-DD` — 30-day green-history gate cleared (per `docs/readiness-checklist.md` gate 11).
 - `YYYY-MM-DD` — promoted to prod.
+
+## Fallback without credentials
+
+Credentials are issued by KMITL directly on request. An installation without
+them uploads the **Career Skill Demand** sheet instead (see
+[data-import.md](../data-import.md)); it writes the same `kmitl_careers` and
+`kmitl_career_skill_demands` tables with negative ids, which this connector's
+upserts (positive upstream ids) never touch. The connector has no whole-table
+delete, so the two sources coexist without extra scoping.
