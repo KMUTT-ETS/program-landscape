@@ -217,7 +217,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'risk-assessment',
-    currentVersion: 'risk-assessment.v4',
+    currentVersion: 'risk-assessment.v5',
     label: 'Risk assessment',
     description: 'Per-program risk indicators + recommended mitigation measures.',
     module: 'pipeline',
