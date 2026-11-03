@@ -85,6 +85,7 @@ export const careerSkillDemandDataset: ImportDataset = {
         'A name that matches nothing is still stored but does not score; upload the sheet again ' +
         'once the programme pipeline has built your skills.',
       example: 'Python',
+      identity: (value) => String(value).trim().toLowerCase(),
     },
     {
       header: 'Scope',

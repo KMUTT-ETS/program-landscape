@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { prisma, realDataWhere } from '../src';
+import { computeKmitlProgramAlignment, prisma } from '../src';
 import { careerSkillDemandDataset } from '../src/import/datasets/career-skill-demand';
 import { getImportDataset } from '../src/import/registry';
 import type { ImportLoadContext, ImportRow } from '../src/import/types';
@@ -150,18 +150,32 @@ describe('career-skill-demand dataset', () => {
   });
 
   it('labour_market_alignment reads an imported row', async () => {
-    const rows = await prisma.kmitlCareerSkillDemand.findMany({
-      where: {
-        dataScope: 'THAILAND',
-        dataSource: 'JOB_POSTINGS',
-        percentage: { gte: 5 },
-        skillId: { not: null },
-        career: { groupName: `${PREFIX}Engineer` },
-        ...realDataWhere(),
-      },
-      select: { skillId: true },
+    const faculty = await prisma.faculty.create({
+      data: { code: 'CSDFAC', nameTh: 'คณะทดสอบ', nameEn: `${PREFIX}Faculty` },
+      select: { id: true },
     });
-    expect(rows.map((r) => r.skillId)).toContain(skillId);
+    const programme = await prisma.program.create({
+      data: {
+        code: 'CSD-PROG', nameTh: 'ทดสอบ', nameEn: `${PREFIX}Programme`,
+        facultyId: faculty.id, level: 'BACHELOR', status: 'ACTIVE', sequenceNoFromSheet: -9301,
+      },
+      select: { id: true },
+    });
+    try {
+      await prisma.programSkill.create({
+        data: { programId: programme.id, skillId, weight: 1 },
+      });
+      const alignment = await computeKmitlProgramAlignment();
+      expect(alignment.get(programme.id)).toBe(100);
+    } finally {
+      await prisma.program.delete({ where: { id: programme.id } });
+      await prisma.faculty.delete({ where: { id: faculty.id } });
+    }
+  });
+
+  it('treats skill names case-insensitively in the duplicate key', () => {
+    const result = validate([sRow({ Skill: 'Python' }), sRow({ Skill: 'python' })]);
+    expect(result.ok).toBe(false);
   });
 
   it("clear only deletes this dataset's runs", async () => {

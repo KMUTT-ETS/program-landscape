@@ -2267,7 +2267,7 @@ const KMITL_QUADRANT_FALLBACK = [
 let _kmitlAlignmentCache: { at: number; map: Map<string, number> } | null = null;
 const KMITL_ALIGNMENT_TTL_MS = 60_000;
 
-async function computeKmitlProgramAlignment(): Promise<Map<string, number>> {
+export async function computeKmitlProgramAlignment(): Promise<Map<string, number>> {
   const now = Date.now();
   if (_kmitlAlignmentCache && now - _kmitlAlignmentCache.at < KMITL_ALIGNMENT_TTL_MS) {
     return _kmitlAlignmentCache.map;
