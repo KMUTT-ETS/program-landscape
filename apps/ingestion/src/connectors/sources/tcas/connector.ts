@@ -10,6 +10,7 @@ import {
   type RawRecord,
 } from '@kku/shared';
 import { ApiConnector } from '../../base/api-connector';
+import { BUILT_IN_TCAS_FILES, resolveTcasFiles, type TcasFile } from './files';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TCAS — annual admission statistics from mytcas.com (CUPT).
@@ -34,25 +35,6 @@ import { ApiConnector } from '../../base/api-connector';
 // TCAS1/2/4 are NOT yet ingested — files exist on the same site but
 // per user direction (2026-05-02) those connectors will land later.
 // ─────────────────────────────────────────────────────────────────────────────
-
-interface TcasFile {
-  url: string;
-  entryYearBE: number;
-  round: '3' | '3.1' | '3.2';
-}
-
-// Stable URLs probed against assets.mytcas.com — verified 2026-05-02.
-// When new TCAS years publish, append entries here (curator action).
-const TCAS3_FILES: TcasFile[] = [
-  { url: 'https://assets.mytcas.com/maxmin/TCAS62_maxmin.xlsx', entryYearBE: 2562, round: '3' },
-  { url: 'https://assets.mytcas.com/maxmin/TCAS63_maxmin.xlsx', entryYearBE: 2563, round: '3' },
-  { url: 'https://assets.mytcas.com/maxmin/TCAS64_maxmin.xlsx', entryYearBE: 2564, round: '3' },
-  { url: 'https://assets.mytcas.com/maxmin/TCAS65_maxmin.xlsx', entryYearBE: 2565, round: '3' },
-  { url: 'https://assets.mytcas.com/maxmin/TCAS66_maxmin.xlsx', entryYearBE: 2566, round: '3' },
-  { url: 'https://assets.mytcas.com/67/TCAS67_maxmin.xlsx',     entryYearBE: 2567, round: '3' },
-  { url: 'https://assets.mytcas.com/68/T68-stat-r3_1-maxmin-20May25.xlsx', entryYearBE: 2568, round: '3.1' },
-  { url: 'https://assets.mytcas.com/68/T68-stat-r3_2-maxmin-24May25.xlsx', entryYearBE: 2568, round: '3.2' },
-];
 
 const FETCH_TIMEOUT_MS = 60_000;
 
@@ -84,11 +66,13 @@ interface TcasRowRaw {
 export class TcasRealConnector extends ApiConnector {
   readonly slug = 'tcas';
   readonly mocked = false;
+  private fileListSource: 'discovered' | 'built-in' = 'built-in';
+  private fileCount = BUILT_IN_TCAS_FILES.length;
 
   override async healthCheck(_ctx: ConnectorContext): Promise<HealthStatus> {
     const start = Date.now();
     try {
-      const probe = TCAS3_FILES[TCAS3_FILES.length - 1]!.url; // freshest
+      const probe = BUILT_IN_TCAS_FILES[BUILT_IN_TCAS_FILES.length - 1]!.url; // freshest
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 10_000);
       const res = await fetch(probe, {
@@ -113,7 +97,10 @@ export class TcasRealConnector extends ApiConnector {
 
   async fetch(ctx: ConnectorContext, _since?: Date): Promise<RawRecord[]> {
     const records: RawRecord[] = [];
-    for (const file of TCAS3_FILES) {
+    const resolved = await resolveTcasFiles();
+    this.fileListSource = resolved.source;
+    this.fileCount = resolved.files.length;
+    for (const file of resolved.files) {
       try {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -220,7 +207,7 @@ export class TcasRealConnector extends ApiConnector {
       kkuByFacultyProgramme.set(key, arr);
     }
     // Secondary index by faculty + specialization name (extracted from
-    // DB nameTh via สาขาวิชา pattern). Used by findKkuMatch strategy 5
+    // DB nameTh via สาขาวิชา pattern). Used by findOwnProgrammeMatch strategy 5
     // to bridge abbreviated TCAS names with formal DB names.
     const kkuByFacultySpec = new Map<string, typeof kkuPrograms>();
     for (const p of kkuPrograms) {
@@ -234,8 +221,8 @@ export class TcasRealConnector extends ApiConnector {
 
     let loaded = 0;
     let failed = 0;
-    let kkuMatched = 0;
-    let kkuUnmatched = 0;
+    let ownMatched = 0;
+    let ownUnmatched = 0;
     const unmatchedSamples: string[] = [];
 
     for (const n of normalized) {
@@ -246,7 +233,7 @@ export class TcasRealConnector extends ApiConnector {
         if (isKku) {
           const facultyNameTh = String(p.facultyName ?? '');
           const programmeName = String(p.programmeName ?? '');
-          const candidate = findKkuMatch(
+          const candidate = findOwnProgrammeMatch(
             kkuByFacultyProgramme,
             kkuByFacultySpec,
             facultyNameTh,
@@ -255,9 +242,9 @@ export class TcasRealConnector extends ApiConnector {
           );
           if (candidate) {
             programId = candidate.id;
-            kkuMatched++;
+            ownMatched++;
           } else {
-            kkuUnmatched++;
+            ownUnmatched++;
             if (unmatchedSamples.length < 10) {
               unmatchedSamples.push(`${facultyNameTh} | ${programmeName}`);
             }
@@ -321,9 +308,10 @@ export class TcasRealConnector extends ApiConnector {
       recordsLoaded: loaded,
       recordsFailed: failed,
       metadata: {
-        files: TCAS3_FILES.length,
-        kkuMatched,
-        kkuUnmatched,
+        files: this.fileCount,
+        fileListSource: this.fileListSource,
+        ownMatched,
+        ownUnmatched,
         unmatchedSamples,
       },
     };
@@ -334,7 +322,7 @@ export class TcasRealConnector extends ApiConnector {
 // name that is a prefix of another cannot match the other's programmes.
 const KEY_SEP = '\u0001';
 
-function findKkuMatch(
+function findOwnProgrammeMatch(
   index: Map<string, Array<{ id: string; nameTh: string; majors: string[] }>>,
   specIndex: Map<string, Array<{ id: string; nameTh: string; majors: string[] }>>,
   facultyNameTh: string,

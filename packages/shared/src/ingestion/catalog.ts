@@ -304,7 +304,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'per position, seats, education level and an explicit field-of-study list. ' +
       "The site's robots.txt disallows four AI crawlers by name and permits the wildcard " +
       'everywhere except /go.php and /url.php. The connector must therefore identify ' +
-      'itself as KKU rather than route through a scraping proxy, and must never request ' +
+      'itself honestly as this organisation rather than route through a scraping proxy, and must never request ' +
       'those two paths.',
     mocked: false,
   },

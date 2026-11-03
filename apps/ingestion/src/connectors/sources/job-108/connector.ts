@@ -14,7 +14,7 @@
 // news item, or transient model hiccup must not sink 20-odd otherwise-good
 // announcements in the same weekly run.
 //
-// No scraping proxy: fetch.ts identifies honestly as KKU and never requests
+// No scraping proxy: fetch.ts identifies honestly as the organisation (outboundUserAgent) and never requests
 // /go.php or /url.php, the two paths robots.txt disallows for every agent.
 //
 // The sitemap URL, the per-request politeness spacing and the per-run cap
