@@ -246,6 +246,9 @@ export async function computeSubjectLeadership(subjectArea: string): Promise<Sub
   // full English name or by its short code (KKU's seed rows say 'KKU').
   const own = getInstitution();
   const ownNames = new Set([own.nameEn, own.shortNameEn].map((n) => n.trim().toLowerCase()));
+  // KKU's seeded ranking rows name it 'KKU' whatever its organisation profile's
+  // short name says; accepted only when the configured institution is KKU.
+  if (/khon kaen/i.test(own.nameEn)) ownNames.add('kku');
   const kkuLatest = rankings
     .filter((r) => ownNames.has(r.institution.trim().toLowerCase()))
     .sort((a, b) => b.year - a.year)[0];

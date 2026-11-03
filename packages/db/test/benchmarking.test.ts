@@ -236,3 +236,14 @@ describe('computeSubjectLeadership — ranking trend direction', () => {
     expect(r.kkuPercentileLatest).toBe(55);
   });
 });
+
+describe('own-institution alias for KKU', () => {
+  it('accepts the legacy KKU literal only when the institution is Khon Kaen University', async () => {
+    const rows = [{ institution: 'KKU', source: 'THE', subjectArea: 'CS', year: 2025, rank: 10, percentile: 99 }];
+    mocks.peerRankingFindMany.mockResolvedValue(rows);
+    setOrganizationForTest({ ...ORG, nameEn: 'Khon Kaen University', shortNameEn: 'Khon Kaen' });
+    expect((await computeSubjectLeadership('CS')).kkuPercentileLatest).toBe(99);
+    setOrganizationForTest(ORG);
+    expect((await computeSubjectLeadership('CS')).kkuPercentileLatest).toBeNull();
+  });
+});
