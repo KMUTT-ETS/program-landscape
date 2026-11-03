@@ -12,6 +12,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   // ── Internal KKU systems ────────────────────────────────────────────────
   {
     slug: 'kku-registry',
+    kkuExample: true,
     name: 'KKU Registry (REG)',
     kind: 'API',
     inputFormat: 'JSON',
@@ -26,6 +27,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'kku-tcas-funnel',
+    kkuExample: true,
     name: 'KKU TCAS Admission Funnel (deprecated)',
     kind: 'API',
     inputFormat: 'JSON',
@@ -39,6 +41,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'kku-admission-campaigns',
+    kkuExample: true,
     name: 'KKU Actual Recruitment Campaigns',
     kind: 'API',
     inputFormat: 'JSON',
@@ -50,6 +53,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'kku-finance',
+    kkuExample: true,
     name: 'KKU Finance',
     kind: 'API',
     inputFormat: 'JSON',
@@ -64,6 +68,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'kku-hr',
+    kkuExample: true,
     name: 'KKU HR (Faculty roster)',
     kind: 'API',
     inputFormat: 'JSON',
@@ -78,6 +83,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'kku-alumni',
+    kkuExample: true,
     name: 'KKU Alumni Outcomes',
     kind: 'API',
     inputFormat: 'MIXED',
@@ -93,6 +99,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'kku-research',
+    kkuExample: true,
     name: 'KKU Research Outputs',
     kind: 'API',
     inputFormat: 'JSON',
@@ -124,6 +131,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'kku-evaluations',
+    kkuExample: true,
     name: 'KKU Student Evaluations (Teaching & Learning)',
     kind: 'API',
     inputFormat: 'JSON',
@@ -146,6 +154,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'kku-dq',
+    kkuExample: true,
     name: 'KKU Digital Intelligence (DQ) Student Scores',
     kind: 'API',
     inputFormat: 'JSON',
@@ -260,7 +269,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     // cadence here would wake the connector every six hours to find no
     // PENDING batch.
     scheduleEnabled: false,
-    ownerContact: 'KKU Data Office',
+    ownerContact: 'JobThai data delivery (operator-uploaded files)',
     notes:
       'Manual XLSX drops of Thai job postings (47,643 rows in the 2026-09 drop). ' +
       'Un-deprecated 2026-09-13: the 2026-05-01 supersession by kmitl-skill-mapping ' +
@@ -496,6 +505,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'unicon-ds1001',
+    kkuExample: true,
     name: 'UNICON DS1001 — Student information',
     kind: 'API',
     inputFormat: 'JSON',
@@ -506,6 +516,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'unicon-ds2001',
+    kkuExample: true,
     name: 'UNICON DS2001 — Staff master record',
     kind: 'API',
     inputFormat: 'JSON',
@@ -516,6 +527,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'kku-hr-processed',
+    kkuExample: true,
     name: 'KKU HR Processed — Salary aggregate',
     kind: 'API',
     inputFormat: 'JSON',
@@ -526,6 +538,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'unicon-ds2003',
+    kkuExample: true,
     name: 'UNICON DS2003 — Employee education qualifications',
     kind: 'API',
     inputFormat: 'JSON',
@@ -536,6 +549,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'unicon-ds2004',
+    kkuExample: true,
     name: 'UNICON DS2004 — Academic staff per program',
     kind: 'API',
     inputFormat: 'JSON',
@@ -546,6 +560,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'kku-research-services',
+    kkuExample: true,
     name: 'KKU Research & Academic Services — external grants',
     kind: 'API',
     inputFormat: 'JSON',
@@ -752,6 +767,11 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     mocked: false,
   },
 ] as const;
+
+/** True for connectors that only work against KKU's internal systems. */
+export function isKkuExample(slug: string): boolean {
+  return getCatalogEntry(slug)?.kkuExample === true;
+}
 
 export function getCatalogEntry(slug: string): SourceCatalogEntry | undefined {
   return SOURCE_CATALOG.find((e) => e.slug === slug);
