@@ -152,6 +152,14 @@ You can also run it from the terminal.
 pnpm programs:pipeline <code>
 ```
 
+On a fresh installation the pipeline also builds your skill taxonomy by itself.
+After it reads the curriculum, phase 2 sees that the programme's skills match
+nothing yet. It creates the skills from the names in that curriculum, then
+applies the same stored result to the programme, with no new AI reading of the
+PDF. The later phases in the same run then see the skills. A programme that
+already has skills is left alone. This is on by default; set
+`PIPELINE_BUILD_SKILL_TAXONOMY=0` to turn it off.
+
 ## Step 6: Get the Setup checklist green
 
 1. On the same programme page, open the "Setup checklist" tab.
@@ -183,6 +191,21 @@ still empty says what it needs.
 2. Run the pipeline for the rest from `/admin/programs`: tick the programmes and
    choose **Run pipeline · N program(s)**. Or run one programme at a time from its
    pipeline tab. Plan for USD 0.80 for each programme.
+
+## If the skills do not appear
+
+Check the programme's phase 2 line on the pipeline tab. If it says the names are
+still unmatched, or the AI provider was not reachable, run the steps by hand.
+
+```bash
+pnpm skills:normalise --source=program_digest --auto-promote
+pnpm programs:approve-pending --rematerialise --program-id=<id>
+```
+
+The first command builds the taxonomy from the curriculum's skill names. The
+second applies the stored curriculum result again. It makes no AI call. Then run
+the pipeline for the programme once more. The full description is in
+[Building your skill taxonomy](../adopters/README.md#building-your-skill-taxonomy).
 
 ## When a section is empty but the rows exist
 
