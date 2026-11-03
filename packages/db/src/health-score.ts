@@ -1005,8 +1005,8 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
   }
 
   // v5.6: a programme with NO campaign rows at all can still be scored on the
-  // public round-3 figures (the latest complete year that has any). KKU always
-  // has campaign rows, so this branch never runs there.
+  // public round-3 figures (the latest complete year that has any). On KKU's
+  // installation the impact of this branch was not measured.
   if (funnelTotals === null && funnelYears.length === 0) {
     const ay = await getAcademicYearContext();
     const allPublic = await prisma.tcasAdmissionStat.findMany({
@@ -1143,7 +1143,7 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
       })(),
       raw: funnelTotals
         ? {
-            ...(funnelTotals.regReportedStated ? {} : { reason: 'reported-not-stated' }),
+            ...(funnelTotals.regReportedStated || funnelTotals.sendCh <= 0 ? {} : { reason: 'reported-not-stated' }),
             regReported: funnelTotals.regReported,
             sendCh: funnelTotals.sendCh,
           }

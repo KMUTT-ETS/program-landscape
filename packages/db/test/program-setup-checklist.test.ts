@@ -198,6 +198,16 @@ describeScratchDb('programSetupChecklist', () => {
     }
   });
 
+  it('the TCAS ratio, fill and peers drivers point at the admission-campaigns upload too', async () => {
+    const c = (await programSetupChecklist(ids.bach!))!;
+    for (const k of ['tcas_competition_ratio', 'tcas_fill_rate', 'tcas_competition_vs_peers']) {
+      const item = byKey(c.items, `driver.${k}`);
+      if (item.status === 'empty') {
+        expect(item.waitingOn.some((w) => w.slug === 'admission-campaigns')).toBe(true);
+      }
+    }
+  });
+
   it('a mocked JobThai run does not make the driver applicable', async () => {
     const clearRuns = () => prisma.ingestionRun.deleteMany({ where: { dataSource: { slug: 'jobthai' } } });
     await clearRuns();

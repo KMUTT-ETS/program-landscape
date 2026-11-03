@@ -10,7 +10,7 @@ describe('driverNullNote', () => {
   });
   it('explains missing seats for the competition drivers', () => {
     expect(driverNullNote('tcas_fill_rate', { passed: 3, seats: 0 }, none)).toMatch(/planned seats/);
-    expect(driverNullNote('tcas_competition_ratio', null, none)).toMatch(/No admission data/);
+    expect(driverNullNote('tcas_competition_ratio', null, none)).toMatch(/No admission figures can be scored/);
   });
   it('maps JobThai reasons to sentences and defers the rest', () => {
     expect(driverNullNote('jobthai_demand_alignment', { reason: 'no-links' }, none)).toMatch(/No JobThai field/);
@@ -36,7 +36,7 @@ describe('driverNullNote', () => {
     expect(usesPublicTcasBasis({})).toBe(false);
   });
   it('separates no data, seats in other years, and Reported not stated', () => {
-    expect(driverNullNote('tcas_competition_ratio', null, none)).toMatch(/no admission-campaigns rows and no public TCAS/);
+    expect(driverNullNote('tcas_competition_ratio', null, none)).toMatch(/year still in progress is not scored/);
     const other = { seats: 0, year: 2566, seatsStatedInOtherYears: true };
     expect(driverNullNote('tcas_fill_rate', other, none)).toMatch(/\(2566\) states no planned seats although other years do/);
     expect(driverNullNote('tcas_competition_vs_peers', { ...other, kkuRatio: null }, none)).toMatch(/other years do/);

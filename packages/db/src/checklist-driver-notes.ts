@@ -31,7 +31,7 @@ const NO_SEATS =
   'No planned seats for the latest complete year, and no public TCAS round-3 figures for this programme.';
 
 const NO_ADMISSION_DATA =
-  'No admission data for a complete recruitment year yet: no admission-campaigns rows and no public TCAS round-3 rows for this programme.';
+  'No admission figures can be scored yet: there is no complete recruitment year with admission-campaigns totals or public TCAS round-3 rows for this programme (a year still in progress is not scored).';
 
 const YIELD_NOT_STATED =
   'The Confirmed figure is filled but the Reported column of the admission-campaigns sheet is empty, so the registration yield is not scored (an absent figure is not a zero).';

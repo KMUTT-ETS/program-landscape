@@ -169,10 +169,10 @@ export const CHECKLIST_SOURCES: Readonly<Record<string, readonly ChecklistWaitin
   'section.overlap': [phase('phaseOV', 'Programme overlap'), courseLists],
 
   // Attractiveness
-  'driver.tcas_competition_ratio': [conn('tcas', 'TCAS admissions')],
-  'driver.tcas_fill_rate': [conn('tcas', 'TCAS admissions')],
+  'driver.tcas_competition_ratio': [conn('tcas', 'TCAS admissions'), ds('admission-campaigns', 'Admission campaigns')],
+  'driver.tcas_fill_rate': [conn('tcas', 'TCAS admissions'), ds('admission-campaigns', 'Admission campaigns')],
   'driver.tcas_registration_yield': [conn('tcas', 'TCAS admissions'), ds('admission-campaigns', 'Admission campaigns')],
-  'driver.tcas_competition_vs_peers': [conn('tcas', 'TCAS admissions')],
+  'driver.tcas_competition_vs_peers': [conn('tcas', 'TCAS admissions'), ds('admission-campaigns', 'Admission campaigns')],
   'driver.enrollment_trend_slope': [ENROLMENT],
   'driver.kku_intake_policy': [ds('admission-campaigns', 'Admission campaigns')],
   // Financial

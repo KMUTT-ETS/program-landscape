@@ -824,7 +824,10 @@ describe('TCAS funnel basis (v5.6)', () => {
     expect(ratio.value).toBe(70);
     expect((ratio.raw as { basis?: string }).basis).toBe('public-tcas-round3');
     // No Confirmed / Reported anywhere: the yield is missing, not 0.
-    expect(d.find((x) => x.label === 'tcas_registration_yield')!.value).toBeNull();
+    const y = d.find((x) => x.label === 'tcas_registration_yield')!;
+    expect(y.value).toBeNull();
+    // No Confirmed either: the existing no-confirmed reading, not reported-not-stated.
+    expect((y.raw as { reason?: string }).reason).toBeUndefined();
   });
 
   it('stays null with no campaign rows and no public rows', async () => {

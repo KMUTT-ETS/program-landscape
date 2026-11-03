@@ -28,7 +28,7 @@ quota, fill = admitted / quota. Rules:
   still scored.
 - Campaign seats, when present in any year, are never overridden.
 - A programme with **no campaign rows at all** is scored on the same basis for the
-  latest complete year that has public round-3 rows (KKU always has campaign rows).
+  latest complete year that has public round-3 rows (on KKU's installation the impact was not measured).
 - `tcas_registration_yield` has no public equivalent and stays null: it needs the
   `Confirmed` and `Reported` columns of the admission-campaigns sheet. When
   Confirmed is stated but no row of the year states Reported, it is **null**

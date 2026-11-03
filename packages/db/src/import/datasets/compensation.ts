@@ -68,7 +68,8 @@ export const compensationDataset: ImportDataset = {
       required: false,
       guide:
         'Leave blank for a faculty-wide figure. A blank row and a department ' +
-        'row for the same rank and year are two different figures, both kept.',
+        'row for the same rank and year are two different figures, both kept. ' +
+        'A sheet without this column folds every row onto the faculty-wide figure.',
       example: 'ENG-CIVIL',
       references: { dataset: 'departments', column: 'code' },
     },
