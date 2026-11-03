@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { isAdminGrade, type SessionUser, ApiSuccess } from '@kku/shared';
 import { auth } from '@/lib/auth';
+import { brandingForRequest } from '@/lib/branding';
 import { apiFetch, apiFetchEnvelope, apiFetchSafe } from '@/lib/api-client';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
@@ -106,7 +107,7 @@ export default async function AdminProgramsPage({
       <PageHeader
         eyebrow="Admin · Programs"
         title="Program management"
-        subtitle="Curate every KKU program and run the analyse-the-landscape pipeline. Switch between the full list (CRUD + per-program detail) and the operational pipeline view (bulk digest + approve)."
+        subtitle="Curate every program and run the analyse-the-landscape pipeline. Switch between the full list (CRUD + per-program detail) and the operational pipeline view (bulk digest + approve)."
         actions={
           <EdgeGlow inline>
             <Button variant="primary" asChild>

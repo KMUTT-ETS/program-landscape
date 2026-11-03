@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
+import { brandingForRequest } from '@/lib/branding';
 import { apiFetchSafe } from '@/lib/api-client';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
@@ -215,7 +216,7 @@ export default async function AdminDataSetupPage() {
             tone="glossy"
             icon={<GraduationCap />}
             title="Full program documents (มคอ.2)"
-            description="Every active KKU program should have a current curriculum PDF linked. Programs without one can't be digested into skills, recruitment summaries, or course lists."
+            description="Every active program should have a current curriculum PDF linked. Programs without one can't be digested into skills, recruitment summaries, or course lists."
             primary={{
               label: `${stats.programs.withCurriculumPdf} of ${stats.programs.total} programs`,
               tone:
@@ -374,7 +375,7 @@ export default async function AdminDataSetupPage() {
       {/* ── Labour-market & research — auto-fed via connectors ──── */}
       <Section
         title="Labour-market & research signal"
-        description="Demand-side and discovery-side inputs that the AI compares the curriculum against — what employers want now vs what KKU researchers are publishing."
+        description="Demand-side and discovery-side inputs that the AI compares the curriculum against — what employers want now vs what your researchers are publishing."
       >
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <CategoryCard
@@ -400,7 +401,7 @@ export default async function AdminDataSetupPage() {
           <CategoryCard
             icon={<BookText />}
             title="Research outputs"
-            description="Publications via OpenAlex (free institutional API). Drives the deep-dive research section, benchmarking subject leadership, and faculty-member impact views. Scopus enrichment deferred until KKU Library provides an API key."
+            description="Publications via OpenAlex (free institutional API). Drives the deep-dive research section, benchmarking subject leadership, and faculty-member impact views. Scopus enrichment deferred until your library provides an API key."
             primary={{
               label: `${stats.researchOutputs.total.toLocaleString()} papers`,
               tone: stats.researchOutputs.total > 0 ? 'success' : 'neutral',
@@ -427,7 +428,7 @@ export default async function AdminDataSetupPage() {
         <CategoryCard
           icon={<Database />}
           title="Connector management"
-          description="24 sources across Phase A (KKU internal), Phase B (Thailand national), Phase C (international). 5 currently live (kku-registry, kku-hr, kku-finance, kku-research, kmitl-skill-mapping); the rest run on seeded mock data."
+          description="24 sources across Phase A (institution internal), Phase B (Thailand national), Phase C (international). Sources that are not yet connected run on seeded mock data."
           primary={{
             label: `${stats.dataFeeds.live} live · ${stats.dataFeeds.mocked} mocked`,
             tone: 'neutral',

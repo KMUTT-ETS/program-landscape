@@ -2,14 +2,9 @@
 
 import * as React from 'react';
 
-/** The organisation's short names, as the chrome shows them. */
-export interface OrgShortNames {
-  en: string;
-  th: string;
-}
+import { DEFAULT_ORG_SHORT_NAMES, type OrgShortNames } from '@/lib/org-names';
 
-/** Shown when the install has no organisation profile yet. */
-export const DEFAULT_ORG_SHORT_NAMES: OrgShortNames = { en: 'University', th: 'มหาวิทยาลัย' };
+export { DEFAULT_ORG_SHORT_NAMES, type OrgShortNames };
 
 const OrgNamesContext = React.createContext<OrgShortNames>(DEFAULT_ORG_SHORT_NAMES);
 

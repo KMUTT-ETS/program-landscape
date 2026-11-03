@@ -232,7 +232,7 @@ function RolePicker({
   return (
     <div className="max-h-[60vh] overflow-y-auto px-2 pb-4">
       <RoleGroup
-        title="KKU SSO roles"
+        title="SSO roles"
         items={ROLES}
         disabled={disabled}
         onPick={onPick}

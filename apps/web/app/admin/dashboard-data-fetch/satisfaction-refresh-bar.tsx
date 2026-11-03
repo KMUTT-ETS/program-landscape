@@ -83,7 +83,7 @@ export function SatisfactionRefreshBar({ initial }: SatisfactionDataSourceProps)
       <Card className="p-3">
         <p className="text-sm text-text-tertiary">
           Data source <code>kku-evaluations</code> is not registered yet. Run{' '}
-          <code>pnpm db:seed</code> to seed the catalog row.
+          <code>pnpm data-sources:sync --apply</code> to seed the catalog row.
         </p>
       </Card>
     );

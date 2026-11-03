@@ -765,8 +765,8 @@ export async function buildProgramDetailData(
   const demographicData: ProgramDetailData['demographic'] = demographic
     ? {
         catchment:
-          demographic.catchmentRegion === 'Northeast'
-            ? 'Northeast Thailand'
+          demographic.comparatorRegion
+            ? `${demographic.comparatorRegion} Thailand`
             : 'Thailand',
         ageCohort: demographic.ageCohort,
         source: demographic.source,

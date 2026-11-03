@@ -4,6 +4,7 @@ import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { brandingForRequest } from '@/lib/branding';
+import { DEFAULT_ORG_SHORT_NAMES } from '@/lib/org-names';
 import type {
   DeepDiveAiPeers,
   DeepDiveAiReadiness,
@@ -59,7 +60,7 @@ export default async function ProgramPrintPage({
   if (!user?.userId) redirect('/signin');
 
   const { id } = await params;
-  const orgName = (await brandingForRequest())?.shortNameEn ?? 'University';
+  const orgName = (await brandingForRequest())?.shortNameEn ?? DEFAULT_ORG_SHORT_NAMES.en;
   const [
     overview,
     lifecycle,

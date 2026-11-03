@@ -88,8 +88,8 @@ const postgresUp: boolean = await (async () => {
 const describeIfDb = postgresUp ? describe : describe.skip;
 
 // The /programs endpoint enumerates only CANONICAL programs — those with
-// sequenceNoFromSheet set, i.e. loaded from the KKU master sheet (see
-// withCanonical / IS_CANONICAL_PROGRAM). `pnpm db:seed` creates a handful of
+// sequenceNoFromSheet set, i.e. loaded from the programme import (see
+// withCanonical / IS_CANONICAL_PROGRAM). the development seed creates a handful of
 // non-canonical sample rows (no sheet sequence) for org rollups, but the
 // real 228 canonical programs arrive separately via the sheet-seed /
 // connectors (the bootstrap mocks were purged 2026-05-08 and must never be

@@ -125,7 +125,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     kind: 'API',
     inputFormat: 'JSON',
     cadenceCron: '0 1 * * *', // daily at 01:00
-    ownerContact: 'KKU Digital Transcript Team (existing KKU system)',
+    ownerContact: 'Registrar — digital transcript team (existing system)',
     notes: 'Skill claims per student. Already live in production — wiring here mirrors the claims feed.',
     mocked: true,
   },
@@ -177,7 +177,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     kind: 'API',
     inputFormat: 'JSON',
     cadenceCron: '0 2 * * 1', // weekly Monday
-    ownerContact: 'KKU Academic Standards & Quality Office',
+    ownerContact: 'Academic standards & quality office',
     notes: 'Curriculum accreditation statuses. The existing CISA system already exposes an API — real wiring is cheap.',
     mocked: true,
   },
@@ -197,7 +197,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'MIXED',
     acceptsPdfUploads: true,
     cadenceCron: '0 9 15 2 *', // annual on Feb 15
-    ownerContact: 'KKU Strategic Planning Office (public statutory data)',
+    ownerContact: 'Strategic planning office (public statutory data)',
     notes:
       'Annual population by age × region × sex from DOPA civil registration; long-term cohort projections from NESDC. BOI republishes summary tables at boi.go.th — used as the user-facing reference but the connector reads from DOPA/NESDC raw files because BOI is bot-firewalled (Incapsula). Drives the demographic ceiling on each program (the 18-22 cohort projection in the program\'s catchment region) and feeds the Gap Analyzer\'s supply-side forecasting.',
     mocked: true,
@@ -209,7 +209,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'PDF',
     acceptsPdfUploads: true,
     cadenceCron: '0 8 10 * *', // monthly on the 10th (NSO publishes ~1st week)
-    ownerContact: 'KKU Data Office (no formal agreement — public data)',
+    ownerContact: 'Institutional data office (no formal agreement — public data)',
     notes: 'Quarterly labor force survey + annual employment statistics. Published as heavily-tabled PDF + occasional CSV. Routes through the prompt 03b PDF intake pipeline.',
     mocked: true,
   },
@@ -220,7 +220,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'MIXED',
     acceptsPdfUploads: true,
     cadenceCron: '0 9 15 5 *', // annual — results published mid-May
-    ownerContact: 'KKU Admissions Office',
+    ownerContact: 'Admissions office',
     notes:
       'Annual national admission test scores + programme-level cutoffs. Mixture of PDF summaries and a partial API. ' +
       'The connector class is still a mocked stub but the DataSource row holds 25,705 real CUPT peer rows ingested ' +
@@ -235,7 +235,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'MIXED',
     acceptsPdfUploads: true,
     cadenceCron: '0 7 * * 2', // weekly on Tuesday
-    ownerContact: 'KKU TVET liaison',
+    ownerContact: 'TVET liaison',
     notes: 'Thailand Professional Qualification Institute standards. Portal has an API for metadata + PDF downloads for the standards themselves.',
     mocked: true,
   },
@@ -295,7 +295,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     // the sitemap's lastmod keeps us from refetching the rest.
     scheduleEnabled: true,
     cadenceCron: '0 3 * * 1',
-    ownerContact: 'KKU Data Office',
+    ownerContact: 'Institutional data office',
     notes:
       'Thai government and state-enterprise recruitment announcements. Public-sector ' +
       'counterpart to jobthai, which is a private-sector board. Each announcement states, ' +
@@ -312,7 +312,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     kind: 'API',
     inputFormat: 'JSON',
     cadenceCron: '0 */6 * * *', // every 6 hours (no longer scheduled — see deprecated)
-    ownerContact: 'KKU Data Office',
+    ownerContact: 'Institutional data office',
     notes: 'SUPERSEDED by kmitl-skill-mapping (2026-05-01). Catalog entry retained so historical IngestionRun rows don\'t orphan; full removal after kmitl-skill-mapping clears 30-day green-history gate.',
     mocked: true,
     deprecated: true,
@@ -324,7 +324,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'PDF',
     acceptsPdfUploads: true,
     cadenceCron: '0 6 * * *', // daily
-    ownerContact: 'KKU Strategic Planning Office',
+    ownerContact: 'Strategic planning office',
     notes: 'Ministry of Higher Education policy announcements — almost entirely PDF. Very noisy; the PDF intake pipeline filters.',
     mocked: false,
   },
@@ -335,7 +335,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'PDF',
     acceptsPdfUploads: true,
     cadenceCron: '0 7 * * 1', // weekly Monday
-    ownerContact: 'KKU Strategic Planning Office',
+    ownerContact: 'Strategic planning office',
     notes: 'National Economic & Social Development Council — 5-year plans + quarterly economic outlooks. Long PDFs (200+ pages) routed through 03b.',
     mocked: false,
   },
@@ -346,7 +346,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'PDF',
     acceptsPdfUploads: true,
     cadenceCron: '0 7 * * 3', // weekly Wednesday
-    ownerContact: 'KKU Research & Innovation Office',
+    ownerContact: 'Research & innovation office',
     notes: 'National Higher Education, Science, Research & Innovation Policy Council — R&D policy direction.',
     mocked: false,
   },
@@ -357,7 +357,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'MIXED',
     acceptsPdfUploads: true,
     cadenceCron: '0 8 5 * *', // monthly on the 5th
-    ownerContact: 'KKU Industry Liaison Office',
+    ownerContact: 'Industry liaison office',
     notes: 'Board of Investment — sector investment statistics. PDF reports + occasional Excel. Key input for S-curve + target industry analysis.',
     mocked: false,
   },
@@ -368,7 +368,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'PDF',
     acceptsPdfUploads: true,
     cadenceCron: '0 8 15 * *', // monthly on the 15th
-    ownerContact: 'KKU Industry Liaison Office',
+    ownerContact: 'Industry liaison office',
     notes: 'Eastern Economic Corridor Office — industrial development plans. Less relevant to Khon Kaen geographically, but workforce signals carry over.',
     mocked: false,
   },
@@ -381,7 +381,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'PDF',
     acceptsPdfUploads: true,
     cadenceCron: '0 10 1 5 *', // annual (May — when WEF typically publishes)
-    ownerContact: 'KKU Data Office',
+    ownerContact: 'Institutional data office',
     notes: 'World Economic Forum annual report. Foundational for future-skill taxonomies. Always a long PDF.',
     mocked: false,
   },
@@ -392,7 +392,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'PDF',
     acceptsPdfUploads: true,
     cadenceCron: '0 10 * * 1', // weekly Monday
-    ownerContact: 'KKU Data Office',
+    ownerContact: 'Institutional data office',
     notes: 'OECD skills + education outlook + sectoral reports. Thailand-specific reports pulled preferentially.',
     mocked: false,
   },
@@ -402,7 +402,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     kind: 'API',
     inputFormat: 'MIXED',
     cadenceCron: '0 11 * * 0', // weekly Sunday
-    ownerContact: 'KKU Data Office',
+    ownerContact: 'Institutional data office',
     notes: 'Labor data, education indicators, demographic projections. World Bank has a free API + long-form PDFs for narrative reports.',
     mocked: false,
   },
@@ -413,7 +413,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'PDF',
     acceptsPdfUploads: true,
     cadenceCron: '0 11 * * 4', // weekly Thursday
-    ownerContact: 'KKU Data Office',
+    ownerContact: 'Institutional data office',
     notes: 'Asian Development Bank — Greater Mekong Subregion reports. Critical for Laos/Myanmar/Cambodia peer context for some KKU programs.',
     mocked: false,
   },
@@ -427,7 +427,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     kind: 'API',
     inputFormat: 'JSON',
     cadenceCron: '0 12 * * 0', // weekly Sunday
-    ownerContact: 'KKU Library (existing subscription)',
+    ownerContact: 'Institution library (existing subscription)',
     notes:
       'SUPERSEDED — Scopus content is now sourced via the internal kku-publications mirror (10.130.2.151), which carries 18,900 distinct KKU papers with curator-grade author resolution. The Elsevier API pathway is no longer wired.',
     mocked: false,
@@ -440,7 +440,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     kind: 'API',
     inputFormat: 'JSON',
     cadenceCron: '0 13 * * 0', // weekly Sunday
-    ownerContact: 'KKU Data Office (public API, no agreement needed)',
+    ownerContact: 'Institutional data office (public API, no agreement needed)',
     notes:
       'SUPERSEDED — KKU publication metadata is now sourced via the internal kku-publications mirror, which adds PubMed coverage and replaces fuzzy name-matching with curator-grade person_id resolution.',
     mocked: false,
@@ -457,7 +457,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     // Run-now after each release. scheduleEnabled=false keeps the
     // BullMQ queue free of monthly mock-PDF runs.
     scheduleEnabled: false,
-    ownerContact: 'KKU Strategic Office (free imd.org/wcc summaries)',
+    ownerContact: 'Strategic planning office (free imd.org/wcc summaries)',
     notes:
       'IMD World Competitiveness Yearbook + World Talent Ranking + World Digital Competitiveness Ranking. Country-level only (~67 economies). Manual seed via `pnpm imd:seed` is the primary path; PDF intake of the public summary brochures is a secondary path. KKU Library does NOT have a Smartcomp subscription — restricted to free public summaries.',
     mocked: false,
@@ -469,7 +469,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'MIXED',
     acceptsPdfUploads: true,
     cadenceCron: '0 14 * * 6', // weekly Saturday
-    ownerContact: 'KKU Data Office',
+    ownerContact: 'Institutional data office',
     notes: 'Scrapes Thai + ASEAN peer universities\' program pages + downloads their brochure PDFs. Legal grey zone — stick to public catalogue pages.',
     mocked: true,
   },
@@ -479,7 +479,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     kind: 'API',
     inputFormat: 'JSON',
     cadenceCron: '0 3 1 * *', // monthly (rankings release annually; cadence covers new-edition releases)
-    ownerContact: 'KKU Library — licence + API credentials',
+    ownerContact: 'Institution library — licence + API credentials',
     notes: 'THE subject rankings + annual overall rankings. Licensed API; free tier gives top-200 only. Subscription needed for full peer-group visibility.',
     mocked: true,
   },
@@ -489,7 +489,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     kind: 'API',
     inputFormat: 'JSON',
     cadenceCron: '0 4 1 * *',
-    ownerContact: 'KKU Library — licence + API credentials',
+    ownerContact: 'Institution library — licence + API credentials',
     notes: 'QS WUR + subject rankings. Requires subscription agreement. HTML scrape is possible for the public tier but fragile.',
     mocked: true,
   },
@@ -499,7 +499,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     kind: 'SCRAPE',
     inputFormat: 'JSON',
     cadenceCron: '0 5 1 * *',
-    ownerContact: 'KKU Library',
+    ownerContact: 'Institution library',
     notes: 'Research-based rankings. Free. Annual release; scraping annual XLSX is the practical pipeline.',
     mocked: true,
   },

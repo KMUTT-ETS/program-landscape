@@ -27,4 +27,11 @@ describe('catalog KKU examples', () => {
     expect(entry).toBeDefined();
     expect(entry?.ownerContact ?? '').not.toMatch(/KKU/);
   });
+
+  it('no non-example ownerContact mentions KKU', () => {
+    const offenders = SOURCE_CATALOG.filter(
+      (e) => !isKkuExample(e.slug) && /KKU/.test(e.ownerContact ?? ''),
+    ).map((e) => `${e.slug}: ${e.ownerContact}`);
+    expect(offenders).toEqual([]);
+  });
 });

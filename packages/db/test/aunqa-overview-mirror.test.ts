@@ -31,7 +31,7 @@ import {
  * the very thing that diverges.
  */
 
-// Skip when Postgres isn't reachable — `pnpm db:up && pnpm db:seed` is
+// Skip when Postgres isn't reachable — `pnpm db:up && pnpm db:migrate` is
 // the precondition. Same posture as apps/api's e2e probe: a cheap
 // existence check beats a noisy failure on an unprovisioned CI run.
 const postgresUp: boolean = await (async () => {

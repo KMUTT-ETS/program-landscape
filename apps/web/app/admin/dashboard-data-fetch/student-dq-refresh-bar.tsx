@@ -90,7 +90,7 @@ export function StudentDqRefreshBar({ initial }: StudentDqDataSourceProps) {
     return (
       <Card className="p-3">
         <p className="text-sm text-text-tertiary">
-          Data source <code>kku-dq</code> is not registered yet. Run <code>pnpm db:seed</code> to
+          Data source <code>kku-dq</code> is not registered yet. Run <code>pnpm data-sources:sync --apply</code> to
           seed the catalog row.
         </p>
       </Card>

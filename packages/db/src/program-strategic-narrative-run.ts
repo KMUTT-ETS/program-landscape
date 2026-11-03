@@ -214,8 +214,8 @@ export async function generateProgramStrategicNarrative(
     demographic: demographic
       ? {
           regionLabel:
-            demographic.catchmentRegion === 'Northeast'
-              ? 'Northeast Thailand'
+            demographic.comparatorRegion
+              ? `${demographic.comparatorRegion} Thailand`
               : 'Thailand',
           requiredShareAt10Y:
             demographic.projections.find(

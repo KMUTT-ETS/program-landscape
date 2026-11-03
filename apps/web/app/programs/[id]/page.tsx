@@ -15,6 +15,7 @@ import { Button, Card, PageHeader } from '@kku/ui';
 import { ChevronRight, FileText, Home, Printer } from 'lucide-react';
 import { brandingForRequest } from '@/lib/branding';
 import { DeepDiveClient, type DeepDiveDigitalCompetency } from './client';
+import { DEFAULT_ORG_SHORT_NAMES } from '@/lib/org-names';
 import type {
   DeepDiveOverview,
   DeepDiveDemandFunnel,
@@ -127,8 +128,8 @@ export default async function ProgramDeepDivePage({
   }
 
   const branding = await brandingForRequest();
-  const orgShortNameEn = branding?.shortNameEn ?? 'University';
-  const orgShortNameTh = branding?.shortNameTh ?? 'มหาวิทยาลัย';
+  const orgShortNameEn = branding?.shortNameEn ?? DEFAULT_ORG_SHORT_NAMES.en;
+  const orgShortNameTh = branding?.shortNameTh ?? DEFAULT_ORG_SHORT_NAMES.th;
 
   // Cockpit-style breadcrumb so users can navigate back from the
   // deepest level (program → department → faculty → KKU root) without
