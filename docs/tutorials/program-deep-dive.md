@@ -128,8 +128,9 @@ pnpm skills:normalise --source=linkedin --auto-promote
 
    It adds the market's skill names to your taxonomy, so a programme's skills
    can match them. It handles the names in batches of 25. On one installation it
-   processed about 5,850 names, which took about two hours and cost roughly
-   USD 1.50. Without it the demand match is skipped, and the labour-market
+   processed about 5,850 names, which took about an hour and cost roughly
+   USD 1.50. A few names may fail (a brief database or model error); run the
+   same command again and it picks up only those. Without it the demand match is skipped, and the labour-market
    alignment and demand-match drivers stay empty. The setup checklist says so.
 2. Or upload **Career Skill Demand** at `/admin/data-setup/raw/career-skill-demand`
    after Step 5 has built the skills.
