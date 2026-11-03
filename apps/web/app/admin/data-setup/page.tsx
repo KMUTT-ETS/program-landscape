@@ -381,7 +381,7 @@ export default async function AdminDataSetupPage() {
             tone="glossy"
             icon={<TrendingUp />}
             title="Labour-market skills demand (KMITL Skill Mapping or the Career Skill Demand spreadsheet)"
-            description="Aggregated skill demand from LinkedIn — profiles, Thai job postings, and university graduate data. The data is owned by LinkedIn; the institutional subscription / licence is held by MHESI. KMITL hosts the API endpoint on behalf of MHESI and is not the data owner. Drives the gap-analyzer's labour-market demand source and the health-score's labour-market-alignment driver."
+            description="Aggregated skill demand per career — how often each skill is asked for in profiles, job postings and graduate data. Load it through the connector, if your region has one, or the Career Skill Demand spreadsheet. Drives the gap-analyzer's labour-market demand source and the health-score's labour-market-alignment driver."
             primary={{
               label: `${stats.laborMarketSkills.kmitlSkillDemandRows.toLocaleString()} demand rows`,
               tone: stats.laborMarketSkills.kmitlSkillDemandRows > 0 ? 'success' : 'neutral',
@@ -389,7 +389,6 @@ export default async function AdminDataSetupPage() {
             secondary={[
               `${stats.laborMarketSkills.kmitlCareers.toLocaleString()} career taxonomy entries`,
               `${stats.laborMarketSkills.kmitlSkillGrowthRows.toLocaleString()} skill-growth rows (trend signal)`,
-              `Data: LinkedIn · Subscriber: MHESI · API host: KMITL · Live since 2026-05-01`,
             ]}
             href="/admin/data-sources/kmitl-skill-mapping"
             cta="View labour-market data source"

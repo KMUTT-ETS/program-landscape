@@ -60,8 +60,10 @@ export async function completeSetupAction(raw: unknown): Promise<SetupActionResu
       password: parsed.data.password,
       redirect: false,
     });
-  } catch {
-    // The account exists; only the automatic sign-in failed.
+  } catch (e) {
+    // The account exists; only the automatic sign-in failed. Log the error
+    // class only: the credentials are in scope here and must not be.
+    console.warn(`[setup] automatic sign-in failed: ${e instanceof Error ? e.name : 'error'}`);
     return { ok: true, signedIn: false };
   }
   return { ok: true, signedIn: true };
