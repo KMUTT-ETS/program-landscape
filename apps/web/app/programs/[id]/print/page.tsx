@@ -1497,7 +1497,7 @@ function TcasBlock({ data }: { data: DeepDiveTcasStats }) {
                   {h.competitionRatio.toFixed(2)}×
                 </td>
                 <td className="py-1 text-right font-tabular text-text-secondary">
-                  {(h.fillRate * 100).toFixed(1)}%
+                  {h.admittedPass1 === 0 && h.admittedPass2 === 0 ? '—' : `${(h.fillRate * 100).toFixed(1)}%`}
                 </td>
                 <td className="py-1 text-right font-tabular">
                   {h.minScorePass1 !== null ? h.minScorePass1.toFixed(2) : '—'}
