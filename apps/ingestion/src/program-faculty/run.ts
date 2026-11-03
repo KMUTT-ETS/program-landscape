@@ -358,7 +358,13 @@ export async function runProgramFacultyExtraction(
     select: { id: true },
   });
 
-  const degradedNote = rosterDegradedNote(dedupedByName.size, matched, programFacultyRowsFromMhesi);
+  const existingLinkedStaff = await prisma.programFaculty.count({ where: { programId: program.id } });
+  const degradedNote = rosterDegradedNote(
+    dedupedByName.size,
+    matched,
+    programFacultyRowsFromMhesi,
+    existingLinkedStaff,
+  );
   const degraded = degradedNote !== null;
 
   return {

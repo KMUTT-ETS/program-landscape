@@ -92,4 +92,11 @@ describe('fix round 1', () => {
     expect(rosterDegradedNote(5, 2, 0)).toBeNull();
     expect(rosterDegradedNote(0, 0, 0)).toBeNull();
   });
+  it('imported programme staff: the note says so and does not ask for the Staff spreadsheet', () => {
+    const note = rosterDegradedNote(27, 0, 0, 25);
+    expect(note).toMatch(/^matched 0 of 27/);
+    expect(note).toMatch(/imported programme staff/);
+    expect(note).not.toMatch(/Staff spreadsheet/);
+    expect(rosterDegradedNote(27, 0, 0, 0)).toMatch(/Staff spreadsheet/);
+  });
 });

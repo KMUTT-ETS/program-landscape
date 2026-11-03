@@ -161,8 +161,13 @@ export function rosterDegradedNote(
   extracted: number,
   matched: number,
   rowsFromSystemContext: number,
+  /** Staff already linked to the programme (e.g. the Programme teaching staff upload). */
+  existingLinkedStaff = 0,
 ): string | null {
   if (extracted > 0 && matched === 0 && rowsFromSystemContext === 0) {
+    if (existingLinkedStaff > 0) {
+      return `matched 0 of ${extracted} — the PDF roster could not be matched to the staff list; the ${existingLinkedStaff} imported programme staff are used instead`;
+    }
     return `matched 0 of ${extracted} — load the Staff spreadsheet (or check names) to link teaching staff`;
   }
   return null;
