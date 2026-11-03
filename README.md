@@ -39,14 +39,16 @@ Then open:
 
 | Command | Purpose |
 |---|---|
-| `pnpm setup` | install deps, start infra, generate client, migrate, register data sources (does not seed) |
+| `pnpm setup` | install deps, start infra, generate client, migrate, register data sources, load the generic reference seed |
 | `pnpm dev` | run web + api + ingestion in parallel |
 | `pnpm db:up` | start postgres + redis + minio + gotenberg |
 | `pnpm db:down` | stop the infra containers |
-| `pnpm db:reset` | drop volumes + generate + migrate + seed (dev only) |
+| `pnpm db:reset` | drop volumes + generate + migrate + generic seed (dev only) |
 | `pnpm db:generate` | regenerate the Prisma Client after schema changes |
 | `pnpm db:migrate` | apply pending Prisma migrations |
-| `pnpm db:seed` | load KKU's demo faculties, users and reference data (KKU dev only) |
+| `pnpm db:seed` | load the generic reference data (policy sectors, neutral cost methodology, external AI sources); same as `pnpm db:seed:reference` |
+| `pnpm db:seed:kku` | load KKU's demo faculties, users and reference data (KKU developers only) |
+| `pnpm adopter:fresh-check` | read-only check that an installation holds no KKU sample data and schedules nothing |
 | `pnpm test` | run unit + integration tests across workspaces |
 | `pnpm e2e` | Playwright end-to-end |
 | `pnpm lint` | ESLint across workspaces |

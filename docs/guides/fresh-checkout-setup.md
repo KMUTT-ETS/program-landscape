@@ -62,11 +62,11 @@ not need any external credentials to boot the stack. Values worth knowing:
 | Variable | Dev default | Why it matters |
 |---|---|---|
 | `NODE_ENV` | `development` | Must not be `production` for local auth to load. |
-| `DATABASE_URL`, `POSTGRES_*` | `kku` / `kku_dev_password` @ `localhost:5432` | Must match the Compose service. Defaults already do. |
+| `DATABASE_URL`, `POSTGRES_*` | `landscape` / `landscape_dev_password` @ `localhost:5432` | Must match the Compose service. Defaults already do. A dev volume created before this change keeps its old `kku` credentials; keep your existing `.env` values for it. |
 | `REDIS_URL` | `redis://localhost:6379` | BullMQ queues. |
 | `MINIO_*` | `minio_dev` / `minio_dev_password` | Must match the Compose service. |
 | `ENABLE_LOCAL_AUTH` | `true` | Enables the dev-only Credentials provider so you can sign in without SSO. Hard-fails if `NODE_ENV=production`. |
-| `DEV_AUTH_PASSWORD` | `kku-dev` | The shared password for seeded users. Dev only. |
+| `DEV_AUTH_PASSWORD` | `change-me-dev` | The shared password for seeded users. Dev only. |
 | `NEXTAUTH_SECRET` | placeholder | Fine for local; set a real random value if the box is reachable by others. |
 | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | empty | Optional. AI surfaces degrade to empty states without a key. |
 | `AI_PROVIDER` | `stub` | Which LLM backend to use: `google` / `anthropic` / `stub`. **Leave on `stub`** unless you have a key — `google` (the code default when unset) crashes api + ingestion at boot without `GOOGLE_AI_API_KEY`. Set `GOOGLE_AI_API_KEY` (and switch to `google`) for real AI calls. |
@@ -100,10 +100,18 @@ This expands to, in order:
    catalogued connector and per spreadsheet-import dataset. Without them every
    import upload is refused. Idempotent; never deletes.
 
-`pnpm setup` does **not** run `pnpm db:seed`. The seed loads KKU's faculties,
-departments, demo accounts and reference data. A KKU developer who wants that
-demo state runs it by hand after `pnpm setup`; an adopting institution should
-not.
+8. `pnpm db:seed:reference` — the generic reference seed: eight Thai policy
+   sectors, a neutral cost-allocation methodology and the external AI sources.
+   Nothing in it belongs to any one university. `pnpm db:seed` is the same
+   command.
+
+`pnpm setup` does **not** run `pnpm db:seed:kku`. That seed loads KKU's
+faculties, departments, demo accounts, synthetic skills and sample
+demographics. A KKU developer who wants that demo state runs it by hand after
+`pnpm setup` (and sets `ALLOW_MOCK_CONNECTOR_RUNS=true` to exercise the mock
+connectors); an adopting institution should not. A fresh installation schedules
+no connector: switch sources on at `/admin/data-sources`. Run
+`pnpm adopter:fresh-check` to confirm the database holds nothing of KKU's.
 
 The command is **idempotent** — re-running it is safe. If a step fails, run the
 steps individually to isolate which one broke.
@@ -150,11 +158,11 @@ to create the first `SUPER_ADMIN`, then sign in with them. `/setup` closes
 permanently once used. It is open to anyone who can reach the address, so
 claim it straight away on any machine others can reach.
 
-**After `pnpm db:seed` (KKU developers).** With `ENABLE_LOCAL_AUTH=true`, sign
-in with **any seeded email** and the `DEV_AUTH_PASSWORD` (default `kku-dev`).
+**After `pnpm db:seed:kku` (KKU developers).** With `ENABLE_LOCAL_AUTH=true`, sign
+in with **any seeded email** and the `DEV_AUTH_PASSWORD` (default `change-me-dev`).
 Seeding creates administrators, so `/setup` stays closed.
 
-Seeded users (`packages/db/prisma/seed.ts`):
+Seeded users (`packages/db/prisma/seed.ts`, run by `pnpm db:seed:kku`):
 
 | Email | Role | Scope |
 |---|---|---|
@@ -178,7 +186,7 @@ database holds no faculties, programmes, students, staff or financial data —
 that data belongs to the institution. Load it with the spreadsheet import at
 `/admin/data-setup` (see [Importing from spreadsheets](../data-import.md);
 faculties, departments and programmes first), with connectors, or both.
-`pnpm db:seed` adds KKU's faculties, departments, users and reference data,
+`pnpm db:seed:kku` adds KKU's faculties, departments, users and reference data,
 but still no student, staff, financial or programme-document data.
 
 Empty sections render an explicit empty state that names the connector you need
@@ -275,7 +283,9 @@ With `AI_PROVIDER=stub` they get placeholder analysis only.
 | `pnpm db:up` / `pnpm db:down` | start / stop the infra containers |
 | `pnpm db:generate` | regenerate the Prisma Client after schema changes |
 | `pnpm db:migrate` | apply pending Prisma migrations |
-| `pnpm db:seed` | seed without dropping data |
+| `pnpm db:seed` / `pnpm db:seed:reference` | generic reference seed (no KKU data) |
+| `pnpm db:seed:kku` | KKU's demo seed, KKU developers only |
+| `pnpm adopter:fresh-check` | read-only: confirm no KKU sample data and no scheduled sources |
 | `pnpm db:reset` | **destructive** — drop volumes, then generate + migrate + seed |
 | `pnpm test` | unit + integration tests across workspaces |
 | `pnpm e2e` | Playwright end-to-end |

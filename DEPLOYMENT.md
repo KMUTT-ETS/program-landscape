@@ -168,6 +168,13 @@ cd program-landscape-1.0.0
 ORG_SEED_KKU=1 ./scripts/deploy.sh                 # KKU's own server; other installs omit ORG_SEED_KKU
 ```
 
+> **Upgrade note.** Deploys no longer change connector schedules. The catalogue
+> sync creates a `data_sources` row for any connector added in a release with
+> scheduling **off**, and leaves existing rows exactly as an administrator set
+> them. After upgrading, switch on any new connector you want in
+> `/admin/data-sources`. Mock connectors never run in production unless
+> `ALLOW_MOCK_CONNECTOR_RUNS=true`.
+
 ### Alternative: stream the images, skip the archive entirely
 
 Lightest option — writes ~4 MB to the server instead of ~9 GB, because the

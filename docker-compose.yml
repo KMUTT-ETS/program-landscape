@@ -23,8 +23,8 @@ services:
     # headroom and is well within Postgres' comfort zone for dev RAM.
     command: ["postgres", "-c", "max_connections=300", "-c", "shared_buffers=256MB"]
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-kku}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kku_dev_password}
+      POSTGRES_USER: ${POSTGRES_USER:-landscape}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-landscape_dev_password}
       POSTGRES_DB: ${POSTGRES_DB:-program_landscape}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
@@ -32,7 +32,7 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kku} -d ${POSTGRES_DB:-program_landscape}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-landscape} -d ${POSTGRES_DB:-program_landscape}"]
       interval: 5s
       timeout: 5s
       retries: 10
