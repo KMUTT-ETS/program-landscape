@@ -323,8 +323,11 @@ Two things to understand before using it:
 
 Imported rows carry a record of which upload created them, and the application
 hides data whose origin it cannot verify. If an upload succeeds but nothing
-shows, the usual cause is a missing data source row — run `pnpm db:seed`, which
-creates one per dataset, and upload again.
+shows, the usual cause is a missing data source row. Run
+`pnpm data-sources:sync --apply`, which creates one per dataset without
+touching anything else, and upload again. (`pnpm setup` and every production
+deploy already run it, so this mostly happens on a database that predates a
+new dataset.)
 
 ## For developers
 

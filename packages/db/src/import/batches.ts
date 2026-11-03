@@ -179,7 +179,8 @@ export async function startImportRun(
     throw new ApiError(
       'VALIDATION_FAILED',
       `No data source "${sourceSlug}" exists, so imported rows could not be ` +
-        `attributed and would be invisible. Run \`pnpm db:seed\` to create it.`,
+        `attributed and would be invisible. Run \`pnpm data-sources:sync --apply\` ` +
+        `to create it.`,
     );
   }
   if (source.mocked) {

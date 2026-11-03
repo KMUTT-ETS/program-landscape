@@ -21,7 +21,7 @@ prompt 14. See `CLAUDE.md` → *Current status* for the full checklist.
 
 ```bash
 cp .env.example .env
-pnpm setup          # install deps, start infra, generate client, migrate, seed
+pnpm setup          # install deps, start infra, generate client, migrate, register data sources
 pnpm dev            # run web + api + ingestion in parallel
 ```
 
@@ -39,14 +39,14 @@ Then open:
 
 | Command | Purpose |
 |---|---|
-| `pnpm setup` | install deps, start infra, generate client, migrate, seed |
+| `pnpm setup` | install deps, start infra, generate client, migrate, register data sources (does not seed) |
 | `pnpm dev` | run web + api + ingestion in parallel |
 | `pnpm db:up` | start postgres + redis + minio + gotenberg |
 | `pnpm db:down` | stop the infra containers |
 | `pnpm db:reset` | drop volumes + generate + migrate + seed (dev only) |
 | `pnpm db:generate` | regenerate the Prisma Client after schema changes |
 | `pnpm db:migrate` | apply pending Prisma migrations |
-| `pnpm db:seed` | seed without dropping |
+| `pnpm db:seed` | load KKU's demo faculties, users and reference data (KKU dev only) |
 | `pnpm test` | run unit + integration tests across workspaces |
 | `pnpm e2e` | Playwright end-to-end |
 | `pnpm lint` | ESLint across workspaces |

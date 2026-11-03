@@ -10,7 +10,7 @@ instance*), which frames the same steps for an adopting university.
 **Target outcome**
 
 - `postgres`, `redis`, `minio`, and `gotenberg` containers running via Docker Compose.
-- A migrated, seeded, empty-but-valid database.
+- A migrated, empty-but-valid database with its data sources registered.
 - Web at `http://localhost:3000` with a working sign-in.
 - API healthy at `http://localhost:4000/api/v1/healthz`.
 
@@ -96,7 +96,14 @@ This expands to, in order:
 4. `pnpm db:up` — `docker compose up -d postgres redis minio gotenberg`.
 5. `pnpm minio:init` — create the object-storage buckets.
 6. `pnpm db:migrate` — `prisma migrate deploy` (apply all migrations).
-7. `pnpm db:seed` — seed reference data (faculties, skills, sectors, users).
+7. `pnpm data-sources:sync --apply` — register one `data_sources` row per
+   catalogued connector and per spreadsheet-import dataset. Without them every
+   import upload is refused. Idempotent; never deletes.
+
+`pnpm setup` does **not** run `pnpm db:seed`. The seed loads KKU's faculties,
+departments, demo accounts and reference data. A KKU developer who wants that
+demo state runs it by hand after `pnpm setup`; an adopting institution should
+not.
 
 The command is **idempotent** — re-running it is safe. If a step fails, run the
 steps individually to isolate which one broke.
@@ -136,8 +143,16 @@ curl -sSf http://localhost:4000/api/v1/ready     # -> per-dependency status
 
 ## 7. Sign in
 
-With `ENABLE_LOCAL_AUTH=true`, use the Credentials provider on the sign-in page.
-Sign in with **any seeded email** and the `DEV_AUTH_PASSWORD` (default `kku-dev`).
+**Fresh database (the default after `pnpm setup`).** Open
+`http://localhost:3000`. With no administrator in the database it redirects to
+**`/setup`**: enter a name, an email and a password (at least 12 characters)
+to create the first `SUPER_ADMIN`, then sign in with them. `/setup` closes
+permanently once used. It is open to anyone who can reach the address, so
+claim it straight away on any machine others can reach.
+
+**After `pnpm db:seed` (KKU developers).** With `ENABLE_LOCAL_AUTH=true`, sign
+in with **any seeded email** and the `DEV_AUTH_PASSWORD` (default `kku-dev`).
+Seeding creates administrators, so `/setup` stays closed.
 
 Seeded users (`packages/db/prisma/seed.ts`):
 
@@ -158,11 +173,13 @@ documents KKU's configuration as a worked example.
 
 ## 8. What "working" looks like
 
-Most analytical surfaces will be **empty, and that is correct**. The seed gives
-you faculties, departments, a skill taxonomy, sectors, users, and reference
-data. It deliberately does **not** give you student, staff, financial, or
-programme-document data — that data belongs to the institution and is loaded by
-connectors.
+Every analytical surface will be **empty, and that is correct**. A fresh
+database holds no faculties, programmes, students, staff or financial data —
+that data belongs to the institution. Load it with the spreadsheet import at
+`/admin/data-setup` (see [Importing from spreadsheets](../data-import.md);
+faculties, departments and programmes first), with connectors, or both.
+`pnpm db:seed` adds KKU's faculties, departments, users and reference data,
+but still no student, staff, financial or programme-document data.
 
 Empty sections render an explicit empty state that names the connector you need
 to run. There is no mock-data escape hatch by policy. **If you see
@@ -185,10 +202,10 @@ pnpm connector:run world-bank
 pnpm demographics:seed
 
 # 3. TCAS round-3 admission statistics for every institution, TCAS62–68.
-#    Your rows link to programmes only if your programmes are seeded with
-#    faculty and programme nameTh exactly as CUPT writes them; unmatched rows
-#    land with programId = null and are listed in the run metadata. Safe to
-#    re-run after seeding programmes.
+#    Your rows link to programmes only if your faculties and programmes are
+#    loaded with nameTh exactly as CUPT writes them; unmatched rows land with
+#    programId = null and are listed in the run metadata. Safe to re-run after
+#    importing programmes.
 pnpm connector:run tcas
 
 # 4. Curated policy and industry reports (MHESI, NESDC, NXPO, BOI, EECO,

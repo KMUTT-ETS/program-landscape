@@ -111,7 +111,7 @@ describe('startImportRun / finishImportRun', () => {
   });
 
   it('throws, naming the seed command, when the data source is missing', async () => {
-    await expect(startImportRun('no-such-dataset-source', null)).rejects.toThrow(/db:seed/);
+    await expect(startImportRun('no-such-dataset-source', null)).rejects.toThrow(/data-sources:sync --apply/);
   });
 
   it('records counts and completion', async () => {
