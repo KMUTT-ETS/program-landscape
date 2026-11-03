@@ -79,3 +79,16 @@ describe('extractCourseListSection', () => {
     expect(extractCourseListSection(text).found).toBe(false);
   });
 });
+
+describe('extractCourseListSection — 3-digit (KMUTT-shape) codes', () => {
+  const ROWS =
+    'GEN 111 วิชาสมมติหนึ่ง 3 (3-0-6) Fictional One MEE 221 วิชาสมมติสอง 3 (3-0-6) Fictional Two';
+  it('skips the TOC line and starts at the body', () => {
+    const text = `${pad(200)} 3.1.3 รายวิชา 22 ${pad(600)} 3.1.3 รายวิชา หมวดวิชาศึกษาทั่วไป 30 หน่วยกิต ${ROWS} ${pad(600)} ภาคผนวก`;
+    const r = extractCourseListSection(text);
+    expect(r.found).toBe(true);
+    expect(r.startIndex).toBeGreaterThan(text.indexOf(' 22 ') + 600);
+    expect(r.text).toMatch(/^\S* รายวิชา หมวดวิชาศึกษาทั่วไป/);
+    expect(r.text).toContain('MEE 221');
+  });
+});

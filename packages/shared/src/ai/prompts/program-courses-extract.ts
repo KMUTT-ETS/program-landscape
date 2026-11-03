@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { AiMessage } from '../types';
 import { getInstitution } from '../../institution';
+import { courseCodeRegex, isCourseCode } from '../../curriculum/course-code-pattern';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // program-courses-extract.v2  (2026-05-25)
@@ -184,7 +185,7 @@ export function extractCourseListSection(text: string): {
   startIndex: number;
   endIndex: number;
 } {
-  const codeRe = /[A-Z]{2,4}\s?\d{3}\s?\d{3}/;
+  const codeRe = courseCodeRegex();
   const subsectionRe = /หมวดวิชา/;
 
   // Two anchors, tried in order. STRICT is the original and is tried FIRST,
@@ -261,11 +262,11 @@ export function extractCourseListSection(text: string): {
  * load.
  */
 export function extractCandidateCourseCodes(text: string): string[] {
-  const re = /\b([A-Z]{2,4})\s?(\d{3})\s?(\d{3})\b/g;
+  const re = courseCodeRegex('g');
   const seen = new Set<string>();
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
-    seen.add((m[1]! + m[2]! + m[3]!).toUpperCase());
+    seen.add(m[0].replace(/\s+/g, '').toUpperCase());
   }
   return [...seen].sort();
 }
@@ -308,18 +309,20 @@ export function extractFallbackCourseFromContext(
   pdfText: string,
   code: string,
 ): FallbackCourseExtraction | null {
-  if (!/^[A-Z]{2,4}\d{6}$/.test(code)) return null;
+  if (!/^[A-Z]{2,4}(?:\d{6}|\d{3})$/.test(code) || !isCourseCode(code)) return null;
   const prefix = /^[A-Z]+/.exec(code)![0]!;
   const digits = code.slice(prefix.length);
-  const codePat = `${prefix}\\s?${digits.slice(0, 3)}\\s?${digits.slice(3)}`;
-  const re = new RegExp(`\\b${codePat}\\b`, 'g');
+  const digitPat =
+    digits.length === 6 ? `${digits.slice(0, 3)}\\s?${digits.slice(3)}` : digits;
+  const codePat = `${prefix}\\s?${digitPat}`;
+  const re = new RegExp(`\\b${codePat}(?!\\d)\\b`, 'g');
 
   // Credit pattern: "N (B - C - D)" with optional spaces.
   const creditRe = /(\d+)\s*\(\s*\d+\s*-\s*\d+\s*-\s*\d+\s*\)/;
   // English-name pattern: starts with a capital letter, runs until the
   // next course code or end-of-window. Tolerant to common punctuation.
   const enNameRe =
-    /^\s*([A-Z][A-Za-z0-9\s,.:;'\-/&()]{2,120}?)(?=\s+[A-Z]{2,4}\s?\d{3}\s?\d{3}|\s{2,}|$)/;
+    /^\s*([A-Z][A-Za-z0-9\s,.:;'\-/&()]{2,120}?)(?=\s+[A-Z]{2,4}\s?\d{3}(?:\s?\d{3})?(?!\d)|\s{2,}|$)/;
 
   let occurrenceCount = 0;
   let best:

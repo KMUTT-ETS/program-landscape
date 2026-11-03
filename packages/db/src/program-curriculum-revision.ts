@@ -5,6 +5,7 @@ import {
   type ProgramCurriculumRevision,
   type CurriculumRevisionInput,
   type CurriculumRevisionCourse,
+  courseCodeRegex,
 } from '@kku/shared';
 import { prisma } from './index';
 import { normaliseCourseCode } from './course-code-normalise';
@@ -129,7 +130,7 @@ const MIN_QUOTE_CHARS = 12;
 /** Course-code shape as it appears in KKU curriculum prose, e.g. EN241100 or
  *  the occasional 'EN 241100'. Deliberately loose: the point is to notice
  *  something that LOOKS like a code and check it, not to parse codes. */
-const PROSE_COURSE_CODE_RE = /\b[A-Z]{2,4}\s?\d{5,6}\b/g;
+const PROSE_COURSE_CODE_RE = courseCodeRegex('g');
 
 /**
  * Strip every unfounded claim from a model payload.
