@@ -201,7 +201,7 @@ export const CHECKLIST_SOURCES: Readonly<Record<string, readonly ChecklistWaitin
   'driver.demographic_resilience': [ds('population-projections', 'Population projections'), conn('un-wpp', 'UN population prospects')],
   'driver.strategic_sector_alignment': [phase('phase3', 'Careers and demand match')],
   'driver.pedagogical_fit': [phase('phase1', 'PDF extraction (pedagogy)')],
-  'driver.jobthai_demand_alignment': [conn('job-108', 'Job announcements'), phase('phase3', 'Careers and demand match')],
+  'driver.jobthai_demand_alignment': [conn('jobthai', 'JobThai postings'), phase('phase3', 'Careers and demand match')],
 };
 
 // ─── Small helpers ──────────────────────────────────────────────────────
@@ -530,7 +530,8 @@ export async function programSetupChecklist(programId: string): Promise<SetupChe
   const jobThaiLoaded = (): Promise<boolean> =>
     prisma.ingestionRun
       .findFirst({
-        where: { status: 'SUCCEEDED', dataSource: { slug: 'jobthai' } },
+        // A mocked source never counts as loaded.
+        where: { status: 'SUCCEEDED', dataSource: { slug: 'jobthai', mocked: false } },
         select: { id: true },
       })
       .then((r) => r !== null)

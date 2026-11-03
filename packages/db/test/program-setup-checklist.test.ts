@@ -190,8 +190,24 @@ describeScratchDb('programSetupChecklist', () => {
       const after = byKey((await programSetupChecklist(ids.bach!))!.items, 'driver.jobthai_demand_alignment');
       expect(after.status).toBe('empty');
       expect(after.note).toMatch(/JobThai/);
+      // Its action points at the JobThai source page, not at job-108.
+      expect(after.waitingOn.some((w) => w.slug === 'jobthai')).toBe(true);
+      expect(after.waitingOn.some((w) => w.slug === 'job-108')).toBe(false);
     } finally {
       await clearRuns();
+    }
+  });
+
+  it('a mocked JobThai run does not make the driver applicable', async () => {
+    const clearRuns = () => prisma.ingestionRun.deleteMany({ where: { dataSource: { slug: 'jobthai' } } });
+    await clearRuns();
+    try {
+      await makeRun('jobthai', true);
+      const item = byKey((await programSetupChecklist(ids.bach!))!.items, 'driver.jobthai_demand_alignment');
+      expect(item.status).toBe('not-applicable');
+    } finally {
+      await clearRuns();
+      await prisma.dataSource.updateMany({ where: { slug: 'jobthai' }, data: { mocked: false } });
     }
   });
 
