@@ -395,8 +395,8 @@ const programRow = {
 };
 
 describe('v5.4 — capability is back to four drivers', () => {
-  it('drops external_grant_engagement and stamps v5.5', () => {
-    expect(HEALTH_SCORE_VERSION).toBe('health-score.v5.5');
+  it('drops external_grant_engagement and stamps v5.6', () => {
+    expect(HEALTH_SCORE_VERSION).toBe('health-score.v5.6');
     expect(DIMENSION_DRIVERS.capability).toEqual([
       'senior_rank_share',
       'publications_per_faculty',

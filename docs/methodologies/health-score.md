@@ -1,8 +1,22 @@
 # Health score methodology
 
-**Version:** `health-score.v5.5`
+**Version:** `health-score.v5.6`
 **Reviewed:** 2026-11-03
 **Owner:** KKU Data Office
+
+**v5.6 (2026-11-03): public TCAS round-3 fallback for the funnel drivers; no
+change for KKU.** When the latest complete admission-campaign year has no planned
+seats (an adopting university's sheet often has applicants and passed counts but
+no seats), `tcas_competition_ratio`, `tcas_fill_rate` and therefore
+`tcas_competition_vs_peers` use the programme's public TCAS round-3 figures
+(table `tcas_admission_stats`, linked by programme) for that year instead:
+ratio = applicants / quota, fill = admitted / quota. Each `tcas_course_code` is
+counted once per entry year (2568 repeats the 3.1 and 3.2 rows) and the codes
+are summed. The peers already use the same public basis. The driver's `raw`
+carries `basis: 'public-tcas-round3'`, and the Deep-Dive checklist says so.
+Campaign seats, when present, are never overridden, so KKU values are unchanged.
+`tcas_registration_yield` has no public equivalent and stays null: it needs the
+`Reported` column of the admission-campaigns sheet.
 
 **v5.5 (2026-11-03): demographic region and teaching-mode band read from
 organisation data; no change for KKU.** The demographic-resilience driver (`computeRequiredShareAt10Y`) no

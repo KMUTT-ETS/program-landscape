@@ -16,6 +16,7 @@ import { eligibleProjectionRegions, pickProjectionSource } from './projection-so
 import { getAcademicYearContext } from './academic-year';
 import { GRANT_AWARD_LABEL, grantAward, withAward } from './grant-award';
 import { pickFinancialYear } from './financial-year';
+import { PUBLIC_TCAS_BASIS, publicTcasTotals } from './public-tcas-basis';
 import {
   dqCompetencyByScope,
   dqDriverScore,
@@ -234,7 +235,17 @@ export const FLAGSHIP_REVENUE_FLOOR_THB = 3_000_000;
 //   Teaching Mode (Faculty.sfrBand; default Professional) instead of a
 //   hard-coded faculty-code map; KKU's bands were backfilled by migration,
 //   so its scores are unchanged.
-export const HEALTH_SCORE_VERSION = 'health-score.v5.5';
+//
+// v5.6 (2026-11-03) — when the latest complete admission-campaign year has no
+//   planned seats (an adopter's sheet often has applicants and passed counts
+//   but no seats), tcas_competition_ratio, tcas_fill_rate and
+//   tcas_competition_vs_peers fall back to the programme's public TCAS
+//   round-3 figures for that year (ratio = applicants / quota, fill =
+//   admitted / quota; each tcas_course_code counted once, then summed). The
+//   basis is recorded as `basis: 'public-tcas-round3'` in the driver raw.
+//   tcas_registration_yield has no public equivalent and stays null. KKU's
+//   campaign data carries seats, so its scores are unchanged.
+export const HEALTH_SCORE_VERSION = 'health-score.v5.6';
 
 // ── Cost-allocation methodology (gap #5) ────────────────────────────
 // The Financial dimension's `net_contribution_per_student` +
@@ -922,6 +933,9 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
     rounds: number;
     year: number;
     inProgressYear: number | null;
+    /** Set to PUBLIC_TCAS_BASIS when seats/applicants/passed come from the
+     *  public round-3 data (v5.6); absent when the campaign sheet supplied them. */
+    basis?: string;
   } | null = null;
   if (latestComplete !== null) {
     funnelTotals = {
@@ -937,6 +951,31 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
           ? latestYearOverall
           : null,
     };
+    // v5.6: no planned seats in the campaign sheet -> the public TCAS round-3
+    // figures for this programme and year stand in for seats / applicants /
+    // passed. Campaign seats, when present, are never overridden.
+    if (funnelTotals.enrollSeats <= 0) {
+      const publicRows = await prisma.tcasAdmissionStat.findMany({
+        where: { programId, entryYearBE: latestComplete.entryYearBE, ...realDataWhere() },
+        select: {
+          tcasCourseCode: true,
+          quota: true,
+          applicants: true,
+          admittedPass1: true,
+          admittedPass2: true,
+        },
+      });
+      const pub = publicTcasTotals(publicRows);
+      if (pub) {
+        funnelTotals = {
+          ...funnelTotals,
+          enrollSeats: pub.quota,
+          applicants: pub.applicants,
+          passed: pub.admitted,
+          basis: PUBLIC_TCAS_BASIS,
+        };
+      }
+    }
   }
 
   // Peer competition ratio for the latest complete year — TCAS3 peer
@@ -1003,7 +1042,11 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
         return fill >= 0.5 ? 100 : clamp((fill / 0.5) * 100);
       })(),
       raw: funnelTotals
-        ? { passed: funnelTotals.passed, seats: funnelTotals.enrollSeats }
+        ? {
+            passed: funnelTotals.passed,
+            seats: funnelTotals.enrollSeats,
+            ...(funnelTotals.basis ? { basis: funnelTotals.basis } : {}),
+          }
         : null,
     },
     {
@@ -1047,6 +1090,7 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
         peerMedianRatio,
         peerCount,
         year: latestComplete?.entryYearBE ?? null,
+        ...(funnelTotals?.basis ? { basis: funnelTotals.basis } : {}),
       },
     },
     {
