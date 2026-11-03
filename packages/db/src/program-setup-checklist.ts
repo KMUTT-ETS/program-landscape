@@ -99,6 +99,24 @@ const courseLists: ChecklistWaitingOn = {
   href: DATA_SETUP,
 };
 
+/** The one step that builds a skill taxonomy on a fresh install. Named in the
+ *  label because the page links to the pipeline tab, not to the docs. */
+const skillTaxonomy: ChecklistWaitingOn = {
+  kind: 'pipeline',
+  slug: 'skills-normalise',
+  label:
+    'Build the skill taxonomy: run `pnpm skills:normalise --source=program_digest --auto-promote`, ' +
+    're-apply the digest, then re-run the programme pipeline (docs/adopters/README.md, "Building your skill taxonomy")',
+  href: '/admin/programs/{programId}?tab=pipeline',
+};
+/** Items that read nothing until the taxonomy has skills in it. */
+const NEEDS_TAXONOMY: ReadonlySet<string> = new Set([
+  'section.skills',
+  'section.ai-readiness',
+  'driver.labour_market_alignment',
+  'driver.demand_match_filled',
+]);
+
 const ENROLMENT = ds('enrollment-metrics', 'Enrolment');
 const FINANCE = ds('financial-metrics', 'Finance');
 const STAFF = ds('faculty-members', 'Staff');
@@ -186,8 +204,11 @@ export const CHECKLIST_SOURCES: Readonly<Record<string, readonly ChecklistWaitin
 
 // ─── Small helpers ──────────────────────────────────────────────────────
 
-function waitingFor(key: string, programId: string): ChecklistWaitingOn[] {
-  return (CHECKLIST_SOURCES[key] ?? []).map((w) => ({ ...w, href: w.href.replace('{programId}', programId) }));
+function waitingFor(key: string, programId: string, taxonomyEmpty = false): ChecklistWaitingOn[] {
+  const sources = taxonomyEmpty && NEEDS_TAXONOMY.has(key)
+    ? [skillTaxonomy, ...(CHECKLIST_SOURCES[key] ?? [])]
+    : (CHECKLIST_SOURCES[key] ?? []);
+  return sources.map((w) => ({ ...w, href: w.href.replace('{programId}', programId) }));
 }
 
 const LOW_CONFIDENCE = 0.5;
@@ -197,6 +218,8 @@ interface Verdict {
   note: string | null;
   /** True when the item could not be checked: the page must not send anyone to upload data. */
   noWaiting?: boolean;
+  /** Replaces the item's usual waiting-on list when the real blocker is narrower. */
+  waiting?: readonly ChecklistWaitingOn[];
 }
 const CHECK_FAILED = 'Could not be checked — see server log.';
 const failed = (): Verdict => ({ status: 'empty', note: CHECK_FAILED, noWaiting: true });
@@ -449,17 +472,21 @@ export async function programSetupChecklist(programId: string): Promise<SetupChe
             status: 'ACTIVE',
             level: program.level,
             id: { not: programId },
-            courses: { some: {} },
+            programCourses: { some: {} },
           },
         });
-        return sibling === 0
-          ? na('No other programme at this level has a course list to compare with.')
-          : empty();
+        if (sibling === 0) return na('No other programme at this level has a course list to compare with.');
+        // Siblings have course lists, so the only thing missing is the run.
+        return {
+          status: 'empty',
+          note: 'Run the pipeline overlap phase (phaseOV).',
+          waiting: [phase('phaseOV', 'Programme overlap')],
+        };
       },
     },
   ];
 
-  const [sectionVerdicts, scores] = await Promise.all([
+  const [sectionVerdicts, scores, skillCount] = await Promise.all([
     Promise.all(sections.map((s) => s.check().catch((err: unknown): Verdict => {
         console.warn(`[setup-checklist] ${s.key} failed: ${err instanceof Error ? err.name : 'error'}`);
         return failed();
@@ -468,7 +495,9 @@ export async function programSetupChecklist(programId: string): Promise<SetupChe
       console.warn(`[setup-checklist] health score failed: ${err instanceof Error ? err.name : 'error'}`);
       return [];
     }),
+    prisma.skill.count().catch(() => 1),
   ]);
+  const taxonomyEmpty = skillCount === 0;
 
   const items: ChecklistItem[] = sections.map((s, i) => ({
     key: s.key,
@@ -476,7 +505,12 @@ export async function programSetupChecklist(programId: string): Promise<SetupChe
     title: s.title,
     status: sectionVerdicts[i]!.status,
     note: sectionVerdicts[i]!.note,
-    waitingOn: sectionVerdicts[i]!.noWaiting ? [] : waitingFor(s.key, programId),
+    waitingOn: sectionVerdicts[i]!.noWaiting
+      ? []
+      : (sectionVerdicts[i]!.waiting ?? waitingFor(s.key, programId, taxonomyEmpty)).map((w) => ({
+          ...w,
+          href: w.href.replace('{programId}', programId),
+        })),
   }));
 
   const dimensions = scores[0]?.dimensions;
@@ -499,7 +533,7 @@ export async function programSetupChecklist(programId: string): Promise<SetupChe
         title: humanise(label),
         status: verdict.status,
         note: verdict.note,
-        waitingOn: verdict.noWaiting || verdict.status === 'not-applicable' ? [] : waitingFor(key, programId),
+        waitingOn: verdict.noWaiting || verdict.status === 'not-applicable' ? [] : waitingFor(key, programId, taxonomyEmpty),
       });
     }
   }

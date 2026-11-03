@@ -147,6 +147,50 @@ describeScratchDb('programSetupChecklist', () => {
     expect(c.summary.ready).toBe(c.summary.ok + c.summary.degraded + c.summary.notApplicable);
     await prisma.programCourse.deleteMany({ where: { programId: ids.bach! } });
   });
+
+  it('overlap: a sibling with a course list but no run is empty and waits on phaseOV only', async () => {
+    const before = (await programSetupChecklist(ids.bach!))!;
+    expect(byKey(before.items, 'section.overlap').status).toBe('not-applicable');
+
+    const faculty = await prisma.faculty.findFirstOrThrow({ where: { code: FACULTY_CODE }, select: { id: true } });
+    const sibling = await prisma.program.create({
+      data: {
+        code: 'SC-BACH2', nameTh: 'โปรแกรม SC-BACH2', nameEn: 'SC-BACH2', facultyId: faculty.id,
+        level: 'BACHELOR', status: 'ACTIVE', sequenceNoFromSheet: -9699,
+      },
+      select: { id: true },
+    });
+    try {
+      await prisma.programCourse.create({
+        data: {
+          programId: sibling.id, courseCode: 'SCY101', courseCodeRaw: 'SCY 101', courseNameTh: 'ทดสอบ', courseNameEn: 'Test',
+          credits: 3, methodVersion: 'xlsx-import.v1',
+        },
+      });
+      const c = (await programSetupChecklist(ids.bach!))!;
+      const item = byKey(c.items, 'section.overlap');
+      expect(item.status).toBe('empty');
+      expect(item.note).toMatch(/phaseOV/);
+      expect(item.waitingOn.map((w) => w.slug)).toEqual(['phaseOV']);
+      expect(item.waitingOn[0]!.kind).toBe('pipeline');
+    } finally {
+      await prisma.programCourse.deleteMany({ where: { programId: sibling.id } });
+      await prisma.program.delete({ where: { id: sibling.id } });
+    }
+  });
+
+  it('an empty skill taxonomy makes the skill-dependent items wait on skills:normalise', async () => {
+    const skills = await prisma.skill.count();
+    if (skills > 0) return; // scratch DB is expected to be empty of skills
+    const c = (await programSetupChecklist(ids.bach!))!;
+    for (const key of ['section.skills', 'section.ai-readiness', 'driver.labour_market_alignment', 'driver.demand_match_filled']) {
+      const item = byKey(c.items, key);
+      if (item.status !== 'empty') continue;
+      expect(item.waitingOn[0]!.slug).toBe('skills-normalise');
+      expect(item.waitingOn[0]!.label).toMatch(/skills:normalise/);
+      expect(item.waitingOn[0]!.href).not.toContain('{programId}');
+    }
+  });
 });
 
 describe('CHECKLIST_SOURCES slugs', () => {
