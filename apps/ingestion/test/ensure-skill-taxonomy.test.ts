@@ -10,9 +10,9 @@ function deps(over: Partial<EnsureSkillsDeps> = {}): EnsureSkillsDeps {
   return {
     findDigestExtractionId: vi.fn().mockResolvedValue('ext-1'),
     countUnmatchedSkillNames: vi.fn().mockResolvedValue(0),
-    countProgramSkills: vi.fn().mockResolvedValue(3),
+    countProgramSkills: vi.fn().mockResolvedValue(0),
     materialise: vi.fn().mockResolvedValue({ skillsLinked: 4, skillsProposed: 0 }),
-    runNormaliser: vi.fn().mockResolvedValue({ matched: 2, newProposed: 5, failed: 0 }),
+    runNormaliser: vi.fn().mockResolvedValue({ promoted: 0, matched: 2, newProposed: 5, failed: 0, costUsd: 0.02 }),
     ...over,
   };
 }
@@ -24,7 +24,7 @@ describe('ensureProgramSkills (pipeline phase 2)', () => {
       countUnmatchedSkillNames: vi.fn().mockResolvedValue(12),
       runNormaliser: vi.fn().mockImplementation(async () => {
         order.push('normalise');
-        return { matched: 2, newProposed: 10, failed: 0 };
+        return { promoted: 0, matched: 2, newProposed: 10, failed: 0, costUsd: 0.05 };
       }),
       materialise: vi.fn().mockImplementation(async (id: string) => {
         order.push(`materialise:${id}`);
@@ -34,18 +34,33 @@ describe('ensureProgramSkills (pipeline phase 2)', () => {
     const r = await ensureProgramSkills('p1', d, true);
     expect(r.status).toBe('rebuilt');
     expect(order).toEqual(['normalise', 'materialise:ext-1']);
+    expect(d.runNormaliser).toHaveBeenCalledWith('p1');
+    expect(r.costUsd).toBe(0.05);
   });
 
-  it('matched taxonomy: the normaliser is not called and nothing is re-applied', async () => {
-    const d = deps();
+  it('a programme that already has skills is a complete no-op (existing installs)', async () => {
+    const d = deps({ countProgramSkills: vi.fn().mockResolvedValue(3), countUnmatchedSkillNames: vi.fn().mockResolvedValue(9) });
     const r = await ensureProgramSkills('p1', d, true);
     expect(r.status).toBe('matched');
+    expect(d.findDigestExtractionId).not.toHaveBeenCalled();
+    expect(d.countUnmatchedSkillNames).not.toHaveBeenCalled();
     expect(d.runNormaliser).not.toHaveBeenCalled();
     expect(d.materialise).not.toHaveBeenCalled();
   });
 
+  it('logs once when names stay unmatched after the pass', async () => {
+    const log = vi.fn();
+    const d = deps({
+      countUnmatchedSkillNames: vi.fn().mockResolvedValue(4),
+      materialise: vi.fn().mockResolvedValue({ skillsLinked: 0, skillsProposed: 4 }),
+    });
+    await ensureProgramSkills('p1', d, true, log);
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(log.mock.calls[0]![0]).toMatch(/still unmatched/);
+  });
+
   it('names match but the programme has no links yet: re-applies without the normaliser', async () => {
-    const d = deps({ countProgramSkills: vi.fn().mockResolvedValue(0) });
+    const d = deps();
     const r = await ensureProgramSkills('p1', d, true);
     expect(r.status).toBe('rematerialised');
     expect(d.runNormaliser).not.toHaveBeenCalled();

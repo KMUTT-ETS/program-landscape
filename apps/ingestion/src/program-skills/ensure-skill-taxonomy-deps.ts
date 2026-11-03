@@ -1,7 +1,7 @@
 import { lookupAliasesBulk, materialiseProgramDigest, prisma } from '@kku/db';
 import type { AiService } from '@kku/shared';
 
-import { openNormaliserLog, runSkillNormaliser } from './skill-normaliser-run';
+import { openNormaliserLog, promotePriorProposals, runSkillNormaliser } from './skill-normaliser-run';
 import type { EnsureSkillsDeps } from './ensure-skill-taxonomy';
 
 interface DigestSkillShape {
@@ -55,13 +55,22 @@ export function realEnsureSkillsDeps(ai: AiService): EnsureSkillsDeps {
       const r = await materialiseProgramDigest(id);
       return { skillsLinked: r.skillsLinked, skillsProposed: r.skillsProposed };
     },
-    runNormaliser: async () => {
+    runNormaliser: async (programId) => {
+      const proposals = await prisma.aiExtraction.findMany({
+        where: { extractionKind: 'PROPOSED_SKILL', sourceEntityType: 'program', sourceEntityId: programId },
+        select: { payloadJson: true },
+      });
+      const names = proposals.flatMap((p) => {
+        const j = p.payloadJson as { nameEn?: string; nameTh?: string };
+        return [j.nameEn ?? '', j.nameTh ?? ''].filter(Boolean);
+      });
+      const promoted = await promotePriorProposals(names);
       const t = await runSkillNormaliser(
         ai,
-        { source: 'program_digest', limit: null, batchSize: 25, dryRun: false, autoPromote: true },
+        { source: 'program_digest', limit: null, batchSize: 25, dryRun: false, autoPromote: true, programId },
         openNormaliserLog(),
       );
-      return { matched: t.matched, newProposed: t.newProposed, failed: t.failed };
+      return { promoted, matched: t.matched, newProposed: t.newProposed, failed: t.failed, costUsd: t.costUsd };
     },
   };
 }

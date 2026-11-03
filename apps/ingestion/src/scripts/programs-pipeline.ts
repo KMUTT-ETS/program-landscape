@@ -508,7 +508,7 @@ async function processProgram(
     phases.push({
       name: 'phase2 approve+materialise',
       durationMs: r.ms + (Date.now() - tTax),
-      costUsd: 0,
+      costUsd: tax.costUsd,
       ok: r.ok,
       notes: `${r.notes}; skills: ${tax.notes}`,
     });

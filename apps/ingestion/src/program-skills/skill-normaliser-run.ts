@@ -18,6 +18,8 @@ export interface CliArgs {
   batchSize: number;
   dryRun: boolean;
   autoPromote: boolean;
+  /** Restrict program_digest names to this programme's own proposals. */
+  programId?: string;
 }
 
 
@@ -52,7 +54,7 @@ async function fetchUnmatchedLinkedinNames(limit: number | null): Promise<string
   return limit ? queue.slice(0, limit) : queue;
 }
 
-async function fetchPendingProposedSkillNames(limit: number | null): Promise<string[]> {
+async function fetchPendingProposedSkillNames(limit: number | null, programId?: string): Promise<string[]> {
   // PROPOSED_SKILL AiExtraction rows in PENDING_REVIEW. Each carries
   // {nameTh, nameEn, category, weight, evidenceQuote} in payloadJson.
   // We unique on the most-meaningful surface form (prefer nameEn when
@@ -67,6 +69,7 @@ async function fetchPendingProposedSkillNames(limit: number | null): Promise<str
     where: {
       extractionKind: 'PROPOSED_SKILL',
       reviewStatus: { in: ['PENDING_REVIEW', 'AUTO_APPROVED'] },
+      ...(programId ? { sourceEntityType: 'program', sourceEntityId: programId } : {}),
     },
     select: { payloadJson: true },
   });
@@ -97,6 +100,8 @@ interface BatchOutcome {
    *  duplicate. A non-zero count means the model's candidate list is missing
    *  skills it should have seen — worth watching, not just tolerating. */
   reusedExisting: number;
+  /** AI spend for this batch, USD. */
+  costUsd: number;
 }
 
 async function processBatch(
@@ -107,7 +112,7 @@ async function processBatch(
   args: CliArgs,
   logFile: string,
 ): Promise<BatchOutcome> {
-  const out: BatchOutcome = { matched: 0, newProposed: 0, ambiguous: 0, failed: 0, rejected: 0, reusedExisting: 0 };
+  const out: BatchOutcome = { matched: 0, newProposed: 0, ambiguous: 0, failed: 0, rejected: 0, reusedExisting: 0, costUsd: 0 };
   const messages = buildSkillNormaliserMessages({ rawNames, sourceContext, taxonomy });
 
   let response;
@@ -135,6 +140,7 @@ async function processBatch(
     return out;
   }
 
+  out.costUsd = response.cost.usd;
   const batch = response.parsed;
   const aiInferenceId = response.aiInferenceId;
   // Build a map name → decision so we can detect missing names from the AI output.
@@ -290,12 +296,12 @@ async function runForSource(
   const candidates =
     source === 'linkedin'
       ? await fetchUnmatchedLinkedinNames(args.limit)
-      : await fetchPendingProposedSkillNames(args.limit);
+      : await fetchPendingProposedSkillNames(args.limit, args.programId);
 
   console.log(`\n[${source}] ${candidates.length} unmatched names to process`);
-  if (candidates.length === 0) return { matched: 0, newProposed: 0, ambiguous: 0, failed: 0, rejected: 0, reusedExisting: 0, totalCandidates: 0, batches: 0 };
+  if (candidates.length === 0) return { matched: 0, newProposed: 0, ambiguous: 0, failed: 0, rejected: 0, reusedExisting: 0, costUsd: 0, totalCandidates: 0, batches: 0 };
 
-  const totals: BatchOutcome = { matched: 0, newProposed: 0, ambiguous: 0, failed: 0, rejected: 0, reusedExisting: 0 };
+  const totals: BatchOutcome = { matched: 0, newProposed: 0, ambiguous: 0, failed: 0, rejected: 0, reusedExisting: 0, costUsd: 0 };
   let batches = 0;
 
   for (let i = 0; i < candidates.length; i += args.batchSize) {
@@ -307,6 +313,7 @@ async function runForSource(
     const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
     totals.matched += out.matched;
     totals.reusedExisting += out.reusedExisting;
+    totals.costUsd += out.costUsd;
     totals.newProposed += out.newProposed;
     totals.ambiguous += out.ambiguous;
     totals.failed += out.failed;
@@ -327,6 +334,7 @@ export interface NormaliserTotals {
   rejected: number;
   batches: number;
   totalCandidates: number;
+  costUsd: number;
 }
 
 /** Opens the audit log under ./logs and returns its path. */
@@ -346,7 +354,7 @@ export async function runSkillNormaliser(ai: AiService, args: CliArgs, logFile: 
   const taxonomy = await loadTaxonomy();
   console.log(`  ${taxonomy.length} skills in taxonomy`);
 
-  const grand: NormaliserTotals = { matched: 0, newProposed: 0, ambiguous: 0, failed: 0, rejected: 0, batches: 0, totalCandidates: 0 };
+  const grand: NormaliserTotals = { matched: 0, newProposed: 0, ambiguous: 0, failed: 0, rejected: 0, batches: 0, totalCandidates: 0, costUsd: 0 };
   const add = (out: Awaited<ReturnType<typeof runForSource>>): void => {
     grand.matched += out.matched;
     grand.newProposed += out.newProposed;
@@ -355,6 +363,7 @@ export async function runSkillNormaliser(ai: AiService, args: CliArgs, logFile: 
     grand.rejected += out.rejected;
     grand.batches += out.batches;
     grand.totalCandidates += out.totalCandidates;
+    grand.costUsd += out.costUsd;
   };
 
   if (args.source === 'linkedin' || args.source === 'all') {
@@ -371,4 +380,56 @@ export async function runSkillNormaliser(ai: AiService, args: CliArgs, logFile: 
     add(await runForSource(ai, taxonomy, 'program_digest', args, logFile));
   }
   return grand;
+}
+
+/**
+ * Promotes earlier NEW_PROPOSED decisions for the given raw names whose
+ * recorded confidence meets the auto-promote bar (>= 0.9). A run of
+ * `skills:normalise` WITHOUT --auto-promote leaves exactly these behind, and
+ * the normaliser then skips the names as "already decided", so nothing would
+ * ever turn them into skills. Reuses an existing skill by name before
+ * creating one, as the auto-promote path does.
+ */
+export async function promotePriorProposals(
+  rawNames: readonly string[],
+  minConfidence = 0.9,
+): Promise<number> {
+  const lowered = [...new Set(rawNames.map((n) => n.trim().toLowerCase()).filter(Boolean))];
+  if (lowered.length === 0) return 0;
+  const proposals = await prisma.skillAlias.findMany({
+    where: {
+      sourceContext: 'program_digest',
+      status: 'NEW_PROPOSED',
+      confidence: { gte: minConfidence },
+      rawNameLower: { in: lowered },
+    },
+    select: { rawName: true, newNameEn: true, newNameTh: true, newCategory: true, confidence: true },
+  });
+  let promoted = 0;
+  for (const p of proposals) {
+    const nameEn = p.newNameEn ?? '';
+    const nameTh = p.newNameTh ?? '';
+    if (!nameEn && !nameTh) continue;
+    const existing = await findSkillByNormalisedName(nameEn, nameTh);
+    const skill = existing ?? (await prisma.skill.create({
+      data: {
+        code: await ensureUniqueSkillCode(`linkedin-${slugify(nameEn || nameTh || p.rawName)}`),
+        nameEn,
+        nameTh,
+        category: p.newCategory || null,
+        taxonomySource: 'KKU',
+      },
+      select: { id: true },
+    }));
+    await recordAliasDecision({
+      rawName: p.rawName,
+      sourceContext: 'program_digest',
+      decision: 'MATCH',
+      resolvedSkillId: skill.id,
+      confidence: p.confidence ?? minConfidence,
+      reasoning: 'Promoted from an earlier NEW_PROPOSED decision (confidence at the auto-promote bar).',
+    });
+    promoted += 1;
+  }
+  return promoted;
 }
