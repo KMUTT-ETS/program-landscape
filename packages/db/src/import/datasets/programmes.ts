@@ -3,6 +3,7 @@ import type { Prisma, PrismaClient, ProgramLevel, ProgramStatus } from '@prisma/
 import { ApiError } from '@kku/shared';
 
 import type { ImportDataset, ImportLoadContext, ImportLoadResult, ImportRow } from '../types';
+import { optDate, optNum, optStr } from './optional';
 
 // Tier 0, and the one that decides whether anything is visible.
 //
@@ -283,7 +284,8 @@ export const programmesDataset: ImportDataset = {
         );
       }
 
-      let departmentId: string | null = null;
+      // Absent column -> undefined (keep stored); blank cell -> null.
+      let departmentId: string | null | undefined = row.departmentCode === undefined ? undefined : null;
       if (row.departmentCode) {
         const departmentCode = String(row.departmentCode);
         departmentId = departmentIdByCode.get(departmentCode) ?? null;
@@ -302,11 +304,15 @@ export const programmesDataset: ImportDataset = {
         facultyId,
         departmentId,
         level: String(row.level) as ProgramLevel,
-        status: (row.status ? String(row.status) : 'ACTIVE') as ProgramStatus,
-        yearEstablished: row.yearEstablished === null ? null : Number(row.yearEstablished),
-        durationYears: row.durationYears === null ? null : Number(row.durationYears),
-        totalCredits: row.totalCredits === null ? null : Number(row.totalCredits),
-        mhesiCode: row.mhesiCode === null ? null : String(row.mhesiCode),
+        status: (row.status === undefined
+          ? undefined
+          : row.status
+            ? String(row.status)
+            : 'ACTIVE') as ProgramStatus | undefined,
+        yearEstablished: optNum(row.yearEstablished),
+        durationYears: optNum(row.durationYears),
+        totalCredits: optNum(row.totalCredits),
+        mhesiCode: optStr(row.mhesiCode),
       };
 
       const existing = await ctx.tx.program.findUnique({

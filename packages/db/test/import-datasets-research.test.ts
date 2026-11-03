@@ -139,6 +139,22 @@ describe('research dataset', () => {
     expect(stored.citations).toBe(19);
   });
 
+  it('keeps a stored DOI and venue when the sheet has no DOI / Venue columns', async () => {
+    const absent = row({ citations: 21 }) as Record<string, unknown>;
+    delete absent.doi;
+    delete absent.venue;
+    // No DOI column: matched by title and year, stored DOI untouched.
+    const result = await load([absent as ImportRow], otherRunId);
+    expect(result.updated).toBe(1);
+    const stored = await prisma.researchOutput.findFirstOrThrow({
+      where: { facultyMember: { employeeCode: AUTHOR_A }, year: 2023 },
+      select: { doi: true, venue: true, citations: true },
+    });
+    expect(stored.doi).toBe(DOI);
+    expect(stored.venue).toBe('Journal of Structural Engineering');
+    expect(stored.citations).toBe(21);
+  });
+
   it('falls back to title and year when the row has no DOI', async () => {
     const noDoi = { employeeCode: AUTHOR_A, year: 2021, type: 'CONFERENCE',
       title: 'Seismic retrofit of short-span bridges', venue: null, citations: 1, doi: null };

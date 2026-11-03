@@ -152,11 +152,12 @@ export const rankedUniversitiesDataset: ImportDataset = {
       const data = {
         country: String(row.country).trim(),
         region: String(row.region),
-        qsWorldRank: optionalInt(row.qsWorldRank),
-        theWorldRank: optionalInt(row.theWorldRank),
-        qsAsiaRank: optionalInt(row.qsAsiaRank),
-        theAsiaRank: optionalInt(row.theAsiaRank),
-        websiteUrl: optionalText(row.website),
+        // An absent column keeps the stored value; a blank cell clears it.
+        qsWorldRank: row.qsWorldRank === undefined ? undefined : optionalInt(row.qsWorldRank),
+        theWorldRank: row.theWorldRank === undefined ? undefined : optionalInt(row.theWorldRank),
+        qsAsiaRank: row.qsAsiaRank === undefined ? undefined : optionalInt(row.qsAsiaRank),
+        theAsiaRank: row.theAsiaRank === undefined ? undefined : optionalInt(row.theAsiaRank),
+        websiteUrl: row.website === undefined ? undefined : optionalText(row.website),
       };
       const existing = await ctx.tx.rankedUniversity.findUnique({
         where,

@@ -9,6 +9,7 @@ import type {
   ImportLoadResult,
   ImportRow,
 } from '../types';
+import { optDate, optNum, optStr } from './optional';
 import { toBuddhistEra } from './cohorts';
 import { yearColumn } from './enrollment';
 import { PROVENANCE_SELECT, claimsRow } from './provenance';
@@ -166,12 +167,17 @@ export const externalGrantsDataset: ImportDataset = {
       const typeRaw = String(row.type);
       const data = {
         titleTh: String(row.titleTh),
-        titleEn: typeof row.titleEn === 'string' ? row.titleEn : null,
+        titleEn: optStr(row.titleEn),
         type: TYPES[typeRaw] ?? 'OTHER',
         typeRaw,
         fiscalYearBe: toBuddhistEra(Number(row.fiscalYear)),
-        budgetThb: typeof row.budgetThb === 'number' ? BigInt(Math.round(row.budgetThb)) : null,
-        funderName: typeof row.funder === 'string' ? row.funder : null,
+        budgetThb:
+          row.budgetThb === undefined
+            ? undefined
+            : typeof row.budgetThb === 'number'
+              ? BigInt(Math.round(row.budgetThb))
+              : null,
+        funderName: optStr(row.funder),
         workflowStatus: 'IMPORTED',
         leadUnitName: faculty.nameTh,
         leadFacultyName: faculty.nameTh,

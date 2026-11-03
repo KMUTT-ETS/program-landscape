@@ -8,6 +8,7 @@ import type {
   ImportLoadResult,
   ImportRow,
 } from '../types';
+import { optDate, optNum, optStr } from './optional';
 import { yearColumn } from './enrollment';
 import { PROVENANCE_SELECT, claimsRow } from './provenance';
 
@@ -123,7 +124,10 @@ export const researchDataset: ImportDataset = {
         );
       }
 
-      const doi = row.doi === null ? null : String(row.doi);
+      // An absent DOI column matches by title and year, and leaves a stored
+      // DOI alone on update.
+      const doiCell = optStr(row.doi);
+      const doi = doiCell ?? null;
       const title = String(row.title);
       const year = Number(row.year);
 
@@ -139,8 +143,8 @@ export const researchDataset: ImportDataset = {
         year,
         type: String(row.type) as ResearchOutputType,
         title,
-        venue: row.venue === null ? null : String(row.venue),
-        doi,
+        venue: optStr(row.venue),
+        doi: doiCell,
       };
 
       if (existing) {

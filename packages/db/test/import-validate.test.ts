@@ -97,6 +97,18 @@ describe('validateSheet — headers', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('leaves an absent optional column OUT of the row (undefined), but a blank cell is null', () => {
+    const d = makeDataset();
+    const optional = d.columns.find((c) => !c.required)!;
+    const absent = validateSheet(d, sheet(['Code', 'Name'], [{ Code: 'A1', Name: 'Alpha' }]), ctx());
+    if (!absent.ok) throw new Error('expected ok');
+    expect(optional.key in absent.rows[0]!).toBe(false);
+
+    const blank = validateSheet(d, sheet(ALL_HEADERS, [{ ...row(), [optional.header]: null }]), ctx());
+    if (!blank.ok) throw new Error('expected ok');
+    expect(blank.rows[0]![optional.key]).toBeNull();
+  });
+
   it('rejects an unknown header, naming it', () => {
     const result = validateSheet(
       makeDataset(),

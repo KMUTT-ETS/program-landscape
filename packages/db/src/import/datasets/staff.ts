@@ -8,6 +8,7 @@ import type {
   ImportLoadResult,
   ImportRow,
 } from '../types';
+import { optDate, optNum, optStr } from './optional';
 import { PROVENANCE_SELECT, claimsRow } from './provenance';
 
 // Tier 2. The teaching-staff roster: the Deep-Dive's faculty composition,
@@ -187,7 +188,7 @@ export const staffDataset: ImportDataset = {
         );
       }
 
-      let departmentId: string | null = null;
+      let departmentId: string | null | undefined = row.departmentCode === undefined ? undefined : null;
       if (typeof row.departmentCode === 'string') {
         const found = departmentByCode.get(row.departmentCode);
         if (!found) {
@@ -206,13 +207,13 @@ export const staffDataset: ImportDataset = {
         nameTh: String(row.nameTh),
         nameEn: String(row.nameEn),
         rank: String(row.rank) as FacultyRank,
-        academicQualification: row.academicQualification === null ? null : String(row.academicQualification),
-        specialization: row.specialization === null ? null : String(row.specialization),
-        hireDate: row.hireDate instanceof Date ? row.hireDate : null,
-        retirementDate: row.retirementDate instanceof Date ? row.retirementDate : null,
+        academicQualification: optStr(row.academicQualification),
+        specialization: optStr(row.specialization),
+        hireDate: optDate(row.hireDate),
+        retirementDate: optDate(row.retirementDate),
         // Blank means employed. Saying "no" is how someone leaves without
         // their teaching history leaving with them.
-        isActive: typeof row.isActive === 'boolean' ? row.isActive : true,
+        isActive: row.isActive === undefined ? undefined : typeof row.isActive === 'boolean' ? row.isActive : true,
       };
 
       const existing = await ctx.tx.facultyMember.findUnique({

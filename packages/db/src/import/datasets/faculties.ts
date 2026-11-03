@@ -167,7 +167,9 @@ export const facultiesDataset: ImportDataset = {
       const data = {
         nameTh: String(row.nameTh),
         nameEn: String(row.nameEn),
-        kind: (row.kind ? String(row.kind) : 'ACADEMIC') as FacultyKind,
+        kind: (row.kind === undefined ? undefined : row.kind ? String(row.kind) : 'ACADEMIC') as
+          | FacultyKind
+          | undefined,
         // Blank: untouched on update (key absent), null on insert.
         ...(row.sfrBand ? { sfrBand: TEACHING_MODES[String(row.sfrBand).trim().toLowerCase()] } : {}),
       };

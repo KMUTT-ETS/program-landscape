@@ -9,6 +9,7 @@ import type {
   ImportLoadResult,
   ImportRow,
 } from '../types';
+import { optNum } from './optional';
 import { buddhistYearColumn, toBuddhistEra } from './cohorts';
 import { PROVENANCE_SELECT, claimsRow } from './provenance';
 
@@ -155,18 +156,16 @@ export const campaignsDataset: ImportDataset = {
             acadYearBE,
             round,
             campaignName,
-            planPerYear: row.planPerYear === null ? null : Number(row.planPerYear),
+            planPerYear: optNum(row.planPerYear),
             // The registrar export carries seats per round and a plan per
             // year; an imported row is one round, so both are the same
             // figure. The competition and fill-rate drivers read this one.
-            enrollSeats: row.planPerYear === null ? null : Number(row.planPerYear),
-            totalApplicants: row.totalApplicants === null ? null : Number(row.totalApplicants),
-            totalPassed: row.totalPassed === null ? null : Number(row.totalPassed),
-            confirmClearinghouse:
-              row.confirmClearinghouse === null ? null : Number(row.confirmClearinghouse),
-            sendClearinghouse:
-              row.confirmClearinghouse === null ? null : Number(row.confirmClearinghouse),
-            regReported: row.regReported === null ? null : Number(row.regReported),
+            enrollSeats: optNum(row.planPerYear),
+            totalApplicants: optNum(row.totalApplicants),
+            totalPassed: optNum(row.totalPassed),
+            confirmClearinghouse: optNum(row.confirmClearinghouse),
+            sendClearinghouse: optNum(row.confirmClearinghouse),
+            regReported: optNum(row.regReported),
             freshnessDate,
             source: 'xlsx-import',
             ingestionRunId: ctx.ingestionRunId,

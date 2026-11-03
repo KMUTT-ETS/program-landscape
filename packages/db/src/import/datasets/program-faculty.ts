@@ -206,7 +206,10 @@ export const programFacultyDataset: ImportDataset = {
         // and claiming one would put its history inside this dataset's
         // blast radius. A row from the curriculum-PDF extraction carries no
         // run at all, so it IS claimed — the operator has just asserted it.
-        const data: Record<string, string | null> = { role, programRevisionId };
+        const data: Record<string, string | null> = {};
+        if (row.role !== undefined) data.role = role;
+        // A sheet without the Curriculum Year column leaves the stored revision alone.
+        if (row.curriculumYear !== undefined) data.programRevisionId = programRevisionId;
         if (claimsRow(existing)) data.ingestionRunId = ctx.ingestionRunId;
 
         await ctx.tx.programFaculty.update({ where: { id: existing.id }, data });

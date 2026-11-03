@@ -9,6 +9,7 @@ import type {
   ImportLoadResult,
   ImportRow,
 } from '../types';
+import { optDate, optNum, optStr } from './optional';
 import { buddhistYearColumn, toBuddhistEra } from './cohorts';
 import { synthesiseClassId } from './class-offerings';
 import { PROVENANCE_SELECT, claimsRow } from './provenance';
@@ -172,9 +173,14 @@ export const courseEvaluationsDataset: ImportDataset = {
       const classIdRegistrar = synthesiseClassId(acadYearBE, semester, courseCode, section);
 
       const figures = {
-        facultyId: typeof row.facultyCode === 'string' ? facultyByCode.get(row.facultyCode)! : null,
-        courseNameTh: typeof row.courseNameTh === 'string' ? row.courseNameTh : null,
-        courseNameEn: typeof row.courseNameEn === 'string' ? row.courseNameEn : null,
+        facultyId:
+          row.facultyCode === undefined
+            ? undefined
+            : typeof row.facultyCode === 'string'
+              ? facultyByCode.get(row.facultyCode)!
+              : null,
+        courseNameTh: optStr(row.courseNameTh),
+        courseNameEn: optStr(row.courseNameEn),
         // Decimal(4,3): three places is all the column holds.
         ratingAvg: Number(row.averageRating).toFixed(3),
         respondentCount: Number(row.respondents),

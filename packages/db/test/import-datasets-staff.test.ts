@@ -138,6 +138,24 @@ describe('staff dataset', () => {
     expect(stored.ingestionRunId).toBe(runId);
   });
 
+  it('keeps stored qualification, dates, department and Active when those columns are absent', async () => {
+    const hire = new Date('2015-06-01T00:00:00.000Z');
+    await load([row({ academicQualification: 'PhD', hireDate: hire, isActive: false })], runId);
+    const absent = row() as Record<string, unknown>;
+    for (const key of ['academicQualification', 'specialization', 'hireDate', 'retirementDate', 'isActive', 'departmentCode']) {
+      delete absent[key];
+    }
+    await load([absent as ImportRow], otherRunId);
+    const after = await prisma.facultyMember.findUniqueOrThrow({
+      where: { employeeCode: EMPLOYEE_CODE },
+      select: { academicQualification: true, hireDate: true, isActive: true, departmentId: true },
+    });
+    expect(after.academicQualification).toBe('PhD');
+    expect(after.hireDate?.toISOString()).toBe(hire.toISOString());
+    expect(after.isActive).toBe(false);
+    expect(after.departmentId).not.toBeNull();
+  });
+
   it('accepts a blank Department Code', () => {
     // Phase 1 made departments optional; staff hang off a faculty directly
     // in an institution that does not use them.

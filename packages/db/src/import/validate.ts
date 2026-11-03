@@ -369,6 +369,11 @@ export function validateSheet(
 
     const built: Record<string, ImportCellValue> = {};
     for (const column of valuelessRow ? identityColumns : dataset.columns) {
+      // A column the sheet does not carry at all is NOT a blank cell: its key
+      // stays absent (undefined) from the built row, so an update leaves the
+      // stored value alone. Only a PRESENT column with a blank cell carries
+      // the dataset's own blank meaning (null, or a default).
+      if (!column.required && !headerByTrimmed.has(column.header)) continue;
       const raw = read(column);
 
       // Privacy FIRST, on the raw cell, before anything can coerce or echo
@@ -439,8 +444,13 @@ export function validateSheet(
     // describe one mistake twice, in two different vocabularies.
     const rowFailed = errors.some((e) => e.row === sheetRow);
     if (!rowFailed) {
+      // Rules reason about blanks, so they see an absent column as null.
+      const forRules: Record<string, ImportCellValue> = { ...built };
+      for (const column of dataset.columns) {
+        if (forRules[column.key] === undefined) forRules[column.key] = null;
+      }
       for (const rule of dataset.rowRules ?? []) {
-        if (!rule.check(built)) {
+        if (!rule.check(forRules)) {
           errors.push({ sheet, row: sheetRow, column: null, message: rule.message });
         }
       }

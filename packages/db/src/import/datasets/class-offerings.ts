@@ -11,6 +11,7 @@ import type {
   ImportLoadResult,
   ImportRow,
 } from '../types';
+import { optNum, optStr } from './optional';
 import { isGeneralEducationCode } from '../../program-overlap/score';
 import { buddhistYearColumn, toBuddhistEra } from './cohorts';
 
@@ -351,11 +352,11 @@ export const classOfferingsDataset: ImportDataset = {
           typeof row.classId === 'number'
             ? BigInt(row.classId)
             : synthesiseClassId(acadYearBE, semester, courseCode, section),
-        courseNameTh: row.courseNameTh === null ? null : String(row.courseNameTh),
-        courseNameEn: row.courseNameEn === null ? null : String(row.courseNameEn),
-        creditTotal: row.creditTotal === null ? null : Number(row.creditTotal),
-        lectureHrsPerWeek: row.lectureHrsPerWeek === null ? null : Number(row.lectureHrsPerWeek),
-        labHrsPerWeek: row.labHrsPerWeek === null ? null : Number(row.labHrsPerWeek),
+        courseNameTh: optStr(row.courseNameTh),
+        courseNameEn: optStr(row.courseNameEn),
+        creditTotal: optNum(row.creditTotal),
+        lectureHrsPerWeek: optNum(row.lectureHrsPerWeek),
+        labHrsPerWeek: optNum(row.labHrsPerWeek),
         enrollSeat: Number(row.enrollSeat),
         totalSeat: Number(row.totalSeat),
         // Derived from the code prefix, the same rule the connector uses.
@@ -367,7 +368,7 @@ export const classOfferingsDataset: ImportDataset = {
         // No registrar id exists for an imported row; the faculty link above
         // is what every reader actually joins through.
         registryFacultyId: '',
-        levelName: row.levelName === null ? '' : String(row.levelName),
+        levelName: row.levelName === null || row.levelName === undefined ? '' : String(row.levelName),
         ...grades,
         gradedCount,
         // Null rather than 0 when nothing is graded yet: a term in progress

@@ -13,7 +13,7 @@ import type { ImportDataset, ImportLoadContext, ImportRow } from '../src/import/
 // is invisible everywhere that matters.
 
 const FACULTY_CODE = 'PDT-ENG';
-const programCodes = ['PDT-P1', 'PDT-P2', 'PDT-P3', 'PDT-P4'];
+const programCodes = ['PDT-P1', 'PDT-P2', 'PDT-P3', 'PDT-P4', 'PDT-P5'];
 let runId = '';
 let otherRunId = '';
 
@@ -147,6 +147,36 @@ describe('programmes dataset', () => {
     });
     expect(after.sequenceNoFromSheet).toBe(before.sequenceNoFromSheet);
     expect(after.nameEn).toBe('Civil Engineering (revised)');
+  });
+
+  it('keeps stored values when the sheet has no Duration Years / Department / Status columns', async () => {
+    await load(programmesDataset, [
+      programRow({ code: 'PDT-P5', durationYears: 4, totalCredits: 130, status: 'PAUSED' }),
+    ], runId);
+    // A re-upload from a sheet WITHOUT those optional columns: keys are absent.
+    const absent = programRow({ code: 'PDT-P5', nameEn: 'Renamed' }) as Record<string, unknown>;
+    for (const key of ['durationYears', 'totalCredits', 'status', 'departmentCode', 'yearEstablished', 'mhesiCode']) {
+      delete absent[key];
+    }
+    const result = await load(programmesDataset, [absent as ImportRow], otherRunId);
+    expect(result.updated).toBe(1);
+    const after = await prisma.program.findUniqueOrThrow({
+      where: { code: 'PDT-P5' },
+      select: { nameEn: true, durationYears: true, totalCredits: true, status: true },
+    });
+    expect(after.nameEn).toBe('Renamed');
+    expect(after.durationYears).toBe(4);
+    expect(after.totalCredits).toBe(130);
+    expect(after.status).toBe('PAUSED');
+  });
+
+  it('a PRESENT blank cell still clears the stored value, as before', async () => {
+    await load(programmesDataset, [programRow({ code: 'PDT-P5', durationYears: null })], otherRunId);
+    const after = await prisma.program.findUniqueOrThrow({
+      where: { code: 'PDT-P5' },
+      select: { durationYears: true },
+    });
+    expect(after.durationYears).toBeNull();
   });
 
   it('defaults a blank Status to ACTIVE', async () => {
