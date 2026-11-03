@@ -928,7 +928,10 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
       enrollSeats: latestComplete.enrollSeats,
       applicants: latestComplete.totalApplicants,
       passed: latestComplete.totalPassed,
-      sendCh: latestComplete.sendClearinghouse,
+      // An imported campaign has no "sent to clearinghouse" stage; its
+      // confirmations are the closest equivalent. KKU's rows carry the
+      // real figure, so they never take the fallback.
+      sendCh: latestComplete.sendClearinghouse || latestComplete.confirmClearinghouse,
       regReported: latestComplete.regReported,
       rounds: latestComplete.rounds,
       year: latestComplete.entryYearBE,

@@ -92,9 +92,12 @@ describe('admission campaigns dataset', () => {
       where: { program: { code: PROGRAMME_CODE } },
       select: {
         wProgramId: true, recruitmentProgramId: true, acadYearBE: true,
-        totalApplicants: true, ingestionRunId: true,
+        totalApplicants: true, ingestionRunId: true, enrollSeats: true, planPerYear: true,
       },
     });
+    // The health drivers read enrollSeats; an imported row's plan feeds it.
+    expect(stored.enrollSeats).toBe(60);
+    expect(stored.planPerYear).toBe(60);
     expect(stored.wProgramId).toBeNull();
     expect(stored.recruitmentProgramId).toBeNull();
     expect(stored.acadYearBE).toBe(2567);
@@ -113,9 +116,14 @@ describe('admission campaigns dataset', () => {
   });
 
   it('updates on (programme, year, round, campaign) rather than duplicating', async () => {
-    const result = await load([row({ totalApplicants: 512 })], otherRunId);
+    const result = await load([row({ totalApplicants: 512, planPerYear: 64 })], otherRunId);
     expect(result.updated).toBe(1);
     expect(result.inserted).toBe(0);
+    expect(
+      (await prisma.admissionCampaignStat.findFirstOrThrow({
+        where: { program: { code: PROGRAMME_CODE } }, select: { enrollSeats: true },
+      })).enrollSeats,
+    ).toBe(64);
 
     expect(await prisma.admissionCampaignStat.count({
       where: { program: { code: PROGRAMME_CODE } },

@@ -131,6 +131,9 @@ export const campaignsDataset: ImportDataset = {
         for (const key of optional) {
           if (typeof row[key] === 'number') data[key] = row[key] as number;
         }
+        // A row is its own round, so its plan IS the seats it offers. The
+        // health drivers read enrollSeats, not planPerYear.
+        if (typeof row.planPerYear === 'number') data.enrollSeats = row.planPerYear;
         if (claimsRow(existing)) data.ingestionRunId = ctx.ingestionRunId;
 
         await ctx.tx.admissionCampaignStat.update({ where: { id: existing.id }, data });
@@ -150,6 +153,10 @@ export const campaignsDataset: ImportDataset = {
             round,
             campaignName,
             planPerYear: row.planPerYear === null ? null : Number(row.planPerYear),
+            // The registrar export carries seats per round and a plan per
+            // year; an imported row is one round, so both are the same
+            // figure. The competition and fill-rate drivers read this one.
+            enrollSeats: row.planPerYear === null ? null : Number(row.planPerYear),
             totalApplicants: row.totalApplicants === null ? null : Number(row.totalApplicants),
             totalPassed: row.totalPassed === null ? null : Number(row.totalPassed),
             confirmClearinghouse:
