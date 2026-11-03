@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { Queue } from 'bullmq';
+import type { Connector } from '@kku/shared';
 
 const { findMany } = vi.hoisted(() => ({ findMany: vi.fn() }));
 vi.mock('@kku/db', () => ({
@@ -33,6 +34,10 @@ function createFakeQueue() {
   };
 }
 
+const fakeConnector = (mocked: boolean) => ({ mocked }) as unknown as Connector;
+const realRegistry = (...slugs: string[]) =>
+  new Map<string, Connector>(slugs.map((s) => [s, fakeConnector(false)]));
+
 type FakeQueue = ReturnType<typeof createFakeQueue>;
 const asQueue = (f: FakeQueue) => f as unknown as Queue<IngestionJobData, IngestionJobResult>;
 
@@ -48,7 +53,11 @@ describe('IngestionScheduler', () => {
     ]);
 
     const fake = createFakeQueue();
-    const scheduler = new IngestionScheduler(asQueue(fake));
+    const scheduler = new IngestionScheduler(
+      asQueue(fake),
+      realRegistry('kku-registry', 'jobthai'),
+      {},
+    );
     const result = await scheduler.registerSchedules();
 
     expect(result.registered).toBe(2);
@@ -67,15 +76,46 @@ describe('IngestionScheduler', () => {
     const fake = createFakeQueue();
     fake._repeatables.push({ key: 'stale-kku-registry' });
 
-    const scheduler = new IngestionScheduler(asQueue(fake));
+    const scheduler = new IngestionScheduler(asQueue(fake), realRegistry('kku-registry'), {});
     await scheduler.registerSchedules();
 
     expect(fake.removeRepeatableByKey).toHaveBeenCalledWith('stale-kku-registry');
   });
 
+  it('skips a slug with no registered connector', async () => {
+    findMany.mockResolvedValue([{ slug: 'the-rankings', cadenceCron: '0 2 * * *' }]);
+    const fake = createFakeQueue();
+    const scheduler = new IngestionScheduler(asQueue(fake), realRegistry('kku-registry'), {});
+    const result = await scheduler.registerSchedules();
+
+    expect(fake.add).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      registered: 0,
+      skipped: 1,
+      skippedSlugs: [{ slug: 'the-rankings', reason: 'unregistered' }],
+    });
+  });
+
+  it('skips a mock connector unless ALLOW_MOCK_CONNECTOR_RUNS=true', async () => {
+    findMany.mockResolvedValue([{ slug: 'jobsdb', cadenceCron: '0 2 * * *' }]);
+    const registry = new Map<string, Connector>([['jobsdb', fakeConnector(true)]]);
+
+    const off = createFakeQueue();
+    const offResult = await new IngestionScheduler(asQueue(off), registry, {}).registerSchedules();
+    expect(off.add).not.toHaveBeenCalled();
+    expect(offResult.skippedSlugs).toEqual([{ slug: 'jobsdb', reason: 'mock-only' }]);
+
+    const on = createFakeQueue();
+    const onResult = await new IngestionScheduler(asQueue(on), registry, {
+      ALLOW_MOCK_CONNECTOR_RUNS: 'true',
+    }).registerSchedules();
+    expect(on.add).toHaveBeenCalledTimes(1);
+    expect(onResult.registered).toBe(1);
+  });
+
   it('enqueueManual fires a one-attempt job with MANUAL trigger', async () => {
     const fake = createFakeQueue();
-    const scheduler = new IngestionScheduler(asQueue(fake));
+    const scheduler = new IngestionScheduler(asQueue(fake), realRegistry(), {});
 
     const jobId = await scheduler.enqueueManual('kku-registry', 'user-99');
 
