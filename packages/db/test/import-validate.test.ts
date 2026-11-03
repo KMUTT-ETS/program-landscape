@@ -83,12 +83,18 @@ describe('validateSheet — headers', () => {
     expect(result.ok).toBe(true);
   });
 
-  it('reports every missing header in one error', () => {
-    const result = validateSheet(makeDataset(), sheet(['Code', 'Name'], [row()]), ctx());
+  it('reports every missing REQUIRED header in one error', () => {
+    // Changed from "every header": only required columns must be present now.
+    const result = validateSheet(makeDataset(), sheet(['Year'], [row()]), ctx());
     const errors = errorsOf(result);
     expect(errors).toHaveLength(1);
-    expect(errors[0].message).toContain('Year');
-    expect(errors[0].message).toContain('Headcount');
+    expect(errors[0].message).toContain('Missing 2 column(s): Code, Name');
+    expect(errors[0].message).toContain('Optional columns');
+  });
+
+  it('accepts a sheet that lacks every optional column, reading them as blank', () => {
+    const result = validateSheet(makeDataset(), sheet(['Code', 'Name'], [{ Code: 'A1', Name: 'Alpha' }]), ctx());
+    expect(result.ok).toBe(true);
   });
 
   it('rejects an unknown header, naming it', () => {

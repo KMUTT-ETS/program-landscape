@@ -276,7 +276,12 @@ export function validateSheet(
   const declared = new Set(dataset.columns.map((c) => c.header));
   const headerErrors: ImportValidationError[] = [];
 
-  const missing = dataset.columns.filter((c) => !headerByTrimmed.has(c.header)).map((c) => c.header);
+  // Only REQUIRED columns must be present. A workbook built from an older
+  // template, or typed by hand, may lack an optional column; it is read as
+  // blank for every row. Undeclared columns stay an error (privacy rule).
+  const missing = dataset.columns
+    .filter((c) => c.required && !headerByTrimmed.has(c.header))
+    .map((c) => c.header);
   if (missing.length > 0) {
     headerErrors.push({
       sheet,
@@ -284,7 +289,10 @@ export function validateSheet(
       column: null,
       message:
         `Missing ${missing.length} column(s): ${missing.join(', ')}. ` +
-        `Expected exactly: ${dataset.columns.map((c) => c.header).join(', ')}.`,
+        `Required columns: ${dataset.columns.filter((c) => c.required).map((c) => c.header).join(', ')}. ` +
+        `Optional columns (may be left out): ${
+          dataset.columns.filter((c) => !c.required).map((c) => c.header).join(', ') || 'none'
+        }.`,
     });
   }
   const unknown = [...headerByTrimmed.keys()].filter((h) => !declared.has(h));
