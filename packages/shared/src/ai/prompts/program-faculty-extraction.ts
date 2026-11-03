@@ -114,7 +114,7 @@ export function buildProgramFacultyMessages(
   "staff": [
     {
       "role": "COORDINATOR" | "CORE" | "INSTRUCTOR" | "SPECIAL",
-      "titlePrefix": "ศ.ดร." | "ศ." | "รศ.ดร." | "รศ." | "ผศ.ดร." | "ผศ." | "ดร." | "อ." | "Prof." | "Assoc. Prof." | "Asst. Prof." | "Dr." | null,
+      "titlePrefix": "ศ.ดร." | "ศ." | "รศ.ดร." | "รศ." | "ผศ.ดร." | "ผศ." | "ดร." | "อ." | "Prof." | "Assoc. Prof." | "Asst. Prof." | "Prof. Dr." | "Assoc. Prof. Dr." | "Asst. Prof. Dr." | "Dr." | "นพ." | "พญ." | "ทพ." | "ทพญ." | "ภก." | "ภญ." | null,
       "nameTh": "<ชื่อ-นามสกุลภาษาไทย ไม่รวมคำนำหน้า>",
       "nameEn": "<ชื่อภาษาอังกฤษถ้ามี ไม่รวมคำนำหน้า>",
       "qualifications": ["ปริญญา/สถาบัน/ปี"],
@@ -126,7 +126,7 @@ export function buildProgramFacultyMessages(
 }
 
 กฎ:
-- แยก "คำนำหน้าทางวิชาการ" (ศ.ดร. / ศ. / รศ.ดร. / รศ. / ผศ.ดร. / ผศ. / ดร. / อ. / Prof. / Assoc. Prof. / Asst. Prof. / Dr.) ออกจากชื่อ ใส่ใน titlePrefix
+- แยก "คำนำหน้าทางวิชาการ" (ศ.ดร. / ศ. / รศ.ดร. / รศ. / ผศ.ดร. / ผศ. / ดร. / อ. / Prof. / Assoc. Prof. / Asst. Prof. / Prof. Dr. / Assoc. Prof. Dr. / Asst. Prof. Dr. / Dr. และคำนำหน้าทางการแพทย์ เช่น นพ. / พญ. / ทพ. / ทพญ. / ภก. / ภญ. รวมถึงแบบรวม เช่น ผศ.นพ. / รศ.พญ.) ออกจากชื่อ ใส่ใน titlePrefix
 - nameTh ต้องเป็นชื่อบริสุทธิ์ ไม่รวมคำนำหน้า ไม่รวมเลข
 - หากเอกสารพิมพ์ชื่อภาษาอังกฤษคู่กัน (ในวงเล็บ หรือในบรรทัดถัดไป) ต้องใส่ใน nameEn เสมอ ไม่รวมคำนำหน้า — ห้ามแปลหรือถอดเสียงเอง
 - หากอาจารย์ปรากฏในหลายประเภท ให้ใส่ entry เดียว เลือก role ที่สูงที่สุด ตามลำดับ COORDINATOR > CORE > INSTRUCTOR > SPECIAL
@@ -164,7 +164,7 @@ BANNED PHRASES (do not use these words/phrases or their close paraphrases in rea
 [ส่วน มคอ.2]
 "3. อาจารย์ผู้รับผิดชอบหลักสูตร
 1. ผศ.ดร.สมชาย ใจดี — ปร.ด. (วิศวกรรมเครื่องกล) มหาวิทยาลัยตัวอย่าง 2553 — ความเชี่ยวชาญ: เทอร์โมไดนามิกส์
-2. รศ.ดร.วิชัย รักงาน — Ph.D. (Mechanical Engineering), University of Tokyo, 2548
+2. รศ.ดร.วิชัย รักงาน (Assoc. Prof. Wichai Rakngan, Ph.D.) — Ph.D. (Mechanical Engineering), Example University, 2548
 อาจารย์ประจำหลักสูตร
 1. ดร.สุดา ขยันเรียน
 2. อ.ปรีชา ตั้งใจ"
@@ -172,7 +172,7 @@ BANNED PHRASES (do not use these words/phrases or their close paraphrases in rea
 [Output]
 {"staff":[
   {"role":"COORDINATOR","titlePrefix":"ผศ.ดร.","nameTh":"สมชาย ใจดี","nameEn":"","qualifications":["ปร.ด. (วิศวกรรมเครื่องกล) มหาวิทยาลัยตัวอย่าง 2553"],"specialization":"เทอร์โมไดนามิกส์"},
-  {"role":"COORDINATOR","titlePrefix":"รศ.ดร.","nameTh":"วิชัย รักงาน","nameEn":"","qualifications":["Ph.D. (Mechanical Engineering), University of Tokyo, 2548"],"specialization":""},
+  {"role":"COORDINATOR","titlePrefix":"รศ.ดร.","nameTh":"วิชัย รักงาน","nameEn":"Wichai Rakngan","qualifications":["Ph.D. (Mechanical Engineering), Example University, 2548"],"specialization":""},
   {"role":"CORE","titlePrefix":"ดร.","nameTh":"สุดา ขยันเรียน","nameEn":"","qualifications":[],"specialization":""},
   {"role":"CORE","titlePrefix":"อ.","nameTh":"ปรีชา ตั้งใจ","nameEn":"","qualifications":[],"specialization":""}
 ],"confidence":0.95,"reasoning":"Section 3 clearly lists 4 named staff members."}`;

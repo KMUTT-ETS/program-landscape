@@ -183,7 +183,7 @@ export async function runProgramDigest(
       // skills + evidence quotes) without hitting the previous ceiling.
       // Gemini 2.5 Pro's hard cap is 65536; 50000 leaves headroom for
       // reasoning tokens that count against the same budget.
-      maxOutputTokens: 50000,
+      maxOutputTokens: 65536,
     },
     ProgramDigestSchema,
   );

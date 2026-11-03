@@ -35,7 +35,7 @@ const FICTIONAL: Institution = {
 beforeEach(() => setOrganizationForTest(FICTIONAL));
 afterEach(() => setOrganizationForTest(KKU_REFERENCE_ORGANIZATION));
 
-const FORBIDDEN = ['ม.ขก.', 'สจล.', 'ขอนแก่น', 'KKU', 'EN013'];
+const FORBIDDEN = ['ม.ขก.', 'สจล.', 'ขอนแก่น', 'KKU', 'KMITL', 'มข.', 'EN013'];
 
 function render(messages: Array<{ content: string }>): string {
   return messages.map((m) => m.content).join('\n');
@@ -121,10 +121,23 @@ describe('curriculum prompt versions and defaults', () => {
     }
   });
 
-  it('digest asks for up to 250 courses by default', () => {
+  it('digest asks for up to 160 courses by default', () => {
     const text = render(
       buildProgramDigestMessages({ programMetaFromSheet: sheet, pdfText: 'x' }),
     );
-    expect(text).toContain('มากกว่า 250 วิชา');
+    expect(text).toContain('มากกว่า 160 วิชา');
+    expect(text).toContain('descriptionTh ไม่เกิน 200 ตัวอักษร');
+    expect(text).toContain('ไม่เกิน 3 ข้อ แต่ละข้อไม่เกิน 120 ตัวอักษร');
+  });
+
+  it('renders the KKU short name for the KKU reference organisation', () => {
+    setOrganizationForTest(KKU_REFERENCE_ORGANIZATION);
+    const text = render(
+      buildProgramCoursesExtractMessages({
+        programCode: 'ABC-0001', programNameTh: 'ก', programNameEn: 'A',
+        facultyNameTh: 'ข', levelTh: 'ป.ตรี', pdfText: 'x', candidateCodes: [],
+      }),
+    );
+    expect(text).toContain(KKU_REFERENCE_ORGANIZATION.shortNameTh);
   });
 });
