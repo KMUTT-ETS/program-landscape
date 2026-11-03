@@ -26,7 +26,7 @@ import {
   programTcasStats,
   researchExpertiseReadiness,
 } from './program-deep-dive';
-import { driverNullNote, type DriverNoteContext } from './checklist-driver-notes';
+import { driverNullNote, PUBLIC_BASIS_NOTE, usesPublicTcasBasis, type DriverNoteContext } from './checklist-driver-notes';
 import { programRecruitment } from './program-recruitment';
 import { curriculumRevisionReadiness } from './program-curriculum-revision';
 import { programOverlapSection } from './program-overlap/read';
@@ -524,7 +524,7 @@ export async function programSetupChecklist(programId: string): Promise<SetupChe
       prisma.kmitlCareerSkillDemand.count({ where: { skillId: { not: null } } }),
     ])
       .then(([kmitlRows, kmitlLinked]) => ({ kmitlRows, kmitlLinked }))
-      .catch(() => ({ kmitlRows: 1, kmitlLinked: 1 }));
+      .catch(() => ({ kmitlRows: null, kmitlLinked: null }));
     return kmitlMemo;
   };
   const jobThaiLoaded = (): Promise<boolean> =>
@@ -545,14 +545,14 @@ export async function programSetupChecklist(programId: string): Promise<SetupChe
       if (!dimensions) verdict = failed();
       else if (!bachelor && label.startsWith('tcas_')) verdict = na('TCAS covers bachelor programmes only.');
       else if (!driver) verdict = na('This driver does not apply to this programme.');
-      else if (driver.value !== null) verdict = ok();
+      else if (driver.value !== null) verdict = ok(usesPublicTcasBasis(driver.raw) ? PUBLIC_BASIS_NOTE : null);
       else if (driver.raw === DRIVER_NOT_COMPUTED || (driver.raw as { notComputedAtThisScope?: boolean } | null)?.notComputedAtThisScope) {
         verdict = empty('Not computed for this programme.');
       } else if (label === 'jobthai_demand_alignment' && !(await jobThaiLoaded())) {
         // A commercial feed most installations never connect: not a gap.
         verdict = na('JobThai postings are not loaded on this installation (commercial feed).');
       } else {
-        const ctx = NEEDS_KMITL_CONTEXT.has(label) ? await kmitlContext() : { kmitlRows: 0, kmitlLinked: 0 };
+        const ctx = NEEDS_KMITL_CONTEXT.has(label) ? await kmitlContext() : { kmitlRows: null, kmitlLinked: null };
         // A short plain sentence beats the scorer's bare token ('no-links').
         verdict = empty(driverNullNote(label, driver.raw, ctx) ?? rawReason(driver.raw));
       }

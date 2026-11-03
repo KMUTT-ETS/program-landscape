@@ -180,13 +180,19 @@ describeScratchDb('programSetupChecklist', () => {
   });
 
   it('JobThai is not-applicable until a JobThai run has succeeded, then reads as a gap', async () => {
-    const before = byKey((await programSetupChecklist(ids.bach!))!.items, 'driver.jobthai_demand_alignment');
-    expect(before.status).toBe('not-applicable');
-    expect(before.note).toBe('JobThai postings are not loaded on this installation (commercial feed).');
-    await makeRun('jobthai', false);
-    const after = byKey((await programSetupChecklist(ids.bach!))!.items, 'driver.jobthai_demand_alignment');
-    expect(after.status).toBe('empty');
-    expect(after.note).toMatch(/JobThai/);
+    const clearRuns = () => prisma.ingestionRun.deleteMany({ where: { dataSource: { slug: 'jobthai' } } });
+    await clearRuns();
+    try {
+      const before = byKey((await programSetupChecklist(ids.bach!))!.items, 'driver.jobthai_demand_alignment');
+      expect(before.status).toBe('not-applicable');
+      expect(before.note).toBe('JobThai postings are not loaded on this installation (commercial feed).');
+      await makeRun('jobthai', false);
+      const after = byKey((await programSetupChecklist(ids.bach!))!.items, 'driver.jobthai_demand_alignment');
+      expect(after.status).toBe('empty');
+      expect(after.note).toMatch(/JobThai/);
+    } finally {
+      await clearRuns();
+    }
   });
 
   it('an empty driver carries a human reason instead of a blank note', async () => {

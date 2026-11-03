@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { driverNullNote, SKILL_LINK_HINT } from '../src/checklist-driver-notes';
+import { driverNullNote, SKILL_LINK_HINT, usesPublicTcasBasis } from '../src/checklist-driver-notes';
 
 const none = { kmitlRows: 0, kmitlLinked: 0 };
+const unknown = { kmitlRows: null, kmitlLinked: null };
 
 describe('driverNullNote', () => {
   it('names the Reported column for registration yield', () => {
@@ -21,6 +22,18 @@ describe('driverNullNote', () => {
     expect(driverNullNote('labour_market_alignment', null, ctx)).toBe(SKILL_LINK_HINT);
     expect(driverNullNote('demand_match_filled', { totalRelevant: 0 }, ctx)).toBe(SKILL_LINK_HINT);
     expect(driverNullNote('labour_market_alignment', null, none)).toMatch(/No skill-demand data/);
+  });
+  it('says nothing about skill demand when the counts could not be read', () => {
+    expect(driverNullNote('labour_market_alignment', null, unknown)).toBeNull();
+    expect(driverNullNote('demand_match_filled', { totalRelevant: 0 }, unknown)).toBeNull();
+  });
+  it('matches the scorer\u2019s long region-not-set reason and the admitted-not-published reason', () => {
+    expect(driverNullNote('demographic_resilience', { reason: 'region-not-set: set the region (x)' }, none)).toMatch(/Set the organisation region/);
+    expect(driverNullNote('tcas_fill_rate', { reason: 'admitted-not-published' }, none)).toMatch(/no admitted counts/);
+  });
+  it('recognises the public basis', () => {
+    expect(usesPublicTcasBasis({ basis: 'public-tcas-round3' })).toBe(true);
+    expect(usesPublicTcasBasis({})).toBe(false);
   });
   it('returns null for drivers it does not know', () => {
     expect(driverNullNote('senior_rank_share', null, none)).toBeNull();

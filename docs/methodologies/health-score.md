@@ -5,18 +5,37 @@
 **Owner:** KKU Data Office
 
 **v5.6 (2026-11-03): public TCAS round-3 fallback for the funnel drivers; no
-change for KKU.** When the latest complete admission-campaign year has no planned
-seats (an adopting university's sheet often has applicants and passed counts but
-no seats), `tcas_competition_ratio`, `tcas_fill_rate` and therefore
-`tcas_competition_vs_peers` use the programme's public TCAS round-3 figures
-(table `tcas_admission_stats`, linked by programme) for that year instead:
-ratio = applicants / quota, fill = admitted / quota. Each `tcas_course_code` is
-counted once per entry year (2568 repeats the 3.1 and 3.2 rows) and the codes
-are summed. The peers already use the same public basis. The driver's `raw`
-carries `basis: 'public-tcas-round3'`, and the Deep-Dive checklist says so.
-Campaign seats, when present, are never overridden, so KKU values are unchanged.
-`tcas_registration_yield` has no public equivalent and stays null: it needs the
-`Reported` column of the admission-campaigns sheet.
+change for installations whose admission data states seats.** The fallback fires
+only when the programme's admission-campaign data states **no seat figure in any
+year** (`enroll_seats` and `plan_per_year` both absent) and the latest complete
+year therefore has no seats. An adopting university's sheet often has applicants
+and passed counts but no seats. `tcas_competition_ratio`, `tcas_fill_rate` and
+`tcas_competition_vs_peers` then use the programme's public TCAS figures (table
+`tcas_admission_stats`, linked by programme) for that year: ratio = applicants /
+quota, fill = admitted / quota. Rules:
+
+- Only **round-3** rows are read (stored round `3`, `3.1`, `3.2`), for the
+  programme and for the peers, so the basis label stays true when other rounds
+  are loaded.
+- Each `tcas_course_code` is counted once per entry year (2568 repeats the 3.1
+  and 3.2 rows) and the codes are summed. The admitted count of a row is the
+  **larger** of `admitted_pass1` and `admitted_pass2`, not their sum: the sum
+  exceeds the quota on 70% of the public rows that state admits, the larger
+  value on 6%, and a 3.1/3.2 pair repeats the same figures. The Deep-Dive TCAS
+  card uses the same rule.
+- When no public row states an admitted count (most years), `tcas_fill_rate` is
+  **null**, reason `admitted-not-published`, never 0; the competition ratio is
+  still scored.
+- Campaign seats, when present in any year, are never overridden.
+- `tcas_registration_yield` has no public equivalent and stays null: it needs the
+  `Confirmed` and `Reported` columns of the admission-campaigns sheet.
+- **Where the basis is shown:** the driver `raw` carries
+  `basis: 'public-tcas-round3'`, and the programme setup checklist (Admin,
+  programme Checklist tab) marks each such driver with the note "Computed from
+  public TCAS round-3 figures (admission campaigns have no seats)". The
+  Deep-Dive driver drawer does not show it.
+- Faculty and university roll-ups of the ratio and fill still use campaign seats
+  only, so a programme can score while its faculty reads null.
 
 **v5.5 (2026-11-03): demographic region and teaching-mode band read from
 organisation data; no change for KKU.** The demographic-resilience driver (`computeRequiredShareAt10Y`) no

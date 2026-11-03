@@ -4,9 +4,10 @@
 // scorer's own text.
 
 export interface DriverNoteContext {
-  /** Rows in kmitl_career_skill_demands, and how many carry a skill link. */
-  kmitlRows: number;
-  kmitlLinked: number;
+  /** Rows in kmitl_career_skill_demands, and how many carry a skill link.
+   *  Null when the counts could not be read: no note is guessed then. */
+  kmitlRows: number | null;
+  kmitlLinked: number | null;
 }
 
 export const SKILL_LINK_HINT =
@@ -20,14 +21,26 @@ function asRaw(raw: unknown): Raw {
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
+export const PUBLIC_BASIS_NOTE =
+  'Computed from public TCAS round-3 figures (admission campaigns have no seats)';
+
+const ADMITTED_NOT_PUBLISHED =
+  'The public TCAS round-3 data states no admitted counts for this programme and year, so the fill rate is not scored.';
+
 const NO_SEATS =
   'No planned seats for the latest complete year, and no public TCAS round-3 figures for this programme.';
+
+/** True when a driver's raw says it was computed on the public TCAS basis. */
+export function usesPublicTcasBasis(rawIn: unknown): boolean {
+  return asRaw(rawIn)?.basis === 'public-tcas-round3';
+}
 
 export function driverNullNote(label: string, rawIn: unknown, ctx: DriverNoteContext): string | null {
   const raw = asRaw(rawIn);
   switch (label) {
-    case 'tcas_competition_ratio':
     case 'tcas_fill_rate':
+    case 'tcas_competition_ratio':
+      if (label === 'tcas_fill_rate' && raw?.reason === 'admitted-not-published') return ADMITTED_NOT_PUBLISHED;
       if (rawIn === null || rawIn === undefined) return 'No admission data for a complete recruitment year yet.';
       return NO_SEATS;
     case 'tcas_competition_vs_peers': {
@@ -50,16 +63,18 @@ export function driverNullNote(label: string, rawIn: unknown, ctx: DriverNoteCon
       return null;
     }
     case 'labour_market_alignment':
+      if (ctx.kmitlRows === null || ctx.kmitlLinked === null) return null;
       if (ctx.kmitlRows === 0) return 'No skill-demand data is loaded (KMITL feed or the career skill-demand spreadsheet).';
       if (ctx.kmitlLinked === 0) return SKILL_LINK_HINT;
       return 'None of this programme’s skills appear in the demanded-skill set.';
     case 'demand_match_filled':
+      if (ctx.kmitlRows === null || ctx.kmitlLinked === null) return null;
       if (ctx.kmitlRows > 0 && ctx.kmitlLinked === 0) return SKILL_LINK_HINT;
       if (ctx.kmitlRows === 0) return 'No skill-demand data is loaded, so there is nothing to match the curriculum against.';
       return 'The curriculum demand match has not run for this programme (pipeline phase 3).';
     case 'demographic_resilience': {
       const reason = raw?.reason;
-      if (reason === 'region-not-set') return 'Set the organisation region (Admin, Organization) to one of the projection regions.';
+      if (typeof reason === 'string' && reason.startsWith('region-not-set')) return 'Set the organisation region (Admin, Organization) to one of the projection regions.';
       if (reason === 'no-projection') return 'No population projection covers this region; upload a Population Projections sheet.';
       if (reason === 'no-enrollment') return 'No enrolment figures for this programme to compare against the cohort.';
       return null;
