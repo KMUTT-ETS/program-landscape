@@ -129,6 +129,27 @@ Found in recon (file references in the session notes; builder should re-verify):
   uses `KKU_SSO_WEB_BASE/...`, example declares `KKU_SSO_ISSUER/...`). New external keys added
   (7.3).
 
+### 7.1b Seeds, classified (owner asked, 2026-11-03)
+
+Every seed was classified (recon notes in session). `pnpm setup` runs no seed today; only
+`pnpm db:reset` runs `prisma/seed.ts`. **Want:** seeds split by purpose, each with its own explicit
+command, and the tutorial runs exactly the ones an adopter needs.
+
+| Seed | Class | Target |
+|---|---|---|
+| KKU faculties (24), departments (12), `@kku.ac.th` users incl. SUPER_ADMIN, `kku_org_code_mappings` (unread), KKU skill taxonomy (~60), `programs:seed-from-sheet`, `hr:`/`registry:seed-mappings`, `org:seed-kku` | KKU | KKU-only seed command, opt-in, never run by setup or the tutorial. |
+| 500 synthetic skills (currently **always** seeded), `SEED_MOCKS` content (programmes, metrics, job postings, peer sets, scenarios, decisions), "NESDC-v1" demographics (32 synthetic rows) | MOCK | Mock/demo seed only, for dev and tests. Never on a fresh adopter install. |
+| BCG / S-curve sectors (8, Thai policy; `demandMultiplier` hand-picked) and skill→sector tagging | UNIVERSAL (Thailand) | Generic reference seed run by setup (or the tutorial); tagging re-run after skills are built from the adopter's own curricula. Multipliers documented as a judgement. |
+| `demographics:seed` (NESDC 2010–2040 edition anchors, 5 regions × 3 cohorts, 2020–2045) | UNIVERSAL (Thailand), aging | Kept as an optional "Thailand starter" load with its edition stated; the primary paths are the population pull + spreadsheet (7.3). Without any of them the demographic outlook and `demographic_resilience` are empty. |
+| `peers:seed-universities` (QS/THE 2025, ~57 rows, KKU-relative Thai tier) | UNIVERSAL, aging | Shipped as a starter workbook for the ranked-universities dataset (7.3) instead of a hard-coded list; Thai tier anchored on the adopter (7.1). |
+| Cost methodology 'v1' (KKU wording), `academic_year.next_start_date` = 2026-06-16, external AI sources (6, PAUSED) | CONFIG | Generic reference seed with neutral wording; the academic-year start becomes a value the adopter sets (organisation settings or the tutorial), not a fixed 2026 date. |
+| `skills:seed-automation-risk`, `risks:seed-measures`, `scenarios:seed-templates`, `imd:seed` | UNIVERSAL logic | Unchanged; run after their inputs exist. Only automation-risk matters near the deep-dive; tutorial runs it after skills are built. |
+| AI model catalog (self-seeds at runtime), data-source catalog sync (setup), `mv_refresh_log` rows (migration) | CONFIG | Unchanged. |
+| Migration rows: one KKU `recruitment_program_overrides` row; `ds_jobthai` with owner "KKU Data Office" | KKU leak | Made inert for adopters (no match) and owner text neutral via catalog sync; covered by the D9 test's allowlist. |
+
+Also: docs that still tell people to run `db:seed` (`README.md`, `docs/data-sources.md`,
+`docs/migration-policy.md`) are corrected.
+
 ### 7.2 New XLSX datasets for institution-specific data
 
 Each one: declaration + `xlsx-<slug>` catalogue entry + template + guide sheet + reader wired so the
