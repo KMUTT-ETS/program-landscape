@@ -97,8 +97,13 @@ export interface ProgramStrategicNarrativeInput {
   tcas: {
     latestYearBE: number;
     competitionRatio: number;
-    fillRate: number;
+    /** Null when the latest year publishes no admitted count (missing, never 0). */
+    fillRate: number | null;
+    /** From the latest year that publishes one; null when none does. */
     minScore: number | null;
+    /** Entry year the min score belongs to (differs from latestYearBE when
+     *  the latest year publishes none). */
+    minScoreYearBE?: number | null;
   } | null;
   /** Financial KPI summary. */
   financial: {
@@ -106,6 +111,9 @@ export interface ProgramStrategicNarrativeInput {
     tuitionRevenueThb: number;
     netContributionPerStudent: number | null;
     governmentFacultySubsidyThb: number | null;
+    /** 'revenue-only': no cost allocation exists on this installation, so a
+     *  net-contribution figure is absent by design, not a data gap. */
+    costBasis?: 'allocated' | 'revenue-only';
   } | null;
   /** Demand-funnel anchor cohort. */
   demand: {
@@ -162,6 +170,49 @@ export interface ProgramStrategicNarrativeInput {
     totalActive: number;
     delayedSharePct: number | null;
   } | null;
+}
+
+export interface TcasHistoryRow {
+  entryYearBE: number;
+  round: string;
+  quota: number;
+  applicants: number;
+  admittedPass1: number;
+  admittedPass2: number;
+  minScorePass1: number | null;
+}
+
+/**
+ * TCAS facts for the narrative, consistent with the health score: the fill
+ * rate is null where the latest year publishes no admitted count (the public
+ * data of some years states applicants only), and the min score comes from the
+ * latest year that publishes one. Never 0 for an unpublished figure. Rows are
+ * the history of programTcasStats() in year/round order.
+ */
+export function narrativeTcasFromHistory(
+  history: readonly TcasHistoryRow[],
+): NonNullable<ProgramStrategicNarrativeInput['tcas']> | null {
+  const latest = history.at(-1);
+  if (!latest) return null;
+  const yearRows = history.filter((r) => r.entryYearBE === latest.entryYearBE);
+  const admitted = Math.max(...yearRows.map((r) => Math.max(r.admittedPass1, r.admittedPass2)));
+  const scored = [...history].reverse().find((r) => r.minScorePass1 !== null && r.minScorePass1 > 0);
+  return {
+    latestYearBE: latest.entryYearBE,
+    competitionRatio: latest.quota > 0 ? latest.applicants / latest.quota : 0,
+    fillRate: admitted > 0 && latest.quota > 0 ? admitted / latest.quota : null,
+    minScore: scored?.minScorePass1 ?? null,
+    minScoreYearBE: scored?.entryYearBE ?? null,
+  };
+}
+
+/** Revenue-only finance (no cost allocation: no cost per student and a zero
+ *  direct cost) has no net-contribution figure by design. */
+export function narrativeCostBasis(f: {
+  costPerStudent: number | null;
+  directCost: number;
+}): 'allocated' | 'revenue-only' {
+  return f.costPerStudent === null && f.directCost === 0 ? 'revenue-only' : 'allocated';
 }
 
 /**
@@ -323,15 +374,25 @@ No prose outside the JSON. No markdown fences around the JSON.`;
   if (input.tcas) {
     blocks.push(`TCAS3 ADMISSIONS (BE ${input.tcas.latestYearBE})
   Competition ratio:  ${input.tcas.competitionRatio.toFixed(2)}x
-  Fill rate:          ${(input.tcas.fillRate * 100).toFixed(1)}%
-  Min admission:      ${fmt(input.tcas.minScore, '', 2)}`);
+  Fill rate:          ${input.tcas.fillRate === null ? 'not published (no admitted count for this year)' : `${(input.tcas.fillRate * 100).toFixed(1)}%`}
+  Min admission:      ${
+    input.tcas.minScore === null
+      ? `not published for BE ${input.tcas.latestYearBE}`
+      : input.tcas.minScoreYearBE != null && input.tcas.minScoreYearBE !== input.tcas.latestYearBE
+        ? `${fmt(input.tcas.minScore, '', 2)} (BE ${input.tcas.minScoreYearBE}; not published for BE ${input.tcas.latestYearBE})`
+        : fmt(input.tcas.minScore, '', 2)
+  }`);
   } else {
     blocks.push('TCAS3 ADMISSIONS: data not available');
   }
   if (input.financial) {
     blocks.push(`FINANCIAL (FY ${input.financial.fiscalYear})
   Tuition revenue:           THB ${fmtInt(input.financial.tuitionRevenueThb)}
-  Net contrib / student:     THB ${fmtInt(input.financial.netContributionPerStudent)}
+  Net contrib / student:     ${
+    input.financial.netContributionPerStudent === null && input.financial.costBasis === 'revenue-only'
+      ? 'not modelled (revenue-only finance on this installation; not a data gap)'
+      : `THB ${fmtInt(input.financial.netContributionPerStudent)}`
+  }
   Government salary subsidy: THB ${fmtInt(input.financial.governmentFacultySubsidyThb)} / yr`);
   } else {
     blocks.push('FINANCIAL: data not available');
