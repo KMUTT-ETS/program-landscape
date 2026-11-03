@@ -42,6 +42,8 @@ import {
   type DqExportItem,
 } from './transforms';
 
+const IMPORTED_DQ_SOURCES = ['xlsx-digital-competency-cohorts', 'xlsx-digital-competency-modules'] as const;
+
 const EXPORT_PATH = '/export/student-scores';
 const DEFAULT_TIMEOUT_MS = 120_000;
 
@@ -275,11 +277,18 @@ export class KkuDqRealConnector extends ApiConnector {
     const students = [...state.acc.students.values()].map((r) => ({ ...r, ingestionRunId }));
     const modules = [...state.acc.modules.values()].map((r) => ({ ...r, ingestionRunId }));
 
+    // Spreadsheet-imported rows share both cubes; the snapshot replace only
+    // removes rows the import did not write. ingestionRunId is NOT NULL on
+    // both cubes, so a plain NOT over the relation is complete.
+    const notImported = {
+      NOT: { ingestionRun: { dataSource: { slug: { in: [...IMPORTED_DQ_SOURCES] } } } },
+    };
+
     // Replace wholesale in one transaction: the cube is a snapshot, and a
     // half-replaced cube would read as a real collapse in student numbers.
     const ops: Prisma.PrismaPromise<unknown>[] = [
-      this.db.dqStudentCube.deleteMany({}),
-      this.db.dqModuleCube.deleteMany({}),
+      this.db.dqStudentCube.deleteMany({ where: notImported }),
+      this.db.dqModuleCube.deleteMany({ where: notImported }),
       ...chunk(students, INSERT_CHUNK).map((data) => this.db.dqStudentCube.createMany({ data })),
       ...chunk(modules, INSERT_CHUNK).map((data) => this.db.dqModuleCube.createMany({ data })),
     ];

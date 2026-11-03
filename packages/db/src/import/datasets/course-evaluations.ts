@@ -160,7 +160,6 @@ export const courseEvaluationsDataset: ImportDataset = {
       }
     }
 
-    const freshnessDate = new Date();
     let inserted = 0;
     let updated = 0;
 
@@ -179,7 +178,8 @@ export const courseEvaluationsDataset: ImportDataset = {
         // Decimal(4,3): three places is all the column holds.
         ratingAvg: Number(row.averageRating).toFixed(3),
         respondentCount: Number(row.respondents),
-        lastUpdateAt: freshnessDate,
+        // Null on purpose: the registrar connector's incremental watermark is MAX(lastUpdateAt).
+        lastUpdateAt: null,
       };
 
       const where = {

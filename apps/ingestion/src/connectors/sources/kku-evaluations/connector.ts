@@ -211,6 +211,9 @@ export class KkuEvaluationsRealConnector extends ApiConnector {
     if (!forceFull) {
       const wm = await this.db.evaluationResponseSummary.aggregate({
         _max: { lastUpdateAt: true },
+        // Rows from the spreadsheet import never advance the source watermark.
+        // ingestionRunId is NOT NULL on this table, so a plain NOT is complete.
+        where: { NOT: { ingestionRun: { dataSource: { slug: 'xlsx-course-evaluations' } } } },
       });
       watermark = wm._max.lastUpdateAt ?? null;
     }
