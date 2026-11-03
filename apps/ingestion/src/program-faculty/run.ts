@@ -1,4 +1,4 @@
-import { buildRosterLookup, matchRosterName } from './name-match';
+import { buildRosterLookup, matchRosterName, rosterDegradedNote } from './name-match';
 import { prisma, activeRevisionIdFor } from '@kku/db';
 import {
   buildProgramFacultyMessages,
@@ -262,7 +262,7 @@ export async function runProgramFacultyExtraction(
   // can only realistically be taught by staff in its own Faculty).
   const facultyMembers = await prisma.facultyMember.findMany({
     where: { facultyId: program.faculty.id },
-    select: { id: true, nameTh: true, nameEn: true },
+    select: { id: true, nameTh: true, nameEn: true, isActive: true },
   });
   const rosterLookup = buildRosterLookup(facultyMembers);
 
@@ -355,7 +355,8 @@ export async function runProgramFacultyExtraction(
     select: { id: true },
   });
 
-  const degraded = matched === 0 && dedupedByName.size > 0;
+  const degradedNote = rosterDegradedNote(dedupedByName.size, matched, programFacultyRowsFromMhesi);
+  const degraded = degradedNote !== null;
 
   return {
     status: 'SUCCEEDED',
@@ -372,8 +373,6 @@ export async function runProgramFacultyExtraction(
     programFacultyRowsFromMhesi,
     unmatchedNames,
     degraded,
-    notes: degraded
-      ? `matched 0 of ${dedupedByName.size} — load the Staff spreadsheet (or check names) to link teaching staff`
-      : null,
+    notes: degradedNote,
   };
 }
