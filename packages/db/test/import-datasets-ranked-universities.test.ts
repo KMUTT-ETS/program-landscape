@@ -7,6 +7,7 @@ import type { ImportLoadContext, ImportRow } from '../src/import/types';
 import { validateSheet, type ParsedSheet } from '../src/import/validate';
 import { peerCandidateWhere } from '../src/peer-candidates';
 import { RANKED_UNIVERSITIES_STARTER } from '../src/ranked-universities-starter';
+import { describeScratchDb } from './helpers/scratch-db';
 
 const PREFIX = 'RU Test ';
 const SLUG = 'xlsx-ranked-universities';
@@ -61,7 +62,7 @@ async function cleanup(): Promise<void> {
   await prisma.rankedUniversity.deleteMany({ where: { name: { startsWith: PREFIX } } });
 }
 
-describe('ranked-universities dataset', () => {
+describeScratchDb('ranked-universities dataset', () => {
   beforeAll(async () => {
     await cleanup();
     runA = await makeRun(SLUG);

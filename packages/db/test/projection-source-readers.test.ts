@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { prisma } from '../src';
 import { programDemographicOutlook } from '../src/program-deep-dive';
+import { SCRATCH_DB, describeScratchDb } from './helpers/scratch-db';
 
 // Scratch-DB wiring test for the Deep-Dive demographic outlook: the national
 // block follows the source picker, the regional comparator may come from a
@@ -23,6 +24,7 @@ async function wipe(): Promise<void> {
 }
 
 beforeAll(async () => {
+  if (!SCRATCH_DB) return;
   await wipe();
   await prisma.program.deleteMany({ where: { code: CODE } });
   await prisma.faculty.deleteMany({ where: { code: FACULTY } });
@@ -49,12 +51,13 @@ beforeAll(async () => {
 afterEach(() => setOrganizationForTest(KKU_REFERENCE_ORGANIZATION));
 
 afterAll(async () => {
+  if (!SCRATCH_DB) return;
   await wipe();
   await prisma.program.deleteMany({ where: { code: CODE } });
   await prisma.faculty.deleteMany({ where: { code: FACULTY } });
 });
 
-describe('programDemographicOutlook source wiring', () => {
+describeScratchDb('programDemographicOutlook source wiring', () => {
   it('outlook national from UN while comparator from NESDC', async () => {
     setOrganizationForTest({ ...KKU_REFERENCE_ORGANIZATION, regionEn: 'Northeast' });
     const outlook = await programDemographicOutlook(programId);

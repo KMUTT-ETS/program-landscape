@@ -10,6 +10,7 @@ import type { ImportDataset, ImportLoadContext, ImportRow } from '../src/import/
 import { validateSheet, type ParsedSheet } from '../src/import/validate';
 import { dqCompetencyByScope } from '../src/student-dq';
 import { programDigitalCompetency } from '../src/program-deep-dive';
+import { SCRATCH_DB, describeScratchDb } from './helpers/scratch-db';
 
 // Digital competency: two programme-scoped datasets over the DQ cubes. The
 // replace must touch only this dataset's own earlier uploads.
@@ -82,6 +83,7 @@ const mImp = (programmeCode: string, entryYear: number, moduleNo: number, taking
   ({ programmeCode, entryYear, moduleNo, takenCount: taking, meanScore: mean, studentsInScope: scope }) as ImportRow;
 
 beforeAll(async () => {
+  if (!SCRATCH_DB) return;
   await cleanup();
   cohortRun = await makeRun('xlsx-digital-competency-cohorts');
   cohortRunB = await makeRun('xlsx-digital-competency-cohorts');
@@ -103,9 +105,12 @@ beforeAll(async () => {
   }
 });
 
-afterAll(cleanup);
+afterAll(async () => {
+  if (!SCRATCH_DB) return;
+  if (SCRATCH_DB) await cleanup();
+});
 
-describe('digital competency datasets', () => {
+describeScratchDb('digital competency datasets', () => {
   it('are registered', () => {
     expect(getImportDataset('digital-competency-cohorts').slug).toBe('digital-competency-cohorts');
     expect(getImportDataset('digital-competency-modules').slug).toBe('digital-competency-modules');

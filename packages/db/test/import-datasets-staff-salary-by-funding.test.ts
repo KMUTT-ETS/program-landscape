@@ -9,6 +9,7 @@ import {
 import { getImportDataset } from '../src/import/registry';
 import type { ImportLoadContext, ImportRow } from '../src/import/types';
 import { validateSheet, type ParsedSheet } from '../src/import/validate';
+import { SCRATCH_DB, describeScratchDb } from './helpers/scratch-db';
 
 const FACULTY_CODE = 'SSF-FAC';
 const FACULTY_NAME_TH = 'คณะทดสอบเงินเดือน';
@@ -88,15 +89,19 @@ function row(over: Partial<Record<string, unknown>> = {}): ImportRow {
 }
 
 beforeAll(async () => {
+  if (!SCRATCH_DB) return;
   await cleanup();
   runId = await makeRun('xlsx-staff-salary-by-funding');
   otherRunId = await makeRun('xlsx-staff-salary-by-funding');
   await prisma.faculty.create({ data: { code: FACULTY_CODE, nameTh: FACULTY_NAME_TH, nameEn: 'Salary test' } });
 });
 
-afterAll(cleanup);
+afterAll(async () => {
+  if (!SCRATCH_DB) return;
+  if (SCRATCH_DB) await cleanup();
+});
 
-describe('staff-salary-by-funding dataset', () => {
+describeScratchDb('staff-salary-by-funding dataset', () => {
   it('is registered', () => {
     expect(getImportDataset('staff-salary-by-funding').sheetName).toBe('Staff Salary by Funding');
   });

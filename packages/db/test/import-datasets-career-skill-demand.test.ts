@@ -5,6 +5,7 @@ import { careerSkillDemandDataset } from '../src/import/datasets/career-skill-de
 import { getImportDataset } from '../src/import/registry';
 import type { ImportLoadContext, ImportRow } from '../src/import/types';
 import { validateSheet, type ParsedSheet } from '../src/import/validate';
+import { describeScratchDb } from './helpers/scratch-db';
 
 const PREFIX = 'CSD Test ';
 const SLUG = 'xlsx-career-skill-demand';
@@ -72,13 +73,16 @@ const iRow = (over: Record<string, unknown> = {}): ImportRow => ({
 }) as ImportRow;
 
 async function cleanup(): Promise<void> {
+  await prisma.programSkill.deleteMany({ where: { program: { code: 'CSD-PROG' } } });
+  await prisma.program.deleteMany({ where: { code: 'CSD-PROG' } });
+  await prisma.faculty.deleteMany({ where: { code: 'CSDFAC' } });
   await prisma.kmitlCareerSkillDemand.deleteMany({ where: { skillNameRaw: { startsWith: PREFIX } } });
   await prisma.kmitlCareerSkillDemand.deleteMany({ where: { career: { groupName: { startsWith: PREFIX } } } });
   await prisma.kmitlCareer.deleteMany({ where: { groupName: { startsWith: PREFIX } } });
   await prisma.skill.deleteMany({ where: { nameEn: { startsWith: PREFIX } } });
 }
 
-describe('career-skill-demand dataset', () => {
+describeScratchDb('career-skill-demand dataset', () => {
   beforeAll(async () => {
     await cleanup();
     runA = await makeRun(SLUG);
@@ -157,7 +161,7 @@ describe('career-skill-demand dataset', () => {
     const programme = await prisma.program.create({
       data: {
         code: 'CSD-PROG', nameTh: 'ทดสอบ', nameEn: `${PREFIX}Programme`,
-        facultyId: faculty.id, level: 'BACHELOR', status: 'ACTIVE', sequenceNoFromSheet: -9301,
+        facultyId: faculty.id, level: 'BACHELOR', status: 'ACTIVE', sequenceNoFromSheet: -9399,
       },
       select: { id: true },
     });

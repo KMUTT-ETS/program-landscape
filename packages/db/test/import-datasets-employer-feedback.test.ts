@@ -6,6 +6,7 @@ import { getImportDataset } from '../src/import/registry';
 import type { ImportLoadContext, ImportRow } from '../src/import/types';
 import { validateSheet, type ParsedSheet } from '../src/import/validate';
 import { programOutcomes } from '../src/program-deep-dive';
+import { SCRATCH_DB, describeScratchDb } from './helpers/scratch-db';
 
 const FACULTY_CODE = 'EF-FAC';
 const P1 = 'EF-PROG-1';
@@ -65,6 +66,7 @@ const imp = (programmeCode: string, year: number, employer: string | null, score
   ({ programmeCode, surveyYear: year, employer, satisfaction: score, respondents: n }) as ImportRow;
 
 beforeAll(async () => {
+  if (!SCRATCH_DB) return;
   await cleanup();
   runA = await makeRun('xlsx-employer-feedback');
   runB = await makeRun('xlsx-employer-feedback');
@@ -82,9 +84,12 @@ beforeAll(async () => {
   }
 });
 
-afterAll(cleanup);
+afterAll(async () => {
+  if (!SCRATCH_DB) return;
+  if (SCRATCH_DB) await cleanup();
+});
 
-describe('employer feedback dataset', () => {
+describeScratchDb('employer feedback dataset', () => {
   it('is registered', () => {
     expect(getImportDataset('employer-feedback').slug).toBe('employer-feedback');
   });

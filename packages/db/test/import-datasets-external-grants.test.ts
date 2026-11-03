@@ -10,6 +10,7 @@ import {
 import { getImportDataset } from '../src/import/registry';
 import type { ImportDataset, ImportLoadContext, ImportRow } from '../src/import/types';
 import { validateSheet, type ParsedSheet } from '../src/import/validate';
+import { SCRATCH_DB, describeScratchDb } from './helpers/scratch-db';
 
 // External grants: projects and team members. Neither may touch the
 // kku-research-services connector's rows, and the grant award must see them.
@@ -83,6 +84,7 @@ const tImp = (projectCode: string, employeeCode: string, role = 'Lead'): ImportR
   ({ projectCode, employeeCode, role }) as ImportRow;
 
 beforeAll(async () => {
+  if (!SCRATCH_DB) return;
   await cleanup();
   projRun = await makeRun('xlsx-external-grants');
   projRunB = await makeRun('xlsx-external-grants');
@@ -104,9 +106,12 @@ beforeAll(async () => {
 });
 
 beforeEach(() => __resetGrantSourceCache());
-afterAll(cleanup);
+afterAll(async () => {
+  if (!SCRATCH_DB) return;
+  if (SCRATCH_DB) await cleanup();
+});
 
-describe('external grants datasets', () => {
+describeScratchDb('external grants datasets', () => {
   it('are registered', () => {
     expect(getImportDataset('external-grants').slug).toBe('external-grants');
     expect(getImportDataset('external-grant-team').slug).toBe('external-grant-team');

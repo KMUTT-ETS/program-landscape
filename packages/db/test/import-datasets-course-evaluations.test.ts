@@ -6,6 +6,7 @@ import { getImportDataset } from '../src/import/registry';
 import type { ImportLoadContext, ImportRow } from '../src/import/types';
 import { validateSheet, type ParsedSheet } from '../src/import/validate';
 import { computeHealthScores } from '../src/health-score';
+import { SCRATCH_DB, describeScratchDb } from './helpers/scratch-db';
 
 // Course evaluations feed the student-satisfaction health driver. A row is a
 // course-level overall rating, never a per-instructor or per-question one.
@@ -89,6 +90,7 @@ function row(over: Partial<Record<string, unknown>> = {}): ImportRow {
 }
 
 beforeAll(async () => {
+  if (!SCRATCH_DB) return;
   await cleanup();
   runId = await makeRun('xlsx-course-evaluations');
   otherRunId = await makeRun('xlsx-course-evaluations');
@@ -109,9 +111,12 @@ beforeAll(async () => {
   });
 });
 
-afterAll(cleanup);
+afterAll(async () => {
+  if (!SCRATCH_DB) return;
+  if (SCRATCH_DB) await cleanup();
+});
 
-describe('course evaluations dataset', () => {
+describeScratchDb('course evaluations dataset', () => {
   it('is registered', () => {
     expect(getImportDataset('course-evaluations').slug).toBe('course-evaluations');
   });

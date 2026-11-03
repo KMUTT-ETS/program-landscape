@@ -3,6 +3,7 @@ import { prisma } from '@kku/db';
 import { KKU_REFERENCE_ORGANIZATION, setOrganizationForTest } from '@kku/shared';
 
 import { OpenAlexWorksConnector } from '../../src/connectors/sources/openalex-works/connector';
+import { describeScratchDb } from '../helpers/scratch-db';
 
 const FACULTY = 'OAW-FAC';
 const CODES = ['OAW-0001', 'OAW-0002', 'OAW-0003', 'OAW-0004', 'OAW-0005', 'OAW-0006'];
@@ -13,6 +14,8 @@ async function cleanup(): Promise<void> {
   await prisma.researchOutput.deleteMany({ where: { OR: [{ facultyMember: { employeeCode: { in: CODES } } }, { openalexId: { startsWith: 'WOAW' } }] } });
   await prisma.facultyMember.deleteMany({ where: { employeeCode: { in: CODES } } });
   await prisma.faculty.deleteMany({ where: { code: FACULTY } });
+  const ids = [runId, sheetRunId].filter((id) => id !== '');
+  if (ids.length > 0) await prisma.ingestionRun.deleteMany({ where: { id: { in: ids } } });
 }
 
 async function makeRun(slug: string): Promise<string> {
@@ -57,7 +60,7 @@ async function runConnector(works: unknown[]): Promise<void> {
   expect(result.recordsFailed).toBe(0);
 }
 
-describe('openalex-works load (scratch DB)', () => {
+describeScratchDb('openalex-works load (scratch DB)', () => {
   beforeAll(async () => {
     await cleanup();
     setOrganizationForTest({ ...KKU_REFERENCE_ORGANIZATION, openalexInstitutionId: 'I5' });

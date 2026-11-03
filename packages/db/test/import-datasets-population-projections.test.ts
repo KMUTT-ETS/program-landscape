@@ -5,6 +5,7 @@ import { populationProjectionsDataset } from '../src/import/datasets/population-
 import { getImportDataset } from '../src/import/registry';
 import type { ImportLoadContext, ImportRow } from '../src/import/types';
 import { validateSheet, type ParsedSheet } from '../src/import/validate';
+import { SCRATCH_DB, describeScratchDb } from './helpers/scratch-db';
 
 const SHEET_SOURCE_A = 'xlsx:PP Test Edition A';
 const SOURCE_UN = 'UN-WPP2024-pptest';
@@ -61,15 +62,19 @@ const imp = (region: string, year: number, ageGroup: string, population: number,
   ({ region, year, ageGroup, population, sourceName }) as ImportRow;
 
 beforeAll(async () => {
+  if (!SCRATCH_DB) return;
   await cleanup();
   runA = await makeRun('xlsx-population-projections');
   runB = await makeRun('xlsx-population-projections');
   otherRun = await makeRun('un-wpp');
 });
 
-afterAll(cleanup);
+afterAll(async () => {
+  if (!SCRATCH_DB) return;
+  if (SCRATCH_DB) await cleanup();
+});
 
-describe('population projections dataset', () => {
+describeScratchDb('population projections dataset', () => {
   it('is registered', () => {
     expect(getImportDataset('population-projections').slug).toBe('population-projections');
   });

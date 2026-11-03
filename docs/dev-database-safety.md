@@ -184,6 +184,15 @@ docker exec -i program-landscape-postgres \
 Then stop the dev stack (`pnpm dev` holds connections and a rename or drop will
 fail with `database ... is being accessed by other users`), rename, and restart.
 
+## Tests that write to the database
+
+New tests that write to a real database must use the `describeScratchDb`
+helper (`packages/db/test/helpers/scratch-db.ts`, and the copy under
+`apps/ingestion/test/helpers/`). It skips the suite unless the database name in
+`DATABASE_URL` ends with `_test`, and it never prints the URL; top-level hooks
+in the same file must also check `SCRATCH_DB`. Run such tests against a `_test`
+database, never your dev database. Older test files predate the helper.
+
 ## What this does not cover
 
 - **MinIO.** Uploaded PDFs and generated outputs are not in the dev snapshot.
