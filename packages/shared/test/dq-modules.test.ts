@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { describe, it, expect } from 'vitest';
 import {
   DQ_MODULES,
@@ -83,6 +84,17 @@ describe('cohortFromStudentId', () => {
     // cohort is not a cohort; it is a bad record.
     expect(cohortFromStudentId('1230201119')).toBeNull();
     expect(cohortFromStudentId('4630201119')).toBeNull();
+  });
+
+  it('lets the ceiling follow the calendar (current BE year + 1)', () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2030-07-01T00:00:00Z')); // BE 2573
+      expect(cohortFromStudentId('7430201119')).toBe(2574);
+      expect(cohortFromStudentId('7530201119')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('returns null for unusable ids', () => {

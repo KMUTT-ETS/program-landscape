@@ -138,7 +138,9 @@ export function normaliseDqFaculty(raw: string | null | undefined): string {
  *  ceiling tracks the current BE year plus a small buffer for the next
  *  intake. */
 const COHORT_MIN_BE = 2550;
-const COHORT_MAX_BE = 2570;
+/** Current BE year + 1 (next intake), read at call time so the ceiling moves
+ *  with the calendar instead of silently nulling every cohort after 2027. */
+const cohortMaxBE = (now: Date = new Date()): number => now.getFullYear() + 543 + 1;
 
 /**
  * BE admission year from a KKU student code — the first two digits.
@@ -150,7 +152,7 @@ export function cohortFromStudentId(studentId: string | null | undefined): numbe
   const digits = (studentId ?? '').replace(/[^0-9]/g, '');
   if (digits.length < 2) return null;
   const year = 2500 + Number(digits.slice(0, 2));
-  if (!Number.isFinite(year) || year < COHORT_MIN_BE || year > COHORT_MAX_BE) return null;
+  if (!Number.isFinite(year) || year < COHORT_MIN_BE || year > cohortMaxBE()) return null;
   return year;
 }
 
