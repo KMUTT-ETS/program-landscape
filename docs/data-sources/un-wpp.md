@@ -43,6 +43,8 @@ Gotchas:
 | `AgeGrpStart` 15-17 / 18-22 / 23-29 | `ageCohort` | `demographic_projections` | single ages summed |
 | `PopTotal` × 1000, rounded | `population` | `demographic_projections` | persons |
 | | `region` = `TH`, `source` = `UN-WPP2024` | `demographic_projections` | national series |
+
+Changing `UN_WPP_COUNTRY_ISO3` replaces the previous country's `UN-WPP2024` rows on the next run: each run swaps out everything this source wrote before loading the new country.
 | run id | `ingestionRunId` | `demographic_projections` | stamped on every row |
 
 ## Snapshot semantics

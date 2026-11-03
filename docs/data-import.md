@@ -79,7 +79,7 @@ either — nothing in the application reads them today, so a template for them
 would ask you for work no screen would show.
 
 A few more are deliberately out of scope and documented as such in the design
-note under `docs/superpowers/specs/` — employer feedback, per-instructor
+note under `docs/superpowers/specs/` — per-instructor
 teaching evaluations (the Course Evaluations sheet is course-level only) and
 per-section instructor rosters, the last of these because it keys on
 personal email addresses. Note that per-section instructors are a different

@@ -22,7 +22,7 @@ OpenAlex is an open catalogue of scholarly works. The connector pulls every work
 
 The connector also skips when the `kku-research` data source has at least one SUCCEEDED run: kku-research is live on this install and its publication mirror already fills `research_outputs`.
 
-With the institution id or the key missing, the run is recorded as **SKIPPED** with the reason; nothing is fetched or written.
+With the institution id or the key missing, nothing is fetched or written. The run is recorded as **FAILED** with a `CONFIG` reason naming what is missing (the same applies to the kku-research overlap above), so the data-sources page shows the source as unhealthy until it is configured.
 
 ## Mapping to our schema
 

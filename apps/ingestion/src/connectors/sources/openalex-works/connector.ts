@@ -4,7 +4,7 @@
 //
 //   - Needs the institution id (admin/organization) and a free OpenAlex API
 //     key (OPENALEX_API_KEY): without a key the cursor budget is tiny. With
-//     either missing the run is SKIPPED with the reason, nothing is fetched.
+//     either missing the run is recorded FAILED (CONFIG) with the reason, nothing is fetched.
 //   - Author match is exact only — ORCID, OpenAlex author id, English name,
 //     Thai name — and a name shared by two staff is left unmatched.
 //   - One research_outputs row per (work, matched author); unmatched
