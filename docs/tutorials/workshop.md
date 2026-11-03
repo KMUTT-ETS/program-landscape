@@ -48,7 +48,9 @@ good time to talk.
    address with anyone.
 2. Upload order matters. If a file is refused, read the message together. It
    names the rows.
-3. The pipeline costs about USD 0.80 per programme. Tell attendees to run one.
+3. The pipeline costs about USD 0.80 per programme. It was measured on one bachelor programme with a 126-course curriculum; longer curricula cost more. Tell attendees to run one.
+4. Run `pnpm skills:normalise --source=linkedin --auto-promote` once, after the `kmitl-skill-mapping` run and before the pipeline. Start it early: it takes about an hour.
+5. Embeddings need a Google key. A free key may stop after about 1,000 courses. Tell attendees with more courses to use a paid key or to re-run on later days.
 
 ## Common failures and fixes
 
@@ -56,7 +58,7 @@ good time to talk.
 |---|---|---|
 | "... is not a known programmes code. Upload that dataset first, or correct the value." | A file names a programme, faculty, department or employee that an earlier upload does not have. Old exports often name retired programmes. | Add the missing rows to the earlier sheet, or delete those rows. |
 | "This file has 8002 rows; the limit is 5000. Split it into smaller files." | One upload holds at most 5000 rows. | Split the file into parts and upload each one. Publications is the usual case. |
-| "This file has N rows but M are already stored..." on the last small part of a split file | The partial-export guard. | Confirm the upload in the panel. |
+| "This file has N rows but M are already stored..." | Only class offerings and programme course lists ask for this, when a file is much smaller than what is stored. Other datasets never do, so split uploads of them go straight through. | If the small file is right, confirm the upload in the panel. |
 | A required column is missing | Required columns may not be left out. | Add the column. Optional columns may be left out. |
 | An unknown column is refused | Only the columns in the template are allowed. | Delete the column. |
 | "OPENALEX_API_KEY is not set..." and the run is skipped | The free OpenAlex key is not in `.env`. | Add the key, restart `pnpm dev`, run `openalex-works` again. |
@@ -64,4 +66,9 @@ good time to talk.
 | Sign-in goes round in a circle | The per-app environment links are missing. | Run `pnpm link-env` and restart `pnpm dev`. |
 | An upload succeeded but nothing shows | The data source rows are missing. | Run `pnpm data-sources:sync --apply` and upload again. |
 | The pipeline fails at the first AI step | No AI key, or `AI_PROVIDER` is `stub`. | Set the key and `AI_PROVIDER` in `.env`, restart `pnpm dev`. |
+| The demand match is skipped, and labour-market alignment stays empty | The market's skill names are not in your skill taxonomy yet. | After the `kmitl-skill-mapping` run, run `pnpm skills:normalise --source=linkedin --auto-promote` once (about an hour, roughly a dollar), then run the pipeline again. |
+| The overlap section shows shared course codes only, or the log shows "429" while embedding | Embeddings always use Google. A free-tier key embeds about 1,000 course texts, then hits its daily limit. The step waits, retries, gives up, and resumes next run. | Use a paid Google key, or run the pipeline (or `pnpm programs:overlap-prep --apply`) again on later days. Then run `pnpm programs:overlap --apply`. |
+| Phase 2 of the pipeline exits with code 1 | An older checkout. This is fixed. | Pull the latest code and run the pipeline again. |
+| The pipeline was cut off part way | The worker restarted while it ran, for example after a code change in watch mode. | Run it again. Finished phases are cheap to repeat. |
+| The JobThai driver shows "not applicable" | JobThai is a commercial feed. Installations without it show this. | Nothing. It is not a failure. |
 | The pipeline cannot read the course list | The PDF layout is not recognised. | Check with `pnpm curriculum:check "<file.pdf>"`, or upload the course list instead. |

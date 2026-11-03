@@ -9,7 +9,7 @@ do not have one, do [Getting started](./getting-started.md) first. Every command
 below runs from the repository root.
 
 **Time and cost.** About half a day with your files ready. AI spend is about
-USD 0.80 per programme, so run one programme first and the rest later.
+about USD 0.80 per programme, so run one programme first and the rest later.
 
 ## The order of work
 
@@ -114,7 +114,18 @@ https://openalex.org/settings/api and add it to the environment." Add the key to
 Programmes are compared with the skills employers ask for. There are two ways
 to load them.
 
-1. Run `kmitl-skill-mapping` as above, if you have a key.
+1. Run `kmitl-skill-mapping` as above, if you have a key. Then run this once,
+   before the pipeline.
+
+```bash
+pnpm skills:normalise --source=linkedin --auto-promote
+```
+
+   It adds the market's skill names to your taxonomy, so a programme's skills
+   can match them. It handles the names in batches of 25. On one installation it
+   processed about 5,850 names, which took about an hour and cost roughly a
+   dollar. Without it the demand match is skipped, and the labour-market
+   alignment and demand-match drivers stay empty. The setup checklist says so.
 2. Or upload **Career Skill Demand** at `/admin/data-setup/raw/career-skill-demand`
    after Step 5 has built the skills.
 
@@ -152,6 +163,25 @@ You can also run it from the terminal.
 pnpm programs:pipeline <code>
 ```
 
+The command line is the safest way. If the worker restarts while a pipeline
+runs (for example after a code change in watch mode), the run is cut off. Run it
+again. Finished phases are cheap to repeat.
+
+The pipeline approves the curriculum digests as the first administrator, so no
+extra setup is needed. The USD 0.80 was measured on one bachelor programme with
+a 126-course curriculum, with `AI_PROVIDER=openrouter` and without embeddings.
+Longer curricula cost more. Check `/admin/ai-cost` after the first programme.
+
+**Embeddings for the overlap section.** The overlap step always uses Google
+(`AI_GOOGLE_EMBEDDING_MODEL`), so a Google key is needed even when `AI_PROVIDER`
+is anthropic or openrouter. A free-tier key embedded about 1,000 course texts and
+then reached its daily limit. The step waits, retries, gives up, and picks up
+where it stopped on the next run. A university with about 5,000 courses needs a
+paid key, or must run the pipeline (or `pnpm programs:overlap-prep --apply`)
+again on later days. Until every course is embedded, the overlap index uses
+shared course codes only. Then run `pnpm programs:overlap --apply`, or the
+pipeline, to score again.
+
 On a fresh installation the pipeline also builds your skill taxonomy by itself.
 After it reads the curriculum, phase 2 sees that the programme's skills match
 nothing yet. It creates the skills from the names in that curriculum, then
@@ -172,6 +202,16 @@ course list has no overlap item. These are not red. An item filled by AI that
 ran in a degraded mode counts as green and shows a "degraded" note with the
 reason.
 
+Admission funnel items: if the admission-campaigns sheet has no Planned Seats,
+the competition ratio and fill rate are computed from the public TCAS round-3
+figures, and the checklist says "Computed from public TCAS round-3 figures".
+Registration yield needs the Confirmed and Reported columns of that sheet, and
+there is no public substitute. Fill Planned Seats, Confirmed and Reported if you
+have them.
+
+The JobThai driver shows "not applicable" on an installation without JobThai.
+JobThai is a commercial feed, so this is not a failure.
+
 Only real data turns an item green. Sample rows never do.
 
 You should see every item green or not applicable.
@@ -190,7 +230,16 @@ still empty says what it needs.
 1. Check the one programme you finished against its source documents.
 2. Run the pipeline for the rest from `/admin/programs`: tick the programmes and
    choose **Run pipeline · N program(s)**. Or run one programme at a time from its
-   pipeline tab. Plan for USD 0.80 for each programme.
+   pipeline tab. Plan for about USD 0.80 for each programme.
+
+## After uploading programmes, enrolment, finance or outcomes
+
+The roll-up views refresh by themselves. No command is needed. On an
+installation upgraded from before this change, run this once.
+
+```bash
+pnpm outcomes:refresh-derived
+```
 
 ## If the skills do not appear
 

@@ -577,6 +577,9 @@ file into parts without confirming the last small one.
 
 ## Things worth knowing about spreadsheets
 
+- **Roll-up views refresh by themselves** after uploads of programmes,
+  enrolment, finance or outcomes. On an installation upgraded from before this
+  change, run `pnpm outcomes:refresh-derived` once.
 - **Codes that start with a zero.** Format the cell as text first, or Excel
   turns `007` into `7` before the system ever sees it.
 - **Blank rows are ignored**, so trailing empty rows are harmless.
