@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { signIn } from 'next-auth/react';
 
 import { completeSetupAction } from '@/lib/actions/setup';
 import { MIN_PASSWORD_LENGTH } from '@/lib/actions/setup-schema';
@@ -36,17 +35,11 @@ export function SetupForm() {
       return;
     }
 
-    // The account exists now. A failure here is a sign-in problem, not a
-    // setup problem, so say so rather than implying nothing was created.
-    const res = await signIn('dev-credentials', {
-      email,
-      password,
-      redirect: false,
-      callbackUrl: '/',
-    });
+    // The server action signs the new account in. A failure there is a
+    // sign-in problem, not a setup problem, so say so rather than implying
+    // nothing was created.
     setSubmitting(false);
-
-    if (res?.ok) {
+    if (result.signedIn) {
       router.push('/');
       router.refresh();
       return;

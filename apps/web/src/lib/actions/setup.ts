@@ -6,6 +6,7 @@
 
 import { SetupUnavailableError, completeSetup } from '@kku/db';
 
+import { signIn } from '@/lib/auth';
 import { hashPassword } from '@/lib/auth/password-hash';
 import { FirstAdminSchema } from './setup-schema';
 
@@ -15,6 +16,8 @@ export interface SetupActionResult {
   fieldErrors?: Record<string, string>;
   /** Everything else, shown above the form. */
   error?: string;
+  /** True when the new account was also signed in (session cookie set). */
+  signedIn?: boolean;
 }
 
 export async function completeSetupAction(raw: unknown): Promise<SetupActionResult> {
@@ -48,5 +51,18 @@ export async function completeSetupAction(raw: unknown): Promise<SetupActionResu
     throw e;
   }
 
-  return { ok: true };
+  // Sign in on the server. The browser-side signIn() needs next-auth's CSRF
+  // cookie, which this first visit has not necessarily been given, and failed
+  // with MissingCSRF. The server entry point sets the session cookie itself.
+  try {
+    await signIn('dev-credentials', {
+      email: parsed.data.email,
+      password: parsed.data.password,
+      redirect: false,
+    });
+  } catch {
+    // The account exists; only the automatic sign-in failed.
+    return { ok: true, signedIn: false };
+  }
+  return { ok: true, signedIn: true };
 }
