@@ -97,6 +97,22 @@ export const CASCADE_CHILDREN: readonly CascadeChild[] = [
  */
 export const CASCADE_CHILDREN_UNREACHABLE: readonly { model: string; reason: string }[] = [];
 
+/**
+ * Tables that point at a programme with a plain `programId` and NO foreign
+ * key. Deleting the programme leaves their rows dangling rather than
+ * cascading, so test/import-cascade-coverage.test.ts (which reads the schema
+ * for Cascade relations) cannot see them; they are listed here by hand.
+ * Counted whoever wrote them: the DQ connector and the two Digital
+ * Competency imports share both cubes.
+ */
+const NON_FK_CHILDREN: readonly {
+  label: string;
+  count: (tx: Prisma.TransactionClient, programIds: string[]) => Promise<number>;
+}[] = [
+  { label: 'digital competency figures', count: (p, ids) => p.dqStudentCube.count({ where: { programId: { in: ids } } }) },
+  { label: 'digital competency figures', count: (p, ids) => p.dqModuleCube.count({ where: { programId: { in: ids } } }) },
+];
+
 /** Rows hanging off a programme this import created. */
 function byProgram(runIds: readonly string[]) {
   return { program: { ingestionRunId: { in: [...runIds] } } };
@@ -331,12 +347,19 @@ export const programmesDataset: ImportDataset = {
 
 
   cascadeBlockers: async (prisma, runIds): Promise<{ label: string; count: number }[]> => {
-    const counted = await Promise.all(
-      CASCADE_CHILDREN.map(async (child) => ({
+    const programIds = (
+      await prisma.program.findMany({ where: byRun(runIds), select: { id: true } })
+    ).map((p) => p.id);
+    const counted = await Promise.all([
+      ...CASCADE_CHILDREN.map(async (child) => ({
         label: child.label,
         count: await child.count(prisma, runIds),
       })),
-    );
+      ...NON_FK_CHILDREN.map(async (child) => ({
+        label: child.label,
+        count: await child.count(prisma, programIds),
+      })),
+    ]);
     // Same label twice (one per underlying table) reads as a mistake, so
     // merge before the message is built.
     const merged = new Map<string, number>();

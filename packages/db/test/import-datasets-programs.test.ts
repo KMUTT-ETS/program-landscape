@@ -201,6 +201,26 @@ describe('programmes dataset', () => {
     }
   });
 
+  it('reports digital-competency cubes, which have no foreign key to cascade', async () => {
+    const programme = await prisma.program.findUniqueOrThrow({
+      where: { code: 'PDT-P2' },
+      select: { id: true },
+    });
+    const cube = await prisma.dqStudentCube.create({
+      data: {
+        facultyName: 'x', programId: programme.id, studentsTested: 9, studentsWithScores: 9,
+        studentsAllPassed: 5, cohortYearBe: 2560, ingestionRunId: runId,
+      },
+      select: { id: true },
+    });
+    try {
+      const blockers = await programmesDataset.cascadeBlockers?.(prisma, [runId]);
+      expect(blockers?.some((b) => b.label.includes('digital competency') && b.count >= 1)).toBe(true);
+    } finally {
+      await prisma.dqStudentCube.delete({ where: { id: cube.id } });
+    }
+  });
+
   it('finds nothing to block when no child rows exist', async () => {
     const blockers = await programmesDataset.cascadeBlockers?.(prisma, [runId]);
     expect(blockers).toEqual([]);

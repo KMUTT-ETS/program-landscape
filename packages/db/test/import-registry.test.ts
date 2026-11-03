@@ -86,6 +86,18 @@ describe('import registry', () => {
     }
   });
 
+  it('faculties guards every dataset that stores a facultyId without a foreign key', () => {
+    expect(getImportDataset('faculties').dependents).toEqual(
+      expect.arrayContaining([
+        'course-evaluations',
+        'digital-competency-cohorts',
+        'digital-competency-modules',
+        'external-grants',
+        'staff-salary-by-funding',
+      ]),
+    );
+  });
+
   it('lists the same datasets it holds', () => {
     expect(listImportDatasets().map((d) => d.slug)).toEqual(IMPORT_DATASETS.map((d) => d.slug));
   });

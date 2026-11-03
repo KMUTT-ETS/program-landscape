@@ -145,7 +145,18 @@ export const facultiesDataset: ImportDataset = {
     },
   ],
   strategy: { kind: 'upsert', match: { kind: 'unique', columns: ['code'] } },
-  dependents: ['departments', 'programmes', 'faculty-members'],
+  // The last five store a denormalised facultyId with no foreign key, so
+  // clearing faculties would orphan them silently instead of cascading.
+  dependents: [
+    'departments',
+    'programmes',
+    'faculty-members',
+    'course-evaluations',
+    'digital-competency-cohorts',
+    'digital-competency-modules',
+    'external-grants',
+    'staff-salary-by-funding',
+  ],
 
   load: async (ctx: ImportLoadContext, rows: readonly ImportRow[]): Promise<ImportLoadResult> => {
     let inserted = 0;

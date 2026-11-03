@@ -172,6 +172,8 @@ describe('course evaluations dataset', () => {
     expect(stored.ingestionRunId).toBe(runId);
     expect(stored.facultyId).not.toBeNull();
     expect(stored.methodologyVersion).toBe('xlsx-import.v1');
+    // Must not feed the registrar connector's MAX(lastUpdateAt) watermark.
+    expect(stored.lastUpdateAt).toBeNull();
     expect(Number(stored.ratingAvg)).toBe(4.25);
   });
 
