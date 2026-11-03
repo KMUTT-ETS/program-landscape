@@ -206,6 +206,20 @@ export async function runDemandMatch(params: MatchDemandParams): Promise<MatchDe
   const checklist = buildDemandChecklist(linkedInIds, jobThaiDemand);
   const demandedIds = [...checklist.keys()];
   if (demandedIds.length === 0) {
+    // On an install whose taxonomy was built after the KMITL feed loaded, every
+    // demand row still has skill_id NULL: the demand exists but none of it is
+    // linked to a skill. Say so, with the fix, instead of a bare "none resolved".
+    const [rows, linked] = await Promise.all([
+      prisma.kmitlCareerSkillDemand.count(),
+      prisma.kmitlCareerSkillDemand.count({ where: { skillId: { not: null } } }),
+    ]);
+    if (rows > 0 && linked === 0) {
+      return {
+        status: 'SKIPPED',
+        reason:
+          `no demanded skills resolved for this program — ${rows} skill-demand rows are loaded but none is linked to a skill in the taxonomy; run \`pnpm skills:normalise --auto-promote\` and re-run this phase`,
+      };
+    }
     return { status: 'SKIPPED', reason: 'no demanded skills resolved for this program' };
   }
   const demandedSkills = await prisma.skill.findMany({

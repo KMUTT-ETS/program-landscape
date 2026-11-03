@@ -533,7 +533,9 @@ async function processProgram(
       durationMs: Date.now() - t,
       costUsd: cost,
       ok: careersOutcome.status !== 'FAILED' && demandOutcome.status !== 'FAILED',
-      notes: `careers=${careersOutcome.status} demand=${demandOutcome.status}`,
+      notes:
+        `careers=${careersOutcome.status} demand=${demandOutcome.status}` +
+        ('reason' in demandOutcome && demandOutcome.status === 'SKIPPED' ? ` (${demandOutcome.reason})` : ''),
     });
   }
 
@@ -546,7 +548,7 @@ async function processProgram(
       costUsd: 0,
       ok: true,
       notes:
-        'skipped — KKU registry/HR databases not configured; load student cohorts, alumni cohorts and finance from the spreadsheet datasets',
+        'skipped — institution registry/HR databases are not configured (KKU-only linkage; adopters upload spreadsheets)',
     });
   } else if (shouldRun('phase4')) {
     const t = Date.now();
