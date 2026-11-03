@@ -104,6 +104,9 @@ describe('a pre-filled template, filled in partly and uploaded', () => {
     // So a new pre-filled dataset cannot be added without a case above.
     const prefilled = listImportDatasets().filter((d) => d.prefill).map((d) => d.slug).sort();
     // Enrolment, finance and graduate outcomes deliberately ship empty.
-    expect(prefilled).toEqual(['alumni-cohorts', 'student-cohorts']);
+    // University rankings ship a fully filled starter list (not programme-year
+    // keys), so the cases above do not apply; its pre-fill is covered in
+    // packages/db/test/import-datasets-ranked-universities.test.ts.
+    expect(prefilled).toEqual(['alumni-cohorts', 'ranked-universities', 'student-cohorts']);
   });
 });

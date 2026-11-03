@@ -792,7 +792,7 @@ const connectorNodes: TopologyNode[] = [
     subtitle: 'Phase 5 · selection + review',
     details: {
       description:
-        'Two-step peer benchmarking: program-peer-selection.v1 picks 6–10 similar programs from THE/QS/SCImago + KKU\'s seeded peer sets; program-peer-review.v2 (thinking mode) writes the comparative narrative.',
+        'Two-step peer benchmarking: program-peer-selection.v3 picks 6–10 similar programs from THE/QS/SCImago + KKU\'s seeded peer sets; program-peer-review.v2 (thinking mode) writes the comparative narrative.',
       cadence: 'Per-program · programs-pipeline phase 5',
     },
   },

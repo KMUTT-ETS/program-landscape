@@ -13,6 +13,7 @@ import {
 import { departmentsDataset } from './datasets/departments';
 import { employerFeedbackDataset } from './datasets/employer-feedback';
 import { populationProjectionsDataset } from './datasets/population-projections';
+import { rankedUniversitiesDataset } from './datasets/ranked-universities';
 import { enrollmentDataset } from './datasets/enrollment';
 import { facultiesDataset } from './datasets/faculties';
 import { externalGrantsDataset, externalGrantTeamDataset } from './datasets/external-grants';
@@ -44,6 +45,7 @@ export const IMPORT_DATASETS: readonly ImportDataset[] = [
   graduateOutcomesDataset,
   employerFeedbackDataset,
   populationProjectionsDataset,
+  rankedUniversitiesDataset,
   studentCohortsDataset,
   digitalCompetencyCohortsDataset,
   digitalCompetencyModulesDataset,

@@ -2572,7 +2572,7 @@ enum PeerTier {
   WORLD // top global universities
   ASIA // top universities across Asia (incl. East Asia)
   SOUTHEAST_ASIA // SG / MY / ID / VN / PH; excludes Thailand
-  THAILAND_PEER // Thai universities ranked at or above KKU
+  THAILAND_PEER // Thai universities in the candidate list
 }
 
 model RankedUniversity {
@@ -2604,9 +2604,14 @@ model RankedUniversity {
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
+  /// Set when the row was written by the University Rankings spreadsheet import.
+  ingestionRunId String?       @map("ingestion_run_id")
+  ingestionRun   IngestionRun? @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
+
   peerSelections ProgramPeerSelection[]
 
   @@unique([name, rankingYear])
+  @@index([ingestionRunId])
   @@index([region])
   @@index([qsWorldRank])
   @@index([theWorldRank])
@@ -3545,6 +3550,7 @@ model IngestionRun {
   financialMetrics              FinancialMetric[]
   graduateOutcomes              GraduateOutcome[]
   employerFeedbacks             EmployerFeedback[]
+  rankedUniversities            RankedUniversity[]
   demographicProjections        DemographicProjection[]
   researchOutputs               ResearchOutput[]
   facultyCompensations          FacultyCompensation[]

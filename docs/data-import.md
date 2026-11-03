@@ -19,6 +19,7 @@ This page is for the person doing the uploading.
 | **Graduate Outcomes** | Employment survey results per graduating cohort | Programmes |
 | **Employer Feedback** | Employer satisfaction per programme and survey year; shown in the Deep-Dive's Outcomes section | Programmes |
 | **Population Projections** | Projected population per region, year and age group; overrides the built-in UN series | — |
+| **University Rankings** | QS / THE ranks per university; the peer-selection universe (template pre-filled with a starter list) | — |
 | **Student Cohorts** | How many of each entry cohort are still enrolled | Programmes |
 | **Digital Competency — Cohorts** | Students tested, scored and passing, per programme and entry year | Programmes |
 | **Digital Competency — Modules** | Mean score on each of the 13 modules, per programme and entry year | Programmes |
@@ -334,6 +335,35 @@ to supply **regional** figures. Columns: **Region**, **Year**, **Age Group**,
   the current year (and the region, where the reader needs one). Include the
   current year, or the sheet is passed over.
 - **Start over** removes only the rows this sheet wrote.
+
+## University rankings
+
+One sheet lists the universities the Deep-Dive's AI peer selection chooses
+comparison institutions from. The template downloads **pre-filled with a
+starter list** (QS and THE 2025 positions for about 60 world, Asian,
+Southeast Asian and Thai universities): edit it rather than starting blank.
+Columns: **University**, **Country**, **Region**, **Ranking Year** (required),
+**QS World Rank**, **THE World Rank**, **QS Asia Rank**, **THE Asia Rank** and
+**Website** (optional).
+
+- **University** must be the English name. Your own institution's row is
+  excluded from peer picks only when it equals the English name in your
+  organisation profile exactly; otherwise the institution can be offered as
+  its own peer.
+- **Region** is one of `World`, `Asia`, `Southeast Asia` or `Thailand`: the tier
+  the selector files the university under. Anything else is refused.
+- **Ranking Year** is the Common Era year of the edition. The selector reads
+  only the latest year in the table, so a list for a new year replaces the old
+  one in effect.
+- **Ranks** are whole numbers of 1 or more; blank means unranked. A blank
+  rank on a re-upload clears the stored rank.
+- **Where the figures come from.** QS and THE publish their tables publicly
+  but no data feed; copy the positions you need. For Thai research ranks,
+  SCImago Institutions Rankings (scimagoir.com, country filter `?country=THA`)
+  is a free source.
+- The file merges on University and Ranking Year. **Start over** removes only
+  the rows this sheet wrote, and refuses while programmes hold peer selections
+  that cite them.
 
 ## Staff salary by funding
 

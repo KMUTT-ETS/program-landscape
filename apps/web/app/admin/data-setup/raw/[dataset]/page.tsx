@@ -42,6 +42,7 @@ const DATASET_TITLES: Record<string, string> = {
   'graduate-outcomes': 'Graduate outcomes (employment survey)',
   'employer-feedback': 'Employer feedback',
   'population-projections': 'Population projections',
+  'ranked-universities': 'University rankings',
   'student-cohorts': 'Student cohorts (still enrolled)',
   'external-grants': 'External grants',
   'external-grant-team': 'External grant team',

@@ -1950,7 +1950,7 @@ function labelToPhrase(label: string): string {
 
 // ── AI-driven peer programs (QS / THE-ranked universities) ─────────────
 // Two-phase comparison:
-//   1. AI picks 3-5 best-fit peers per tier (program-peer-selection.v1)
+//   1. AI picks 3-5 best-fit peers per tier (program-peer-selection.v3)
 //   2. AI writes a frank comparative review (program-peer-review.v1)
 //      surfacing strengths · weaknesses · per-tier verdicts ·
 //      improvement recommendations.

@@ -329,7 +329,7 @@ grounding, confidence rubric, tell-ban, versioning, data-channel manifest) live 
 |---|---|
 | `career-kmitl-mapping.v1` | Map a Program → ≤N `kmitlCareerIds` (used by Deep-Dive Skills + relevance driver) |
 | `demand-skill-match.v2` | Pre-compute `program_demand_matches` — `(matchedDemanded, relevantDemanded)` per program × career → drives Relevance's `demand_match_filled` |
-| `program-peer-selection.v1` | Pick 3–5 best-fit peers per tier (WORLD / ASIA / SEA / THAILAND_PEER) → input to `program-peer-review.v4` |
+| `program-peer-selection.v3` | Pick 3–5 best-fit peers per tier (WORLD / ASIA / SEA / THAILAND_PEER) → input to `program-peer-review.v4` |
 | `skill-name-normaliser.v1` | Resolve `PROPOSED_SKILL` rows against `Skill.nameEn`/`nameTh` (taxonomy growth path); has an explicit `AMBIGUOUS` abstain path |
 | `pdf-classify.v1` | Classifies an intake PDF into `sourceCategory` (POLICY / REPORT / CURRICULUM / PEER_PROGRAM / SURVEY / COMMITTEE_MINUTES / JOB_POSTINGS_BATCH / OTHER) so the right extractor routes |
 | `job-field-taxonomy.v1` | Clusters JobThai's free-text field-of-study strings (≥ 5 mentions) into canonical fields with Thai + English names → `job_field_taxonomy` rows, `PROPOSED`, reviewed at `/admin/job-fields`. **The rows of the gap map.** Batched 200; existing non-rejected fields ride along as anchors |
@@ -375,7 +375,7 @@ ProgramSkill rows + faculty roster + research_outputs ─▶ programAiReadiness 
                                                                        │
                                        (deterministic, always runs)    │
                                                                        ▼
-program-peer-selection.v1 picks 3-5 peers/tier ─▶ program-peer-review.v4 ─▶ ProgramPeerReview
+program-peer-selection.v3 picks 3-5 peers/tier ─▶ program-peer-review.v4 ─▶ ProgramPeerReview
                                                                        │
                                   (contentModernity.verdict             │
                                    + contentGaps[major])                │
@@ -590,7 +590,7 @@ Every score row carries a `methodologyVersion`. Bumping rules:
 | Methodology doc rephrasing without code change | **no bump** | n/a |
 
 Per-prompt versions:
-- `program-digest.v1` · `program-peer-review.v2` · `program-peer-selection.v1` · `program-ai-readiness.v2` · `risk-assessment.v2` · `program-strategic-narrative.v3` · `expertise-narrative.v2` · `analyst-system.v1` · `analyst-safety.v1` · `outcome-review.v1` · `program-overlap-recommendation.v1`
+- `program-digest.v1` · `program-peer-review.v2` · `program-peer-selection.v3` · `program-ai-readiness.v2` · `risk-assessment.v2` · `program-strategic-narrative.v3` · `expertise-narrative.v2` · `analyst-system.v1` · `analyst-safety.v1` · `outcome-review.v1` · `program-overlap-recommendation.v1`
 
 Per-scorer versions:
 - `health-score.v3.4` (current; v1/v2/v2.1 retained for audit)

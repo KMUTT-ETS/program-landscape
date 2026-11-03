@@ -482,7 +482,9 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'JSON',
     cadenceCron: '0 3 1 * *', // monthly (rankings release annually; cadence covers new-edition releases)
     ownerContact: 'Institution library — licence + API credentials',
-    notes: 'THE subject rankings + annual overall rankings. Licensed API; free tier gives top-200 only. Subscription needed for full peer-group visibility.',
+    deprecated: true,
+    scheduleEnabled: false,
+    notes: 'DEPRECATED 2026-11-04 — never had a connector; QS and THE publish no data feed and SCImago refuses automated clients. Rankings now come from the University Rankings spreadsheet (xlsx-ranked-universities). Original scope: THE subject rankings + annual overall rankings. Licensed API; free tier gives top-200 only. Subscription needed for full peer-group visibility.',
     mocked: true,
   },
   {
@@ -492,7 +494,9 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'JSON',
     cadenceCron: '0 4 1 * *',
     ownerContact: 'Institution library — licence + API credentials',
-    notes: 'QS WUR + subject rankings. Requires subscription agreement. HTML scrape is possible for the public tier but fragile.',
+    deprecated: true,
+    scheduleEnabled: false,
+    notes: 'DEPRECATED 2026-11-04 — never had a connector; QS and THE publish no data feed and SCImago refuses automated clients. Rankings now come from the University Rankings spreadsheet (xlsx-ranked-universities). Original scope: QS WUR + subject rankings. Requires subscription agreement. HTML scrape is possible for the public tier but fragile.',
     mocked: true,
   },
   {
@@ -502,7 +506,9 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'JSON',
     cadenceCron: '0 5 1 * *',
     ownerContact: 'Institution library',
-    notes: 'Research-based rankings. Free. Annual release; scraping annual XLSX is the practical pipeline.',
+    deprecated: true,
+    scheduleEnabled: false,
+    notes: 'DEPRECATED 2026-11-04 — never had a connector; QS and THE publish no data feed and SCImago refuses automated clients. Rankings now come from the University Rankings spreadsheet (xlsx-ranked-universities). Original scope: Research-based rankings. Free. Annual release; scraping annual XLSX is the practical pipeline.',
     mocked: true,
   },
   {
@@ -812,6 +818,17 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     ownerContact: 'Institution administrator',
     notes:
       'Projected population per region, year and age group, uploaded through /admin/data-setup. Stored as source xlsx:<Source Name>; takes precedence over the UN WPP and NESDC series.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-ranked-universities',
+    name: 'University Rankings (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'QS and THE ranks per university and ranking year, uploaded through /admin/data-setup (the template is pre-filled with a starter list). Feeds the AI peer selection and the benchmarking views.',
     mocked: false,
   },
   {

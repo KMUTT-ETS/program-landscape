@@ -314,7 +314,7 @@ export class DeepDiveController {
       { id: 'qs-rankings', name: 'QS World University Rankings 2025' },
       { id: 'the-rankings', name: 'Times Higher Education World Rankings 2025' },
     ],
-    methodologyVersion: 'program-peer-selection.v1',
+    methodologyVersion: 'program-peer-selection.v3',
   })
   async aiPeers(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
     await assertProgramAccessible(programId, user);

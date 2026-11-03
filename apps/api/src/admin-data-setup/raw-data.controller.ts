@@ -754,6 +754,55 @@ const DATASETS: Record<string, DatasetFetcher> = {
     };
   },
 
+  'ranked-universities': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.RankedUniversityWhereInput = q.q
+      ? {
+          OR: [
+            { name: { contains: q.q, mode: 'insensitive' } },
+            { country: { contains: q.q, mode: 'insensitive' } },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.rankedUniversity.findMany({
+        where,
+        orderBy: [{ rankingYear: 'desc' }, { region: 'asc' }, { qsWorldRank: 'asc' }, { name: 'asc' }],
+        skip,
+        take: q.pageSize,
+      }),
+      prisma.rankedUniversity.count({ where }),
+    ]);
+    return {
+      title: 'University rankings',
+      description:
+        'The universities the AI peer selection chooses from, one row per university per ranking year. Only the latest ranking year is used.',
+      columns: [
+        { key: 'name', label: 'University' },
+        { key: 'country', label: 'Country' },
+        { key: 'region', label: 'Region' },
+        { key: 'rankingYear', label: 'Year', numeric: true },
+        { key: 'qsWorldRank', label: 'QS world', numeric: true },
+        { key: 'theWorldRank', label: 'THE world', numeric: true },
+        { key: 'qsAsiaRank', label: 'QS Asia', numeric: true },
+        { key: 'theAsiaRank', label: 'THE Asia', numeric: true },
+      ],
+      items: rows.map((r) => ({
+        name: r.name,
+        country: r.country,
+        region: r.region,
+        rankingYear: r.rankingYear,
+        qsWorldRank: r.qsWorldRank,
+        theWorldRank: r.theWorldRank,
+        qsAsiaRank: r.qsAsiaRank,
+        theAsiaRank: r.theAsiaRank,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
   'digital-competency-cohorts': async (q) => {
     const skip = (q.page - 1) * q.pageSize;
     const where: Prisma.DqStudentCubeWhereInput = q.q
