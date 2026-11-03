@@ -1179,6 +1179,58 @@ const DATASETS: Record<string, DatasetFetcher> = {
     };
   },
 
+  'staff-salary-by-funding': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.StaffCompensationCubeWhereInput = {
+      isAcademic: true,
+      ...(q.q
+        ? {
+            OR: [
+              { facultyName: { contains: q.q } },
+              { salType: { contains: q.q, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
+    const [rows, total] = await prisma.$transaction([
+      prisma.staffCompensationCube.findMany({
+        where,
+        orderBy: [{ fiscalYear: 'desc' }, { facultyName: 'asc' }, { level: 'asc' }, { salType: 'asc' }],
+        skip,
+        take: q.pageSize,
+      }),
+      prisma.staffCompensationCube.count({ where }),
+    ]);
+    return {
+      title: 'Staff salary by funding',
+      description:
+        'Academic staff only. One row per faculty, rank and funding source per fiscal year (Buddhist era). Salaries are monthly. Groups under five people are refused on import.',
+      columns: [
+        { key: 'fiscalYear', label: 'FY (BE)', numeric: true },
+        { key: 'facultyName', label: 'Faculty' },
+        { key: 'level', label: 'Rank' },
+        { key: 'salType', label: 'Funding source' },
+        { key: 'headcount', label: 'Headcount', numeric: true },
+        { key: 'meanSalary', label: 'Mean monthly', numeric: true, format: 'currency-thb' },
+        { key: 'minSalary', label: 'Min', numeric: true, format: 'currency-thb' },
+        { key: 'maxSalary', label: 'Max', numeric: true, format: 'currency-thb' },
+      ],
+      items: rows.map((r) => ({
+        fiscalYear: r.fiscalYear,
+        facultyName: r.facultyName,
+        level: r.level,
+        salType: r.salType,
+        headcount: r.headcount,
+        meanSalary: r.meanSalary,
+        minSalary: r.minSalary,
+        maxSalary: r.maxSalary,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
   // ── Faculty compensation (aggregate, role-gated) ─────────────────────────
   'faculty-compensation': async (q) => {
     const skip = (q.page - 1) * q.pageSize;

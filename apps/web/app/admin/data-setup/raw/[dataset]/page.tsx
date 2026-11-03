@@ -55,6 +55,7 @@ const DATASET_TITLES: Record<string, string> = {
   'programme-courses': 'Programme course lists',
   'course-evaluations': 'Course evaluations',
   'faculty-compensation': 'Faculty compensation (aggregate)',
+  'staff-salary-by-funding': 'Staff salary by funding',
   'kmitl-careers': 'Labour-market career taxonomy (LinkedIn data, MHESI subscription)',
   'kmitl-skill-demands': 'Labour-market skill demand — LinkedIn data, subscribed by MHESI',
   'kmitl-skill-growths': 'Labour-market skill growth — LinkedIn data, subscribed by MHESI',

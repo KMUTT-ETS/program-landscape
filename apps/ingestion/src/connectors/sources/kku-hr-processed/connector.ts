@@ -53,6 +53,7 @@ interface RunState {
 }
 
 const SOURCE_TABLE = 'vw_history';
+const IMPORTED_SALARY_SOURCE = 'xlsx-staff-salary-by-funding';
 
 export class KkuHrProcessedRealConnector extends ApiConnector implements Connector {
   readonly slug = 'kku-hr-processed';
@@ -249,7 +250,18 @@ export class KkuHrProcessedRealConnector extends ApiConnector implements Connect
     });
     const nameToId = new Map(faculties.map((f) => [f.nameTh, f.id]));
 
-    const deleted = await prisma.staffCompensationCube.deleteMany({ where: { fiscalYear } });
+    // Spreadsheet-imported rows share this table; the snapshot replace only
+    // ever removes rows the import did not write.
+    const deleted = await prisma.staffCompensationCube.deleteMany({
+      where: {
+        fiscalYear,
+        // NOT over a null relation matches nothing, so unstamped rows need their own arm.
+        OR: [
+          { ingestionRunId: null },
+          { NOT: { ingestionRun: { dataSource: { slug: IMPORTED_SALARY_SOURCE } } } },
+        ],
+      },
+    });
     ctx.log.info(`deleted ${deleted.count} prior comp rows for fiscal year ${fiscalYear}`);
 
     let compInserted = 0;

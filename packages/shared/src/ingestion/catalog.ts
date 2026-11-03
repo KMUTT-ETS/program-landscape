@@ -695,6 +695,18 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     mocked: false,
   },
   {
+    slug: 'xlsx-staff-salary-by-funding',
+    name: 'Staff Salary by Funding (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Monthly salary of academic staff by faculty, rank and funding source, uploaded through /admin/data-setup. ' +
+      'A row covering fewer than five people is refused.',
+    mocked: false,
+  },
+  {
     slug: 'xlsx-faculty-budgets',
     name: 'Budgets (spreadsheet import)',
     kind: 'CSV',

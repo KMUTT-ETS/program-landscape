@@ -22,6 +22,7 @@ import { programmeCoursesDataset } from './datasets/programme-courses';
 import { programmesDataset } from './datasets/programmes';
 import { researchDataset } from './datasets/research';
 import { staffDataset } from './datasets/staff';
+import { staffSalaryByFundingDataset } from './datasets/staff-salary-by-funding';
 import type { ImportDataset } from './types';
 
 // The one place a dataset becomes importable. Adding a dataset is adding a
@@ -47,6 +48,7 @@ export const IMPORT_DATASETS: readonly ImportDataset[] = [
   alumniCohortsDataset,
   staffDataset,
   compensationDataset,
+  staffSalaryByFundingDataset,
   budgetsDataset,
   researchDataset,
   campaignsDataset,

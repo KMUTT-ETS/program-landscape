@@ -2789,7 +2789,7 @@ const SALARY_BY_FUND_VERSION = 'salary-by-fund.v1';
 // in `staff_compensation_cube.level`. The cube stores Thai abbreviated
 // forms ('ผศ', 'รศ', 'ศ', 'อ.') — we match by `startsWith` so variants
 // like 'ผศ.ดร.' / 'ศ.เกียรติคุณ' still resolve to the same rank bucket.
-const RANK_TO_LEVEL_PREFIXES: Record<
+export const RANK_TO_LEVEL_PREFIXES: Record<
   'PROF' | 'ASSOC_PROF' | 'ASST_PROF' | 'LECTURER',
   string[]
 > = {
@@ -2799,7 +2799,7 @@ const RANK_TO_LEVEL_PREFIXES: Record<
   LECTURER: ['อ.', 'อ ', 'อาจารย์'],
 };
 
-function levelMatchesRank(
+export function levelMatchesRank(
   level: string | null,
   rank: 'PROF' | 'ASSOC_PROF' | 'ASST_PROF' | 'LECTURER',
 ): boolean {

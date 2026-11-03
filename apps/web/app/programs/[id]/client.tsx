@@ -2532,7 +2532,7 @@ function FinancialsSection({ data }: { data: DeepDiveFinancials | null }) {
           <div className="text-xs text-text-tertiary">
             {data.salaryByFunding
               ? `THB/yr · weighted by enrolment share · ${data.salaryByFunding.contributingMembers} member${data.salaryByFunding.contributingMembers === 1 ? '' : 's'}`
-              : 'THB/yr · faculty payroll — NOT netted from tuition'}
+              : 'THB/yr · faculty payroll — NOT netted from tuition. Appears once the Staff Salary by Funding spreadsheet is uploaded, or the HR connector has run.'}
           </div>
         </Card>
         <Card>

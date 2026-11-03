@@ -27,6 +27,7 @@ This page is for the person doing the uploading.
 | **Admission Campaigns** | The recruitment funnel, per campaign | — |
 | **Staff** | Your teaching-staff roster | Publications, Programme Teaching Staff |
 | **Compensation** | Aggregate salary by faculty, department and rank | — |
+| **Staff Salary by Funding** | Monthly salary by faculty, rank and funding source | Faculties |
 | **Budgets** | Budget by division and fund category | — |
 | **Publications** | Research outputs, one row per paper per author | — |
 | **Class Offerings** | Every class section taught in one term | — |
@@ -283,6 +284,28 @@ section. One row per programme per survey year per employer. Columns:
 - **Replaces per programme.** A programme that appears in the file has its
   earlier rows from this sheet replaced; programmes the file does not mention
   are untouched.
+
+## Staff salary by funding
+
+One sheet feeds the Deep-Dive's **Teaching-staff salary cost** card, which splits
+a programme's salary cost by who pays it. One row per faculty, rank, funding
+source and fiscal year. Columns: **Faculty Code**, **Rank** (LECTURER,
+ASST_PROF, ASSOC_PROF or PROF, as on the Compensation sheet), **Funding Source**
+(free text such as "Government budget" or "University revenue"), **Fiscal
+Year**, **Headcount**, and **Mean**, **Min** and **Max Monthly Salary (THB)**.
+
+- **Salaries are monthly**, unlike the Compensation sheet. Any figure above
+  500,000 is refused as probably annual.
+- **Min must not exceed Mean, and Mean must not exceed Max.**
+- **Headcount must be at least five.** The refusal names the row and never
+  quotes the salaries.
+- **Fiscal Year is the Common Era year**; it is stored in the Buddhist era
+  (2024 becomes 2567), which is how the admin data view will show it.
+- **Funding Source is shown as written**, so keep one spelling per source.
+- The card needs your staff, their programme assignments and enrolment as well;
+  it uses the latest year in this sheet and each staff member's rank.
+- **Merges**: a row for the same year, faculty, rank and source is updated.
+  If the HR connector is also running, it never removes rows from this sheet.
 
 ## Years, money and rates
 
