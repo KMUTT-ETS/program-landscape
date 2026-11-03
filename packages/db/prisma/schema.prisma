@@ -3060,12 +3060,17 @@ model DemographicProjection {
   population    Int
   source        String
   freshnessDate DateTime @map("freshness_date") @db.Date
+  /// Set by the UN WPP pull and the spreadsheet import; null on seeded rows.
+  ingestionRunId String? @map("ingestion_run_id")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
+
+  ingestionRun IngestionRun? @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
 
   @@unique([region, year, ageCohort, source])
   @@index([region])
   @@index([year])
+  @@index([ingestionRunId])
   @@map("demographic_projections")
 }
 
@@ -3540,6 +3545,7 @@ model IngestionRun {
   financialMetrics              FinancialMetric[]
   graduateOutcomes              GraduateOutcome[]
   employerFeedbacks             EmployerFeedback[]
+  demographicProjections        DemographicProjection[]
   researchOutputs               ResearchOutput[]
   facultyCompensations          FacultyCompensation[]
   researchServiceProjects       ResearchServiceProject[]

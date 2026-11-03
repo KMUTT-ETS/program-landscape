@@ -198,8 +198,10 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     acceptsPdfUploads: true,
     cadenceCron: '0 9 15 2 *', // annual on Feb 15
     ownerContact: 'Strategic planning office (public statutory data)',
+    deprecated: true,
+    scheduleEnabled: false,
     notes:
-      'Annual population by age × region × sex from DOPA civil registration; long-term cohort projections from NESDC. BOI republishes summary tables at boi.go.th — used as the user-facing reference but the connector reads from DOPA/NESDC raw files because BOI is bot-firewalled (Incapsula). Drives the demographic ceiling on each program (the 18-22 cohort projection in the program\'s catchment region) and feeds the Gap Analyzer\'s supply-side forecasting.',
+      'DEPRECATED 2026-11-04 — never had a connector. Use un-wpp (UN World Population Prospects, national cohorts) or the Population Projections spreadsheet (xlsx-population-projections, any region and edition). Original scope: annual population by age × region × sex from DOPA civil registration; long-term cohort projections from NESDC. BOI republishes summary tables at boi.go.th — used as the user-facing reference but the connector reads from DOPA/NESDC raw files because BOI is bot-firewalled (Incapsula). Drives the demographic ceiling on each program (the 18-22 cohort projection in the program\'s catchment region) and feeds the Gap Analyzer\'s supply-side forecasting.',
     mocked: true,
   },
   {
@@ -787,6 +789,29 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     ownerContact: 'Institution administrator',
     notes:
       'Course-level overall student evaluation (mean of a 1-5 scale plus respondent count), uploaded through /admin/data-setup. Feeds the student-satisfaction driver; joins programme course lists on the normalised course code.',
+    mocked: false,
+  },
+  {
+    slug: 'un-wpp',
+    name: 'UN World Population Prospects 2024',
+    kind: 'API',
+    inputFormat: 'CSV',
+    scheduleEnabled: false,
+    cadenceCron: '0 5 1 * *', // monthly, once a schedule is enabled
+    ownerContact: 'Institution administrator',
+    notes:
+      'National population projection (medium variant) for the 15-17, 18-22 and 23-29 age groups, from the UN WPP 2024 bulk CSV (no credential). Country via UN_WPP_COUNTRY_ISO3 (default THA). Writes region TH, source UN-WPP2024; the projection source picker prefers a spreadsheet upload over it and it over the NESDC starter series. National only: regional drivers need the Population Projections spreadsheet.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-population-projections',
+    name: 'Population Projections (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Projected population per region, year and age group, uploaded through /admin/data-setup. Stored as source xlsx:<Source Name>; takes precedence over the UN WPP and NESDC series.',
     mocked: false,
   },
   {

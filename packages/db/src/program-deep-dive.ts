@@ -7,6 +7,7 @@ import {
 } from '@kku/shared';
 import { prisma } from './index';
 import { NATIONAL_REGION, projectionRegionForInstitution } from './projection-region';
+import { pickProjectionSource } from './projection-source';
 import {
   computeHealthScores,
   computeProgramDimensionAverages,
@@ -2500,6 +2501,8 @@ export interface ProgramDemographicOutlook {
    *  resolves to the national series - there is then no separate comparator
    *  and `cohortPopulationRegional` is null on every row. */
   comparatorRegion: string | null;
+  /** Source of the regional comparator; may differ from `source` (UN carries national figures only). */
+  comparatorSource: string | null;
   source: string;
   /** The cohort the projection is anchored to — '18-22' for bachelor
    *  programmes, '23-29' for graduate programmes. */
@@ -2665,19 +2668,40 @@ export async function programDemographicOutlook(
     academicYearContextSync(now).latestCompleteEntryYearBE,
   );
 
-  // Demographic projection rows. Pin to the canonical NESDC-mid-
-  // variant source (`NESDC-PopProj-2010-2040`) — the older synthetic
-  // `NESDC-v1` rows from the original seed remain for gap-analysis
-  // back-compat but must not double-up here.
-  const CANONICAL_SOURCE = 'NESDC-PopProj-2010-2040';
-  const allRows = await prisma.demographicProjection.findMany({
-    where: { ageCohort, source: CANONICAL_SOURCE },
+  // Demographic projection rows. The national block comes from the best
+  // source with a national row (spreadsheet > UN WPP > NESDC); the regional
+  // comparator may come from a different source because UN carries national
+  // figures only. Other editions (the older synthetic `NESDC-v1`) are never
+  // mixed in.
+  const nationalSource = await pickProjectionSource({ cohort: ageCohort });
+  if (!nationalSource) return null;
+  const nationalRows = await prisma.demographicProjection.findMany({
+    where: { ageCohort, source: nationalSource },
     orderBy: { year: 'asc' },
   });
-  if (allRows.length === 0) return null;
+  if (nationalRows.length === 0) return null;
 
-  const resolvedRegion = projectionRegionForInstitution([...new Set(allRows.map((r) => r.region))]);
-  const comparatorRegion = resolvedRegion === NATIONAL_REGION ? null : resolvedRegion;
+  const regionRows = await prisma.demographicProjection.findMany({
+    where: { ageCohort },
+    distinct: ['region'],
+    select: { region: true },
+  });
+  const resolvedRegion = projectionRegionForInstitution(regionRows.map((r) => r.region));
+  let comparatorRegion = resolvedRegion === NATIONAL_REGION ? null : resolvedRegion;
+  let comparatorSource: string | null = null;
+  let comparatorRows: typeof nationalRows = [];
+  if (comparatorRegion) {
+    comparatorSource = await pickProjectionSource({ cohort: ageCohort, needRegion: comparatorRegion });
+    if (comparatorSource) {
+      comparatorRows = await prisma.demographicProjection.findMany({
+        where: { ageCohort, source: comparatorSource, region: comparatorRegion },
+        orderBy: { year: 'asc' },
+      });
+    } else {
+      comparatorRegion = null;
+    }
+  }
+  const allRows = nationalRows;
 
   const nowCE = now.getUTCFullYear();
   const horizons = [0, 5, 10, 15];
@@ -2689,7 +2713,7 @@ export async function programDemographicOutlook(
       (r) => r.region === NATIONAL_REGION && r.year === targetYear,
     );
     const regionalRow = comparatorRegion
-      ? allRows.find((r) => r.region === comparatorRegion && r.year === targetYear)
+      ? comparatorRows.find((r) => r.year === targetYear)
       : undefined;
     if (!nationalRow) continue;
     if (anchorNational === null) anchorNational = nationalRow.population;
@@ -2757,7 +2781,8 @@ export async function programDemographicOutlook(
   return {
     catchmentRegion: NATIONAL_REGION,
     comparatorRegion,
-    source: allRows[0]!.source,
+    comparatorSource,
+    source: nationalSource,
     ageCohort,
     baselineYearOneIntake,
     funnelBaseline,

@@ -18,6 +18,7 @@ This page is for the person doing the uploading.
 | **Finance** | Tuition and other revenue, per programme per year | Programmes |
 | **Graduate Outcomes** | Employment survey results per graduating cohort | Programmes |
 | **Employer Feedback** | Employer satisfaction per programme and survey year; shown in the Deep-Dive's Outcomes section | Programmes |
+| **Population Projections** | Projected population per region, year and age group; overrides the built-in UN series | — |
 | **Student Cohorts** | How many of each entry cohort are still enrolled | Programmes |
 | **Digital Competency — Cohorts** | Students tested, scored and passing, per programme and entry year | Programmes |
 | **Digital Competency — Modules** | Mean score on each of the 13 modules, per programme and entry year | Programmes |
@@ -302,6 +303,37 @@ section. One row per programme per survey year per employer. Columns:
   is no graduate-outcome survey for the programme yet.
 - A blank Employer and a typed "All employers" are the same row, so a file
   stating both for one programme and year is refused as a duplicate.
+
+## Population projections
+
+One sheet gives the cohort sizes behind the demographic-ceiling views, the
+scenario planner and the demographic health driver. Without it the system
+uses the UN World Population Prospects pull (`un-wpp`, national figures for
+the connector's country) and, on a KKU installation, the NESDC starter
+series. Upload this sheet to use your national statistics office's edition or
+to supply **regional** figures. Columns: **Region**, **Year**, **Age Group**,
+**Population** and **Source Name**, all required.
+
+- **Region.** Write `TH` for the national total. A regional row only drives
+  the demographic health score when its text matches the region in your
+  organisation profile exactly (for example "Northeast"); the national figure
+  is never substituted, so an unmatched region leaves that driver empty
+  rather than scoring it on the wrong population.
+- **Year** is the Common Era calendar year, 2000 to 2100; a Buddhist-era year
+  is refused.
+- **Age Group** is `15-17`, `18-22` or `23-29`; anything else is refused, so
+  add single ages together first.
+- **Population** is persons, not thousands, and above zero.
+- **Source Name** is free text such as "NESDC 2023 edition". It is stored as
+  `xlsx:<name>` and shown wherever the projection is cited. Keep it identical
+  between uploads: the file merges on region, year, age group and source
+  name, so a refreshed file updates the edition and a new name adds a second
+  one.
+- **Which edition wins.** Every reader prefers an uploaded sheet, then the UN
+  series, then NESDC, and only counts a source that has a national row for
+  the current year (and the region, where the reader needs one). Include the
+  current year, or the sheet is passed over.
+- **Start over** removes only the rows this sheet wrote.
 
 ## Staff salary by funding
 

@@ -12,6 +12,7 @@ import { JOBTHAI_MIN_LINK_SCORE, JOBTHAI_MIN_POSTINGS_FOR_SIGNAL, JOBTHAI_MIN_RE
 import { programJobThaiSkillCoverage } from './jobthai';
 import { DEMAND_SOURCE_LINKEDIN, demandMatchSourceWhere } from './demand-match-sources';
 import { NATIONAL_REGION, projectionRegionForInstitution } from './projection-region';
+import { pickProjectionSource } from './projection-source';
 import { getAcademicYearContext } from './academic-year';
 import { GRANT_AWARD_LABEL, grantAward, withAward } from './grant-award';
 import { pickFinancialYear } from './financial-year';
@@ -2315,8 +2316,6 @@ async function _computeKmitlProgramAlignmentImpl(): Promise<Map<string, number>>
   return out;
 }
 
-const DEMOGRAPHIC_PROJECTION_SOURCE = 'NESDC-PopProj-2010-2040';
-
 export interface RequiredShareResult {
   share: number | null;
   /** The projection region used; null when none resolved. */
@@ -2334,8 +2333,10 @@ export async function computeRequiredShareAt10Y(
 ): Promise<RequiredShareResult> {
   const cohort = level === 'BACHELOR' ? '18-22' : '23-29';
   const targetYear = new Date().getUTCFullYear() + 10;
+  // Regions any edition carries for this cohort; the best source for the
+  // resolved region is picked below.
   const regionRows = await prisma.demographicProjection.findMany({
-    where: { source: DEMOGRAPHIC_PROJECTION_SOURCE },
+    where: { ageCohort: cohort },
     distinct: ['region'],
     select: { region: true },
   });
@@ -2350,12 +2351,14 @@ export async function computeRequiredShareAt10Y(
         ')',
     };
   }
+  const source = await pickProjectionSource({ cohort, needRegion: region });
+  if (!source) return { share: null, region, reason: 'no-projection' };
   const projection = await prisma.demographicProjection.findFirst({
     where: {
       region,
       ageCohort: cohort,
       year: targetYear,
-      source: DEMOGRAPHIC_PROJECTION_SOURCE,
+      source,
     },
     select: { population: true },
   });

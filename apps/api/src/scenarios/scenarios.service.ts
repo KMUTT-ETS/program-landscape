@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { prisma, realDataWhere, type Prisma } from '@kku/db';
+import { pickProjectionSource, prisma, realDataWhere, type Prisma } from '@kku/db';
 import {
   buildBaselineSnapshot,
   DEFAULT_ASSUMPTIONS,
@@ -459,8 +459,9 @@ export class ScenariosService {
 
     // Demographic multipliers for the next 20 years (baseline × scenario defaults).
     const currentYear = new Date().getFullYear();
-    const demos = await prisma.demographicProjection.findMany({
-      where: { region: 'TH', ageCohort: '18-22', year: { gte: currentYear, lte: currentYear + 20 } },
+    const projectionSource = await pickProjectionSource({ cohort: '18-22', client: prisma });
+    const demos = !projectionSource ? [] : await prisma.demographicProjection.findMany({
+      where: { region: 'TH', ageCohort: '18-22', source: projectionSource, year: { gte: currentYear, lte: currentYear + 20 } },
       orderBy: { year: 'asc' },
     });
     const baseYear = currentYear;

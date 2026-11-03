@@ -52,7 +52,7 @@ import {
   type Intervention,
   type ToolCall,
 } from '@kku/shared';
-import { listPortfolioRisk, scopeFunnelLatestYear, getAcademicYearContext, entryYearComplete, campaignPlanKey } from '@kku/db';
+import { pickProjectionSource, listPortfolioRisk, scopeFunnelLatestYear, getAcademicYearContext, entryYearComplete, campaignPlanKey } from '@kku/db';
 
 // ═════════════════════════════════════════════════════════════════════
 // Analyst tool executor
@@ -363,8 +363,9 @@ export class AnalystToolExecutor {
       });
 
       const now = new Date().getFullYear();
-      const demos = await prisma.demographicProjection.findMany({
-        where: { region: 'TH', ageCohort: '18-22', year: { gte: now, lte: now + 20 } },
+      const projectionSource = await pickProjectionSource({ cohort: '18-22', client: prisma });
+      const demos = !projectionSource ? [] : await prisma.demographicProjection.findMany({
+        where: { region: 'TH', ageCohort: '18-22', source: projectionSource, year: { gte: now, lte: now + 20 } },
         orderBy: { year: 'asc' },
       });
       const basePop = demos.find((d) => d.year === now)?.population ?? 4_500_000;

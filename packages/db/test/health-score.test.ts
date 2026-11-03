@@ -152,7 +152,7 @@ beforeEach(() => {
   mocks.tcasFindFirst.mockResolvedValue(null);
   mocks.tcasFindMany.mockResolvedValue([]);
   mocks.demographicFindFirst.mockResolvedValue(null);
-  mocks.demographicFindMany.mockResolvedValue([{ region: 'TH' }, { region: 'Northeast' }]);
+  mocks.demographicFindMany.mockImplementation(projectionRows(['TH', 'Northeast']));
   mocks.kmitlCareerFindMany.mockResolvedValue([]);
   mocks.systemSettingFindUnique.mockResolvedValue(null);
   mocks.graduateOutcomeFindFirst.mockResolvedValue(null);
@@ -534,6 +534,11 @@ describe('financial — external-grant award', () => {
   });
 });
 
+// One mock serves two queries: the region listing ({ region }) and the source
+// picker ({ source, region }). Every region belongs to one national source.
+const projectionRows = (regions: string[]) => async (args: { select?: { source?: boolean } }) =>
+  regions.map((region) => (args.select?.source ? { source: 'NESDC-PopProj-2010-2040', region } : { region }));
+
 describe('demographic region wiring (v5.5)', () => {
   const REGIONS = [{ region: 'TH' }, { region: 'Northeast' }, { region: 'Central' }];
   const withRegion = (regionEn: string | null) =>
@@ -541,7 +546,7 @@ describe('demographic region wiring (v5.5)', () => {
   afterEach(() => setOrganizationForTest(KKU_REFERENCE_ORGANIZATION));
 
   beforeEach(() => {
-    mocks.demographicFindMany.mockResolvedValue(REGIONS);
+    mocks.demographicFindMany.mockImplementation(projectionRows(REGIONS.map((r) => r.region)));
     mocks.demographicFindFirst.mockResolvedValue({ population: 1_000_000 });
     mocks.enrollmentMetricFindMany.mockResolvedValue([{ enrolled: 200 }]);
   });

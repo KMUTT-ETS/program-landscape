@@ -711,6 +711,49 @@ const DATASETS: Record<string, DatasetFetcher> = {
     };
   },
 
+  'population-projections': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.DemographicProjectionWhereInput = q.q
+      ? {
+          OR: [
+            { region: { contains: q.q, mode: 'insensitive' } },
+            { source: { contains: q.q, mode: 'insensitive' } },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.demographicProjection.findMany({
+        where,
+        orderBy: [{ source: 'asc' }, { region: 'asc' }, { year: 'asc' }, { ageCohort: 'asc' }],
+        skip,
+        take: q.pageSize,
+      }),
+      prisma.demographicProjection.count({ where }),
+    ]);
+    return {
+      title: 'Population projections',
+      description:
+        'Projected population per region, year and age group. Every edition is listed; readers use spreadsheet uploads (xlsx:…) first, then the UN WPP pull, then the NESDC starter series.',
+      columns: [
+        { key: 'source', label: 'Source' },
+        { key: 'region', label: 'Region' },
+        { key: 'year', label: 'Year', numeric: true },
+        { key: 'ageCohort', label: 'Age group' },
+        { key: 'population', label: 'Population', numeric: true },
+      ],
+      items: rows.map((r) => ({
+        source: r.source,
+        region: r.region,
+        year: r.year,
+        ageCohort: r.ageCohort,
+        population: r.population,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
   'digital-competency-cohorts': async (q) => {
     const skip = (q.page - 1) * q.pageSize;
     const where: Prisma.DqStudentCubeWhereInput = q.q

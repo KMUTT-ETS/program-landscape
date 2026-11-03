@@ -53,7 +53,8 @@ All 40 catalog sources are now listed. Rows marked *(no spec yet)* have a connec
 | **A** Internal | `kku-tcas-funnel` | KKU TCAS Admission Funnel | `deprecated` | — *(no spec yet)* | Superseded by `tcas` |
 | **B** National | `job-108` | Job-108 — Thai government job announcements | **`real`** | [job-108.md](./job-108.md) | Public web, honest UA, no proxy |
 | **B** National | `kmitl-skill-mapping` | LinkedIn Labour-Market Insights (MHESI subscription, KMITL-hosted) | **`real`** | [kmitl-skill-mapping.md](./kmitl-skill-mapping.md) | Institutional-partner API |
-| **B** National | `thailand-demographics` | Thailand Demographics (DOPA · NESDC · BOI repost) | `mocked` | — *(no spec yet)* | — |
+| **B** National | `thailand-demographics` | Thailand Demographics (DOPA · NESDC · BOI repost) | `deprecated` | [un-wpp.md](./un-wpp.md) | Never had a connector; use `un-wpp` or the Population Projections spreadsheet |
+| **C** International | `un-wpp` | UN World Population Prospects 2024 | **`real`** | [un-wpp.md](./un-wpp.md) | Public bulk CSV, national cohorts |
 | **C** International | `the-rankings` | Times Higher Education (THE) Subject Rankings | `mocked` | — *(no spec yet)* | Subscription |
 | **C** International | `qs-rankings` | QS Subject Rankings | `mocked` | — *(no spec yet)* | Subscription |
 | **C** International | `scimago` | SCImago Journal & Institution Rankings | `mocked` | — *(no spec yet)* | Public |

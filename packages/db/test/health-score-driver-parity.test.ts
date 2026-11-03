@@ -60,7 +60,7 @@ vi.mock('../src/index', () => {
       researchOutput: { count: mocks.researchOutputCount },
       programDemandMatch: { findMany: mocks.programDemandMatchFindMany },
       tcasAdmissionStat: { findFirst: mocks.tcasFindFirst, findMany: mocks.tcasFindMany },
-      demographicProjection: { findFirst: mocks.demographicFindFirst, findMany: async () => [{ region: 'TH' }, { region: 'Northeast' }] },
+      demographicProjection: { findFirst: mocks.demographicFindFirst, findMany: async (args: { select?: { source?: boolean } }) => ['TH', 'Northeast'].map((region) => (args.select?.source ? { source: 'NESDC-PopProj-2010-2040', region } : { region })) },
       kmitlCareer: { findMany: mocks.kmitlCareerFindMany },
       graduateOutcome: { findFirst: mocks.graduateOutcomeFindFirst },
       programPedagogyAssessment: { findUnique: mocks.programPedagogyAssessmentFindUnique },
