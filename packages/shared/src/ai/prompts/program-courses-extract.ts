@@ -252,9 +252,10 @@ export function extractCourseListSection(text: string): {
 
 /**
  * Deterministic pre-scan for course-code candidates in PDF text.
- * Matches KKU's two prefixed forms in one sweep:
- *   - With whitespace ("LW 011 116", "GE 179 114")
- *   - Without whitespace ("LW011116", "GE179114")
+ * Matches the shared course-code pattern (curriculum/course-code-pattern.ts):
+ *   - KKU 6-digit, with whitespace ("LW 011 116") or without ("LW011116")
+ *   - KMUTT-style 3-digit ("MEE 221", "MEE221"), not followed by more digits
+ * Results are whitespace-stripped and upper-cased.
  * The 2-4 letter prefix range covers every faculty we've seen (GE / LI /
  * EN / SC / MD / AG / BA / ED / HU / PH / SH / DE / TM / TS / LW / NU /
  * CE / ME / EE …). Numeric-only codes (no prefix) are not matched — rare
@@ -313,7 +314,7 @@ export function extractFallbackCourseFromContext(
   const prefix = /^[A-Z]+/.exec(code)![0]!;
   const digits = code.slice(prefix.length);
   const digitPat =
-    digits.length === 6 ? `${digits.slice(0, 3)}\\s?${digits.slice(3)}` : digits;
+    digits.length === 6 ? `${digits.slice(0, 3)}\\s?${digits.slice(3)}` : `${digits}(?!\\s?\\d)`;
   const codePat = `${prefix}\\s?${digitPat}`;
   const re = new RegExp(`\\b${codePat}(?!\\d)\\b`, 'g');
 

@@ -15,6 +15,17 @@ describe('course code pattern', () => {
       expect(isCourseCode(c)).toBe(false);
     },
   );
+  it('allows a line break at the boundaries like the old \\s? regexes', () => {
+    expect(isCourseCode('EN 241\n100')).toBe(true);
+    expect(isCourseCode('EN\n241 100')).toBe(true);
+  });
+  it('refuses extra digits after a 3-digit code, even across one space', () => {
+    expect(isCourseCode('EN 241 1000')).toBe(false);
+    expect(courseCodeRegex('g').exec('EN 241 1000')).toBeNull();
+  });
+  it('does not match double space (as before)', () => {
+    expect(courseCodeRegex().exec('EN  241 100')).toBeNull();
+  });
   it('returns fresh global regexes', () => {
     const a = courseCodeRegex('g');
     a.exec('MEE 221');

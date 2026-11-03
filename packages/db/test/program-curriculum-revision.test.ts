@@ -265,6 +265,15 @@ describe('validateCurriculumRevisionPayload', () => {
     expect(drops.proseCourseCodesUnverified).toBe(1);
   });
 
+  it('counts both a loose 5-digit code and a 3-digit code in prose', () => {
+    const { drops } = validateCurriculumRevisionPayload(
+      payload({ enhanceCourses: [enhance({
+        addition: 'Add HNSW indexing; EN 24110 and MEE 221 already cover the basics',
+      })] }), ctx,
+    );
+    expect(drops.proseCourseCodesUnverified).toBe(2);
+  });
+
   it('reports zero drops for an empty payload', () => {
     const { drops } = validateCurriculumRevisionPayload(payload(), ctx);
     expect(drops).toEqual({

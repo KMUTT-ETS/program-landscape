@@ -91,4 +91,18 @@ describe('extractCourseListSection — 3-digit (KMUTT-shape) codes', () => {
     expect(r.text).toMatch(/^\S* รายวิชา หมวดวิชาศึกษาทั่วไป/);
     expect(r.text).toContain('MEE 221');
   });
+
+  it('negative control: same document without body rows is not found', () => {
+    const text = `${pad(200)} 3.1.3 รายวิชา 22 ${pad(600)} 3.1.3 รายวิชา ${pad(600)} ภาคผนวก`;
+    expect(extractCourseListSection(text).found).toBe(false);
+  });
+
+  it('rejects a TOC line near a code that has no หมวดวิชา in its window', () => {
+    // Code within 400 chars but no หมวดวิชา: first half of the check fails.
+    const near = `${pad(100)} 3.1.3 รายวิชา 22 ${pad(50)} ${ROWS} ${pad(600)} ภาคผนวก`;
+    expect(extractCourseListSection(near).found).toBe(false);
+    // หมวดวิชา within 400 chars but no code: second half fails.
+    const noCode = `${pad(100)} 3.1.3 รายวิชา 22 หมวดวิชาศึกษาทั่วไป ${pad(600)} ภาคผนวก`;
+    expect(extractCourseListSection(noCode).found).toBe(false);
+  });
 });
