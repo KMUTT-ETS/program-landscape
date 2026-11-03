@@ -1,5 +1,7 @@
 # Importing your institution's data from spreadsheets
 
+> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [`data-import.th.md`](./data-import.th.md)
+
 Program Landscape normally reads an institution's data through connectors —
 code that talks directly to a registrar, HR or finance database. If you do not
 have that access, or your data already lives in spreadsheets, you can upload it

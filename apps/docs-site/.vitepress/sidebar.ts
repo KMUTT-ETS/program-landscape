@@ -38,6 +38,10 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
         { text: 'Getting started', link: '/tutorials/getting-started' },
         { text: 'Get Program Deep-Dive working', link: '/tutorials/program-deep-dive' },
         { text: 'Workshop guide', link: '/tutorials/workshop' },
+        { text: 'Tutorials overview (Thai)', link: '/tutorials/README.th' },
+        { text: 'Getting started (Thai)', link: '/tutorials/getting-started.th' },
+        { text: 'Get Program Deep-Dive working (Thai)', link: '/tutorials/program-deep-dive.th' },
+        { text: 'Workshop guide (Thai)', link: '/tutorials/workshop.th' },
         { text: 'Fresh checkout setup (moved)', link: '/guides/fresh-checkout-setup' },
         { text: 'Adapt the registrar connector (advanced)', link: '/tutorials/adapt-the-registrar-connector' },
       ],
@@ -47,6 +51,7 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
       items: [
         { text: 'Ingestion framework', link: '/data-sources' },
         { text: 'Importing from spreadsheets', link: '/data-import' },
+        { text: 'Importing from spreadsheets (Thai)', link: '/data-import.th' },
         { text: 'Source catalogue', link: '/data-sources/README' },
         { text: 'Per-source specs', collapsed: true, items: dataSourceItems(docsDir) },
         { text: 'JobThai acknowledgement', link: '/acknowledgements/jobthai' },

@@ -1,5 +1,7 @@
 # Workshop guide for facilitators
 
+> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [`workshop.th.md`](./workshop.th.md)
+
 A half-day workshop in which each attendee brings their own university's files
 and finishes with one programme's Deep-Dive showing real content.
 

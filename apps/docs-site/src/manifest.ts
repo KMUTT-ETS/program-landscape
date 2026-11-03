@@ -23,7 +23,14 @@ export const EXCLUDED: readonly string[] = [
  * English pages that must have a Thai twin (`<name>.th.md` next to them). check-site verifies
  * each twin exists, mirrors the English structure and links both ways.
  */
-export const BILINGUAL_PAGES: readonly string[] = ['adopters/README.md'];
+export const BILINGUAL_PAGES: readonly string[] = [
+  'adopters/README.md',
+  'tutorials/README.md',
+  'tutorials/getting-started.md',
+  'tutorials/program-deep-dive.md',
+  'tutorials/workshop.md',
+  'data-import.md',
+];
 
 /** 'adopters/README.md' -> 'adopters/README.th.md'. */
 export function twinOf(docsRel: string): string {

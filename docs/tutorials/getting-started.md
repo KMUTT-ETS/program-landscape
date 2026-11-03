@@ -1,5 +1,7 @@
 # Getting started: from a fresh clone to a running app
 
+> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [`getting-started.th.md`](./getting-started.th.md)
+
 **Outcome.** You have Program Landscape running on your laptop, you have claimed
 the first administrator account, and you are signed in.
 
