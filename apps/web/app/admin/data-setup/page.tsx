@@ -2,7 +2,6 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { brandingForRequest } from '@/lib/branding';
 import { apiFetchSafe } from '@/lib/api-client';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';

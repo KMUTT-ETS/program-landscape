@@ -3,7 +3,7 @@ import type { AiMessage } from '../types';
 import { getInstitution } from '../../institution';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// program-strategic-narrative.v2
+// program-strategic-narrative.v3
 //
 // Produces an OFFICIAL-FORMAT markdown brief intended for KKU Council
 // decision review. Pre-computed during the per-program pipeline (NOT
@@ -17,6 +17,12 @@ import { getInstitution } from '../../institution';
 // confidence rubric + AI-tell ban + grounding rules. v1 never saw an
 // employment rate; this was the audit's #1 finding
 // (docs/superpowers/notes/2026-08-16-prompt-audit.md).
+//
+// v3 (2026-11-03): the demographic region label sent to the model is the
+// organisation's own region ("<region> Thailand", or "Thailand" when none is
+// set) instead of a KKU-only "Northeast" branch. Prompt text unchanged; the
+// input it receives changes, so this is a behaviour change (see
+// docs/prompt-standard.md, Versioning).
 //
 // Hard rules (kept verbatim from v1):
 //   - No greetings ("Dear Council", "To whom it may concern")
@@ -43,7 +49,7 @@ import { getInstitution } from '../../institution';
 // official-document drafting, not extraction.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PROGRAM_STRATEGIC_NARRATIVE_VERSION = 'program-strategic-narrative.v2';
+export const PROGRAM_STRATEGIC_NARRATIVE_VERSION = 'program-strategic-narrative.v3';
 
 export const ProgramStrategicNarrativeSchema = z.object({
   /** Markdown content — must follow the structural template in the

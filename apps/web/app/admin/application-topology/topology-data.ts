@@ -813,7 +813,7 @@ const connectorNodes: TopologyNode[] = [
     lane: 'ai',
     kind: 'ai-task',
     label: 'Program narrative',
-    subtitle: 'Phase 7 · program-strategic-narrative.v2',
+    subtitle: 'Phase 7 · program-strategic-narrative.v3',
     details: {
       description:
         "Thai-primary strategic narrative — the one the Council reads on the Deep-Dive's hero section. Synthesises every prior phase's output into a 600-word brief with confidence + caveats.",

@@ -590,7 +590,7 @@ Every score row carries a `methodologyVersion`. Bumping rules:
 | Methodology doc rephrasing without code change | **no bump** | n/a |
 
 Per-prompt versions:
-- `program-digest.v1` · `program-peer-review.v2` · `program-peer-selection.v1` · `program-ai-readiness.v2` · `risk-assessment.v2` · `program-strategic-narrative.v1` · `expertise-narrative.v2` · `analyst-system.v1` · `analyst-safety.v1` · `outcome-review.v1` · `program-overlap-recommendation.v1`
+- `program-digest.v1` · `program-peer-review.v2` · `program-peer-selection.v1` · `program-ai-readiness.v2` · `risk-assessment.v2` · `program-strategic-narrative.v3` · `expertise-narrative.v2` · `analyst-system.v1` · `analyst-safety.v1` · `outcome-review.v1` · `program-overlap-recommendation.v1`
 
 Per-scorer versions:
 - `health-score.v3.4` (current; v1/v2/v2.1 retained for audit)

@@ -14,7 +14,7 @@ describe('program-strategic-narrative v2 builder', () => {
   const user = messages.find((m) => m.role === 'user')?.content ?? '';
 
   it('is version 2', () => {
-    expect(PROGRAM_STRATEGIC_NARRATIVE_VERSION).toBe('program-strategic-narrative.v2');
+    expect(PROGRAM_STRATEGIC_NARRATIVE_VERSION).toBe('program-strategic-narrative.v3');
   });
 
   it('demands English output explicitly', () => {

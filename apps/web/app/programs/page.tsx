@@ -61,7 +61,7 @@ export default async function ProgramsDirectoryPage({
     <AuthedAppShell user={user}>
       <PageHeader
         title="Programs"
-        subtitle={`${rows.length} canonical ${orgShortName ? `${orgShortName} ` : ''}programs — click through for the full deep-dive on any program. Legacy and non-canonical programs are excluded from this view but remain joinable from staff and education dashboards.`}
+        subtitle={`Showing ${rows.length} ${orgShortName ? `${orgShortName} ` : ''}programs — click through for the full deep-dive on any program. Legacy and non-canonical programs are excluded from this view but remain joinable from staff and education dashboards.`}
       />
       <ProgramsDirectory
         rows={rows}

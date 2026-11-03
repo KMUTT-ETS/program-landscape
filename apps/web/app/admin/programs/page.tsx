@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation';
 import { isAdminGrade, type SessionUser, ApiSuccess } from '@kku/shared';
 import { auth } from '@/lib/auth';
-import { brandingForRequest } from '@/lib/branding';
 import { apiFetch, apiFetchEnvelope, apiFetchSafe } from '@/lib/api-client';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
