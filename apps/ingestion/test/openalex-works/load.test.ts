@@ -131,6 +131,17 @@ describe('openalex-works load (scratch DB)', () => {
     expect(holder.orcid).toBe('0000-0000-0000-0042');
   });
 
+  it('a re-run never clobbers an enriched spreadsheet row', async () => {
+    const member = await prisma.facultyMember.findUniqueOrThrow({ where: { employeeCode: CODES[0]! } });
+    // Test 1 left this member's sheet row enriched with openalexId WOAW1 and 40 citations.
+    await runConnector([work('WOAW1', [{ aid: 'AOAW1', name: 'Ina Inside' }], { title: 'A changed title', cited_by_count: 5 })]);
+    const rows = await prisma.researchOutput.findMany({ where: { facultyMemberId: member.id } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      source: 'xlsx-import', ingestionRunId: sheetRunId, title: 'Fictional paper from the sheet', citations: 40,
+    });
+  });
+
   it('re-running updates in place without duplicating', async () => {
     await runConnector([work('WOAW7', [{ aid: 'AOAW7', name: 'Ivo Firstcomer' }], { doi: null })]);
     await runConnector([work('WOAW7', [{ aid: 'AOAW7', name: 'Ivo Firstcomer' }], { doi: null, cited_by_count: 99 })]);

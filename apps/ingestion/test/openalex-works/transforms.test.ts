@@ -59,6 +59,15 @@ describe('author matching', () => {
   });
 });
 
+describe('orcid normalisation in the staff lookup', () => {
+  it('matches a stored URL-form, lower-case x ORCID', () => {
+    const lookup = buildStaffLookup([staff({ id: 'u', orcid: 'https://orcid.org/0000-0000-0000-004x' })]);
+    expect(
+      resolveStaff({ authorId: null, displayName: null, orcid: '0000-0000-0000-004X' }, lookup).facultyMemberId,
+    ).toBe('u');
+  });
+});
+
 describe('helpers', () => {
   it('normalises DOIs to bare lower case', () => {
     expect(normaliseDoi('https://doi.org/10.1234/ABC.1')).toBe('10.1234/abc.1');
@@ -107,7 +116,7 @@ describe('connector fetch', () => {
       .mockResolvedValueOnce(page(['W1', 'W2'], 'CUR2'))
       .mockResolvedValueOnce(page(['W3'], null));
     vi.stubGlobal('fetch', fetchMock);
-    const db = { facultyMember: { findMany: vi.fn().mockResolvedValue([]) } };
+    const db = { facultyMember: { findMany: vi.fn().mockResolvedValue([]) }, ingestionRun: { count: vi.fn().mockResolvedValue(0) } };
     const connector = new OpenAlexWorksConnector(db as never, 0);
     const ctx = { runId: 'r', log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } };
 
@@ -126,12 +135,26 @@ describe('connector fetch', () => {
     expect(JSON.stringify(ctx.log.info.mock.calls)).not.toContain('secret-key');
   });
 
+  it('skips when kku-research is live on this install', async () => {
+    setOrganizationForTest({ ...KKU_REFERENCE_ORGANIZATION, openalexInstitutionId: 'I5' });
+    vi.stubEnv('OPENALEX_API_KEY', 'k');
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const count = vi.fn().mockResolvedValue(1);
+    const connector = new OpenAlexWorksConnector({ ingestionRun: { count } } as never, 0);
+    const health = await connector.healthCheck({} as never);
+    expect(health).toMatchObject({ ok: false });
+    expect(health.message).toMatch(/kku-research is live on this install/);
+    expect(count).toHaveBeenCalledWith({ where: { status: 'SUCCEEDED', dataSource: { slug: 'kku-research' } } });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('health check reports the reason instead of fetching', async () => {
     setOrganizationForTest({ ...KKU_REFERENCE_ORGANIZATION, openalexInstitutionId: null });
     vi.stubEnv('OPENALEX_API_KEY', 'k');
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    const health = await new OpenAlexWorksConnector({} as never, 0).healthCheck({} as never);
+    const health = await new OpenAlexWorksConnector({ ingestionRun: { count: vi.fn().mockResolvedValue(0) } } as never, 0).healthCheck({} as never);
     expect(health.ok).toBe(false);
     expect(health.message).toMatch(/institution ID/);
     expect(fetchMock).not.toHaveBeenCalled();

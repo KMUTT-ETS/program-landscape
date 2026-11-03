@@ -20,6 +20,8 @@ OpenAlex is an open catalogue of scholarly works. The connector pulls every work
 | Concurrency we'll use | 1 |
 | Data residency | public data. Author names and ORCIDs are public by the act of publishing |
 
+The connector also skips when the `kku-research` data source has at least one SUCCEEDED run: kku-research is live on this install and its publication mirror already fills `research_outputs`.
+
 With the institution id or the key missing, the run is recorded as **SKIPPED** with the reason; nothing is fetched or written.
 
 ## Mapping to our schema

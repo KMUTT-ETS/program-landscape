@@ -818,7 +818,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     cadenceCron: '0 3 1 */3 *', // quarterly, once a schedule is enabled
     ownerContact: 'Institution administrator',
     notes:
-      'Publications of your university from OpenAlex, found by the institution id on the organisation profile (/admin/organization). Needs a free OPENALEX_API_KEY; skipped with a reason while either is missing. Staff are matched exactly (ORCID, OpenAlex id, English name, Thai name); a work already uploaded in the Publications spreadsheet with the same DOI is enriched, not duplicated.',
+      'Publications of your university from OpenAlex, found by the institution id on the organisation profile (/admin/organization). Needs a free OPENALEX_API_KEY; skipped with a reason while either is missing. Staff are matched exactly (ORCID, OpenAlex id, English name, Thai name); a work already uploaded in the Publications spreadsheet with the same DOI is enriched, not duplicated. Skips when kku-research is live on this install; its publication mirror already fills research_outputs.',
     mocked: false,
   },
   {

@@ -85,7 +85,7 @@ export function normaliseDoi(doi: string | null | undefined): string | null {
 
 export function normaliseOrcid(orcid: string | null | undefined): string | null {
   if (!orcid) return null;
-  const v = orcid.trim().replace(/^https?:\/\/orcid\.org\//i, '');
+  const v = orcid.trim().replace(/^https?:\/\/orcid\.org\//i, '').toUpperCase();
   return v ? v : null;
 }
 
@@ -147,7 +147,8 @@ export function buildStaffLookup(rows: readonly StaffRow[]): StaffLookup {
     byNameTh: new Map(),
   };
   for (const r of rows) {
-    if (r.orcid) lookup.byOrcid.set(r.orcid, r.id);
+    const orcid = normaliseOrcid(r.orcid);
+    if (orcid) lookup.byOrcid.set(orcid, r.id);
     if (r.openalexAuthorId) lookup.byOpenalexAuthorId.set(r.openalexAuthorId, r.id);
     const en = r.nameEn?.trim().toLowerCase();
     if (en) put(lookup.byNameEn, en, r.id);

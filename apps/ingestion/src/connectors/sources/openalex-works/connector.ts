@@ -132,8 +132,18 @@ export class OpenAlexWorksConnector extends ApiConnector {
     }
   }
 
+  /** kku-research (the publication mirror) already fills research_outputs on KKU installs. */
+  private async overlapReason(): Promise<string | null> {
+    const runs = await this.db.ingestionRun.count({
+      where: { status: 'SUCCEEDED', dataSource: { slug: 'kku-research' } },
+    });
+    return runs > 0
+      ? 'kku-research is live on this install; its publication mirror already fills research_outputs.'
+      : null;
+  }
+
   override async healthCheck(_ctx: ConnectorContext): Promise<HealthStatus> {
-    const reason = this.skipReason();
+    const reason = this.skipReason() ?? (await this.overlapReason());
     if (reason) return { ok: false, message: reason };
     try {
       const id = getInstitution().openalexInstitutionId;
@@ -146,7 +156,7 @@ export class OpenAlexWorksConnector extends ApiConnector {
   }
 
   async fetch(ctx: ConnectorContext, _since?: Date): Promise<RawRecord[]> {
-    const reason = this.skipReason();
+    const reason = this.skipReason() ?? (await this.overlapReason());
     if (reason) throw new NonRetryableError('CONFIG', reason);
     const institutionId = getInstitution().openalexInstitutionId!;
     const apiKey = process.env.OPENALEX_API_KEY!.trim();
@@ -322,13 +332,22 @@ export class OpenAlexWorksConnector extends ApiConnector {
     // A row already holding this work for this person: refresh it.
     const own = await this.db.researchOutput.findFirst({
       where: { openalexId: p.openalexId, facultyMemberId: p.facultyMemberId, ...(p.facultyMemberId ? {} : { kkuAuthorName: p.kkuAuthorName }) },
-      select: { id: true },
+      select: { id: true, source: true, citations: true },
     });
     if (own) {
+      if (own.source !== 'openalex') {
+        // A row another source wrote that an earlier run enriched: raise the
+        // citation count and touch nothing else (title, provenance, source).
+        if (p.citations > own.citations) {
+          await this.db.researchOutput.update({ where: { id: own.id }, data: { citations: p.citations } });
+        }
+        return false;
+      }
       await this.db.researchOutput.update({
         where: { id: own.id },
         data: {
-          year: p.year, type: p.type, title: p.title, venue: p.venue, citations: p.citations,
+          year: p.year, type: p.type, title: p.title, venue: p.venue,
+          citations: Math.max(p.citations, own.citations),
           doi: p.doi, kkuAuthorName: p.kkuAuthorName, ingestionRunId: runId,
         },
       });
