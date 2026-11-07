@@ -106,6 +106,10 @@ def _squash(s: str) -> str:
 
 # "-วศ.บ.4ปี" (older files) or "ปริญญาตรี 4 ปี" (newer) after whitespace is squashed
 _TRAILING_DEGREE = re.compile(r"-[^-]*ปี$|ปริญญา[^()]*?ปี")
+_INTL = re.compile(r"\(?หลักสูตรนานาชาติ\)?")
+_PAREN = re.compile(r"\(([^)]*)\)")
+_DEGREE_TOKEN = re.compile(r"\S*บัณฑิต")
+_YEARS = re.compile(r"\d+\s*ปี")
 
 
 def _after_marker(name: str) -> tuple[str, bool]:
@@ -119,10 +123,37 @@ def _after_marker(name: str) -> tuple[str, bool]:
     return s, False
 
 
+def _views(name: str) -> set[str]:
+    """Normalised readings of a programme name, for comparison only: the part
+    after สาขา(วิชา), each parenthesised field, the name without degree words,
+    year suffixes, a leading หลักสูตร and หลักสูตรนานาชาติ, and the full name."""
+    out = {_squash(name), _after_marker(name)[0]}
+    for inner in _PAREN.findall(name):
+        out.add(_squash(_INTL.sub("", inner)))
+    t = _INTL.sub(" ", name).strip()
+    t = re.sub(r"^หลักสูตร", "", t)
+    t = _TRAILING_DEGREE.sub("", _YEARS.sub("", t))
+    t = _DEGREE_TOKEN.sub(" ", t)
+    t = re.sub(r"สาขาวิชา|สาขา", " ", t)
+    out.add(_squash(re.sub(r"[()]", " ", t)))
+    return {v for v in out if v}
+
+
 def _score(typed: str, tcas: str) -> float:
-    a, _ = _after_marker(typed)  # the typed name rarely carries the degree prefix
-    b, _ = _after_marker(tcas)  # TCAS names do: compare the สาขา part
-    return difflib.SequenceMatcher(None, a, b).ratio()
+    """Best similarity over the readings of both names."""
+    return max(
+        difflib.SequenceMatcher(None, a, b).ratio()
+        for a in _views(typed)
+        for b in _views(tcas)
+    )
+
+
+def _intl(name: str) -> bool:
+    return "นานาชาติ" in name
+
+
+def _same_but_international(a: str, b: str) -> bool:
+    return _squash(_INTL.sub("", a)) == _squash(_INTL.sub("", b))
 
 
 @dataclass
@@ -201,10 +232,17 @@ def resolve_anchors(inputs: Inputs, own: list[TcasRow]) -> list[Anchor]:
             pool = [p for p in pairs if _normalise_faculty(p.faculty) == typed_f] or pairs
         ranked = sorted(
             ((_score(inp.name, p.programme), p) for p in pool),
-            key=lambda t: (-t[0], t[1].faculty, t[1].programme),
+            key=lambda t: (-round(t[0], 9), _intl(t[1].programme) != _intl(inp.name),
+                           t[1].faculty, t[1].programme),
         )
         best = ranked[0][0]
-        second = ranked[1][0] if len(ranked) > 1 else 0.0
+        # the international twin of the winner is not a rival: the typed name decides between them
+        rivals = [
+            sc for sc, p in ranked[1:]
+            if not (p.faculty == ranked[0][1].faculty
+                    and _same_but_international(p.programme, ranked[0][1].programme))
+        ]
+        second = rivals[0] if rivals else 0.0
         if best < MIN_SCORE or best - second < MIN_MARGIN:
             why = "no close match" if best < MIN_SCORE else "more than one close match"
             raise InputError(

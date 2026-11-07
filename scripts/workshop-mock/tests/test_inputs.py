@@ -113,3 +113,43 @@ class InputTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _r(code, fac, prog, uni="U"):
+    return TcasRow(code, uni, fac, prog, None, 2569, "3", 10, 20, 5, None, None)
+
+
+ENG = "คณะวิศวกรรมศาสตร์"
+KKU_ROWS = [  # names copied from the real TCAS69 file (Khon Kaen University)
+    _r("10030104300501A", ENG, "วิศวกรรมศาสตรบัณฑิต (วิศวกรรมคอมพิวเตอร์) วิศวกรรมคอมพิวเตอร์"),
+    _r("10030104301001E", ENG, "วิศวกรรมศาสตรบัณฑิต (วิศวกรรมสื่อดิจิทัล) หลักสูตรนานาชาติ วิศวกรรมสื่อดิจิทัล หลักสูตรนานาชาติ"),
+    _r("10030104303402A", ENG, "วิศวกรรมศาสตรบัณฑิต (วิศวกรรมเซมิคอนดักเตอร์) วิศวกรรมศาสตรบัณฑิต สาขาวิชาวิศวกรรมเซมิคอนดักเตอร์"),
+    _r("10030104300601A", ENG, "วิศวกรรมศาสตรบัณฑิต (วิศวกรรมเครื่องกล) วิศวกรรมเครื่องกล"),
+    _r("10030105703501A", "คณะศึกษาศาสตร์", "ศึกษาศาสตรบัณฑิต (คอมพิวเตอร์ศึกษา) ศึกษาศาสตรบัณฑิต วิชาเอกคอมพิวเตอร์ศึกษา"),
+    _r("10030138220202A", "วิทยาลัยการคอมพิวเตอร์", "วิทยาศาสตรบัณฑิต (วิทยาการคอมพิวเตอร์) วิทยาการคอมพิวเตอร์"),
+]
+KMUTT_ROWS = [
+    _r("10140107300507A", ENG, "วิศวกรรมศาสตรบัณฑิต สาขาวิชาวิศวกรรมคอมพิวเตอร์ ปริญญาตรี 4 ปี", KMUTT),
+    _r("10140107300502E", ENG, "วิศวกรรมศาสตรบัณฑิต สาขาวิชาวิศวกรรมคอมพิวเตอร์ ปริญญาตรี 4 ปี  (หลักสูตรนานาชาติ)", KMUTT),
+]
+
+
+def _resolve(rows, name, faculty=None):
+    a = resolve_anchors(Inputs("U", "x", [ProgrammeInput(name=name, pdf=None, faculty=faculty)]), rows)
+    return a[0].course_codes
+
+
+class NameViewTests(unittest.TestCase):
+    def test_computer_engineering_not_semiconductor(self):
+        self.assertEqual(_resolve(KKU_ROWS, "วิศวกรรมคอมพิวเตอร์", ENG), ["10030104300501A"])
+        self.assertEqual(_resolve(KKU_ROWS, "วิศวกรรมคอมพิวเตอร์"), ["10030104300501A"])
+
+    def test_semiconductor(self):
+        self.assertEqual(_resolve(KKU_ROWS, "วิศวกรรมเซมิคอนดักเตอร์"), ["10030104303402A"])
+
+    def test_digital_media(self):
+        self.assertEqual(_resolve(KKU_ROWS, "วิศวกรรมสื่อดิจิทัล"), ["10030104301001E"])
+
+    def test_kmutt_computer_engineering_picks_plain_over_international(self):
+        self.assertEqual(_resolve(KMUTT_ROWS, "วิศวกรรมคอมพิวเตอร์"), ["10140107300507A"])
+        self.assertEqual(_resolve(KMUTT_ROWS, "วิศวกรรมคอมพิวเตอร์ (หลักสูตรนานาชาติ)"), ["10140107300502E"])
