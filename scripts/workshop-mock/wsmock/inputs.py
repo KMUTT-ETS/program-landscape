@@ -26,6 +26,7 @@ class ProgrammeInput:
     faculty: str | None = None
     tcas_code: str | None = None
     courses: Path | None = None
+    name_en: str | None = None
 
 
 @dataclass
@@ -93,6 +94,7 @@ def load_inputs(path: Path) -> Inputs:
                 faculty=faculty,
                 tcas_code=_str(b, "tcas_code", where),
                 courses=rel(_str(b, "courses", where)),
+                name_en=_str(b, "name_en", where),
             )
         )
     return Inputs(university=university, region=region, programmes=progs)

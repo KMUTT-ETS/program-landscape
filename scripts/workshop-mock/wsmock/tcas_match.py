@@ -132,7 +132,10 @@ def find_own_programme_match(
                 return cands[0]
     # 5b: major as a specialization source
     if major_name:
-        major_spec = extract_specialization(major_name) or major_name.strip()
+        # TS: `extractSpecialization(majorName) ?? majorName.trim()`; the
+        # function returns '' (never null), so `??` never falls back and an
+        # unextractable major skips this strategy.
+        major_spec = extract_specialization(major_name)
         if major_spec:
             norm_major = major_spec.lower()
             for key, cands in spec_index.items():
@@ -145,11 +148,13 @@ def find_own_programme_match(
 
 
 def link_rows(slice_programmes: list, own_rows: list[TcasRow]) -> dict[str, list[TcasRow]]:
-    """Programme code -> TCAS rows the app would link to it. Only bachelor
-    programmes are indexed, in the order given. Each programme needs
-    `code`, `name_th`, `faculty_name_th` is looked up via `faculty_names`
-    attribute-free: pass objects with `.code`, `.name_th`, `.faculty_name_th`
-    and optional `.level`."""
+    """Programme code -> TCAS rows the app would link to it.
+
+    `slice_programmes` are objects with `.code`, `.name_th`,
+    `.faculty_name_th` and optionally `.level` (default BACHELOR). Only
+    bachelor programmes are indexed, in the order given; the result has a key
+    for each of them.
+    """
     bachelors = [p for p in slice_programmes if getattr(p, "level", "BACHELOR") == "BACHELOR"]
     idx = build_tcas_match_index(
         [MatchProgramme(p.code, p.name_th, [], p.faculty_name_th) for p in bachelors]

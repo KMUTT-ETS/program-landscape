@@ -1,4 +1,6 @@
+import json
 import unittest
+from pathlib import Path
 from types import SimpleNamespace as NS
 
 from wsmock.tcas import TcasRow
@@ -48,9 +50,40 @@ class TcasMatchTests(unittest.TestCase):
         got = link_rows([p], [row, other])
         self.assertEqual(got["P1"], [row])
 
+    def test_strategy4_major_contains_programme_name(self):
+        self.assertEqual(mid("คณะวิทยาศาสตร์", "ไม่เกี่ยวข้อง", "คณิตศาสตร์ประยุกต์"), "sci-math")
+
+    def test_5b_extractable_major_links(self):
+        self.assertEqual(
+            mid("คณะวิศวกรรมศาสตร์", "ไม่เกี่ยวข้อง", "วศ.บ.สาขาวิศวกรรมเครื่องกล-วศ.บ.4ปี"), "eng-me")
+
+    def test_5b_unextractable_major_is_skipped_like_ts(self):
+        # TS: extractSpecialization('') is '' (not null), so `??` keeps '' and 5b is skipped.
+        self.assertIsNone(mid("คณะวิศวกรรมศาสตร์", "ไม่เกี่ยวข้อง", "วิศวกรรมเครื่องกล"))
+
     def test_postgraduate_not_indexed(self):
         p = NS(code="M1", name_th="x", faculty_name_th="f", level="MASTER")
         self.assertEqual(link_rows([p], []), {})
+
+
+CASES = Path(__file__).resolve().parent.parent / "fixtures" / "tcas-match-cases.json"
+
+
+class DifferentialTests(unittest.TestCase):
+    """Expected ids were produced by the real TS findOwnProgrammeMatch."""
+
+    def test_reproduces_typescript(self):
+        sets = json.loads(CASES.read_text(encoding="utf-8"))
+        n = 0
+        for s in sets:
+            idx = build_tcas_match_index(
+                [MatchProgramme(p["id"], p["nameTh"], p["majors"], p["facultyNameTh"]) for p in s["index"]]
+            )
+            for c in s["cases"]:
+                got = find_own_programme_match(idx, c["faculty"], c["programme"], c["major"])
+                self.assertEqual(got.id if got else None, c["expected"], (s["name"], c))
+                n += 1
+        self.assertGreaterEqual(n, 40)
 
 
 if __name__ == "__main__":

@@ -21,6 +21,9 @@ level = "BACHELOR"
 # Optional. A TCAS course code (รหัสหลักสูตร). Use it when the name cannot be matched
 # automatically; it always wins over name matching.
 # tcas_code = "10140107300507A"
+# Optional. The programme's English name, used as-is in the mock files. Without it the
+# generator translates common Thai words and otherwise writes a neutral placeholder.
+# name_en = "Bachelor of Engineering Programme in Computer Engineering"
 # Optional. Path to a course-list spreadsheet to use instead of the PDF's courses.
 # courses = "courses/computer-engineering.xlsx"
 
