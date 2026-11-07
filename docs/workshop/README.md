@@ -2,8 +2,8 @@
 
 > **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [`README.th.md`](./README.th.md)
 
-A 1.5-day hands-on workshop for the IT staff of a university that adopts
-Program Landscape. You start from a clean laptop and finish with the Program
+A two-day hands-on workshop (23–24 November), with a pre-workshop online on
+16 November, for the IT staff of a university that adopts Program Landscape. You start from a clean laptop and finish with the Program
 Deep-Dive running on it. Use these pages in the room, step by step, or on your
 own afterwards: each page works without a facilitator.
 
@@ -15,34 +15,37 @@ seen this codebase before. You need no knowledge of the app itself.
 ## What you will have at the end
 
 - The app running on your laptop, with you signed in as its administrator.
-- The Deep-Dive of a sample programme showing real content, computed by the
-  real pipeline with your own AI key.
-- If you prepared your own university's files: the same for one of your
-  programmes.
+- The Deep-Dive of one of your own programmes, from real, mixed or mock data,
+  computed by the real pipeline with your own AI key.
 - A connector and a new Deep-Dive analysis that you wrote with an AI coding
   assistant.
 
 ## The two tracks
 
-**Sample track (everyone).** You load the files of an invented university,
-Workshop Demo University, from `workshop/sample-data/` in the repository. Every
-person and every number in them is made up. You still run the real pipeline,
-so you need a working AI key.
+**Sample rehearsal (everyone, before the day).** You load the files of an
+invented university, Workshop Demo University, from `workshop/sample-data/` in
+the repository, and run the real pipeline once. Every person and every number
+in them is made up. This proves your laptop and AI key work.
 
-**Real-data track (optional).** If you prepared your own university's exports
-before the day, you load them after the sample track, with the same steps.
+**Your own programme (everyone, in the room).** On Day 1 you load one of your
+own programmes from real exports (path A), real exports with generated gaps
+(path B), or a mock set generated for your university (path C). See the
+[early notice](./early-notice.md#pick-your-data-path).
 Remove personal data first: no national ID numbers, no birth dates.
 
 ## Schedule
 
 | Block | Session | Exit check |
 |---|---|---|
-| Day 1 morning | 1. Local environment and AI tools | Every tool answers, the AI key works |
-| Day 1 morning | 2. Platform architecture and source code | App running, administrator claimed |
-| Day 1 afternoon | 3. University data connection | Deep-Dive shows the sample programme |
-| Day 2 morning | 4. Hands-on integration with AI | Page coming soon |
-| Day 2 morning | 5. AI-assisted curriculum analytics | Page coming soon |
-| Day 2 midday | 6. Testing, validation and security | Access rules and data masking seen working |
+| Before (by 19 Nov) | Before the day: install, rehearsal, your data | Readiness form sent |
+| Day 1 09:00–10:30 | 1–2. Environment, architecture and source | App running, signed in as administrator |
+| Day 1 10:45–12:00 | 3. University data (your own A/B/C data) | Pipeline running before lunch |
+| Day 1 13:00–14:30 | 4. Hands-on integration with AI | Deep-Dive shows your programme; connector run lands rows (page coming soon) |
+| Day 1 14:45–16:00 | 5. AI-assisted curriculum analytics | Your new analysis shows with provenance (page coming soon) |
+| Day 2 09:00–12:00 | Joint lectures with your executive | — |
+| Day 2 13:00–14:30 | 6. Testing, validation and security | Test Record filled |
+| Day 2 14:45–15:30 | Prototype demonstration | Demo given in your pod |
+| Day 2 15:30–16:00 | Team sync and 90-day plan | Plan drafted with your executive |
 
 ## Pages
 
