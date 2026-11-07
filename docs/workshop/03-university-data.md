@@ -147,6 +147,103 @@ Your data and the sample university live side by side in the same database.
 To remove the sample later, use "Start over" on each sample dataset's page,
 in reverse order of upload.
 
+### No exports? Generate a mock set for your university
+
+If you have no exports to hand, a generator can write upload-ready mock
+spreadsheets for a small, varied slice of your own university. Faculty and
+programme names and round-3 admission figures come from the public TCAS files
+(downloaded from mytcas.com on first run and cached). Staff are numbered
+tokens such as "Lecturer 001". Every other figure is invented and labelled
+mock. The programmes you brought curriculum PDFs for are always included, and
+their course codes are read from the PDF. It is for practice only: never show
+these figures as real results. There is nothing to install beyond Node and
+pnpm.
+
+**Before the day.** Write an input file, for example `my-university.json`:
+
+```json
+{
+  "university": "มหาวิทยาลัยเทคโนโลยีพระจอมเกล้าธนบุรี",
+  "region": "Central",
+  "programmes": [
+    {
+      "name": "วิศวกรรมเครื่องกล",
+      "pdf": "pdfs/mechanical-engineering.pdf",
+      "level": "BACHELOR"
+    },
+    {
+      "name": "วิศวกรรมเครื่องกล",
+      "pdf": "pdfs/mechanical-engineering-master.pdf",
+      "level": "MASTER",
+      "faculty": "คณะวิศวกรรมศาสตร์",
+      "tcas_code": "10140107300507A",
+      "name_en": "Master of Engineering Programme in Mechanical Engineering",
+      "courses": "courses/mechanical-master.csv"
+    }
+  ]
+}
+```
+
+| Key | Meaning |
+|---|---|
+| `university` | Your university's Thai name, exactly as the TCAS tables spell it. |
+| `region` | The English region, exactly as you will type it on the organisation profile (for example `Central`, `Northeast`). |
+| `programmes[].name` | The programme name as written in the PDF. A small spelling difference is fine. |
+| `programmes[].pdf` | Path to the curriculum PDF. Relative paths resolve against the JSON file's folder. Optional. |
+| `programmes[].level` | `BACHELOR` (default), `MASTER`, `DOCTORAL` or `HIGHER_GRAD_DIPLOMA`. |
+| `programmes[].faculty` | The faculty's Thai name. Required unless the level is `BACHELOR`. |
+| `programmes[].tcas_code` | Optional. A TCAS course code. Use it when the name cannot be matched automatically. It always wins. |
+| `programmes[].courses` | Optional. A CSV file (not a spreadsheet) to use instead of the PDF's courses. Its header row is `code,name_th,name_en,credits,category`. `category` is one of General education, Core, Major required, Major elective, Free elective, Thesis / project; leave it blank for unknown. |
+| `programmes[].name_en` | Optional. The English name used as-is in the mock files. |
+
+Run the generator once with internet access so the TCAS files are cached.
+
+**Generate.**
+
+```bash
+pnpm workshop:mock my-university.json
+```
+
+Options: `--size small|medium` (default `small`), `--seed N` (same input and
+seed give identical files), `--out DIR` (default `./workshop-mock-out`) and
+`--offline` (use the cached TCAS files only), `--cache DIR` (where TCAS files are cached) and `--tcas-file PATH:YEAR:ROUND` (use a TCAS file you already have).
+TCAS files are cached in `<out>/.cache`. With no internet on the day, run once beforehand, then use `--offline`.
+
+You should see lines saying which TCAS programme each of your programmes was
+matched to. Check that each one is the programme you meant. If a match is
+wrong, or the script stops and lists candidates, set `tcas_code` for that
+programme and run again.
+
+**Check.**
+
+```bash
+pnpm workshop:check-mock workshop-mock-out my-university.json
+```
+
+You should see every bachelor programme matched and no errors. This proves the
+files pass the app's importer and that the `tcas` connector will match the
+programmes.
+
+**Load it.**
+
+1. Open `/admin/organization`, "Identity" tab. Type the Thai name and the
+   Region (English) exactly as `README.txt` in the output folder gives them.
+2. Upload the numbered files in order at `/admin/data-setup`, each on its
+   dataset's page with "Upload filled template".
+3. Then upload **University Rankings**: download its pre-filled template and
+   upload it unchanged.
+4. When all uploads are done, open `/admin/data-sources` and run `tcas` and
+   `un-wpp`. `openalex-works` will not match, because the mock staff are
+   tokens, not real people. `kmitl-skill-mapping` is optional.
+5. Attach each PDF on the programme's "Files" tab with the role
+   `CURRENT_CURRICULUM` and run the pipeline.
+6. Open the programme's "Setup checklist" tab. You should see green items
+   except JobThai ("not applicable") and the labour-market items, unless you
+   ran `kmitl-skill-mapping` and its skills command.
+
+**Remove it.** Use "Start over" on each dataset page, in the reverse of the
+upload order, then delete the output folder.
+
 ## The mock API server
 
 Tomorrow, sessions 4 and 5 connect the app to a mock API server that plays

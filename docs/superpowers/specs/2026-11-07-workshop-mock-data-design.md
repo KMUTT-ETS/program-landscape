@@ -1,6 +1,17 @@
 # Workshop mock data generator — design
 
-Date: 2026-11-07. Branch: `feat/generic-adoptor`. Status: draft for owner review.
+Date: 2026-11-07. Branch: `feat/generic-adoptor`. Status: approved.
+
+> **Language change (owner, 2026-11-07): the generator is Node.js (TypeScript), not
+> Python.** It runs as `pnpm workshop:mock <input.json>` from the repository,
+> using the Node 20 + pnpm the workshop already requires, and calls the app's
+> own code (TCAS matcher, course-code pattern, PDF text extractor, import
+> declarations and validator) instead of copying it. The input file is JSON.
+> Every rule below still holds; where this document names Python, `pip`,
+> `openpyxl`, `pypdf`, TOML or `python3`, read the Node equivalent. The first
+> implementation was in Python (`scripts/workshop-mock/`, reviewed at
+> `f06d0bdd`) and is the reference for the port. Plan:
+> `docs/superpowers/plans/2026-11-07-workshop-mock-data-node.md`.
 
 ## Why
 
@@ -272,6 +283,13 @@ settled here as the author's call; the owner may overturn any of them.
    Otherwise the name cell is left blank, which the dataset allows. An optional
    `courses` CSV per programme in the input file overrides PDF reading
    entirely.
+10. **Older alumni cohorts go beyond the five-year window (deviation from
+    consistency rules 4 and 6).** `alumni-cohorts` also gets up to four entry
+    years before the slice's window, never before the programme's
+    `year_established`. Their sizes are invented (near the earliest slice
+    year's enrolment), so they have no matching enrolment row. The gap map's
+    supply side needs more than one graduated cohort, and a five-year window
+    holds only one for a four-year degree.
 
 ## Left to the builder
 
