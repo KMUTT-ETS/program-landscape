@@ -1,0 +1,29 @@
+# Workshop mock-data generator: input file. Copy this file and edit it.
+# Relative paths are resolved against the folder holding this file.
+
+# The university's official Thai name, exactly as the TCAS files spell it.
+university = "มหาวิทยาลัยเทคโนโลยีพระจอมเกล้าธนบุรี"
+
+# One of the regions used by the platform's demographics (e.g. "Central").
+region = "Central"
+
+# One [[programme]] block per curriculum PDF.
+[[programme]]
+# The programme name as written in the PDF (a small spelling difference is fine).
+name = "วิศวกรรมคอมพิวเตอร์"
+# Path to the curriculum PDF.
+pdf = "pdfs/computer-engineering.pdf"
+# Optional. BACHELOR (default), MASTER, DOCTORAL or HIGHER_GRAD_DIPLOMA.
+# Anything other than BACHELOR also needs `faculty`.
+level = "BACHELOR"
+# Optional for bachelor programmes; required for the others.
+# faculty = "คณะวิศวกรรมศาสตร์"
+# Optional. A TCAS course code (รหัสหลักสูตร). Use it when the name cannot be matched
+# automatically; it always wins over name matching.
+# tcas_code = "10140107300507A"
+# Optional. Path to a course-list spreadsheet to use instead of the PDF's courses.
+# courses = "courses/computer-engineering.xlsx"
+
+[[programme]]
+name = "วิศวกรรมเครื่องกล"
+pdf = "pdfs/mechanical-engineering.pdf"
