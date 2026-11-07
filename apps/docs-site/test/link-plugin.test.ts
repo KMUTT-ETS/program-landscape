@@ -110,3 +110,50 @@ describe('repoLinkPlugin rendering', () => {
     expect(render('<!-- <Foo> -->\n', 'docs/a.md')).toContain('<!-- <Foo> -->');
   });
 });
+
+describe('workshop pages open other pages in a new tab', () => {
+  const NEW_TAB = 'target="_blank" rel="noopener"';
+
+  it('adds target=_blank to a link from a workshop page to another page', () => {
+    expect(render('[s](./01-session.md)', 'docs/workshop/00-before.md')).toContain(
+      `<a href="./01-session.md" ${NEW_TAB}>s</a>`,
+    );
+    expect(render('[g](../tutorials/getting-started.md#1-check)', 'docs/workshop/00-before.md')).toContain(
+      `<a href="../tutorials/getting-started.md#1-check" ${NEW_TAB}>g</a>`,
+    );
+  });
+
+  it('applies to a gathered page and to an absolute site link', () => {
+    expect(render('[c](../../CLAUDE.md)', 'docs/workshop/02.md')).toContain(NEW_TAB);
+    expect(render('[r](/tutorials/README)', 'docs/workshop/02.md')).toContain(NEW_TAB);
+  });
+
+  it('keeps same-page anchors in the current tab', () => {
+    const html = render('[x](#goal)', 'docs/workshop/01.md');
+    expect(html).toContain('<a href="#goal">x</a>');
+    expect(html).not.toContain('_blank');
+  });
+
+  it('leaves links on pages outside the workshop alone', () => {
+    expect(render('[b](./b.md)', 'docs/tutorials/a.md')).toContain('<a href="./b.md">b</a>');
+  });
+
+  it('does not turn a repository path into a link', () => {
+    expect(render('[s](../../apps/api/src/x.ts)', 'docs/workshop/02.md')).not.toContain('<a ');
+  });
+
+  it('lets an installed link renderer rewrite the href before target is added', () => {
+    // Stands in for VitePress, whose renderer skips links that already have a target.
+    const vp = new MarkdownIt({ html: true });
+    vp.renderer.rules.link_open = (tokens, idx, options, _env, self) => {
+      const tok = tokens[idx];
+      const href = tok?.attrGet('href');
+      if (tok && href && tok.attrGet('target') === null) tok.attrSet('href', href.replace(/\.md/, '.html'));
+      return self.renderToken(tokens, idx, options);
+    };
+    vp.use(repoLinkPlugin, { repoRoot });
+    expect(vp.render('[s](./01.md#goal)', page('docs/workshop/00.md'))).toContain(
+      `<a href="./01.html#goal" ${NEW_TAB}>s</a>`,
+    );
+  });
+});

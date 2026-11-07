@@ -41,6 +41,13 @@ export const BILINGUAL_PAGES: readonly string[] = [
   'workshop/facilitator.md',
 ];
 
+/**
+ * Pages under these docs folders open every link to ANOTHER page in a new tab,
+ * so a reader working through a step-by-step page keeps their place. Links to a
+ * heading on the same page stay in the current tab.
+ */
+export const NEW_TAB_DOC_PREFIXES: readonly string[] = ['workshop/'];
+
 /** 'adopters/README.md' -> 'adopters/README.th.md'. */
 export function twinOf(docsRel: string): string {
   return docsRel.replace(/\.md$/, '.th.md');
