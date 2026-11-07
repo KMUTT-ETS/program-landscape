@@ -44,7 +44,8 @@ University (มหาวิทยาลัยสาธิตเวิร์ก�
 
 | หน้า | ใช้เมื่อ |
 |---|---|
-| [ก่อนวันอบรม](./00-before-the-day.th.md) | ที่บ้าน สัปดาห์ก่อนวันอบรม |
+| [แจ้งล่วงหน้า](./early-notice.th.md) | ทันทีที่ทีมได้รับการยืนยัน |
+| [ก่อนวันอบรม](./00-before-the-day.th.md) | ที่บ้าน ก่อนกำหนดส่งแบบฟอร์มความพร้อม (19 พ.ย.) |
 | [Session 1: environment และ AI tools](./01-environment-and-ai-tools.th.md) | วันที่ 1 |
 | [Session 2: สถาปัตยกรรมและ source code](./02-architecture-and-source.th.md) | วันที่ 1 |
 | [Session 3: ข้อมูลมหาวิทยาลัย](./03-university-data.th.md) | วันที่ 1 |

@@ -48,7 +48,8 @@ Remove personal data first: no national ID numbers, no birth dates.
 
 | Page | When |
 |---|---|
-| [Before the day](./00-before-the-day.md) | At home, the week before |
+| [Early notice](./early-notice.md) | As soon as your team is confirmed |
+| [Before the day](./00-before-the-day.md) | At home, before the readiness deadline (19 Nov) |
 | [Session 1: environment and AI tools](./01-environment-and-ai-tools.md) | Day 1 |
 | [Session 2: architecture and source code](./02-architecture-and-source.md) | Day 1 |
 | [Session 3: university data](./03-university-data.md) | Day 1 |

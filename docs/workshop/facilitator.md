@@ -25,6 +25,31 @@ the ones who fall behind.
 6. Ask participants on the real-data track to bring files with personal data
    already removed. Do not accept files with national IDs or birth dates.
 
+## Early notice e-mail
+
+Send this as soon as ทปอ. confirms the team list (registration closes 10 Nov).
+Replace the link and the contact line before sending. It is in Thai because it
+goes to every team.
+
+```text
+เรียน ทีม AIUI ของมหาวิทยาลัย
+
+ทีมของท่านได้รับการยืนยันเข้าร่วม workshop AIUI วันที่ 23–24 พ.ย. แล้ว
+ขอให้เริ่มเตรียม 3 เรื่องตั้งแต่สัปดาห์นี้:
+
+1. เลือกหนึ่งหลักสูตรที่จะใช้สาธิต
+2. ขอข้อมูลส่งออกของหลักสูตรนั้นและ PDF เล่มหลักสูตรจากเจ้าของข้อมูลทันที
+   (หากไม่ทัน ใช้ข้อมูลจำลองได้ครบทั้งเส้นทาง)
+3. ตรวจว่าแล็ปท็อปติดตั้ง WSL2 และ Docker ได้
+
+รายละเอียด: <link to docs/workshop/early-notice.th.md>
+
+การประชุมเตรียมความพร้อมออนไลน์: 16 พ.ย.
+ส่งแบบฟอร์มความพร้อม: ภายใน 19 พ.ย. เวลา 18:00 น.
+
+ติดต่อ: [instructor contact]
+```
+
 ## Room and network
 
 - Power for every laptop for the whole day.
@@ -95,7 +120,6 @@ a participant's pre-work failed, they also need `registry.npmjs.org`,
 |---|---|
 | A participant's key fails or runs out of credit | Lend the spare key. On OpenRouter, create a separate key with a credit limit (for example USD 2) for each person you lend to, and delete it after the day. |
 | Pre-work was not done | Start `pnpm setup` at once. Pair the participant with a neighbour for sessions 1 and 2 while it runs. |
-| The Gotenberg image fails to build | The font files are missing. Have a copy of the four TH Sarabun New files on a shared folder. |
 | A pipeline fails part way | Run it again. Finished phases are cheap to repeat. |
 | A laptop is too slow or freezes | Pair the participant with a neighbour. Sessions 4 and 5 still work in pairs. |
 | Something not on the [Troubleshooting](./troubleshooting.md) page | Read the full message with the participant; most refusals name the row, column or setting to fix. |
