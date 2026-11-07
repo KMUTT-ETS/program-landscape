@@ -158,8 +158,8 @@ These are the facts the design rests on. Each was read from the code on
    and class offerings for that programme use exactly those codes. If the PDF
    yields no codes, the script says so and generates a clearly invented list
    instead. Other programmes in the slice get invented course lists.
-8. **Staff and publications.** Staff are invented Thai/English name pairs,
-   unique within the file. Rank mix, hire and retirement dates are believable.
+8. **Staff and publications.** Staff are numbered tokens, never names
+   (`MOCK-E0001`, `Lecturer 001` / `อาจารย์ 001`), unique within the file. Rank mix, hire and retirement dates are believable.
    Each programme has a coordinator and core staff linked in `program-faculty`.
    Publications are credited to those staff, with invented titles in the
    programme's field and no DOI.
