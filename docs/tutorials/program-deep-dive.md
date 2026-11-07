@@ -280,7 +280,7 @@ rows it cannot trace. If an upload succeeded and nothing shows, run
 ## Where to go next
 
 - [Importing from spreadsheets](../data-import.md) for every dataset and rule.
-- [Workshop guide](./workshop.md) if you are running this for a group.
+- [Workshop](../workshop/README.md) if you are running this for a group.
 - [Adapt the registrar connector](./adapt-the-registrar-connector.md), advanced
   and optional, a KKU example of reading a student-records system directly.
 - [Evaluation pipeline](../evaluation-pipeline.md) for how the scores are built.

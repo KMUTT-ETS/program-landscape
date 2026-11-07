@@ -78,7 +78,7 @@ section of the Program Deep-Dive? Show the file paths.
 6. **ทุกการคำนวณมีเวอร์ชันของวิธีการ** อธิบายไว้ใน `docs/methodologies/`
 
 นอกจากนี้: TypeScript แบบ strict ห้ามใช้ `any` ตรวจข้อมูลนำเข้าด้วย Zod และใช้สีจาก design token เท่านั้น
-รายการทั้งหมดอยู่ใน [project contract](../_generated/project-contract.md)
+รายการทั้งหมดอยู่ใน [project contract](../../CLAUDE.md)
 
 ## เริ่มแอปและยืนยันผู้ดูแลระบบ
 

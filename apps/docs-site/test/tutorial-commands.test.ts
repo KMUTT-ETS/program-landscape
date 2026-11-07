@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 const repo = path.resolve(__dirname, '../../..');
 const REQUIRED_PAGES = [
-  ...['getting-started', 'program-deep-dive', 'workshop'].map((n) =>
+  ...['getting-started', 'program-deep-dive'].map((n) =>
     path.join(repo, 'docs', 'tutorials', `${n}.md`),
   ),
   path.join(repo, 'docs', 'workshop', 'README.md'),

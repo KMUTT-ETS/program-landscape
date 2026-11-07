@@ -89,7 +89,7 @@ follows these rules:
 
 Also: TypeScript strict with no `any`, input checked with Zod, colours only
 from design tokens. The full list is in the
-[project contract](../_generated/project-contract.md).
+[project contract](../../CLAUDE.md).
 
 ## Start the app and claim the administrator
 

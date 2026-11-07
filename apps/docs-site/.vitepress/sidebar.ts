@@ -30,7 +30,6 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
         { text: 'Windows setup (WSL2) (Thai)', link: '/guides/windows-wsl2.th' },
         { text: 'Architecture', link: '/architecture' },
         { text: 'Evaluation pipeline', link: '/evaluation-pipeline' },
-        { text: 'Project contract & decision log', link: gen('project-contract') },
       ],
     },
     {
@@ -40,12 +39,9 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
         { text: 'Getting started', link: '/tutorials/getting-started' },
         { text: 'Get Program Deep-Dive working', link: '/tutorials/program-deep-dive' },
         { text: 'Deep-Dive data map', link: '/adopters/deep-dive-data-map' },
-        { text: 'Workshop guide (moved)', link: '/tutorials/workshop' },
         { text: 'Tutorials overview (Thai)', link: '/tutorials/README.th' },
         { text: 'Getting started (Thai)', link: '/tutorials/getting-started.th' },
         { text: 'Get Program Deep-Dive working (Thai)', link: '/tutorials/program-deep-dive.th' },
-        { text: 'Workshop guide (moved) (Thai)', link: '/tutorials/workshop.th' },
-        { text: 'Fresh checkout setup (moved)', link: '/guides/fresh-checkout-setup' },
         { text: 'Adapt the registrar connector (advanced)', link: '/tutorials/adapt-the-registrar-connector' },
       ],
     },
@@ -78,7 +74,6 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
         { text: 'Importing from spreadsheets (Thai)', link: '/data-import.th' },
         { text: 'Source catalogue', link: '/data-sources/README' },
         { text: 'Per-source specs', collapsed: true, items: dataSourceItems(docsDir) },
-        { text: 'JobThai acknowledgement', link: '/acknowledgements/jobthai' },
         { text: 'Connector session template', link: gen('connector-session-template') },
         { text: 'Migration policy', link: '/migration-policy' },
         { text: 'DB indexes', link: '/db-indexes' },
@@ -101,7 +96,6 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
         { text: 'Prompt standard', link: '/prompt-standard' },
         { text: 'Evaluation & accuracy', link: '/methodologies/ai-extraction-accuracy' },
         { text: 'Trend monitors', link: '/trend-monitors' },
-        { text: 'Dashboard chatbot tests', link: '/dashboard-chatbot-tests' },
       ],
     },
     {
@@ -110,8 +104,6 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
       items: [
         { text: 'Overview', link: '/methodologies/README' },
         { text: 'Health score', link: '/methodologies/health-score' },
-        { text: 'Programme health & lifecycle', link: '/methodologies/program-health-and-lifecycle' },
-        { text: 'Programme health & lifecycle (Thai)', link: '/methodologies/program-health-and-lifecycle.th' },
         { text: 'Risk scoring', link: '/methodologies/risk-scoring' },
         { text: 'Risk management', link: '/methodologies/risk-management' },
         { text: 'Forecasting', link: '/methodologies/forecasting' },
@@ -137,7 +129,6 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
     {
       text: 'Auth, security & privacy',
       items: [
-        { text: 'KKU SSO', link: '/auth/kku-sso' },
         { text: 'RBAC', link: '/auth/rbac' },
         { text: 'Security review', link: '/security-review' },
         { text: 'PDPA', link: '/pdpa' },
@@ -147,13 +138,8 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
     {
       text: 'Deploy & operate',
       items: [
-        { text: 'Deployment', link: gen('deployment') },
-        { text: 'Production infrastructure', link: '/production-infrastructure' },
-        { text: 'Network integration', link: '/deployment/kku-network-integration' },
         { text: 'Backup & DR', link: '/backup-dr' },
-        { text: 'Admin runbook', link: '/guides/admin-runbook' },
         { text: 'Readiness checklist', link: '/readiness-checklist' },
-        { text: 'Rollout plan', link: '/rollout-plan' },
         { text: 'Security policy', link: gen('security-policy') },
       ],
     },

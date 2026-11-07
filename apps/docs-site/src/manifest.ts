@@ -17,6 +17,14 @@ export const EXCLUDED: readonly string[] = [
   'guides/council-th.md',
   'guides/executive.md',
   'guides/analyst.md',
+  // KKU's own installation: not instructions for an adopting institution.
+  'auth/kku-sso.md',
+  'deployment/kku-network-integration.md',
+  'production-infrastructure.md',
+  'rollout-plan.md',
+  'dashboard-chatbot-tests.md',
+  'acknowledgements/jobthai.md',
+  'guides/admin-runbook.md',
 ];
 
 /**
@@ -28,7 +36,6 @@ export const BILINGUAL_PAGES: readonly string[] = [
   'tutorials/README.md',
   'tutorials/getting-started.md',
   'tutorials/program-deep-dive.md',
-  'tutorials/workshop.md',
   'data-import.md',
   'workshop/README.md',
   'guides/windows-wsl2.md',
@@ -69,11 +76,13 @@ export interface GatheredFile {
   target: string;
 }
 
-/** Files outside docs/ that the site needs. Copied (never edited) by gather.ts. */
+/**
+ * Files outside docs/ that the site needs. Copied (never edited) by gather.ts.
+ * CLAUDE.md (internal project contract) and DEPLOYMENT.md (KKU's on-prem runbook) are
+ * deliberately NOT gathered; links to them render as repository links.
+ */
 export const GATHERED: readonly GatheredFile[] = [
   { source: 'README.md', target: 'readme.md' },
-  { source: 'DEPLOYMENT.md', target: 'deployment.md' },
-  { source: 'CLAUDE.md', target: 'project-contract.md' },
   { source: 'SECURITY.md', target: 'security-policy.md' },
   { source: 'prompts/14-integration-session-template.md', target: 'connector-session-template.md' },
   { source: 'infra/gotenberg/README.md', target: 'gotenberg-fonts.md' },
@@ -87,7 +96,6 @@ export const RETIRED_NAMES: readonly string[] = [
 
 /** Routes allowed to contain retired names because they record them deliberately. */
 export const RETIRED_NAME_ALLOWLIST: readonly string[] = [
-  `/${GENERATED_DIR_NAME}/project-contract`,
   '/glossary-th-en',
   '/adopters/README',
   '/adopters/README.th',

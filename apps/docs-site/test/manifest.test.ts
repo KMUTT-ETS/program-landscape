@@ -18,7 +18,7 @@ describe('manifest', () => {
     expect(isExcluded('hardening/01.md')).toBe(true);
     expect(isExcluded('user-manual.md')).toBe(true);
     expect(isExcluded('data-sources/_template.md')).toBe(true);
-    expect(isExcluded('guides/admin-runbook.md')).toBe(false);
+    expect(isExcluded('guides/windows-wsl2.md')).toBe(false);
     expect(isExcluded('superpowers.md')).toBe(false);
   });
 
@@ -50,6 +50,18 @@ describe('manifest', () => {
   it('gives every gathered file a unique target name', () => {
     const targets = GATHERED.map((g) => g.target);
     expect(new Set(targets).size).toBe(targets.length);
+  });
+
+  it('keeps KKU-only pages off the site', () => {
+    for (const p of ['auth/kku-sso.md', 'deployment/kku-network-integration.md', 'production-infrastructure.md',
+      'rollout-plan.md', 'dashboard-chatbot-tests.md', 'acknowledgements/jobthai.md', 'guides/admin-runbook.md']) {
+      expect(isExcluded(p)).toBe(true);
+    }
+  });
+
+  it('does not publish the project contract or KKU runbook', () => {
+    expect(GATHERED.map((g) => g.source)).not.toContain('CLAUDE.md');
+    expect(GATHERED.map((g) => g.source)).not.toContain('DEPLOYMENT.md');
   });
 
   it('converts platform separators to POSIX', () => {

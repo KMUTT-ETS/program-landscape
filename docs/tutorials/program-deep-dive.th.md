@@ -190,6 +190,6 @@ pnpm programs:approve-pending --rematerialise --program-id=<id>
 ## ไปต่อที่ไหน
 
 - [Importing from spreadsheets](../data-import.th.md) สำหรับทุกชุดข้อมูลและทุกกฎ
-- [Workshop guide](./workshop.th.md) หากท่านจัดให้กลุ่มผู้เข้าร่วม
+- [Workshop](../workshop/README.th.md) หากท่านจัดให้กลุ่มผู้เข้าร่วม
 - [Adapt the registrar connector](./adapt-the-registrar-connector.md) ขั้นสูงและไม่บังคับ เป็นตัวอย่างของ KKU ในการอ่านระบบข้อมูลนักศึกษาโดยตรง (มีเฉพาะฉบับภาษาอังกฤษ)
 - [Evaluation pipeline](../evaluation-pipeline.md) สำหรับวิธีสร้างคะแนน
