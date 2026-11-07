@@ -10,6 +10,7 @@ import { buildSidebar } from './sidebar';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..', '..', '..');
 const docsDir = path.join(repoRoot, 'docs');
+const themeDir = path.join(here, 'theme');
 
 const vitepressEntry = createRequire(import.meta.url).resolve('vitepress');
 
@@ -17,7 +18,8 @@ const vitepressEntry = createRequire(import.meta.url).resolve('vitepress');
  * Pages live in docs/, outside this package, where pnpm's strict layout makes `vue` unresolvable.
  * VitePress aliases bare `vue` for the client build only; the SSR build imports `vue` and
  * `vue/server-renderer` from every compiled page. Resolve those as VitePress itself would, so the
- * pages and the theme share one Vue.
+ * pages and the theme share one Vue. The theme's own .vue components (theme/) need the same:
+ * `vue` is not a dependency of this package either.
  */
 function resolveVueForPages(): Plugin {
   return {
@@ -25,7 +27,8 @@ function resolveVueForPages(): Plugin {
     enforce: 'pre',
     resolveId(id, importer, options) {
       if (id !== 'vue' && !id.startsWith('vue/')) return null;
-      if (importer === undefined || !isUnderDir(importer, docsDir)) return null;
+      if (importer === undefined) return null;
+      if (!isUnderDir(importer, docsDir) && !isUnderDir(importer, themeDir)) return null;
       return this.resolve(id, vitepressEntry, { ...options, skipSelf: true });
     },
   };

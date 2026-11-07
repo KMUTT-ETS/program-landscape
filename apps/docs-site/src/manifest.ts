@@ -30,6 +30,7 @@ export const BILINGUAL_PAGES: readonly string[] = [
   'tutorials/program-deep-dive.md',
   'tutorials/workshop.md',
   'data-import.md',
+  'workshop/README.md',
 ];
 
 /** 'adopters/README.md' -> 'adopters/README.th.md'. */

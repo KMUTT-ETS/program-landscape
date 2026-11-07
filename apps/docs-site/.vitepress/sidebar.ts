@@ -37,6 +37,7 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
         { text: 'Overview', link: '/tutorials/README' },
         { text: 'Getting started', link: '/tutorials/getting-started' },
         { text: 'Get Program Deep-Dive working', link: '/tutorials/program-deep-dive' },
+        { text: 'Deep-Dive data map', link: '/adopters/deep-dive-data-map' },
         { text: 'Workshop guide', link: '/tutorials/workshop' },
         { text: 'Tutorials overview (Thai)', link: '/tutorials/README.th' },
         { text: 'Getting started (Thai)', link: '/tutorials/getting-started.th' },
@@ -44,6 +45,13 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
         { text: 'Workshop guide (Thai)', link: '/tutorials/workshop.th' },
         { text: 'Fresh checkout setup (moved)', link: '/guides/fresh-checkout-setup' },
         { text: 'Adapt the registrar connector (advanced)', link: '/tutorials/adapt-the-registrar-connector' },
+      ],
+    },
+    {
+      text: 'Workshop',
+      items: [
+        { text: 'Overview', link: '/workshop/README' },
+        { text: 'Overview (Thai)', link: '/workshop/README.th' },
       ],
     },
     {

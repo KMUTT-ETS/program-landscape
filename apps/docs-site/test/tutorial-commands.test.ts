@@ -3,9 +3,28 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const repo = path.resolve(__dirname, '../../..');
-const PAGES = ['getting-started', 'program-deep-dive', 'workshop'].map((n) =>
-  path.join(repo, 'docs', 'tutorials', `${n}.md`),
-);
+const REQUIRED_PAGES = [
+  ...['getting-started', 'program-deep-dive', 'workshop'].map((n) =>
+    path.join(repo, 'docs', 'tutorials', `${n}.md`),
+  ),
+  path.join(repo, 'docs', 'workshop', 'README.md'),
+];
+
+/** Every English workshop page, plus the WSL2 guide once it exists. */
+function optionalPages(): string[] {
+  const out: string[] = [];
+  const dir = path.join(repo, 'docs', 'workshop');
+  if (fs.existsSync(dir)) {
+    for (const f of fs.readdirSync(dir).sort()) {
+      if (f.endsWith('.md') && !f.endsWith('.th.md')) out.push(path.join(dir, f));
+    }
+  }
+  const wsl = path.join(repo, 'docs', 'guides', 'windows-wsl2.md');
+  if (fs.existsSync(wsl)) out.push(wsl);
+  return out;
+}
+
+const PAGES = [...new Set([...REQUIRED_PAGES, ...optionalPages()])];
 
 function packageJsonFiles(): string[] {
   const out = [path.join(repo, 'package.json')];
@@ -38,7 +57,7 @@ function read(file: string): string {
 
 describe('tutorial pages', () => {
   it('exist', () => {
-    for (const p of PAGES) expect(fs.existsSync(p), p).toBe(true);
+    for (const p of REQUIRED_PAGES) expect(fs.existsSync(p), p).toBe(true);
   });
 
   it('only mention pnpm scripts that exist', () => {
