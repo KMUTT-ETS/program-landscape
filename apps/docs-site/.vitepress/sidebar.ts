@@ -26,6 +26,8 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
         { text: 'Adopter guide', link: '/adopters/README' },
         { text: 'Licensing', link: '/licensing' },
         { text: 'Getting started', link: '/tutorials/getting-started' },
+        { text: 'Windows setup (WSL2)', link: '/guides/windows-wsl2' },
+        { text: 'Windows setup (WSL2) (Thai)', link: '/guides/windows-wsl2.th' },
         { text: 'Architecture', link: '/architecture' },
         { text: 'Evaluation pipeline', link: '/evaluation-pipeline' },
         { text: 'Project contract & decision log', link: gen('project-contract') },

@@ -18,6 +18,25 @@ You need all of these before you start.
 5. An AI key. A Google Gemini key or an OpenRouter key both work. Without a key
    the app starts, but the AI steps later in the workshop cannot run.
 6. These ports free: 3000, 4000, 5432, 6379, 9000, 9001, 3001.
+7. The four TH Sarabun New font files (step 4 says where they go).
+
+**On Windows**, work inside WSL2. Set it up first with
+[Windows setup with WSL2](../guides/windows-wsl2.md), which also installs Git,
+Docker and Node.js.
+
+**Your laptop** needs at least 16 GB of memory and 25 GB of free disk. The
+setup downloads about 2 GB of packages and builds about 4 GB of Docker images.
+
+**Getting an AI key.**
+
+- A Google Gemini key comes from Google AI Studio (`aistudio.google.com`, "Get
+  API key"). The app always uses Google for embeddings, even when OpenRouter is
+  your main provider, so get this key in any case. A free key works for one
+  programme but stops after about 1,000 course texts a day; add billing in
+  Google Cloud for more.
+- An OpenRouter key comes from `openrouter.ai` ("Keys"). Add credit before you
+  start, about USD 5 for a workshop: a run that runs out of credit fails part
+  way with "402".
 
 ## 2. Get the code
 
@@ -52,7 +71,20 @@ You should now have a `.env` file that is not tracked by git. Never commit it.
 
 ## 4. Run the one-time setup
 
-1. Run the setup script.
+1. Put the four TH Sarabun New font files into `infra/gotenberg/fonts/`, named
+   `THSarabunNew.ttf`, `THSarabunNew-Bold.ttf`, `THSarabunNew-Italic.ttf` and
+   `THSarabunNew-BoldItalic.ttf`. They are not in the repository. The PDF
+   service image will not build without them.
+   [The Gotenberg font guide](../_generated/gotenberg-fonts.md) says where to
+   download them. Check:
+
+```bash
+ls infra/gotenberg/fonts/
+```
+
+You should see the four files.
+
+2. Run the setup script.
 
 ```bash
 pnpm setup
@@ -62,7 +94,7 @@ You should see it install packages, start the Docker containers, apply the
 database migrations, register every data source (all switched off) and load the
 generic reference data. It ends without errors.
 
-2. Check that nothing of another university is in your database.
+3. Check that nothing of another university is in your database.
 
 ```bash
 pnpm adopter:fresh-check
