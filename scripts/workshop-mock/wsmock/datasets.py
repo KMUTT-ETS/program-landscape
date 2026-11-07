@@ -9,7 +9,7 @@ from __future__ import annotations
 import math
 import random
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .courses import Course, GE, FREE
 from .people import Publication, RosterLink, Staff
@@ -24,8 +24,9 @@ UPLOAD_ORDER: list[str] = [
     "career-skill-demand",
 ]
 
-# Copied from the declarations in packages/db/src/import/datasets/*.ts
-# (the Task 9 check is what proves them right).
+# Committed literal copied from the dataset declarations. Regenerate (from the repo root) with
+#   pnpm --filter api exec tsx ../../scripts/workshop-mock/tools/dump-sheets.ts
+# which prints this dict as Python. The Task 9 TypeScript test asserts SHEETS matches the registry.
 SHEETS: dict[str, tuple[str, list[str]]] = {
     'faculties': (
         'Faculties',
@@ -269,12 +270,8 @@ class World:
     publications: list[Publication]
     courses: dict[str, list[Course]]
     region: str
-
-
-def build_world(slice: Slice, staff: list[Staff], links: list[RosterLink],
-                publications: list[Publication], courses: dict[str, list[Course]],
-                region: str) -> World:
-    return World(slice, staff, links, publications, courses, region)
+    seed: int = 0  # the run's --seed; mixed into every figure
+    _cache: dict = field(default_factory=dict, repr=False, compare=False)
 
 
 Row = dict[str, object]
@@ -291,8 +288,8 @@ SKILLS = [
 ]
 
 
-def _r(*parts: object) -> random.Random:
-    return random.Random("|".join(str(p) for p in parts))
+def _r(seed: int, *parts: object) -> random.Random:
+    return random.Random("|".join(str(p) for p in (seed, *parts)))
 
 
 def _rows(slug: str, items: list[list[object]]) -> list[Row]:
@@ -324,8 +321,8 @@ def _funnel(rng: random.Random, seats: int, applicants: int, passed: int | None)
     return _Camp("", seats, applicants, passed, notional, confirmed, reported)
 
 
-def _campaigns(p: Programme, year: int, years: list[int]) -> list[_Camp]:
-    rng = _r("camp", p.code, year)
+def _campaigns(seed: int, p: Programme, year: int) -> list[_Camp]:
+    rng = _r(seed, "camp", p.code, year)
     if p.level != "BACHELOR":
         seats = rng.randint(12, 30)
         c = _funnel(rng, seats, round(seats * rng.uniform(1.4, 2.5)), None)
@@ -334,14 +331,22 @@ def _campaigns(p: Programme, year: int, years: list[int]) -> list[_Camp]:
         c.round = "Direct Admission"
         return [c]
     t = p.tcas.get(year)
-    if t is None:
-        known = [x for y, x in sorted(p.tcas.items()) if y in years] or list(p.tcas.values())
-        base = known[-1].quota if known else rng.randint(40, 90)
-        q = max(10, round(base * rng.uniform(0.9, 1.1)))
-        r3 = _funnel(rng, q, round(q * rng.uniform(1.5, 4.0)), min(q, round(q * rng.uniform(0.9, 1.1))))
-    else:
+    if t is not None:
         q = t.quota
         r3 = _funnel(rng, t.quota, t.applicants, t.admitted)
+    elif p.tcas:
+        # no figure for this year: scale from the nearest year that has one (ties: the later)
+        ny = min(p.tcas, key=lambda y: (abs(y - year), -y))
+        n = p.tcas[ny]
+        q = n.quota
+        apps = round(q * n.applicants / n.quota * rng.uniform(0.9, 1.1)) if q else n.applicants
+        passed = None
+        if n.admitted is not None:
+            passed = min(apps, round(q * n.admitted / n.quota * rng.uniform(0.9, 1.1))) if q else n.admitted
+        r3 = _funnel(rng, q, apps, passed)
+    else:
+        q = rng.randint(40, 90)
+        r3 = _funnel(rng, q, round(q * rng.uniform(1.5, 4.0)), min(q, round(q * rng.uniform(0.9, 1.1))))
     r3.round = ROUND3
     # total seats such that round 3 is 30-45 % of them (q = 0: nothing to scale from)
     lo, hi = math.ceil(q / 0.45), math.floor(q / 0.30)
@@ -389,19 +394,25 @@ def _cohort_tail(rng: random.Random, p: Programme, y: int, last: int, enrolled: 
     return retained, on_time, late, drop, still
 
 
-def _plan(world: World) -> dict[tuple[str, int], _Year]:
+def _compute_plan(world: World) -> dict[tuple[str, int], _Year]:
     s = world.slice
     last = s.latest_year_ce
     out: dict[tuple[str, int], _Year] = {}
     for p in s.programmes:
         for y in s.years_ce:
-            cs = _campaigns(p, y, s.years_ce)
+            cs = _campaigns(world.seed, p, y)
             passed = sum(c.notional for c in cs)
             applications = max(sum(c.applicants for c in cs), passed)
             enrolled = sum(c.reported for c in cs)
-            retained, on_time, late, drop, still = _cohort_tail(_r("tail", p.code, y), p, y, last, enrolled)
+            retained, on_time, late, drop, still = _cohort_tail(_r(world.seed, "tail", p.code, y), p, y, last, enrolled)
             out[(p.code, y)] = _Year(applications, passed, enrolled, retained, on_time, late, drop, still)
     return out
+
+
+def _plan(world: World) -> dict[tuple[str, int], _Year]:
+    if "plan" not in world._cache:
+        world._cache["plan"] = _compute_plan(world)
+    return world._cache["plan"]
 
 
 def _older_cohorts(world: World, plan: dict[tuple[str, int], _Year]) -> dict[tuple[str, int], _Year]:
@@ -412,10 +423,10 @@ def _older_cohorts(world: World, plan: dict[tuple[str, int], _Year]) -> dict[tup
     out: dict[tuple[str, int], _Year] = {}
     for p in s.programmes:
         base = plan[(p.code, first)].enrolled
-        for y in range(first - 4, first):
-            rng = _r("old", p.code, y)
+        for y in range(max(first - 4, p.year_established), first):
+            rng = _r(world.seed, "old", p.code, y)
             enrolled = max(5, round(base * rng.uniform(0.9, 1.1)))
-            retained, on_time, late, drop, still = _cohort_tail(_r("tail", p.code, y), p, y, last, enrolled)
+            retained, on_time, late, drop, still = _cohort_tail(_r(world.seed, "tail", p.code, y), p, y, last, enrolled)
             out[(p.code, y)] = _Year(enrolled, enrolled, enrolled, retained, on_time, late, drop, still)
     return out
 
@@ -463,7 +474,7 @@ def _campaign_rows(w: World) -> list[Row]:
     items = []
     for p in w.slice.programmes:
         for y in w.slice.years_ce:
-            for c in _campaigns(p, y, w.slice.years_ce):
+            for c in _campaigns(w.seed, p, y):
                 items.append([p.code, y, c.round, f"{p.name_en}, mock", c.seats, c.applicants,
                               c.passed, c.confirmed, c.reported])
     return _rows("admission-campaigns", items)
@@ -491,7 +502,7 @@ def _alumni(w: World) -> list[Row]:
         for (code, y), v in sorted(cohorts.items(), key=lambda kv: kv[0][1]):
             if code != p.code or y + p.duration > last:
                 continue
-            rng = _r("alumni", p.code, y)
+            rng = _r(w.seed, "alumni", p.code, y)
             drop = v.dropouts or 0
             fin = round(drop * rng.uniform(0.25, 0.35))
             acad = round(drop * rng.uniform(0.2, 0.3))
@@ -523,7 +534,7 @@ def _finance(w: World) -> list[Row]:
     items = []
     for p in w.slice.programmes:
         lo, hi = FEE[p.level]
-        fee = _r("fee", p.code).randint(lo // 1000, hi // 1000) * 1000
+        fee = _r(w.seed, "fee", p.code).randint(lo // 1000, hi // 1000) * 1000
         for i, y in enumerate(w.slice.years_ce):
             tuition = round(_students_in_year(w, p, y, plan, older) * fee * (1.02 ** i))
             items.append([p.code, y, tuition, round(tuition * 0.08)])
@@ -537,7 +548,7 @@ def _budgets(w: World) -> list[Row]:
     for f in w.slice.faculties:
         for y in w.slice.years_ce:
             tuition = sum(v for (c, yy), v in fin.items() if yy == y and fac_of[c] == f.code)
-            rng = _r("budget", f.code, y)
+            rng = _r(w.seed, "budget", f.code, y)
             for fund, mult in (("University revenue (mock)", 1.0), ("Government subsidy (mock)", 1.6)):
                 total = round((20_000_000 + tuition * rng.uniform(2.0, 3.0)) * mult, -3)
                 commit, oblig = round(total * 0.05, -3), round(total * 0.05, -3)
@@ -551,7 +562,7 @@ def _outcomes(w: World) -> list[Row]:
     items = []
     for p in w.slice.programmes:
         for g in w.slice.years_ce[:-1]:
-            rng = _r("outcome", p.code, g)
+            rng = _r(w.seed, "outcome", p.code, g)
             post = p.level != "BACHELOR"
             salary = rng.randint(30, 50) if post else rng.randint(18, 30)
             items.append([p.code, g, g + 1, round(rng.uniform(0.78, 0.96), 2), salary * 1000,
@@ -567,7 +578,7 @@ def _employers(w: World) -> list[Row]:
     for p in w.slice.programmes:
         for y in (last - 1, last):
             for n in (1, 2, 3):
-                rng = _r("employer", p.code, y, n)
+                rng = _r(w.seed, "employer", p.code, y, n)
                 items.append([p.code, y, f"Mock employer {n}", round(rng.uniform(0.70, 0.95), 2),
                               rng.randint(8, 30)])
     return _rows("employer-feedback", items)
@@ -582,7 +593,7 @@ def _dq_cohorts(w: World) -> list[Row]:
     items = []
     for p in _bachelors(w):
         for y in w.slice.years_ce:
-            rng = _r("dq", p.code, y)
+            rng = _r(w.seed, "dq", p.code, y)
             tested = max(8, round(plan[(p.code, y)].enrolled * rng.uniform(0.70, 0.95)))
             scored = round(tested * rng.uniform(0.85, 0.98))
             items.append([p.code, y, tested, scored, round(scored * rng.uniform(0.5, 0.8))])
@@ -594,7 +605,7 @@ def _dq_modules(w: World) -> list[Row]:
     items = []
     for (code, y), c in cohorts.items():
         for m in range(1, 14):
-            rng = _r("dqm", code, y, m)
+            rng = _r(w.seed, "dqm", code, y, m)
             taken = max(5, round(c["Students With Scores"] * rng.uniform(0.85, 1.0)))
             items.append([code, y, m, taken, round(rng.uniform(55, 85), 1), c["Students Tested"]])
     return _rows("digital-competency-modules", items)
@@ -610,21 +621,21 @@ def _evaluations(w: World) -> list[Row]:
             if c.category in (GE, FREE):
                 continue
             code_key = re.sub(r"\s+", "", c.code).upper()
-            rng = _r("eval", p.code, c.code)
+            rng = _r(w.seed, "eval", p.code, c.code)
             sems = rng.choice([(1,), (2,), (1, 2)])
             for y in (last - 1, last):
                 for sem in sems:
                     if (y, sem, code_key) in seen:
                         continue
                     seen.add((y, sem, code_key))
-                    r2 = _r("evalrow", c.code, y, sem)
+                    r2 = _r(w.seed, "evalrow", c.code, y, sem)
                     items.append([c.code, y, sem, 1, round(r2.uniform(3.2, 4.7), 2), r2.randint(8, 60),
                                   fac_of[p.code], c.name_th, c.name_en])
     return _rows("course-evaluations", items)
 
 
 def _population(w: World) -> list[Row]:
-    rng = _r("pop", w.region)
+    rng = _r(w.seed, "pop", w.region)
     share = rng.uniform(0.12, 0.30)
     base = {"15-17": 2_900_000, "18-22": 4_600_000, "23-29": 6_300_000}
     decay = {"15-17": 0.985, "18-22": 0.985, "23-29": 0.992}
@@ -656,7 +667,7 @@ def _fields(w: World) -> list[str]:
 def _skills(w: World) -> list[Row]:
     items = []
     for f in _fields(w):
-        rng = _r("skills", f)
+        rng = _r(w.seed, "skills", f)
         for s in rng.sample(SKILLS, 8):
             items.append([f"{f} careers (mock)", None, f"{f} professional (mock)", s, "Thailand",
                           "Job postings", round(rng.uniform(5, 45), 1)])
@@ -678,5 +689,5 @@ _BUILDERS = {
 
 def build_rows(slug: str, world: World, rng: random.Random) -> list[Row]:
     """Rows keyed by header text; None is a blank cell. `rng` is accepted for the
-    interface but unused: every figure derives from the world, so sheets agree."""
+    interface but unused: every figure derives from the world (and its `seed`), so sheets agree."""
     return _BUILDERS[slug](world)

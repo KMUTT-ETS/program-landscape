@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from wsmock.courses import courses_from_csv, invented_courses, share_with_sibling
-from wsmock.datasets import SHEETS, UPLOAD_ORDER, World, build_rows, build_world
+from wsmock.datasets import SHEETS, UPLOAD_ORDER, World, build_rows
 from wsmock.inputs import Inputs, ProgrammeInput, resolve_anchors
 from wsmock.people import make_publications, make_staff
 from wsmock.slice import choose_slice
@@ -15,7 +15,7 @@ KMUTT = "มหาวิทยาลัยเทคโนโลยีพระ�
 GROUP_FLOORS = {"Sample Size", "Respondents", "Students Tested", "Students Taking"}
 
 
-def make_world(seed=7) -> World:
+def make_world(seed=7, run_seed=0) -> World:
     rows = load_rows(Path("/nonexistent"), offline=True, files=[(FIXTURE, 2567, "3")])
     own = own_rows(rows, KMUTT)
     pairs = sorted({(r.faculty, r.programme) for r in own})
@@ -37,7 +37,7 @@ def make_world(seed=7) -> World:
     pubs = make_publications(s, staff, links, random.Random(seed))
     dept = {d.code: d.name_en for d in s.departments}
     courses = {p.code: invented_courses(p, random.Random(p.code), dept[p.department_code]) for p in s.programmes}
-    return build_world(s, staff, links, pubs, courses, "Central")
+    return World(s, staff, links, pubs, courses, "Central", run_seed)
 
 
 class DatasetTests(unittest.TestCase):
@@ -62,17 +62,54 @@ class DatasetTests(unittest.TestCase):
             self.assertEqual(build_rows(slug, self.w, random.Random(5)), build_rows(slug, self.w, random.Random(9)), slug)
 
     def test_round3_equals_tcas(self):
-        anchor = next(p for p in self.w.slice.programmes if p.is_anchor and p.level == "BACHELOR")
-        self.assertTrue(anchor.tcas)
-        camp = [r for r in self.rows["admission-campaigns"]
-                if r["Programme Code"] == anchor.code and r["Round"] == "Round 3 — Admission"]
-        for y, t in anchor.tcas.items():
-            if y not in self.w.slice.years_ce:
+        checked = 0
+        for p in self.w.slice.programmes:
+            if p.level != "BACHELOR" or not p.tcas:
                 continue
-            (r,) = [c for c in camp if c["Academic Year"] == y]
-            self.assertEqual(r["Planned Seats"], t.quota)
-            self.assertEqual(r["Total Applicants"], t.applicants)
-            self.assertEqual(r["Total Passed"], t.admitted)
+            for y, t in p.tcas.items():
+                if y not in self.w.slice.years_ce:
+                    continue
+                (r,) = [c for c in self.rows["admission-campaigns"] if c["Programme Code"] == p.code
+                        and c["Round"] == "Round 3 — Admission" and c["Academic Year"] == y]
+                self.assertEqual((r["Planned Seats"], r["Total Applicants"], r["Total Passed"]),
+                                 (t.quota, t.applicants, t.admitted), (p.code, y))
+                checked += 1
+        self.assertGreater(checked, 3)
+
+    def test_uncovered_years_scale_from_nearest(self):
+        years = self.w.slice.years_ce
+        p = next(p for p in self.w.slice.programmes if p.level == "BACHELOR" and p.tcas and p.tcas.get(2024) and p.tcas[2024].quota >= 10)
+        covered = [y for y in p.tcas if y in years]
+        self.assertLess(len(covered), len(years))
+        for y in years:
+            (r,) = [c for c in self.rows["admission-campaigns"] if c["Programme Code"] == p.code
+                    and c["Round"] == "Round 3 — Admission" and c["Academic Year"] == y]
+            if y in p.tcas:
+                continue
+            ny = min(p.tcas, key=lambda k: (abs(k - y), -k))
+            n = p.tcas[ny]
+            self.assertEqual(r["Planned Seats"], n.quota)
+            want = n.quota * n.applicants / n.quota
+            self.assertLessEqual(abs(r["Total Applicants"] - want), 0.1 * want + 1, (y, ny))
+
+    def test_older_alumni_not_before_establishment(self):
+        by = {p.code: p for p in self.w.slice.programmes}
+        for r in self.rows["alumni-cohorts"]:
+            self.assertGreaterEqual(r["Entry Year"], by[r["Programme Code"]].year_established)
+        late = make_world()
+        for p in late.slice.programmes:
+            p.year_established = min(late.slice.years_ce) - 1  # only one older cohort allowed
+        rows = build_rows("alumni-cohorts", late, random.Random(1))
+        first = min(late.slice.years_ce)
+        self.assertTrue(all(r["Entry Year"] >= first - 1 for r in rows))
+        self.assertTrue(any(r["Entry Year"] == first - 1 for r in rows))
+
+    def test_run_seed_changes_figures_but_is_stable(self):
+        a = build_rows("enrollment-metrics", make_world(run_seed=1), random.Random(0))
+        b = build_rows("enrollment-metrics", make_world(run_seed=1), random.Random(0))
+        c = build_rows("enrollment-metrics", make_world(run_seed=2), random.Random(0))
+        self.assertEqual(a, b)
+        self.assertNotEqual(a, c)
 
     def test_blank_pass_year_stays_blank(self):
         found = False

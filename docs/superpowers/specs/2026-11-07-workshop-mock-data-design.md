@@ -272,6 +272,13 @@ settled here as the author's call; the owner may overturn any of them.
    Otherwise the name cell is left blank, which the dataset allows. An optional
    `courses` CSV per programme in the input file overrides PDF reading
    entirely.
+10. **Older alumni cohorts go beyond the five-year window (deviation from
+    consistency rules 4 and 6).** `alumni-cohorts` also gets up to four entry
+    years before the slice's window, never before the programme's
+    `year_established`. Their sizes are invented (near the earliest slice
+    year's enrolment), so they have no matching enrolment row. The gap map's
+    supply side needs more than one graduated cohort, and a five-year window
+    holds only one for a four-year degree.
 
 ## Left to the builder
 
