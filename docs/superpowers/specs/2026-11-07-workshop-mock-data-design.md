@@ -1,6 +1,17 @@
 # Workshop mock data generator — design
 
-Date: 2026-11-07. Branch: `feat/generic-adoptor`. Status: draft for owner review.
+Date: 2026-11-07. Branch: `feat/generic-adoptor`. Status: approved.
+
+> **Language change (owner, 2026-11-07): the generator is Node.js (TypeScript), not
+> Python.** It runs as `pnpm workshop:mock <input.json>` from the repository,
+> using the Node 20 + pnpm the workshop already requires, and calls the app's
+> own code (TCAS matcher, course-code pattern, PDF text extractor, import
+> declarations and validator) instead of copying it. The input file is JSON.
+> Every rule below still holds; where this document names Python, `pip`,
+> `openpyxl`, `pypdf`, TOML or `python3`, read the Node equivalent. The first
+> implementation was in Python (`scripts/workshop-mock/`, reviewed at
+> `f06d0bdd`) and is the reference for the port. Plan:
+> `docs/superpowers/plans/2026-11-07-workshop-mock-data-node.md`.
 
 ## Why
 
