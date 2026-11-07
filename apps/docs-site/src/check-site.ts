@@ -7,7 +7,7 @@ export interface SidebarLike {
   items?: SidebarLike[];
 }
 
-export type ProblemKind = 'missing-from-sidebar' | 'sidebar-without-page' | 'retired-name' | 'bilingual-twin' | 'page-shape';
+export type ProblemKind = 'missing-from-sidebar' | 'sidebar-without-page' | 'retired-name' | 'bilingual-twin' | 'page-shape' | 'wrong-language';
 
 export interface SiteProblem {
   kind: ProblemKind;
@@ -162,6 +162,36 @@ export function checkPageShape(docsRel: string, md: string): SiteProblem[] {
   }
   if (!lines.some((l) => l.trim() === m.next)) {
     problems.push({ kind: 'page-shape', detail: `${docsRel} needs a "${m.next}" section` });
+  }
+  return problems;
+}
+
+/**
+ * A Thai page must not send its reader to an English page that has a Thai twin. The one allowed
+ * English link is the banner back to the page's own English twin.
+ */
+export function checkThaiLinks(thRel: string, md: string, exists: (docsRel: string) => boolean): SiteProblem[] {
+  const ownEnglish = thRel.slice(THAI_DIR.length + 1);
+  const problems: SiteProblem[] = [];
+  let fence = false;
+  for (const line of md.split(/\r?\n/)) {
+    if (/^\s*```/.test(line)) {
+      fence = !fence;
+      continue;
+    }
+    if (fence) continue;
+    for (const m of line.matchAll(/\]\(([^)\s]+)\)/g)) {
+      const target = (m[1] ?? '').replace(/#.*$/, '');
+      if (!target.endsWith('.md') || /^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith('/')) continue;
+      const rel = path.posix.normalize(path.posix.join(path.posix.dirname(thRel), target));
+      if (rel.startsWith(`${THAI_DIR}/`) || rel.startsWith('..') || rel === ownEnglish) continue;
+      if (exists(`${THAI_DIR}/${rel}`)) {
+        problems.push({
+          kind: 'wrong-language',
+          detail: `${thRel} links the English ${rel}; link the Thai ${THAI_DIR}/${rel} instead`,
+        });
+      }
+    }
   }
   return problems;
 }

@@ -104,7 +104,7 @@ DRAFT → ANALYSING → IN_REVIEW → APPROVED
 
 | ขั้น | คำสั่ง | ทำอะไร |
 |---|---|---|
-| 1 | `pnpm connector:run kmitl-skill-mapping` | โหลดอุปสงค์ทักษะของตลาดแรงงาน (ข้อมูล LinkedIn ผ่าน connector ของ KMITL) ต้องมี credential ดู [tutorial](../../tutorials/program-deep-dive.md#labour-market-skills) |
+| 1 | `pnpm connector:run kmitl-skill-mapping` | โหลดอุปสงค์ทักษะของตลาดแรงงาน (ข้อมูล LinkedIn ผ่าน connector ของ KMITL) ต้องมี credential ดู [tutorial](../tutorials/program-deep-dive.md#labour-market-skills) |
 | 2 | `pnpm skills:normalise --source=linkedin --auto-promote` | สร้างอนุกรมวิธานจากชื่อทักษะเหล่านั้น แล้วผูกแถวอุปสงค์และแถวการเติบโตของ KMITL เข้ากับทักษะใหม่ |
 | 3 | `pnpm programs:pipeline <code> --only=phase1` หรือ `pnpm programs:digest <code>` | สรุป PDF หลักสูตร ชื่อที่จับคู่ไม่ได้จะกลายเป็นรายการ `PROPOSED_SKILL` |
 | 4 | `pnpm skills:normalise --source=program_digest --auto-promote` | เพิ่มคำศัพท์จากหลักสูตรของคุณเองเข้าอนุกรมวิธาน |

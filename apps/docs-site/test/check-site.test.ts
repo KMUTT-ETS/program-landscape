@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   checkPageShape,
+  checkThaiLinks,
   checkSidebarCoverage,
   checkTwinPair,
   fencedBlocks,
@@ -144,5 +145,25 @@ describe('page shape', () => {
     const late = '# X\n' + '\n'.repeat(25) + '**Outcome.** late\n## Next step\n';
     expect(checkPageShape('guides/x.md', late)).toHaveLength(1);
     expect(checkPageShape('guides/x.md', '# X\n**ผลลัพธ์** ได้\n## ขั้นต่อไป\n')).toHaveLength(2);
+  });
+});
+
+describe('Thai pages link Thai pages', () => {
+  const exists = (rel: string): boolean => ['th/data-import.md', 'data-import.md', 'th/guides/x.md', 'guides/x.md', 'pdpa.md'].includes(rel);
+
+  it('flags a link to an English page whose Thai twin exists', () => {
+    const p = checkThaiLinks('th/adopters/README.md', 'See [import](../../data-import.md#a).', exists);
+    expect(p).toHaveLength(1);
+    expect(p[0]?.kind).toBe('wrong-language');
+    expect(p[0]?.detail).toContain('th/data-import.md');
+  });
+
+  it('allows the banner link to its own English twin, English-only pages and Thai links', () => {
+    const md = ['# x', '> **English:** [English](../../guides/x.md)', '[pdpa](../../pdpa.md) [ok](../data-import.md)'].join('\n');
+    expect(checkThaiLinks('th/guides/x.md', md, exists)).toEqual([]);
+  });
+
+  it('ignores links inside code blocks', () => {
+    expect(checkThaiLinks('th/adopters/README.md', '```\n[a](../../data-import.md)\n```', exists)).toEqual([]);
   });
 });

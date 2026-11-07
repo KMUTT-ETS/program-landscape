@@ -26,7 +26,7 @@ git fetch upstream
 | ประเภทการแก้ไข | ทำแบบนี้ | ไม่ใช่แบบนี้ |
 |---|---|---|
 | connector ของคุณ | สร้างไดเรกทอรีใหม่ใต้ `apps/ingestion/src/connectors/sources/<your-slug>/` แล้วเพิ่มเป็นรายการใหม่ใน `SOURCE_CATALOG` และแถวใหม่ใน registry | แก้ไฟล์ connector ของ มข. ทับลงไป |
-| ข้อมูลคณะ/ภาควิชา/หลักสูตรของคุณ | อัปโหลด spreadsheet ที่ `/admin/data-setup` — ข้อมูลอยู่ในฐานข้อมูลของคุณ ไม่ได้อยู่ใน fork ดู [Importing from spreadsheets](../../data-import.md) | แก้อาร์เรย์คณะของ มข. ใน `packages/db/prisma/seed.ts` |
+| ข้อมูลคณะ/ภาควิชา/หลักสูตรของคุณ | อัปโหลด spreadsheet ที่ `/admin/data-setup` — ข้อมูลอยู่ในฐานข้อมูลของคุณ ไม่ได้อยู่ใน fork ดู [Importing from spreadsheets](../data-import.md) | แก้อาร์เรย์คณะของ มข. ใน `packages/db/prisma/seed.ts` |
 | แบรนด์ | เปลี่ยนไฟล์สินทรัพย์และ *ค่า* ของ token แต่คง *ชื่อ* token ไว้ | เปลี่ยนชื่อ token หรือรื้อโครงสร้าง `tailwind-preset.ts` |
 | น้ำหนักในระเบียบวิธี | เพิ่มเลขเวอร์ชันแล้ววางเวอร์ชันของคุณคู่ไว้ ดู [การปรับระเบียบวิธีให้เข้ากับสถาบันของคุณ](./adapt-a-methodology.md) | แก้สูตรของ มข. ทับลงไป |
 | `CLAUDE.md` ของคุณ | เขียนใหม่ได้เต็มที่ ไฟล์นี้ *ตั้งใจ* ให้แยกทาง | — |
