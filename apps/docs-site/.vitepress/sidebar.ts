@@ -57,11 +57,13 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
         { text: 'Session 1: environment and AI tools', link: '/workshop/01-environment-and-ai-tools' },
         { text: 'Session 2: architecture and source', link: '/workshop/02-architecture-and-source' },
         { text: 'Session 3: university data', link: '/workshop/03-university-data' },
+        { text: 'Session 6: testing and security', link: '/workshop/06-testing-and-security' },
         { text: 'Overview (Thai)', link: '/workshop/README.th' },
         { text: 'Before the day (Thai)', link: '/workshop/00-before-the-day.th' },
         { text: 'Session 1: environment and AI tools (Thai)', link: '/workshop/01-environment-and-ai-tools.th' },
         { text: 'Session 2: architecture and source (Thai)', link: '/workshop/02-architecture-and-source.th' },
         { text: 'Session 3: university data (Thai)', link: '/workshop/03-university-data.th' },
+        { text: 'Session 6: testing and security (Thai)', link: '/workshop/06-testing-and-security.th' },
       ],
     },
     {
