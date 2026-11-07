@@ -11,7 +11,8 @@ from .slice import Programme
 # Python port of COURSE_CODE_SOURCE in packages/shared/src/curriculum/course-code-pattern.ts
 # (that file is the source of truth; keep the two in step).
 COURSE_CODE_RE = re.compile(
-    r"\b[A-Z]{2,4}\s?(?:\d{3}\s?\d{3}|\d{3}(?!\d)(?!\s?\d{3}))(?!\d)\b"
+    r"\b[A-Z]{2,4}\s?(?:\d{3}\s?\d{3}|\d{3}(?!\d)(?!\s?\d{3}))(?!\d)\b",
+    re.ASCII,  # JS \b and \d are ASCII-only; Thai text runs straight into codes
 )
 
 GE, CORE, REQ, ELEC, FREE, THESIS = (
@@ -35,8 +36,8 @@ class Course:
 _CREDITS_RE = re.compile(r"(\d)\s*\(\d-\d-\d\)")
 _LONE_INT = re.compile(r"^\s*(\d)\s*$")
 _HEADING_START = re.compile(r"^\s*(?:\d+(?:\.\d+)*\)?\s|หมวด|กลุ่ม)")
-_LATIN_LINE = re.compile(r"^[A-Za-z][A-Za-z0-9 ,.&'()/:+\-ï¬ﬀ-ﬆ]*$")
-_COMBINING = set(range(0x0E31, 0x0E32)) | set(range(0x0E34, 0x0E3B)) | set(range(0x0E47, 0x0E4F))
+_LATIN_LINE = re.compile(r"^[A-Za-z][A-Za-z0-9 ,.&'()/:+\-\ufb00-\ufb06]*$")
+_COMBINING = {0x0E31} | set(range(0x0E34, 0x0E3B)) | set(range(0x0E47, 0x0E4F))
 
 
 def _clean_thai_name(s: str | None) -> str | None:
@@ -154,14 +155,16 @@ GEN_COURSES = [
 
 
 def _prefix(dept_name_en: str) -> str:
+    """3 uppercase letters from the department name. Never starts with GE or LI: the app's
+    overlap method (isGeneralEducationCode) reads those as general education."""
     words = [w for w in re.split(r"[^A-Za-z0-9]+", dept_name_en) if w and w.lower() not in _STOP]
     letters = [w for w in words if w.isalpha()]
-    if letters:
-        p = letters[0].upper()[:3]
-    else:
-        p = "".join(ch for w in words for ch in w if ch.isalpha()).upper()[:3]
-    p = re.sub(r"[^A-Z]", "", p)
-    return (p + "XXX")[:3] if len(p) < 3 else p
+    src = letters[0] if letters else "".join(ch for w in words for ch in w if ch.isalpha())
+    src = re.sub(r"[^A-Z]", "", src.upper())
+    while src[:2] in ("GE", "LI"):
+        src = src[1:]  # next letters instead: Geology -> EOL
+    p = (src + "XXX")[:3]
+    return p if p[:2] not in ("GE", "LI") else "XXX"
 
 
 def invented_courses(programme: Programme, rng, department_name_en: str) -> list[Course]:

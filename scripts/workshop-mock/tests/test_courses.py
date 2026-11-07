@@ -29,6 +29,14 @@ class RegexTests(unittest.TestCase):
             self.assertFalse(COURSE_CODE_RE.fullmatch(s), s)
 
 
+class AsciiTests(unittest.TestCase):
+    def test_ascii_semantics(self):
+        find = lambda x: [m.group(0) for m in COURSE_CODE_RE.finditer(x)]
+        self.assertEqual(find("CPE 101\u0e04\u0e2d\u0e21\u0e1e\u0e34\u0e27\u0e40\u0e15\u0e2d\u0e23\u0e4c"), ["CPE 101"])
+        self.assertEqual(find("\u0e01MEE 221"), ["MEE 221"])
+        self.assertEqual(find("CPE \u0e51\u0e50\u0e51"), [])
+
+
 class PdfTests(unittest.TestCase):
     def test_fixture_codes(self):
         courses, note = courses_from_pdf(FIXTURE)
@@ -100,6 +108,16 @@ class InventedTests(unittest.TestCase):
             self.assertLessEqual(abs(sum(c.credits for c in cs) - 128), 4)
             self.assertTrue(any(c.code.startswith("MEC") for c in cs))
 
+    def test_no_general_education_lookalike_prefix(self):
+        for name in ("Department of Geology", "Department of Genetics", "Department of Linguistics",
+                     "Department of Library Science"):
+            cs = invented_courses(prog(), random.Random(1), name)
+            major = [c.code for c in cs if not c.code.startswith("GEN")]
+            self.assertTrue(major)
+            for code in major:
+                self.assertFalse(code.startswith(("GE", "LI")), (name, code))
+                self.assertTrue(COURSE_CODE_RE.fullmatch(code), code)
+
     def test_placeholder_department(self):
         cs = invented_courses(prog(), random.Random(1), "Department F03-D02")
         for c in cs:
@@ -136,7 +154,7 @@ class ShareTests(unittest.TestCase):
                     self.assertEqual(c.name_en, by_anchor[c.code].name_en)
             # GEN courses are not shared as "major" but may coincide; nothing else collides
             others = {c.code for c in out} & {c.code for c in anchor}
-            self.assertTrue(others - shared_major <= {c.code for c in anchor if c.category == "General education"})
+            self.assertEqual(others - shared_major, {c.code for c in anchor if c.category == "General education"})
 
 
 if __name__ == "__main__":
