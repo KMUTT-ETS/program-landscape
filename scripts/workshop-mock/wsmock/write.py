@@ -79,7 +79,10 @@ def write_dataset(out: Path, index: int, slug: str, rows) -> Path:
             data = src.read(name)
             if name == "docProps/core.xml":
                 # openpyxl stamps `modified` with the clock on save, whatever we set
-                data = re.sub(rb"(<dcterms:modified[^>]*>)[^<]*", rb"\g<1>2000-01-01T00:00:00Z", data)
+                data, n = re.subn(rb"(<dcterms:modified[^>]*>)[^<]*", rb"\g<1>2000-01-01T00:00:00Z", data)
+                if n != 1:
+                    raise RuntimeError("docProps/core.xml has no single <dcterms:modified> element; "
+                                       "the openpyxl output format changed")
             dst.writestr(info, data)
     path = Path(out) / file_name(index, slug)
     path.write_bytes(final.getvalue())

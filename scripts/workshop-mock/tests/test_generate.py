@@ -3,6 +3,7 @@ import io
 import os
 import subprocess
 import sys
+import time
 import tempfile
 import unittest
 from pathlib import Path
@@ -111,6 +112,8 @@ class GenerateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             outs = []
             for hs in ("1", "2"):
+                if outs:
+                    time.sleep(1.1)  # a clock stamp must differ between the runs
                 out = Path(d) / f"o{hs}"
                 env = dict(os.environ, PYTHONHASHSEED=hs)
                 r = subprocess.run([sys.executable, str(gen), str(INPUT), "--tcas-file", TCAS_ARG,
