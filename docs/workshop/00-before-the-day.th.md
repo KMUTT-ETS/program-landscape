@@ -16,7 +16,7 @@
 
 - **Windows:** ทำตาม [การติดตั้งบน Windows ด้วย WSL2](../guides/windows-wsl2.th.md)
   ซึ่งติดตั้ง WSL2, Docker, Git และ Node.js
-- **macOS หรือ Linux:** ติดตั้ง Git, Docker พร้อม Compose v2 และ Node.js 20 ตามรายการใน
+- **macOS หรือ Linux:** ติดตั้ง Git, Docker พร้อม Compose v2 และ Node.js 24 (24.22.1 ขึ้นไป) ตามรายการใน
   [Getting started ขั้นที่ 1](../tutorials/getting-started.th.md#1-ตรวจสอบสิ่งที่ต้องมี)
 
 ## ดาวน์โหลดโค้ดและรัน setup หนึ่งครั้ง

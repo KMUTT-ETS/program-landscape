@@ -55,12 +55,12 @@ Inside the Ubuntu/WSL2 terminal:
 # Update packages
 sudo apt update && sudo apt upgrade -y
 
-# Install Node.js 20 via nvm
+# Install Node.js 24 via nvm (24.22.1+ — Node2Shell fix)
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 source ~/.bashrc
-nvm install 20
-nvm use 20
-nvm alias default 20
+nvm install 24
+nvm use 24
+nvm alias default 24
 
 # Install pnpm
 npm install -g pnpm
@@ -69,7 +69,7 @@ npm install -g pnpm
 sudo apt install -y build-essential git curl unzip
 
 # Verify
-node --version    # should show v20.x
+node --version    # should show v24.22.1 or later
 pnpm --version    # should show 9.x+
 git --version
 ```
@@ -260,7 +260,7 @@ Anthropic's official install is the source of truth, but as of this writing:
 
 - [ ] WSL2 installed with Ubuntu 24.04
 - [ ] Docker Desktop installed with WSL2 integration enabled
-- [ ] Node.js 20, pnpm, Git installed inside WSL2
+- [ ] Node.js 24 (24.22.1+), pnpm, Git installed inside WSL2
 - [ ] VS Code with Remote-WSL extension
 - [ ] Project cloned inside WSL2 filesystem (`~/projects/`, not `/mnt/c/`)
 - [ ] `.gitattributes` and `.editorconfig` in repo root

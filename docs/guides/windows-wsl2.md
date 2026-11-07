@@ -63,18 +63,18 @@ under "Resources", "WSL integration", turn on your Ubuntu distribution. Check
 your organisation's licence terms first: Docker Desktop is free only for some
 kinds of use. Do not install both.
 
-## Install Node.js 20 and pnpm 10
+## Install Node.js 24 and pnpm 10
 
 ```bash
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 source ~/.bashrc
-nvm install 20
-nvm alias default 20
+nvm install 24
+nvm alias default 24
 corepack enable
 node --version
 ```
 
-You should see a version starting with `v20`. `corepack enable` makes the
+You should see `v24.22.1` or later (earlier releases have the Node2Shell vulnerability). `corepack enable` makes the
 project use the exact package-manager release it pins, so you do not install it
 yourself.
 

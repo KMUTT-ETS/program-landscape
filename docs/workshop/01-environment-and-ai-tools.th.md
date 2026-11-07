@@ -28,7 +28,7 @@ docker compose ps
 |---|---|
 | `git --version` | เวอร์ชันใดก็ได้ที่ค่อนข้างใหม่ |
 | `docker compose version` | เวอร์ชัน 2 ขึ้นไป |
-| `node --version` | ขึ้นต้นด้วย `v20` |
+| `node --version` | `v24.22.1` ขึ้นไป |
 | `pnpm --version` | ขึ้นต้นด้วย `10` |
 | `docker compose ps` | `postgres`, `redis`, `minio` และ `gotenberg` ทำงานและอยู่ในสถานะ healthy |
 

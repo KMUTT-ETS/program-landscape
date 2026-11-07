@@ -181,7 +181,7 @@ merge upstream **ไตรมาสละครั้ง ไม่ใช่ต�
 
 ### สิ่งที่ต้องมีก่อน
 
-- Node 20 ขึ้นไป (`.nvmrc` ตรึงเวอร์ชันไว้) และ pnpm 9 ขึ้นไป (repo ประกาศ `pnpm@10.33.1` เป็น packageManager)
+- Node 24.22.1 ขึ้นไป (`.nvmrc` ตรึงเวอร์ชันหลักไว้ เวอร์ชันก่อนหน้ามีช่องโหว่ Node2Shell) และ pnpm 9 ขึ้นไป (repo ประกาศ `pnpm@10.33.1` เป็น packageManager)
 - Docker + Docker Compose v2
 - Linux, macOS หรือ Windows ที่มี WSL2 (Ubuntu) เครื่องพัฒนาหลักของ มข. คือ Windows/WSL2 มีวิธีตั้งค่าใน `prompts/WINDOWS-DEV.md` และโครงการนี้ **ไม่มี Makefile โดยเจตนา** ทุกอย่างเป็น pnpm script
 

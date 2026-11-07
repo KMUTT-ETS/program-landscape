@@ -17,7 +17,7 @@ Bring the laptop with the app already set up and the ready check passing.
 
 - **Windows:** follow [Windows setup with WSL2](../guides/windows-wsl2.md). It
   installs WSL2, Docker, Git and Node.js.
-- **macOS or Linux:** install Git, Docker with Compose v2, and Node.js 20, as
+- **macOS or Linux:** install Git, Docker with Compose v2, and Node.js 24 (24.22.1 or later), as
   listed in [Getting started, step 1](../tutorials/getting-started.md#1-check-what-you-need).
 
 ## Get the code and run setup once

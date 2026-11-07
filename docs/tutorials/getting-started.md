@@ -13,7 +13,7 @@ You need all of these before you start.
 
 1. Git.
 2. Docker Engine with Compose v2. Check with `docker compose version`.
-3. Node.js 20. Run `nvm use` in the project folder to pick it up.
+3. Node.js 24 (24.22.1 or later). Run `nvm use` in the project folder to pick it up.
 4. pnpm 10. Run `corepack enable` and the project picks its pinned version.
 5. An AI key. A Google Gemini key or an OpenRouter key both work. Without a key
    the app starts, but the AI steps later in the workshop cannot run.

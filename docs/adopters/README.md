@@ -179,7 +179,7 @@ Merge upstream **quarterly, not continuously**. Continuous merging means you re-
 
 ### Prerequisites
 
-- Node 20+ (`.nvmrc` pins the version), pnpm 9+ (the repo declares `pnpm@10.33.1` as its packageManager)
+- Node 24.22.1+ (`.nvmrc` pins the major version; earlier releases have the Node2Shell vulnerability), pnpm 9+ (the repo declares `pnpm@10.33.1` as its packageManager)
 - Docker + Docker Compose v2
 - Linux, macOS, or Windows with WSL2 (Ubuntu). KKU's primary dev machine is Windows/WSL2; `prompts/WINDOWS-DEV.md` covers that setup. There is deliberately **no Makefile** — everything is a pnpm script.
 

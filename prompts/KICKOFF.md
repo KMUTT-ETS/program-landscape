@@ -11,7 +11,7 @@
 **If your dev machine is Windows, read `WINDOWS-DEV.md` first and follow its setup.** In short:
 - Install WSL2 with Ubuntu 24.04
 - Install Docker Desktop with WSL2 integration
-- Install Node.js 20, pnpm, git inside WSL2 (not on native Windows)
+- Install Node.js 24 (24.22.1+), pnpm, git inside WSL2 (not on native Windows)
 - Install Claude Code inside WSL2
 - All the commands below run inside the WSL2 Ubuntu terminal
 
@@ -94,7 +94,7 @@ Before we do anything else, please:
    - Run `uname -a` and report the result (confirms you're on WSL2/Linux/macOS)
    - Confirm pnpm is installed (`pnpm --version`) — should be 9.x+
    - Confirm Docker and docker compose are installed (`docker --version` and `docker compose version` — note: space, not hyphen)
-   - Confirm Node.js 20+ is installed (`node --version`)
+   - Confirm Node.js 24.22.1+ is installed (`node --version`)
    - Confirm git is initialized
    - If the repo path starts with `/mnt/c/`, warn me — we're on WSL2 but the repo should be in the Linux filesystem (`/home/...`) for performance
    - List anything missing

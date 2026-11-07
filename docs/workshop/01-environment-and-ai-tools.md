@@ -30,7 +30,7 @@ You should see:
 |---|---|
 | `git --version` | Any recent version |
 | `docker compose version` | Version 2 or higher |
-| `node --version` | Starts with `v20` |
+| `node --version` | `v24.22.1` or later |
 | `pnpm --version` | Starts with `10` |
 | `docker compose ps` | `postgres`, `redis`, `minio` and `gotenberg` running and healthy |
 

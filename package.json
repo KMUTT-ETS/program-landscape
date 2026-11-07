@@ -5,7 +5,7 @@
   "description": "KKU Curriculum Intelligence Platform · Program Landscape — strategic decision-support for the University Council",
   "packageManager": "pnpm@10.33.1",
   "engines": {
-    "node": ">=20.0.0",
+    "node": ">=24.22.1",
     "pnpm": ">=9.0.0"
   },
   "scripts": {

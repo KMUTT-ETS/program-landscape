@@ -59,18 +59,18 @@ docker compose version
 "WSL integration" ให้เปิดใช้กับ Ubuntu ของท่าน ตรวจสอบเงื่อนไขใบอนุญาตขององค์กรก่อน
 เพราะ Docker Desktop ใช้ได้ฟรีเฉพาะการใช้งานบางประเภท อย่าติดตั้งทั้งสองแบบพร้อมกัน
 
-## ติดตั้ง Node.js 20 และ pnpm 10
+## ติดตั้ง Node.js 24 และ pnpm 10
 
 ```bash
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 source ~/.bashrc
-nvm install 20
-nvm alias default 20
+nvm install 24
+nvm alias default 24
 corepack enable
 node --version
 ```
 
-ท่านควรเห็นเวอร์ชันที่ขึ้นต้นด้วย `v20` คำสั่ง `corepack enable` ทำให้โครงการใช้ pnpm
+ท่านควรเห็นเวอร์ชัน `v24.22.1` ขึ้นไป (เวอร์ชันก่อนหน้ามีช่องโหว่ Node2Shell) คำสั่ง `corepack enable` ทำให้โครงการใช้ pnpm
 เวอร์ชันที่กำหนดไว้ ท่านจึงไม่ต้องติดตั้ง pnpm เอง
 
 ## เก็บโค้ดไว้ภายใน Linux
