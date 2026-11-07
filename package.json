@@ -79,6 +79,7 @@
     "outcomes:refresh-derived": "tsx apps/ingestion/src/scripts/refresh-derived.ts",
     "workshop:sample-data": "pnpm --filter api exec tsx scripts/workshop/write-sample-data.ts",
     "workshop:sample-pdf": "pnpm --filter api exec tsx scripts/workshop/write-curriculum-pdf.ts",
+    "workshop:check-mock": "pnpm --filter api exec tsx scripts/workshop/check-mock.ts",
     "adopter:fresh-check": "tsx apps/ingestion/src/scripts/adopter-fresh-check.ts",
     "imd:seed": "tsx apps/ingestion/src/scripts/seed-imd-rankings.ts",
     "imd:extract": "tsx apps/ingestion/src/scripts/extract-imd-pdf.ts",
