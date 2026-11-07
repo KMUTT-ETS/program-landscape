@@ -243,7 +243,9 @@ const BUILDERS: Record<string, () => KeyedRow[]> = {
     staff().map((s) => {
       const r = rng(`staff:${s.employeeCode}`);
       const hireYear = 2026 - between(r, 3, 30);
-      const retireYear = s.slot < 2 ? LAST_YEAR + between(r, 1, 4) : LAST_YEAR + between(r, 6, 28);
+      // Two near-retirement staff per programme give the succession view something to
+      // show; every date stays after the workshop, so no active member reads as retired.
+      const retireYear = s.slot < 2 ? 2028 + between(r, 0, 3) : LAST_YEAR + between(r, 6, 28);
       return {
         employeeCode: s.employeeCode,
         nameTh: `อาจารย์ ${String(s.n).padStart(3, '0')}`,

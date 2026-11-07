@@ -48,8 +48,9 @@ Every signed-in user has one role:
 
 Two checks run on every Deep-Dive request. `@Authorized` checks the role holds
 the permission, and `assertProgramAccessible` checks the programme is inside
-the user's scope. Staff names have one more rule: only administrators and users
-whose scope covers the programme see them. Everyone else sees the same section
+the user's scope. Staff names have one more rule: only administrators, faculty
+users of the programme's own faculty and program users of that programme see
+them. A University user can open every programme but never sees names. Everyone else sees the same section
 with names, employee codes and specialisations removed. Details are in
 [Roles and permissions](../auth/rbac.md).
 

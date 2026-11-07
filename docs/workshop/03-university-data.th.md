@@ -93,9 +93,9 @@ pipeline ใช้เวลาประมาณ 20 ถึง 25 นาทีต
 ### PDF หลักสูตรและ pipeline
 
 1. เปิด `/admin/programs` แล้วคลิกหลักสูตร `WDU-CPE-BE` วิศวกรรมศาสตรบัณฑิต สาขาวิชาวิศวกรรมคอมพิวเตอร์
-2. ในแท็บ "Files" เลือกบทบาท `CURRENT_CURRICULUM` แล้วอัปโหลด
+2. ในแท็บ "Files" (แสดงเป็น "Files (0)" จนกว่าจะแนบแฟ้ม) เลือกบทบาท `CURRENT_CURRICULUM` แล้วอัปโหลด
    `workshop/sample-data/curriculum/workshop-demo-curriculum.pdf`
-3. ในแท็บ "Pipeline" คลิก "Run full pipeline" หรือรันจาก terminal:
+3. ในแท็บ "Pipeline history" คลิก "Run full pipeline" หรือรันจาก terminal:
 
 ```bash
 pnpm programs:pipeline WDU-CPE-BE

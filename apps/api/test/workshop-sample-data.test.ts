@@ -74,6 +74,15 @@ describe('workshop sample data', () => {
     }
   });
 
+  it('no active staff member retires before the end of 2027', () => {
+    const staff = getImportDataset('faculty-members');
+    const header = staff.columns.find((c) => c.key === 'retirementDate')?.header;
+    expect(header).toBeDefined();
+    for (const row of buildSampleRows('faculty-members')) {
+      expect(String(row[header as string]) > '2027-12-31', String(row[header as string])).toBe(true);
+    }
+  });
+
   it('committed files match the generator', () => {
     for (const slug of SAMPLE_UPLOAD_ORDER) {
       const dataset = getImportDataset(slug);

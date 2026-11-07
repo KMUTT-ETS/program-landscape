@@ -75,8 +75,11 @@ You should now have a `.env` file that is not tracked by git. Never commit it.
    `THSarabunNew.ttf`, `THSarabunNew-Bold.ttf`, `THSarabunNew-Italic.ttf` and
    `THSarabunNew-BoldItalic.ttf`. They are not in the repository. The PDF
    service image will not build without them.
-   [The Gotenberg font guide](../_generated/gotenberg-fonts.md) says where to
-   download them. Check:
+   Download them from SIPA (the Software Industry Promotion Agency, which
+   released the font) or the f0nt.com mirror, and rename them to the names
+   above; the [Gotenberg font guide](../_generated/gotenberg-fonts.md) (also
+   `infra/gotenberg/README.md`) has the details. Google Fonts' "Sarabun" is a
+   different typeface and will not do. Check:
 
 ```bash
 ls infra/gotenberg/fonts/

@@ -102,9 +102,9 @@ Skip the others on the sample track:
 
 1. Open `/admin/programs` and click the programme `WDU-CPE-BE`, Bachelor of
    Engineering in Computer Engineering.
-2. On its "Files" tab, choose the role `CURRENT_CURRICULUM` and upload
+2. On its "Files" tab (shown as "Files (0)" until a file is attached), choose the role `CURRENT_CURRICULUM` and upload
    `workshop/sample-data/curriculum/workshop-demo-curriculum.pdf`.
-3. On its "Pipeline" tab, click "Run full pipeline". Or, from a terminal:
+3. On its "Pipeline history" tab, click "Run full pipeline". Or, from a terminal:
 
 ```bash
 pnpm programs:pipeline WDU-CPE-BE

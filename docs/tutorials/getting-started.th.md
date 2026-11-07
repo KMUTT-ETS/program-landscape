@@ -70,8 +70,10 @@ cp .env.example .env
 1. วางแฟ้มฟอนต์ TH Sarabun New ทั้งสี่แฟ้มไว้ใน `infra/gotenberg/fonts/` โดยตั้งชื่อว่า
    `THSarabunNew.ttf`, `THSarabunNew-Bold.ttf`, `THSarabunNew-Italic.ttf` และ
    `THSarabunNew-BoldItalic.ttf` แฟ้มเหล่านี้ไม่อยู่ใน repository และ image ของบริการ PDF
-   จะสร้างไม่ได้หากไม่มีแฟ้มเหล่านี้ [คู่มือฟอนต์ของ Gotenberg](../_generated/gotenberg-fonts.md)
-   บอกแหล่งดาวน์โหลด ตรวจสอบด้วย:
+   จะสร้างไม่ได้หากไม่มีแฟ้มเหล่านี้ ดาวน์โหลดได้จาก SIPA (สำนักงานส่งเสริมอุตสาหกรรมซอฟต์แวร์แห่งชาติ ผู้เผยแพร่ฟอนต์)
+   หรือ f0nt.com แล้วเปลี่ยนชื่อแฟ้มตามข้างต้น รายละเอียดอยู่ใน
+   [คู่มือฟอนต์ของ Gotenberg](../_generated/gotenberg-fonts.md) (หรือ `infra/gotenberg/README.md`)
+   ฟอนต์ "Sarabun" ของ Google Fonts เป็นคนละแบบและใช้แทนไม่ได้ ตรวจสอบด้วย:
 
 ```bash
 ls infra/gotenberg/fonts/
