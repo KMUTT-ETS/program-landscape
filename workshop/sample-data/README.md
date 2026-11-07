@@ -38,6 +38,14 @@ Upload the files in the order of their numbers, each on its dataset page under
 | `12-research-outputs.xlsx` | Publications |
 | `13-programme-courses.xlsx` | Programme course lists |
 
+## The curriculum PDF
+
+`curriculum/workshop-demo-curriculum.pdf` is an invented curriculum document
+for `WDU-CPE-BE`. Its course list is the same as `13-programme-courses.xlsx`.
+The pipeline reads the PDF for the programme's description, learning outcomes
+and course descriptions. It takes the course list from the uploaded file,
+which always wins over the PDF.
+
 ## Regenerating
 
 The files are generated from the import declarations, so they always carry
@@ -45,7 +53,10 @@ the columns the importer expects:
 
 ```bash
 pnpm workshop:sample-data
+pnpm workshop:sample-pdf
 ```
+
+The second command needs Gotenberg running (`pnpm db:up`).
 
 `apps/api/test/workshop-sample-data.test.ts` fails if a committed file no
 longer matches the generator, or if the importer would refuse any file.
