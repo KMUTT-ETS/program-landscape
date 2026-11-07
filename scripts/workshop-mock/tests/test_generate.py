@@ -82,13 +82,34 @@ class GenerateTests(unittest.TestCase):
             code, _ = run([str(INPUT), "--size", "huge"])
             self.assertEqual(code, 2)
 
+    def test_corrupt_tcas_file_is_an_input_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            bad = Path(d) / "bad.xlsx"
+            bad.write_text("not a spreadsheet")
+            code, text = run([str(INPUT), "--tcas-file", f"{bad}:2567:3", "--out", str(Path(d) / "o")])
+            self.assertEqual(code, 2)
+            self.assertIn("bad.xlsx", text)
+
+    def test_write_dataset_refuses_control_characters(self):
+        from wsmock.write import write_dataset
+        from wsmock.datasets import SHEETS
+        h = SHEETS["faculties"][1]
+        row = {k: "x" for k in h}
+        row[h[1]] = "bad\x01name"
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaises(ValueError) as cm:
+                write_dataset(Path(d), 1, "faculties", [row])
+            self.assertIn("faculties", str(cm.exception))
+            self.assertIn(h[1], str(cm.exception))
+            self.assertIn("row 2", str(cm.exception))
+
     def test_readme_content(self):
         with tempfile.TemporaryDirectory() as d:
             out = Path(d)
             run([str(INPUT), "--tcas-file", TCAS_ARG, "--out", str(out)])
             t = (out / "README.txt").read_text(encoding="utf-8")
             for s in ("มหาวิทยาลัยเทคโนโลยีพระจอมเกล้าธนบุรี", "Bangkok", "University Rankings",
-                      "un-wpp", "openalex-works", "Start over", "Programme teaching staff"):
+                      "un-wpp", "openalex-works", "Start over", "Programme teaching staff", "/admin/data-setup", "/admin/organization", "/admin/data-sources"):
                 self.assertIn(s, t)
 
 

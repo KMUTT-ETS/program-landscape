@@ -40,11 +40,17 @@ _LATIN_LINE = re.compile(r"^[A-Za-z][A-Za-z0-9 ,.&'()/:+\-\ufb00-\ufb06]*$")
 _COMBINING = {0x0E31} | set(range(0x0E34, 0x0E3B)) | set(range(0x0E47, 0x0E4F))
 
 
+def _has_control(s: str) -> bool:
+    return any(ord(ch) < 32 for ch in s)
+
+
 def _clean_thai_name(s: str | None) -> str | None:
     """Keep a Thai name only if it looks intact (3-80 chars, no leading combining mark)."""
     if not s:
         return None
     s = s.strip()
+    if _has_control(s):  # a NUL marks a Thai mark the PDF font lost: misspelled, so unusable
+        return None
     if not 3 <= len(s) <= 80 or ord(s[0]) in _COMBINING:
         return None
     return s
@@ -82,6 +88,7 @@ def courses_from_pdf(pdf: Path) -> tuple[list[Course], str]:
     lines = text.splitlines()
     seen: dict[str, Course] = {}
     category = REQ
+    lost_marks = 0
     for i, line in enumerate(lines):
         h = _heading_category(line)
         if h:
@@ -101,9 +108,11 @@ def courses_from_pdf(pdf: Path) -> tuple[list[Course], str]:
         # drop an English parenthetical (description lines: "GEN 101 ชื่อ (English)")
         rest = re.sub(r"\(.*$", "", rest).strip()
         name_th = _clean_thai_name(rest) if re.search(r"[฀-๿]", rest) else None
+        if re.search(r"[฀-๿]", rest) and name_th is None and _has_control(rest):
+            lost_marks += 1
         name_en = None
         nxt = lines[i + 1].strip() if i + 1 < len(lines) else ""
-        if nxt and _LATIN_LINE.match(nxt) and not COURSE_CODE_RE.search(nxt):
+        if nxt and _LATIN_LINE.match(nxt) and not COURSE_CODE_RE.search(nxt) and not _has_control(nxt):
             name_en = nxt
         if credits is None:
             # table layout puts the credit figure alone on the line after the English name
@@ -114,7 +123,11 @@ def courses_from_pdf(pdf: Path) -> tuple[list[Course], str]:
         seen[code] = Course(code, name_th, name_en, credits or 3, category)
     if not seen:
         return [], empty
-    return list(seen.values()), f"{len(seen)} course codes read from {Path(pdf).name}"
+    note = f"{len(seen)} course codes read from {Path(pdf).name}"
+    if lost_marks:
+        note += (f"; {lost_marks} Thai course names were left blank because they did not survive "
+                 "PDF extraction (a font mark was lost)")
+    return list(seen.values()), note
 
 
 # ---------------------------------------------------------------- CSV

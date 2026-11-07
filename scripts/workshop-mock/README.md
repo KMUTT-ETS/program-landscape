@@ -71,6 +71,6 @@ output folder.
 
 ## Tests
 
-    .venv/bin/python -m unittest discover -s scripts/workshop-mock/tests -v
+    cd scripts/workshop-mock && ../../.venv/bin/python -m unittest discover -s tests
 
-(run from `scripts/workshop-mock`, or `cd` there first)
+On Windows use `..\..\.venv\Scripts\python` instead of `../../.venv/bin/python`.

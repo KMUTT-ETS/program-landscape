@@ -12,7 +12,8 @@ import openpyxl
 from .datasets import SHEETS, UPLOAD_ORDER, World
 from .inputs import Anchor
 
-# The dataset page names in the app (the `title` of each import dataset declaration).
+# The dataset page names in the app. Source: the `title` fields in packages/db/src/import/datasets/.
+# The Task 9 TypeScript test asserts this dict matches them.
 PAGE_TITLES: dict[str, str] = {
     "faculties": "Faculties",
     "departments": "Departments",
@@ -36,9 +37,6 @@ PAGE_TITLES: dict[str, str] = {
     "career-skill-demand": "Career Skill Demand",
 }
 
-# characters a spreadsheet cannot hold (a PDF can hand over NUL for a mark its font lacks)
-ILLEGAL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
-
 _FIXED = dt.datetime(2000, 1, 1, 0, 0, 0)
 _ZIP_TIME = (2000, 1, 1, 0, 0, 0)
 
@@ -54,8 +52,12 @@ def write_dataset(out: Path, index: int, slug: str, rows) -> Path:
     ws = wb.active
     ws.title = sheet_name
     ws.append(headers)
-    for r in rows:
-        ws.append([ILLEGAL.sub("", v) if isinstance(v, str) else v for v in (r.get(h) for h in headers)])
+    for n, r in enumerate(rows, 2):
+        vals = [r.get(h) for h in headers]
+        for h, v in zip(headers, vals):
+            if isinstance(v, str) and any(ord(ch) < 32 and ch not in "\t\n\r" for ch in v):
+                raise ValueError(f"{slug}: row {n}, column '{h}' holds a control character: {v!r}")
+        ws.append(vals)
     for row in ws.iter_rows(min_row=2):
         for c in row:
             if isinstance(c.value, str):
@@ -108,13 +110,14 @@ def write_readme(out: Path, world: World, anchors: list[Anchor], notes: list[str
           "",
           "1. Organisation profile",
           "-" * 24,
-          "In the app, open the organisation profile page and type these two values exactly:",
+          "In the app open /admin/organization, the \"Identity\" tab, and type these two values exactly:",
           f"  University name (Thai): {uni}",
           f"  Region (English): {world.region}",
           "",
           "2. Upload the files in this order",
           "-" * 33,
-          "Open each dataset page in the app's data import area and upload the file.",
+          "Dataset pages are under /admin/data-setup. Each dataset has its own page there.",
+          "Open the page named below and use the \"Upload filled template\" control.",
           "Upload in this order. Later files refer to codes in earlier ones.", ""]
     for i, slug in enumerate(UPLOAD_ORDER, 1):
         L.append(f"  {i:2d}. {file_name(i, slug):<46} dataset page: {PAGE_TITLES[slug]}")
@@ -124,6 +127,7 @@ def write_readme(out: Path, world: World, anchors: list[Anchor], notes: list[str
           "",
           "3. Run these connectors",
           "-" * 23,
+          "Do this at /admin/data-sources, AFTER all the uploads above are done.",
           "  tcas              needed. Links the public TCAS admission rows to the mock programmes.",
           "  un-wpp            needed. Loads the public UN population projections.",
           "  kmitl-skill-mapping  optional. Adds public job-skill demand.",

@@ -19,7 +19,7 @@ from wsmock.inputs import InputError, load_inputs, resolve_anchors
 from wsmock.people import make_publications, make_staff
 from wsmock.slice import SIZES, choose_slice
 from wsmock.tcas import TCAS_FILES, closest_institutions, load_rows, own_rows
-from wsmock.write import ILLEGAL, anchor_lines, write_dataset, write_readme
+from wsmock.write import anchor_lines, write_dataset, write_readme
 
 
 class _Parser(argparse.ArgumentParser):
@@ -91,12 +91,6 @@ def _build_courses(slice_, rng_seed: int, notes: list[str]) -> dict:
             mine = invented_courses(p, random.Random(f"{rng_seed}-{p.code}"), dept[p.department_code])
             courses[p.code] = share_with_sibling(courses[base.code], mine,
                                                  random.Random(f"{rng_seed}-share-{p.code}"))
-    bad = sum(1 for cs in courses.values() for c in cs
-              if any(f and ILLEGAL.search(f) for f in (c.name_th, c.name_en)))
-    if bad:
-        notes.append(f"{bad} course names held unreadable marks from the PDF (a Thai tone or vowel mark "
-                     "is missing in them). The marks were dropped; fix the names in the course-list "
-                     "file (06-programme-courses.xlsx) before uploading if they matter.")
     return courses
 
 
@@ -113,7 +107,13 @@ def run(args: argparse.Namespace) -> int:
         if path.resolve() != dest.resolve():
             shutil.copyfile(path, dest)
     if tcas_files:
-        rows = load_rows(cache, offline=True, files=tcas_files)
+        rows = []
+        for f in tcas_files:
+            try:
+                rows += load_rows(cache, offline=True, files=[f])
+            except Exception as err:  # bad zip, not xlsx, missing headers ...
+                raise InputError(f"--tcas-file {f[0]} cannot be read as a TCAS file "
+                                 f"({type(err).__name__}: {err})") from None
     else:
         try:
             rows = load_rows(cache, offline=args.offline)

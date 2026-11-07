@@ -75,6 +75,7 @@ class NameTests(unittest.TestCase):
         self.assertIsNone(_clean_thai_name("ab"))
         self.assertIsNone(_clean_thai_name("ก" * 81))
         self.assertEqual(_clean_thai_name("แคลคูลัส 1"), "แคลคูลัส 1")
+        self.assertIsNone(_clean_thai_name("ภาษาไทยเพื\x00อการสื\x00อสาร"))
 
 
 class CsvTests(unittest.TestCase):
