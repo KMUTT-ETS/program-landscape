@@ -102,7 +102,8 @@ def _squash(s: str) -> str:
     return re.sub(r"\s+", "", s or "")
 
 
-_TRAILING_DEGREE = re.compile(r"-[^-]*ปี$")
+# "-วศ.บ.4ปี" (older files) or "ปริญญาตรี 4 ปี" (newer) after whitespace is squashed
+_TRAILING_DEGREE = re.compile(r"-[^-]*ปี$|ปริญญา[^()]*?ปี")
 
 
 def _after_marker(name: str) -> tuple[str, bool]:
@@ -117,11 +118,8 @@ def _after_marker(name: str) -> tuple[str, bool]:
 
 
 def _score(typed: str, tcas: str) -> float:
-    a, a_has = _after_marker(typed)
-    b, b_has = _after_marker(tcas)
-    if not (a_has and b_has):  # compare whole names unless both carry a สาขา part
-        a = _squash(typed).removeprefix("หลักสูตร")
-        b = _TRAILING_DEGREE.sub("", _squash(tcas).removeprefix("หลักสูตร"))
+    a, _ = _after_marker(typed)  # the typed name rarely carries the degree prefix
+    b, _ = _after_marker(tcas)  # TCAS names do: compare the สาขา part
     return difflib.SequenceMatcher(None, a, b).ratio()
 
 
@@ -129,50 +127,45 @@ def _score(typed: str, tcas: str) -> float:
 class _Pair:
     faculty: str
     programme: str
-    year: int  # latest year this spelling appears
-    codes: set[str]  # codes of its latest-year rows
+    codes: set[str]
+    rows: list[TcasRow]
 
 
-def _pairs(own: list[TcasRow]) -> list[_Pair]:
-    latest: dict[tuple[str, str], int] = {}
+def _latest_pairs(own: list[TcasRow]) -> list[_Pair]:
+    """One pair per distinct (faculty, programme) in the latest entry year."""
+    if not own:
+        return []
+    year = max(r.entry_year_be for r in own)
+    grouped: dict[tuple[str, str], list[TcasRow]] = {}
     for r in own:
-        k = (r.faculty, r.programme)
-        latest[k] = max(latest.get(k, 0), r.entry_year_be)
-    pairs = [
-        _Pair(
-            f,
-            p,
-            y,
-            {r.course_code for r in own if (r.faculty, r.programme) == (f, p) and r.entry_year_be == y},
-        )
-        for (f, p), y in latest.items()
+        if r.entry_year_be == year:
+            grouped.setdefault((r.faculty, r.programme), []).append(r)
+    return [
+        _Pair(f, p, {r.course_code for r in rs}, rs)
+        for (f, p), rs in sorted(grouped.items())
     ]
-    # An older spelling whose codes continue under a newer spelling is superseded.
-    kept = [
-        a
-        for a in pairs
-        if not any(b.year > a.year and (a.codes & b.codes) for b in pairs)
-    ]
-    return sorted(kept, key=lambda p: (p.faculty, p.programme))
 
 
-def _anchor(inp: ProgrammeInput, pair: _Pair, own: list[TcasRow]) -> Anchor:
-    rows = [
-        r
-        for r in own
-        if (r.faculty, r.programme) == (pair.faculty, pair.programme) or r.course_code in pair.codes
-    ]
-    return Anchor(inp, pair.faculty, pair.programme, sorted(pair.codes), rows)
+def _anchor(inp: ProgrammeInput, pair: _Pair) -> Anchor:
+    return Anchor(inp, pair.faculty, pair.programme, sorted(pair.codes), list(pair.rows))
 
 
 def _normalise_faculty(s: str) -> str:
     return _squash(s)
 
 
+def _candidate_lines(ranked: list[tuple[float, _Pair]]) -> str:
+    return "\n".join(
+        f"  {sorted(p.codes)[0]}  {p.faculty} | {p.programme}  ({s:.2f})" for s, p in ranked[:5]
+    )
+
+
 def resolve_anchors(inputs: Inputs, own: list[TcasRow]) -> list[Anchor]:
-    pairs = _pairs(own)
+    pairs = _latest_pairs(own)
     out: list[Anchor] = []
     for inp in inputs.programmes:
+        if inp.level not in LEVELS:
+            raise InputError(f"{inp.name}: level must be one of {', '.join(LEVELS)} (got {inp.level})")
         if inp.level != "BACHELOR":
             if not inp.faculty:
                 raise InputError(f"{inp.name}: `faculty` is required for level {inp.level}")
@@ -181,21 +174,29 @@ def resolve_anchors(inputs: Inputs, own: list[TcasRow]) -> list[Anchor]:
             faculty_th = next((f for f in known if _normalise_faculty(f) == typed), inp.faculty)
             out.append(Anchor(inp, faculty_th, inp.name, [], []))
             continue
+        if not pairs:
+            raise InputError(f"{inp.name}: no TCAS rows for {inputs.university}")
+        year = max(r.entry_year_be for r in own)
         if inp.tcas_code:
-            hits = [p for p in pairs_all(own) if inp.tcas_code in p.codes]
-            if not hits:
+            hit = next((p for p in pairs if inp.tcas_code in p.codes), None)
+            if hit is not None:
+                out.append(_anchor(inp, hit))
+                continue
+            older = next((r for r in own if r.course_code == inp.tcas_code), None)
+            if older is None:
                 raise InputError(
                     f"{inp.name}: tcas_code {inp.tcas_code} is not a course code of {inputs.university}"
                 )
-            out.append(_anchor(inp, max(hits, key=lambda p: p.year), own))
-            continue
-        if not pairs:
-            raise InputError(f"{inp.name}: no TCAS rows for {inputs.university}")
+            near = max(pairs, key=lambda p: _score(older.programme, p.programme))
+            raise InputError(
+                f"{inp.name}: tcas_code {inp.tcas_code} is not in the latest TCAS year ({year}); "
+                f"course codes change between years. Closest programme in {year}: "
+                f"{near.faculty} | {near.programme}, codes: {', '.join(sorted(near.codes))}"
+            )
         pool = pairs
         if inp.faculty:  # an optional faculty narrows the candidates when it matches any
             typed_f = _normalise_faculty(inp.faculty)
-            narrowed = [p for p in pairs if _normalise_faculty(p.faculty) == typed_f]
-            pool = narrowed or pairs
+            pool = [p for p in pairs if _normalise_faculty(p.faculty) == typed_f] or pairs
         ranked = sorted(
             ((_score(inp.name, p.programme), p) for p in pool),
             key=lambda t: (-t[0], t[1].faculty, t[1].programme),
@@ -203,27 +204,11 @@ def resolve_anchors(inputs: Inputs, own: list[TcasRow]) -> list[Anchor]:
         best = ranked[0][0]
         second = ranked[1][0] if len(ranked) > 1 else 0.0
         if best < MIN_SCORE or best - second < MIN_MARGIN:
-            lines = "\n".join(
-                f"  {sorted(p.codes)[0]}  {p.faculty} | {p.programme}  ({s:.2f})"
-                for s, p in ranked[:5]
-            )
             why = "no close match" if best < MIN_SCORE else "more than one close match"
             raise InputError(
                 f"Cannot match programme '{inp.name}' to a TCAS programme ({why}). "
-                f"Closest candidates:\n{lines}\n"
+                f"Closest candidates:\n{_candidate_lines(ranked)}\n"
                 "Add `tcas_code = \"<course code>\"` to that programme in the input file."
             )
-        out.append(_anchor(inp, ranked[0][1], own))
+        out.append(_anchor(inp, ranked[0][1]))
     return out
-
-
-def pairs_all(own: list[TcasRow]) -> list[_Pair]:
-    """Every distinct spelling at its latest year (superseded ones included)."""
-    latest: dict[tuple[str, str], int] = {}
-    for r in own:
-        k = (r.faculty, r.programme)
-        latest[k] = max(latest.get(k, 0), r.entry_year_be)
-    return [
-        _Pair(f, p, y, {r.course_code for r in own if (r.faculty, r.programme) == (f, p) and r.entry_year_be == y})
-        for (f, p), y in latest.items()
-    ]

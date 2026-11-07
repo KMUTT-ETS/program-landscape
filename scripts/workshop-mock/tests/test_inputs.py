@@ -71,17 +71,28 @@ class InputTests(unittest.TestCase):
         b = resolve_anchors(inputs_of(ProgrammeInput("Y", None, level="MASTER", faculty="คณะอื่น")), self.own)[0]
         self.assertEqual(b.faculty_th, "คณะอื่น")
 
-    def test_renamed_programme_spans_years(self):
+    def test_old_spelling_ignored_latest_year_only(self):
         own = [
-            tr("C1", "old name วศ.บ.สาขาวิศวกรรมสมมติ", 2566),
-            tr("C2", "old name วศ.บ.สาขาวิศวกรรมสมมติ", 2566),
+            tr("OLD1", "วิศวกรรมสมมุติ - วศ.บ. 4 ปี", 2566),
             tr("C1", "วศ.บ.สาขาวิศวกรรมสมมุติใหม่-วศ.บ.4ปี", 2567),
+            tr("C2", "วศ.บ.สาขาวิศวกรรมสมมุติใหม่-วศ.บ.4ปี", 2567),
             tr("C3", "วศ.บ.สาขาวิศวกรรมอื่นโดยสิ้นเชิง-วศ.บ.4ปี", 2567),
         ]
-        a = resolve_anchors(inputs_of(ProgrammeInput("วิศวกรรมสมมุติใหม่", None)), own)[0]
+        a = resolve_anchors(inputs_of(ProgrammeInput("วิศวกรรมสมมุติ", None)), own)[0]
         self.assertEqual(a.programme_th, "วศ.บ.สาขาวิศวกรรมสมมุติใหม่-วศ.บ.4ปี")
-        self.assertEqual(a.course_codes, ["C1"])
-        self.assertEqual(sorted((r.entry_year_be, r.course_code) for r in a.rows), [(2566, "C1"), (2567, "C1")])
+        self.assertEqual(a.course_codes, ["C1", "C2"])
+        self.assertEqual({r.entry_year_be for r in a.rows}, {2567})
+
+    def test_older_year_tcas_code_rejected(self):
+        own = [tr("OLD1", "วศ.บ.สาขาวิศวกรรมสมมุติ-วศ.บ.4ปี", 2566), tr("C1", "วศ.บ.สาขาวิศวกรรมสมมุติ-วศ.บ.4ปี", 2567)]
+        with self.assertRaises(InputError) as cm:
+            resolve_anchors(inputs_of(ProgrammeInput("x", None, tcas_code="OLD1")), own)
+        self.assertIn("latest TCAS year (2567)", str(cm.exception))
+        self.assertIn("C1", str(cm.exception))
+
+    def test_invalid_level_in_resolve(self):
+        with self.assertRaises(InputError):
+            resolve_anchors(inputs_of(ProgrammeInput("x", None, level="NOPE")), self.own)
 
     def test_example_toml_round_trip(self):
         i = load_inputs(ROOT / "example-input.toml")
