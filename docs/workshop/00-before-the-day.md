@@ -6,6 +6,8 @@ Do this at home, the week before the workshop. It downloads several gigabytes,
 and the room network may be slow. It takes one to two hours, mostly waiting.
 Bring the laptop with the app already set up and the ready check passing.
 
+**Outcome.** You arrive with a laptop that runs the app, a working AI key and an AI coding assistant, so the day starts with the work, not with installs.
+
 ## Your laptop
 
 - At least 16 GB of memory and 25 GB of free disk.
@@ -106,3 +108,7 @@ You should see "Fresh-install check passed." and a list that includes the
 `postgres`, `redis`, `minio` and `gotenberg` images. If either fails, look it
 up in [Troubleshooting](./troubleshooting.md), or ask the facilitator before the
 day.
+
+## Next step
+
+Continue with [Session 1: environment and AI tools](./01-environment-and-ai-tools.md) on the day.

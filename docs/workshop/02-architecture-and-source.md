@@ -4,9 +4,7 @@
 
 **Time.** About 90 minutes.
 
-## Goal
-
-Know where things live in the repository, follow one Deep-Dive section from the
+**Outcome.** You know where things live in the repository, follow one Deep-Dive section from the
 browser to the database, learn the rules every change follows, and finish with
 the app running and you signed in as its administrator.
 
@@ -103,3 +101,7 @@ setup page becomes the administrator.
 - `http://localhost:3000` shows the app, and you are signed in as administrator.
 - `http://localhost:4000/api/v1/ready` reports every dependency healthy.
 - You can name the three files on the Finance section's path.
+
+## Next step
+
+Continue with [Session 3: university data](./03-university-data.md).

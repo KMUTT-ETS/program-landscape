@@ -4,9 +4,7 @@
 
 **Time.** About 45 minutes.
 
-## Goal
-
-Confirm that every tool on your laptop answers, that your AI key works, and
+**Outcome.** You confirm that every tool on your laptop answers, that your AI key works, and
 that your AI coding assistant can read the repository. Nothing is built yet.
 If you did the pre-work in [Before the day](./00-before-the-day.md), this
 session is mostly checks.
@@ -76,3 +74,7 @@ fix that before session 2.
 | A container is `unhealthy` or keeps restarting | Run `docker compose logs <name>` and show the facilitator. |
 | The Gotenberg image fails to build | The four TH Sarabun New font files are missing from `infra/gotenberg/fonts/`. See [Getting started, step 4](../tutorials/getting-started.md#4-run-the-one-time-setup). |
 | The assistant answers from general knowledge, not the repository | Start it from the project folder, and allow it to read files. |
+
+## Next step
+
+Continue with [Session 2: architecture and source code](./02-architecture-and-source.md).

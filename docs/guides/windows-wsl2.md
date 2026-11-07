@@ -2,6 +2,8 @@
 
 > **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [ฉบับภาษาไทย](../th/guides/windows-wsl2.md)
 
+**Outcome.** Ubuntu, Docker, Node.js 24 and pnpm 10 run inside WSL2, and your copy of the code lives inside Linux.
+
 Run Program Landscape on Windows inside **WSL2** (Windows Subsystem for Linux),
 not on Windows itself. Everything in the tutorials then works exactly as
 written, because inside WSL2 you are on Linux. Native Windows is not supported
@@ -113,3 +115,7 @@ terminal, such as opencode, are installed and run inside Ubuntu too.
 | Every file shows as modified after cloning | Line endings were converted. Run the `git config` command above and clone again. |
 | The laptop freezes while the app runs | WSL2 has too little memory or Windows has too little left. Close other programs, or adjust `memory=` in `.wslconfig`. |
 | Thai text shows as boxes in the terminal | Use Windows Terminal, not the old command prompt. |
+
+## Next step
+
+Continue with [Getting started](../tutorials/getting-started.md).

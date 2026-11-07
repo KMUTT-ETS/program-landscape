@@ -4,9 +4,7 @@
 
 **เวลา** ประมาณ 45 นาที
 
-## เป้าหมาย
-
-ยืนยันว่าเครื่องมือทุกตัวบนแล็ปท็อปตอบสนอง AI key ใช้งานได้ และ AI coding assistant
+**ผลลัพธ์** ท่านยืนยันว่าเครื่องมือทุกตัวบนแล็ปท็อปตอบสนอง AI key ใช้งานได้ และ AI coding assistant
 อ่าน repository ได้ ยังไม่มีการสร้างอะไรใน session นี้ หากท่านทำงานเตรียมการใน
 [ก่อนวันอบรม](./00-before-the-day.md) แล้ว session นี้จะเป็นการตรวจสอบเป็นส่วนใหญ่
 
@@ -71,3 +69,7 @@ You are in the Program Landscape repository. Without changing any file:
 | container อยู่ในสถานะ `unhealthy` หรือรีสตาร์ตซ้ำ | รัน `docker compose logs <name>` แล้วแสดงให้ผู้จัดดู |
 | สร้าง image ของ Gotenberg ไม่สำเร็จ | ไม่มีแฟ้มฟอนต์ TH Sarabun New ทั้งสี่แฟ้มใน `infra/gotenberg/fonts/` ดู [Getting started ขั้นที่ 4](../tutorials/getting-started.md#4-รันการตั้งค่าครั้งเดียว) |
 | assistant ตอบจากความรู้ทั่วไป ไม่ใช่จาก repository | เริ่ม assistant จากโฟลเดอร์โครงการ และอนุญาตให้อ่านแฟ้ม |
+
+## ขั้นต่อไป
+
+ต่อด้วย [Session 2: สถาปัตยกรรมระบบและ Source Code](./02-architecture-and-source.md)

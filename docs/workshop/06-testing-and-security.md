@@ -4,9 +4,7 @@
 
 **Time.** About 90 minutes.
 
-## Goal
-
-Run the tests that guard the calculations, see who is allowed to see what, and
+**Outcome.** You run the tests that guard the calculations, see who is allowed to see what, and
 watch the app keep personal data out. Every exercise uses the sample
 university from session 3.
 
@@ -115,3 +113,7 @@ Nothing is stored when a file is refused.
 - You have seen staff names hidden for a University user and the Deep-Dive
   refused for a Program user of another programme.
 - Both refused uploads gave the messages above.
+
+## Next step
+
+Return to the [workshop overview](./README.md). To keep going after the workshop, pick your path in the [Adopter guide](../adopters/README.md#choose-your-path).

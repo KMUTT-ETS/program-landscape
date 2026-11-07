@@ -2,6 +2,8 @@
 
 > **English:** [`windows-wsl2.md`](../../guides/windows-wsl2.md)
 
+**ผลลัพธ์** Ubuntu, Docker, Node.js 24 และ pnpm 10 ทำงานภายใน WSL2 และสำเนาโค้ดของท่านอยู่ภายใน Linux
+
 ให้รัน Program Landscape บน Windows ภายใน **WSL2** (Windows Subsystem for Linux)
 ไม่ใช่บน Windows โดยตรง เมื่อทำเช่นนี้ทุกขั้นตอนในบทเรียนจะใช้ได้ตามที่เขียนไว้ทุกประการ
 เพราะภายใน WSL2 ท่านทำงานบน Linux โครงการนี้ไม่รองรับการรันบน Windows โดยตรง
@@ -106,3 +108,7 @@ AI coding assistant ที่ทำงานใน terminal เช่น opencod
 | ทุกแฟ้มขึ้นว่าถูกแก้ไขหลัง clone | การขึ้นบรรทัดใหม่ถูกแปลง รันคำสั่ง `git config` ข้างต้นแล้ว clone ใหม่ |
 | แล็ปท็อปค้างระหว่างที่แอปทำงาน | WSL2 มีหน่วยความจำน้อยเกินไป หรือ Windows เหลือหน่วยความจำไม่พอ ปิดโปรแกรมอื่น หรือปรับค่า `memory=` ใน `.wslconfig` |
 | ตัวอักษรไทยแสดงเป็นกล่องใน terminal | ใช้ Windows Terminal ไม่ใช่ command prompt แบบเก่า |
+
+## ขั้นต่อไป
+
+ต่อด้วย [Getting started](../tutorials/getting-started.md)

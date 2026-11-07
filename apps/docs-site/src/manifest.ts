@@ -74,6 +74,19 @@ export const NEW_TAB_DOC_PREFIXES: readonly string[] = ['workshop/', 'th/worksho
 /** Folder (inside docs/) holding the Thai locale; each twin sits at the English page's path. */
 export const THAI_DIR = 'th';
 
+/** Folders whose pages must state an outcome and end with a next step (checkPageShape). */
+const PAGE_SHAPE_DIRS: readonly string[] = ['tutorials/', 'guides/', 'workshop/'];
+
+/** Overviews and reference pages inside those folders that are not step-by-step pages. */
+const PAGE_SHAPE_EXEMPT: readonly string[] = ['workshop/troubleshooting.md', 'workshop/facilitator.md'];
+
+/** True for a tutorial, guide or workshop page (either language) that checkPageShape applies to. */
+export function needsPageShape(docsRel: string): boolean {
+  const rel = docsRel.startsWith(`${THAI_DIR}/`) ? docsRel.slice(THAI_DIR.length + 1) : docsRel;
+  if (path.posix.basename(rel) === 'README.md' || PAGE_SHAPE_EXEMPT.includes(rel)) return false;
+  return PAGE_SHAPE_DIRS.some((d) => rel.startsWith(d));
+}
+
 /** 'adopters/README.md' -> 'th/adopters/README.md'. */
 export function twinOf(docsRel: string): string {
   return `${THAI_DIR}/${docsRel}`;

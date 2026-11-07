@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildSidebar, buildThaiSidebar } from '../.vitepress/sidebar';
-import { checkBilingualTwins, checkSidebarCoverage, collectSidebarLinks, findRetiredNames, htmlRoute } from '../src/check-site';
-import { listRenderedPages, pageRoute, toPosix } from '../src/manifest';
+import { checkBilingualTwins, checkPageShape, checkSidebarCoverage, collectSidebarLinks, findRetiredNames, htmlRoute } from '../src/check-site';
+import { listRenderedPages, needsPageShape, pageRoute, toPosix } from '../src/manifest';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..', '..', '..');
@@ -21,7 +21,15 @@ if (!fs.existsSync(distDir)) {
     if (!rel.endsWith('.html') || rel === '404.html') continue;
     html.set(htmlRoute(rel), fs.readFileSync(path.join(distDir, ...rel.split('/')), 'utf8'));
   }
-  const problems = [...checkSidebarCoverage(routes, links), ...findRetiredNames(html), ...checkBilingualTwins(docsDir)];
+  const shape = listRenderedPages(docsDir)
+    .filter(needsPageShape)
+    .flatMap((rel) => checkPageShape(rel, fs.readFileSync(path.join(docsDir, ...rel.split('/')), 'utf8')));
+  const problems = [
+    ...checkSidebarCoverage(routes, links),
+    ...findRetiredNames(html),
+    ...checkBilingualTwins(docsDir),
+    ...shape,
+  ];
   if (problems.length > 0) {
     for (const p of problems) console.error(`docs-site check [${p.kind}]: ${p.detail}`);
     process.exitCode = 1;

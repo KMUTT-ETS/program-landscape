@@ -187,7 +187,7 @@ pnpm programs:approve-pending --rematerialise --program-id=<id>
 
 แถวที่มาจากการอัปโหลดจะบันทึกการอัปโหลดที่สร้างแถวนั้นไว้ แอปจะซ่อนแถวที่ตรวจสอบที่มาไม่ได้ หากอัปโหลดสำเร็จแต่ไม่มีอะไรแสดง ให้รัน `pnpm data-sources:sync --apply` แล้วอัปโหลดอีกครั้ง ดู [หากการอัปโหลดไม่ปรากฏ](../data-import.md#if-an-upload-does-not-appear)
 
-## ไปต่อที่ไหน
+## ขั้นต่อไป
 
 - [Importing from spreadsheets](../data-import.md) สำหรับทุกชุดข้อมูลและทุกกฎ
 - [Workshop](../workshop/README.md) หากท่านจัดให้กลุ่มผู้เข้าร่วม

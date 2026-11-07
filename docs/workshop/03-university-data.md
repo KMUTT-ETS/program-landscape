@@ -4,9 +4,7 @@
 
 **Time.** One afternoon, about 3 hours.
 
-## Goal
-
-Load a university into the app, run the pipeline on one programme with your own
+**Outcome.** You load a university into the app, run the pipeline on one programme with your own
 AI key, and see its Deep-Dive filled with content. Everyone does the sample
 track. If you brought your own files, you then repeat it with them.
 
@@ -163,3 +161,7 @@ reads it with an AI assistant. Its instructions arrive with those sessions.
 - `/programs/<id>` for `WDU-CPE-BE` shows content in its Executive snapshot,
   Admissions, Students, Outcomes, Curriculum & Faculty and Financials
   sections.
+
+## Next step
+
+Sessions 4 and 5 are in preparation. Continue with [Session 6: testing and security](./06-testing-and-security.md).

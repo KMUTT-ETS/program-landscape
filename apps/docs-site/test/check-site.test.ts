@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  checkPageShape,
   checkSidebarCoverage,
   checkTwinPair,
   fencedBlocks,
@@ -8,6 +9,7 @@ import {
   findRetiredNames,
   htmlRoute,
 } from '../src/check-site';
+import { needsPageShape } from '../src/manifest';
 
 describe('collectSidebarLinks', () => {
   it('walks nested groups', () => {
@@ -112,5 +114,35 @@ describe('bilingual twin check', () => {
     expect(p).toHaveLength(1);
     expect(p[0]?.kind).toBe('bilingual-twin');
     expect(p[0]?.detail).toContain('must link back');
+  });
+});
+
+describe('page shape', () => {
+  it('applies to tutorials, guides and workshop pages, not to overviews or reference pages', () => {
+    expect(needsPageShape('guides/deploy.md')).toBe(true);
+    expect(needsPageShape('th/workshop/01-environment-and-ai-tools.md')).toBe(true);
+    expect(needsPageShape('th/workshop/troubleshooting.md')).toBe(false);
+    expect(needsPageShape('workshop/facilitator.md')).toBe(false);
+    expect(needsPageShape('tutorials/README.md')).toBe(false);
+    expect(needsPageShape('architecture.md')).toBe(false);
+  });
+
+  it('passes a page with an outcome and a next step', () => {
+    expect(checkPageShape('guides/x.md', '# X\n\n**Outcome.** You can.\n\n## Next step\n')).toEqual([]);
+    expect(checkPageShape('th/guides/x.md', '# X\n\n**ผลลัพธ์** ได้\n\n## ขั้นต่อไป\n')).toEqual([]);
+  });
+
+  it('names each missing marker', () => {
+    const p = checkPageShape('guides/x.md', '# X\n');
+    expect(p).toHaveLength(2);
+    expect(p.every((x) => x.kind === 'page-shape')).toBe(true);
+    expect(p.map((x) => x.detail).join()).toContain('**Outcome.**');
+    expect(p.map((x) => x.detail).join()).toContain('## Next step');
+  });
+
+  it('only accepts an outcome near the top, and the English markers on English pages', () => {
+    const late = '# X\n' + '\n'.repeat(25) + '**Outcome.** late\n## Next step\n';
+    expect(checkPageShape('guides/x.md', late)).toHaveLength(1);
+    expect(checkPageShape('guides/x.md', '# X\n**ผลลัพธ์** ได้\n## ขั้นต่อไป\n')).toHaveLength(2);
   });
 });

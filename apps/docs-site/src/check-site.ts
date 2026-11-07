@@ -7,7 +7,7 @@ export interface SidebarLike {
   items?: SidebarLike[];
 }
 
-export type ProblemKind = 'missing-from-sidebar' | 'sidebar-without-page' | 'retired-name' | 'bilingual-twin';
+export type ProblemKind = 'missing-from-sidebar' | 'sidebar-without-page' | 'retired-name' | 'bilingual-twin' | 'page-shape';
 
 export interface SiteProblem {
   kind: ProblemKind;
@@ -144,4 +144,24 @@ export function checkBilingualTwins(docsDir: string, pages: readonly string[] = 
     if (en === null) return [{ kind: 'bilingual-twin' as const, detail: `${rel} is listed as bilingual but does not exist` }];
     return checkTwinPair(rel, en, read(twinOf(rel)));
   });
+}
+
+/** The markers every tutorial, guide and workshop page carries, per language. */
+const PAGE_SHAPE_MARKERS = {
+  en: { outcome: '**Outcome.**', next: '## Next step' },
+  th: { outcome: '**ผลลัพธ์**', next: '## ขั้นต่อไป' },
+} as const;
+
+/** An outcome line within the first 20 lines, and a next-step heading. */
+export function checkPageShape(docsRel: string, md: string): SiteProblem[] {
+  const m = docsRel.startsWith(`${THAI_DIR}/`) ? PAGE_SHAPE_MARKERS.th : PAGE_SHAPE_MARKERS.en;
+  const lines = md.split(/\r?\n/);
+  const problems: SiteProblem[] = [];
+  if (!lines.slice(0, 20).some((l) => l.startsWith(m.outcome))) {
+    problems.push({ kind: 'page-shape', detail: `${docsRel} needs a paragraph starting ${m.outcome} in its first 20 lines` });
+  }
+  if (!lines.some((l) => l.trim() === m.next)) {
+    problems.push({ kind: 'page-shape', detail: `${docsRel} needs a "${m.next}" section` });
+  }
+  return problems;
 }

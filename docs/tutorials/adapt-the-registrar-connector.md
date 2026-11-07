@@ -351,3 +351,7 @@ against production.
 | Programmes you track appear in `unmappedSamples` | Missing mapping row (Step 7) |
 | Connection error | Credentials, network route, or the wrong client for your database (Step 3) |
 | Rows exist but a section is empty | The provenance filter — check the run id and the `data_sources` flags (Step 10) |
+
+## Next step
+
+Return to [Get Program Deep-Dive working](./program-deep-dive.md) and finish the Setup checklist with your registrar data. For the connector contract in general, read [Write a connector](../guides/write-a-connector.md).

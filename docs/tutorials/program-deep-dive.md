@@ -277,7 +277,7 @@ rows it cannot trace. If an upload succeeded and nothing shows, run
 `pnpm data-sources:sync --apply` and upload again. See
 [If an upload does not appear](../data-import.md#if-an-upload-does-not-appear).
 
-## Where to go next
+## Next step
 
 - [Importing from spreadsheets](../data-import.md) for every dataset and rule.
 - [Workshop](../workshop/README.md) if you are running this for a group.
