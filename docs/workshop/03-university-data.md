@@ -195,7 +195,7 @@ pnpm.
 | `programmes[].level` | `BACHELOR` (default), `MASTER`, `DOCTORAL` or `HIGHER_GRAD_DIPLOMA`. |
 | `programmes[].faculty` | The faculty's Thai name. Required unless the level is `BACHELOR`. |
 | `programmes[].tcas_code` | Optional. A TCAS course code. Use it when the name cannot be matched automatically. It always wins. |
-| `programmes[].courses` | Optional. A course-list spreadsheet or CSV to use instead of the PDF's courses. |
+| `programmes[].courses` | Optional. A CSV file (not a spreadsheet) to use instead of the PDF's courses. Its header row is `code,name_th,name_en,credits,category`. `category` is one of General education, Core, Major required, Major elective, Free elective, Thesis / project; leave it blank for unknown. |
 | `programmes[].name_en` | Optional. The English name used as-is in the mock files. |
 
 Run the generator once with internet access so the TCAS files are cached.
@@ -208,7 +208,8 @@ pnpm workshop:mock my-university.json
 
 Options: `--size small|medium` (default `small`), `--seed N` (same input and
 seed give identical files), `--out DIR` (default `./workshop-mock-out`) and
-`--offline` (use the cached TCAS files only).
+`--offline` (use the cached TCAS files only), `--cache DIR` (where TCAS files are cached) and `--tcas-file PATH:YEAR:ROUND` (use a TCAS file you already have).
+TCAS files are cached in `<out>/.cache`. With no internet on the day, run once beforehand, then use `--offline`.
 
 You should see lines saying which TCAS programme each of your programmes was
 matched to. Check that each one is the programme you meant. If a match is

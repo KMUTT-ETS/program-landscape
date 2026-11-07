@@ -178,7 +178,7 @@ pnpm programs:pipeline WDU-CPE-BE
 | `programmes[].level` | `BACHELOR` (ค่าเริ่มต้น), `MASTER`, `DOCTORAL` หรือ `HIGHER_GRAD_DIPLOMA` |
 | `programmes[].faculty` | ชื่อภาษาไทยของคณะ จำเป็นเมื่อระดับไม่ใช่ `BACHELOR` |
 | `programmes[].tcas_code` | ไม่บังคับ รหัสหลักสูตร TCAS ใช้เมื่อจับคู่ด้วยชื่ออัตโนมัติไม่ได้ และมีลำดับเหนือกว่าเสมอ |
-| `programmes[].courses` | ไม่บังคับ spreadsheet หรือ CSV รายวิชาที่ใช้แทนรายวิชาจาก PDF |
+| `programmes[].courses` | ไม่บังคับ แฟ้ม CSV (ไม่ใช่ spreadsheet) ที่ใช้แทนรายวิชาจาก PDF แถวหัวตารางคือ `code,name_th,name_en,credits,category` ค่า `category` เป็นหนึ่งใน General education, Core, Major required, Major elective, Free elective, Thesis / project เว้นว่างหากไม่ทราบ |
 | `programmes[].name_en` | ไม่บังคับ ชื่อภาษาอังกฤษที่ใช้ตามนั้นในแฟ้มจำลอง |
 
 รันตัวสร้างหนึ่งครั้งขณะต่ออินเทอร์เน็ต เพื่อให้แฟ้ม TCAS ถูกเก็บในแคช
@@ -190,7 +190,8 @@ pnpm workshop:mock my-university.json
 ```
 
 ตัวเลือก: `--size small|medium` (ค่าเริ่มต้น `small`), `--seed N` (ข้อมูลนำเข้าและ seed เดียวกันให้แฟ้มเหมือนกัน),
-`--out DIR` (ค่าเริ่มต้น `./workshop-mock-out`) และ `--offline` (ใช้เฉพาะแฟ้ม TCAS ในแคช)
+`--out DIR` (ค่าเริ่มต้น `./workshop-mock-out`) และ `--offline` (ใช้เฉพาะแฟ้ม TCAS ในแคช), `--cache DIR` (ที่เก็บแคช TCAS) และ `--tcas-file PATH:YEAR:ROUND` (ใช้แฟ้ม TCAS ที่ท่านมีอยู่แล้ว)
+แฟ้ม TCAS ถูกเก็บแคชใน `<out>/.cache` หากวันงานไม่มีอินเทอร์เน็ต ให้รันหนึ่งครั้งล่วงหน้า แล้วใช้ `--offline`
 
 ท่านควรเห็นบรรทัดที่บอกว่าแต่ละหลักสูตรของท่านถูกจับคู่กับหลักสูตร TCAS ใด ตรวจว่าแต่ละบรรทัดตรงกับหลักสูตรที่ตั้งใจ
 หากจับคู่ผิด หรือสคริปต์หยุดพร้อมรายการตัวเลือก ให้ตั้งค่า `tcas_code` ของหลักสูตรนั้นแล้วรันใหม่
