@@ -35,6 +35,7 @@ export const BILINGUAL_PAGES: readonly string[] = [
   'workshop/00-before-the-day.md',
   'workshop/01-environment-and-ai-tools.md',
   'workshop/02-architecture-and-source.md',
+  'workshop/03-university-data.md',
 ];
 
 /** 'adopters/README.md' -> 'adopters/README.th.md'. */
