@@ -225,7 +225,7 @@ Wiring your own university SSO is a separate task; `docs/auth/kku-sso.md` docume
 
 Every analytical surface will be **empty**, and that is correct. A fresh installation has no faculties, programmes, students, staff or financial data, because that data is yours. It has no skill taxonomy either, so every skill figure reads 0 until you [build one](#building-your-skill-taxonomy). Empty sections render an explicit empty state. If you see fabricated-looking numbers, something is wrong.
 
-The fastest way to fill it is the spreadsheet import. Upload faculties, departments and programmes from `/admin/data-setup`, then whichever metric datasets you hold. [Importing from spreadsheets](../data-import.md) gives the order, and [Get Program Deep-Dive working](../tutorials/program-deep-dive.md) walks through one programme end to end.
+The fastest way to fill it is the spreadsheet import. Upload faculties, departments and programmes from `/admin/data-setup`, then whichever metric datasets you hold. [Importing from spreadsheets](../data-import.md) gives the order, and [Get Program Deep-Dive working](../tutorials/program-deep-dive.md) walks through one programme end to end. The [Deep-Dive data map](./deep-dive-data-map.md) shows which dataset feeds which health score.
 
 ### If the app compiles but every protected route bounces you to `/signin`
 

@@ -205,6 +205,9 @@ already has skills is left alone. This is on by default; set
 2. Read each item. A red item names the dataset or step that is missing.
 3. Fix it, then reload the tab.
 
+To see which data feeds which score before you start, use the
+[Deep-Dive data map](../adopters/deep-dive-data-map.md).
+
 Some items do not apply to a programme. Postgraduate programmes have no TCAS or
 digital competency items. A programme with no same-level sibling that has a
 course list has no overlap item. These are not red. An item filled by AI that
