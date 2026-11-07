@@ -53,7 +53,9 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
       text: 'Workshop',
       items: [
         { text: 'Overview', link: '/workshop/README' },
+        { text: 'Before the day', link: '/workshop/00-before-the-day' },
         { text: 'Overview (Thai)', link: '/workshop/README.th' },
+        { text: 'Before the day (Thai)', link: '/workshop/00-before-the-day.th' },
       ],
     },
     {

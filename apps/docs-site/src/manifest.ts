@@ -32,6 +32,7 @@ export const BILINGUAL_PAGES: readonly string[] = [
   'data-import.md',
   'workshop/README.md',
   'guides/windows-wsl2.md',
+  'workshop/00-before-the-day.md',
 ];
 
 /** 'adopters/README.md' -> 'adopters/README.th.md'. */
