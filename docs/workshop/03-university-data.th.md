@@ -161,7 +161,6 @@ pnpm programs:pipeline WDU-CPE-BE
       "pdf": "pdfs/mechanical-engineering-master.pdf",
       "level": "MASTER",
       "faculty": "คณะวิศวกรรมศาสตร์",
-      "tcas_code": "10140107300507A",
       "name_en": "Master of Engineering Programme in Mechanical Engineering",
       "courses": "courses/mechanical-master.csv"
     }
@@ -177,7 +176,7 @@ pnpm programs:pipeline WDU-CPE-BE
 | `programmes[].pdf` | พาธไปยัง PDF หลักสูตร พาธแบบสัมพัทธ์อิงโฟลเดอร์ของแฟ้ม JSON ไม่บังคับ |
 | `programmes[].level` | `BACHELOR` (ค่าเริ่มต้น), `MASTER`, `DOCTORAL` หรือ `HIGHER_GRAD_DIPLOMA` |
 | `programmes[].faculty` | ชื่อภาษาไทยของคณะ จำเป็นเมื่อระดับไม่ใช่ `BACHELOR` |
-| `programmes[].tcas_code` | ไม่บังคับ รหัสหลักสูตร TCAS ใช้เมื่อจับคู่ด้วยชื่ออัตโนมัติไม่ได้ และมีลำดับเหนือกว่าเสมอ |
+| `programmes[].tcas_code` | ไม่บังคับ ใช้กับหลักสูตรระดับปริญญาตรีเท่านั้น (หลักสูตรบัณฑิตศึกษาไม่มีแถว TCAS) รหัสหลักสูตร TCAS ใช้เมื่อจับคู่ด้วยชื่ออัตโนมัติไม่ได้ และมีลำดับเหนือกว่าเสมอ |
 | `programmes[].courses` | ไม่บังคับ แฟ้ม CSV (ไม่ใช่ spreadsheet) ที่ใช้แทนรายวิชาจาก PDF แถวหัวตารางคือ `code,name_th,name_en,credits,category` ค่า `category` เป็นหนึ่งใน General education, Core, Major required, Major elective, Free elective, Thesis / project เว้นว่างหากไม่ทราบ |
 | `programmes[].name_en` | ไม่บังคับ ชื่อภาษาอังกฤษที่ใช้ตามนั้นในแฟ้มจำลอง |
 
@@ -190,11 +189,16 @@ pnpm workshop:mock my-university.json
 ```
 
 ตัวเลือก: `--size small|medium` (ค่าเริ่มต้น `small`), `--seed N` (ข้อมูลนำเข้าและ seed เดียวกันให้แฟ้มเหมือนกัน),
-`--out DIR` (ค่าเริ่มต้น `./workshop-mock-out`) และ `--offline` (ใช้เฉพาะแฟ้ม TCAS ในแคช), `--cache DIR` (ที่เก็บแคช TCAS) และ `--tcas-file PATH:YEAR:ROUND` (ใช้แฟ้ม TCAS ที่ท่านมีอยู่แล้ว)
+`--out DIR` (ค่าเริ่มต้น `./workshop-mock-out`) และ `--offline` (ใช้เฉพาะแฟ้ม TCAS ในแคช), `--cache DIR` (ที่เก็บแคช TCAS) และ `--tcas-file PATH:YEAR:ROUND` (ใช้แฟ้ม TCAS ที่ท่านมีอยู่แล้ว แฟ้มจะถูกคัดลอกเข้าแคช และการรันด้วย `--offline` ครั้งต่อไปจะอ่านเฉพาะแฟ้มที่การรันนั้นใช้)
 แฟ้ม TCAS ถูกเก็บแคชใน `<out>/.cache` หากวันงานไม่มีอินเทอร์เน็ต ให้รันหนึ่งครั้งล่วงหน้า แล้วใช้ `--offline`
 
-ท่านควรเห็นบรรทัดที่บอกว่าแต่ละหลักสูตรของท่านถูกจับคู่กับหลักสูตร TCAS ใด ตรวจว่าแต่ละบรรทัดตรงกับหลักสูตรที่ตั้งใจ
+ท่านควรเห็น `TCAS matches:` ตามด้วยหนึ่งบรรทัดต่อหนึ่งหลักสูตรที่ท่านระบุ เช่น
+`วิศวกรรมคอมพิวเตอร์ -> programme MOCK-P004: TCAS course code 10140107300507A, faculty '...', programme '...'`
+แล้วจึงเป็นบรรทัด `note:` ตรวจว่าแต่ละบรรทัดตรงกับหลักสูตรที่ตั้งใจ
 หากจับคู่ผิด หรือสคริปต์หยุดพร้อมรายการตัวเลือก ให้ตั้งค่า `tcas_code` ของหลักสูตรนั้นแล้วรันใหม่
+
+รหัสออก 0 หมายถึงเขียนแฟ้มแล้ว รหัสออก 2 หมายถึงไม่ได้เขียนอะไรเลย ให้อ่านข้อความด้านบน
+ชื่อรายวิชาภาษาไทยที่อ่านจาก PDF อาจสูญเสียช่องว่างระหว่างคำไทย หรือถูกเว้นว่างเมื่อข้อความใน PDF เสียหาย บรรทัด `note:` จะนับจำนวนที่เว้นว่าง
 
 **ตรวจสอบ**
 
@@ -203,7 +207,7 @@ pnpm workshop:check-mock workshop-mock-out my-university.json
 ```
 
 ท่านควรเห็นหลักสูตรระดับปริญญาตรีทุกหลักสูตรถูกจับคู่ และไม่มีข้อผิดพลาด การตรวจนี้พิสูจน์ว่าแฟ้มผ่านตัวนำเข้าของระบบ
-และ connector `tcas` จะจับคู่หลักสูตรได้
+และ connector `tcas` จะจับคู่หลักสูตรได้ รหัสออก 0 หมายถึงผ่านทุกการตรวจ 1 หมายถึงมีการตรวจที่ไม่ผ่าน (บรรทัดด้านบนระบุไว้) 2 หมายถึงอาร์กิวเมนต์ผิดหรืออ่านแฟ้มไม่ได้
 
 **นำเข้า**
 

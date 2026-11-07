@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { InputError } from '../../src/scripts/workshop-mock/inputs';
 import { makePublications, makeStaff, type Publication, type RosterLink, type Staff } from '../../src/scripts/workshop-mock/people';
 import { makeRng } from '../../src/scripts/workshop-mock/rng';
 import type { Programme, Slice } from '../../src/scripts/workshop-mock/slice';
@@ -78,6 +79,26 @@ describe('people', () => {
   it('is deterministic for a fixed today, and not tied to the clock otherwise', () => {
     const again = makePublications(s, staff, links, makeRng(2), today);
     expect(again).toEqual(pubs);
+  });
+
+  it('the default `today` comes from the slice, not the clock', () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2031-05-05T00:00:00Z'));
+      const a = makePublications(s, staff, links, makeRng(2));
+      vi.setSystemTime(new Date('2026-11-07T00:00:00Z'));
+      const b = makePublications(s, staff, links, makeRng(2));
+      expect(a).toEqual(b);
+      expect(Math.min(...a.map((p) => p.year))).toBeGreaterThanOrEqual(s.latestYearCE - 7);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('an empty window is an InputError', () => {
+    const old: Slice = { ...s, latestYearCE: 2010, yearsCE: [2006, 2007, 2008, 2009, 2010] };
+    const st = makeStaff(old, makeRng(1));
+    expect(() => makePublications(old, st.staff, st.links, makeRng(2), today)).toThrow(InputError);
   });
 
   it('a slice whose years fall outside the window fails with a clear error', () => {

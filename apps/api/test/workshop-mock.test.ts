@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import * as XLSX from 'xlsx';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { checkMockDir, readTcasFile, universityFromInput } from '../scripts/workshop/check-mock';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { checkMockDir, readTcasFile, runCheck, universityFromInput } from '../scripts/workshop/check-mock';
 import { parseImportWorkbook } from '../src/import/parse';
 
 const repo = path.resolve(__dirname, '../../..');
@@ -58,5 +58,27 @@ describe('workshop mock data', () => {
     );
     expect(bachelors.length).toBeGreaterThan(0);
     for (const b of bachelors) expect(names.has(String(b['Name (Thai)'])), String(b['Name (Thai)'])).toBe(true);
+  });
+
+  it('runCheck: OK on the generated set, exit 2 on an unreadable cache file or bad arguments', () => {
+    const logs: string[] = [];
+    const spy = vi.spyOn(console, 'log').mockImplementation((...a: unknown[]) => void logs.push(a.join(' ')));
+    try {
+      expect(runCheck([out, fixtureInput], repo)).toBe(0);
+      expect(logs.join('\n')).toMatch(/OK: .*bachelor programme/);
+      // --cache elsewhere, with a lock file (ignored) and a corrupt file (exit 2, named)
+      const cache = path.join(out, 'other-cache');
+      fs.mkdirSync(cache);
+      fs.writeFileSync(path.join(cache, '~$lock.xlsx'), 'x');
+      expect(runCheck([out, fixtureInput, '--cache', cache], repo)).toBe(2); // only a lock file: no TCAS files
+      fs.writeFileSync(path.join(cache, 'bad.xlsx'), 'not a spreadsheet');
+      logs.length = 0;
+      expect(runCheck([out, fixtureInput, '--cache', cache], repo)).toBe(2);
+      expect(logs.join('\n')).toContain('bad.xlsx');
+      expect(runCheck([out], repo)).toBe(2);
+      expect(runCheck([out, fixtureInput, '--nope'], repo)).toBe(2);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

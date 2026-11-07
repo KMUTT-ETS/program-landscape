@@ -208,30 +208,64 @@ export function universityFromInput(file: string): string {
   return u.trim();
 }
 
-function main(argv: string[]): number {
-  const base = process.env.INIT_CWD ?? process.cwd();
-  const [dirArg, inputArg] = argv;
-  if (!dirArg || !inputArg) {
-    console.log('Usage: pnpm workshop:check-mock <dir> <input.json>');
+const USAGE = `Usage: pnpm workshop:check-mock <dir> <input.json> [--cache DIR]
+
+  <dir>         the generator's output folder
+  <input.json>  the input file given to the generator (its "university" is read)
+  --cache DIR   where the TCAS files are (default <dir>/.cache). If the generator recorded
+                the files it used (tcas-files.json there), exactly those are read.
+
+Exit codes: 0 every file passes and every bachelor programme matches; 1 a check failed
+(the lines above name it); 2 a problem with the arguments or an unreadable input.`;
+
+/** Returns the exit code. User-relative paths resolve against `base`. */
+export function runCheck(argv: string[], base: string = process.env.INIT_CWD ?? process.cwd()): number {
+  const positional: string[] = [];
+  let cacheArg: string | null = null;
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i] as string;
+    if (a === '--cache') {
+      cacheArg = argv[++i] ?? null;
+      if (!cacheArg) {
+        console.log(`--cache needs a folder\n${USAGE}`);
+        return 2;
+      }
+    } else if (a.startsWith('--')) {
+      console.log(`Unknown option ${a}\n${USAGE}`);
+      return 2;
+    } else positional.push(a);
+  }
+  const [dirArg, inputArg] = positional;
+  if (!dirArg || !inputArg || positional.length > 2) {
+    console.log(USAGE);
     return 2;
   }
   const dir = path.resolve(base, dirArg);
   const input = path.resolve(base, inputArg);
-  const cache = path.join(dir, '.cache');
-  const cached = fs.existsSync(cache) ? fs.readdirSync(cache).filter((f) => f.endsWith('.xlsx') && !f.startsWith('~$')) : [];
-  if (cached.length === 0) {
-    console.log(`No TCAS files in ${cache}. Run the generator first (it caches them there).`);
+  const cache = cacheArg ? path.resolve(base, cacheArg) : path.join(dir, '.cache');
+  let files: string[] = [];
+  try {
+    const manifest = path.join(cache, 'tcas-files.json');
+    if (fs.existsSync(manifest)) {
+      files = (JSON.parse(fs.readFileSync(manifest, 'utf8')) as Array<{ file: string }>).map((m) => m.file);
+    } else if (fs.existsSync(cache)) {
+      files = fs.readdirSync(cache).filter((f) => f.endsWith('.xlsx') && !f.startsWith('~$'));
+    }
+  } catch (e) {
+    console.log(`${path.join(cache, 'tcas-files.json')}: ${(e as Error).message}`);
+    return 2;
+  }
+  if (files.length === 0) {
+    console.log(`No TCAS files in ${cache}. Run the generator first (it caches them there), or pass --cache.`);
     return 2;
   }
   const rows: TcasMatchRow[] = [];
-  for (const f of cached) {
-    // an editor's lock file (~$name.xlsx) or a half-copied file must not stop the check
-    if (f.startsWith('~$')) continue;
+  for (const f of files) {
     try {
       rows.push(...readTcasFile(path.join(cache, f)));
     } catch (e) {
       console.log(`${f}: ${(e as Error).message}`);
-      return 1;
+      return 2;
     }
   }
   let university: string;
@@ -249,10 +283,10 @@ function main(argv: string[]): number {
   const bad = result.errors.length + result.unmatched.length;
   console.log(
     bad === 0
-      ? 'OK: every file passes the importer and every bachelor programme matches.'
-      : `FAILED: ${bad} problem(s).`,
+      ? `OK: every file passes the importer and all ${result.matched.length} bachelor programme(s) match (read ${files.length} TCAS file(s)).`
+      : `FAILED: ${bad} problem(s) (${result.errors.length} file error(s), ${result.unmatched.length} unmatched programme(s)).`,
   );
   return bad === 0 ? 0 : 1;
 }
 
-if (require.main === module) process.exit(main(process.argv.slice(2)));
+if (require.main === module) process.exit(runCheck(process.argv.slice(2)));

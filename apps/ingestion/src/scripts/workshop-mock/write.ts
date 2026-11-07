@@ -61,8 +61,8 @@ export function writeDataset(out: string, index: number, slug: string, rows: rea
 
 /** One line per anchor: the TCAS row it was matched to and the mock programme it became. */
 export function anchorLines(world: World, anchors: readonly Anchor[]): string[] {
-  return anchors.map((a) => {
-    const prog = world.slice.programmes.find((p) => p.isAnchor && p.nameTh === a.programmeTh && p.level === a.input.level);
+  return anchors.map((a, i) => {
+    const prog = world.slice.programmes.find((p) => p.anchorIndex === i);
     const code = prog ? prog.code : '?';
     if (a.courseCodes.length > 0) {
       const more = a.courseCodes.length > 1 ? ` (+${a.courseCodes.length - 1} more codes)` : '';
@@ -73,6 +73,8 @@ export function anchorLines(world: World, anchors: readonly Anchor[]): string[] 
 }
 
 export function readmeText(world: World, anchors: readonly Anchor[], notes: readonly string[], university: string): string {
+  const first = sheetInfo(UPLOAD_ORDER[0] as string);
+  const last = sheetInfo(UPLOAD_ORDER[UPLOAD_ORDER.length - 1] as string);
   const L: string[] = [
     'WORKSHOP MOCK DATA - what to do next', '='.repeat(40), '',
     'These files are MOCK data. They are not your university\'s real figures.',
@@ -118,7 +120,7 @@ export function readmeText(world: World, anchors: readonly Anchor[], notes: read
   L.push(
     '', '6. How to remove the mock data', '-'.repeat(30),
     'On each dataset page use Start over, in the REVERSE of the upload order:',
-    'from Career Skill Demand (20) back to Faculties (1). Programmes cannot be cleared',
+    `from ${last.title} (${UPLOAD_ORDER.length}) back to ${first.title} (1). Programmes cannot be cleared`,
     'while metric rows still depend on them, so go in that order.',
     'Then delete the generated folder.',
     '',

@@ -48,6 +48,8 @@ export interface Programme {
   /** Keyed by CE year (BE - 543), ascending. Empty for postgraduate programmes. */
   tcas: Map<number, TcasTotals>;
   isAnchor: boolean;
+  /** Index of the input entry (and Anchor) this programme came from; absent for filler and siblings. */
+  anchorIndex?: number;
   pdf: string | null;
   coursesCsv: string | null;
   siblingOf: string | null;
@@ -276,6 +278,7 @@ export function chooseSlice(anchors: readonly Anchor[], own: readonly TcasRow[],
       yearEstablished: rng.int(1990, 2018),
       tcas: new Map(),
       isAnchor: d.anchor !== undefined,
+      ...(d.anchor !== undefined ? { anchorIndex: anchors.indexOf(d.anchor) } : {}),
       pdf: inp?.pdf ?? null,
       coursesCsv: inp?.courses ?? null,
       siblingOf: d.siblingOf ? progCode.get(keyOf(d.siblingOf[0], d.siblingOf[1]))! : null,

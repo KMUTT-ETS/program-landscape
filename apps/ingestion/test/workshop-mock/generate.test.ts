@@ -108,6 +108,69 @@ describe('generate', () => {
       'Start over', sheetInfo('program-faculty').title, '/admin/data-setup', '/admin/organization', '/admin/data-sources', 'Upload filled template'])
       expect(t).toContain(s);
     expect(t).not.toMatch(/python|\.toml/i);
+    expect(t).toContain(`from ${sheetInfo(UPLOAD_ORDER[19]!).title} (20) back to ${sheetInfo(UPLOAD_ORDER[0]!).title} (1)`);
+  });
+});
+
+const KMUTT = 'มหาวิทยาลัยเทคโนโลยีพระจอมเกล้าธนบุรี';
+let inputCount = 0;
+function inputFile(programmes: unknown[]): string {
+  const f = path.join(tmp, `in-${++inputCount}.json`);
+  fs.writeFileSync(f, JSON.stringify({ university: KMUTT, region: 'Bangkok', programmes }));
+  return f;
+}
+function validNationalId(): string {
+  const d = [1, 1, 0, 1, 7, 0, 0, 2, 3, 0, 6, 7];
+  const sum = d.reduce((a, x, i) => a + x * (13 - i), 0);
+  return `${d.join('')}${(11 - (sum % 11)) % 10}`;
+}
+
+describe('failure handling', () => {
+  it('a failing early sheet is reported as exit 2 with every cause, writing nothing', async () => {
+    const out = path.join(tmp, 'o');
+    const input = inputFile([{ name: 'วิศวกรรมวัสดุ', name_en: validNationalId() }]);
+    const r = await run([input, '--tcas-file', TCAS_ARG, '--out', out]);
+    expect(r.code, r.text).toBe(2);
+    expect(r.text).toContain('Nothing was written');
+    expect(r.text).toContain('programmes');
+    expect(r.text).not.toMatch(/no reference values|\n\s+at /);
+    expect(fs.existsSync(out)).toBe(false);
+  });
+
+  it('two entries resolving to the same TCAS programme are refused, naming both', async () => {
+    const out = path.join(tmp, 'o');
+    const r = await run([inputFile([{ name: 'วิศวกรรมวัสดุ' }, { name: 'วิศวกรรมวัสดุ' }]), '--tcas-file', TCAS_ARG, '--out', out]);
+    expect(r.code).toBe(2);
+    expect(r.text).toMatch(/#1.*#2.*same TCAS programme/s);
+    expect(fs.existsSync(out)).toBe(false);
+  });
+
+  it('two identical postgraduate entries are refused', async () => {
+    const e = { name: 'วิศวกรรมวัสดุ', level: 'MASTER', faculty: 'คณะวิศวกรรมศาสตร์' };
+    const r = await run([inputFile([e, { ...e }]), '--tcas-file', TCAS_ARG, '--out', path.join(tmp, 'o')]);
+    expect(r.code).toBe(2);
+    expect(r.text).toMatch(/#1.*#2.*same MASTER programme/s);
+  });
+});
+
+describe('TCAS file sets', () => {
+  it('a --tcas-file run records its files and a later --offline run uses exactly those', async () => {
+    const out = path.join(tmp, 'out');
+    expect((await run([INPUT, '--tcas-file', TCAS_ARG, '--out', out])).code).toBe(0);
+    const manifest = JSON.parse(fs.readFileSync(path.join(out, '.cache', 'tcas-files.json'), 'utf-8')) as Array<{ entryYearBE: number }>;
+    expect(manifest.map((m) => m.entryYearBE)).toEqual([2567]);
+    // an extra, unrelated cached file must not be read by the offline run
+    fs.copyFileSync(FIXTURE, path.join(out, '.cache', path.basename(new URL(TCAS_FILES[0]!.url).pathname)));
+    logs = [];
+    const r = await run([INPUT, '--offline', '--out', out]);
+    expect(r.code, r.text).toBe(0);
+    expect(r.text).toContain('recorded by an earlier --tcas-file run');
+    expect(r.text).toContain('TCAS years loaded: 2567/3');
+  }, 120_000);
+
+  it('prints the TCAS years it loaded', async () => {
+    const r = await run([INPUT, '--tcas-file', TCAS_ARG, '--out', path.join(tmp, 'o')]);
+    expect(r.text).toContain('TCAS years loaded: 2567/3');
   });
 });
 

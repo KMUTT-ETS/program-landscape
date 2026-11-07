@@ -164,6 +164,7 @@ export async function loadRows(
     for (const f of opts.files) rows.push(...readFile(f.path, f.entryYearBE, f.round));
     return rows;
   }
+  const loadedYears = new Set<number>();
   for (const f of TCAS_FILES) {
     const dest = path.join(cacheDir, path.basename(new URL(f.url).pathname));
     try {
@@ -175,9 +176,19 @@ export async function loadRows(
         await download(f.url, dest);
       }
       rows.push(...readFile(dest, f.entryYearBE, f.round));
+      loadedYears.add(f.entryYearBE);
     } catch (err) {
       console.warn(`warning: TCAS file ${f.url} skipped: ${(err as Error).message}`);
     }
+  }
+  const newest = Math.max(...TCAS_FILES.map((f) => f.entryYearBE));
+  if (!loadedYears.has(newest)) {
+    const have = loadedYears.size ? Math.max(...loadedYears) : null;
+    console.warn(
+      `WARNING: the newest known TCAS year (${newest}) could not be loaded, so the "latest year" ` +
+        `is now ${have ?? 'unknown'}. Programme matching and every TCAS figure use older data. ` +
+        'Download the file yourself and pass --tcas-file PATH:YEAR:ROUND, or fix the network.',
+    );
   }
   return rows;
 }

@@ -1,13 +1,14 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as XLSX from 'xlsx';
 import {
   closestInstitutions,
   loadRows,
   ownRows,
   round3Totals,
+  TCAS_FILES,
   type TcasRow,
 } from '../../src/scripts/workshop-mock/tcas';
 
@@ -130,5 +131,24 @@ describe('tcas header layouts', () => {
     await expect(loadRows(dir, { offline: true, files: [{ path: file, entryYearBE: 2567, round: '3' }] }))
       .rejects.toThrow(/missing institution/);
     fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('warns loudly when the newest known TCAS year cannot be loaded', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wsmock-tcas-'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      // cache holds only the oldest year; offline, so the newest is skipped
+      const oldest = TCAS_FILES[0]!;
+      fs.copyFileSync(FIXTURE, path.join(dir, path.basename(new URL(oldest.url).pathname)));
+      const rows = await loadRows(dir, { offline: true });
+      expect(rows.length).toBeGreaterThan(0);
+      const newest = Math.max(...TCAS_FILES.map((f) => f.entryYearBE));
+      const text = warn.mock.calls.map((c) => c.join(' ')).join('\n');
+      expect(text).toContain(`newest known TCAS year (${newest})`);
+      expect(text).toContain(`"latest year" is now ${oldest.entryYearBE}`);
+    } finally {
+      warn.mockRestore();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

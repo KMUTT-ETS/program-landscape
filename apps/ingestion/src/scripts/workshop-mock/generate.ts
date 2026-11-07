@@ -136,10 +136,32 @@ async function buildCourses(slice: Slice, seed: number, notes: string[]): Promis
   return courses;
 }
 
+const MANIFEST = 'tcas-files.json';
+
+function readManifest(cache: string): LocalTcasFile[] | null {
+  const file = path.join(cache, MANIFEST);
+  if (!fs.existsSync(file)) return null;
+  try {
+    const list = JSON.parse(fs.readFileSync(file, 'utf-8')) as Array<{ file: string; entryYearBE: number; round: string }>;
+    return list.map((m) => ({ path: path.join(cache, m.file), entryYearBE: m.entryYearBE, round: m.round }));
+  } catch (err) {
+    throw new InputError(`${file} cannot be read (${(err as Error).message}). Delete it or run again with --tcas-file.`);
+  }
+}
+
 async function readTcas(args: Args, tcasFiles: LocalTcasFile[], cache: string): Promise<TcasRow[]> {
+  if (tcasFiles.length === 0 && args.offline) {
+    // an earlier --tcas-file run recorded which files it used; read exactly those
+    const recorded = readManifest(cache);
+    if (recorded) {
+      console.log(`Using the TCAS files recorded by an earlier --tcas-file run (${path.join(cache, MANIFEST)}).`);
+      tcasFiles = recorded;
+    }
+  }
   if (tcasFiles.length > 0) {
     const rows: TcasRow[] = [];
     for (const f of tcasFiles) {
+      if (!fs.existsSync(f.path)) throw new InputError(`TCAS file not found: ${f.path}`);
       try {
         rows.push(...(await loadRows(cache, { offline: true, files: [f] })));
       } catch (err) {
@@ -198,16 +220,9 @@ async function run(argv: readonly string[], base: string): Promise<number> {
       assertCellsClean(slug, sheetRows);
     } catch (err) {
       failures.push((err as Error).message);
-      continue;
     }
-    const parsed: ParsedSheet = { sheetName: dataset.sheetName, headers: dataset.columns.map((c) => c.header), rows: sheetRows };
-    const result = validateSheet(dataset, parsed, { references, heldRowCount: 0, allowShrink: false, maxRows: 5000 });
-    if (!result.ok) {
-      failures.push(`${slug}: the app's importer would refuse this sheet:`);
-      for (const e of result.errors.slice(0, 5)) failures.push(`  ${JSON.stringify(e)}`);
-      if (result.errors.length > 5) failures.push(`  ... ${result.errors.length - 5} more errors`);
-      continue;
-    }
+    // register this sheet's reference values first, so a failure here cannot make a later
+    // sheet throw for lack of references: every failure must reach the list below
     for (const later of UPLOAD_ORDER) {
       for (const col of getImportDataset(later).columns) {
         if (col.references?.dataset !== slug) continue;
@@ -217,6 +232,17 @@ async function run(argv: readonly string[], base: string): Promise<number> {
         for (const x of sheetRows) set.add(String(x[header]));
         references.set(slug, set);
       }
+    }
+    const parsed: ParsedSheet = { sheetName: dataset.sheetName, headers: dataset.columns.map((c) => c.header), rows: sheetRows };
+    try {
+      const result = validateSheet(dataset, parsed, { references, heldRowCount: 0, allowShrink: false, maxRows: 5000 });
+      if (!result.ok) {
+        failures.push(`${slug}: the app's importer would refuse this sheet:`);
+        for (const e of result.errors.slice(0, 5)) failures.push(`  ${JSON.stringify(e)}`);
+        if (result.errors.length > 5) failures.push(`  ... ${result.errors.length - 5} more errors`);
+      }
+    } catch (err) {
+      failures.push(`${slug}: ${(err as Error).message}`);
     }
   }
   if (failures.length > 0) {
@@ -231,6 +257,15 @@ async function run(argv: readonly string[], base: string): Promise<number> {
     const dest = path.join(cache, cacheName(f.entryYearBE, f.round));
     if (path.resolve(f.path) !== path.resolve(dest)) fs.copyFileSync(f.path, dest);
   }
+  const manifest = path.join(cache, MANIFEST);
+  if (args.tcasFiles.length > 0) {
+    // record which files this run used, so a later --offline run reads the same set
+    const used = tcasFiles.map((f) => ({ file: cacheName(f.entryYearBE, f.round), entryYearBE: f.entryYearBE, round: f.round }));
+    fs.writeFileSync(manifest, `${JSON.stringify(used, null, 2)}\n`, 'utf-8');
+  } else if (!args.offline) {
+    fs.rmSync(manifest, { force: true }); // an online run downloads the full set again
+  }
+  console.log(`TCAS years loaded: ${[...new Set(rows.map((r) => `${r.entryYearBE}/${r.round}`))].sort().join(', ')}`);
   console.log('TCAS matches:');
   for (const line of anchorLines(world, anchors)) console.log(`  ${line}`);
   for (const n of notes) console.log(`note: ${n}`);

@@ -1,4 +1,5 @@
 // Invent staff (numbered tokens, never names), programme rosters and publications.
+import { InputError } from './inputs';
 import type { Rng } from './rng';
 import type { Slice } from './slice';
 
@@ -96,13 +97,17 @@ export function makePublications(
   _staff: readonly Staff[],
   links: readonly RosterLink[],
   rng: Rng,
-  today: Date = new Date(),
+  today: Date = new Date(Date.UTC(slice.latestYearCE, 6, 1)),
 ): Publication[] {
-  const lo = Math.max(slice.latestYearCE - 9, today.getUTCFullYear() - 10);
+  // Never the wall clock: the same input and seed give the same files in any calendar year.
+  // The window is the newest 8 years of the slice, so the app's "year >= current year - 10"
+  // rule still keeps every title through the year latestYearCE + 9 (the workshop is at
+  // latestYearCE or the year after).
+  const lo = Math.max(slice.latestYearCE - 7, today.getUTCFullYear() - 10);
   const years: number[] = [];
   for (let y = lo; y <= slice.latestYearCE; y++) years.push(y);
   if (years.length === 0) {
-    throw new Error(
+    throw new InputError(
       `The research-readiness window is empty: the app counts publications from ${today.getUTCFullYear() - 10} ` +
         `onwards, but the newest year in this slice is ${slice.latestYearCE}. Use more recent TCAS data.`,
     );

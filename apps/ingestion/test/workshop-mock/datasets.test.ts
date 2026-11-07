@@ -258,7 +258,7 @@ describe('datasets', () => {
     expect(rows['research-outputs']).toHaveLength(w.publications.length);
   });
 
-  it('English names never contain Thai and bachelor Thai names equal the TCAS cell', () => {
+  it('English programme names never contain Thai', () => {
     for (const r of rows['programmes']!) expect(String(r['Name (English)'])).not.toMatch(/[฀-๿]/);
   });
 });

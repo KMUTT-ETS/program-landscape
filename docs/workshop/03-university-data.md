@@ -178,7 +178,6 @@ pnpm.
       "pdf": "pdfs/mechanical-engineering-master.pdf",
       "level": "MASTER",
       "faculty": "คณะวิศวกรรมศาสตร์",
-      "tcas_code": "10140107300507A",
       "name_en": "Master of Engineering Programme in Mechanical Engineering",
       "courses": "courses/mechanical-master.csv"
     }
@@ -194,7 +193,7 @@ pnpm.
 | `programmes[].pdf` | Path to the curriculum PDF. Relative paths resolve against the JSON file's folder. Optional. |
 | `programmes[].level` | `BACHELOR` (default), `MASTER`, `DOCTORAL` or `HIGHER_GRAD_DIPLOMA`. |
 | `programmes[].faculty` | The faculty's Thai name. Required unless the level is `BACHELOR`. |
-| `programmes[].tcas_code` | Optional. A TCAS course code. Use it when the name cannot be matched automatically. It always wins. |
+| `programmes[].tcas_code` | Optional, bachelor programmes only (postgraduate programmes have no TCAS rows). A TCAS course code. Use it when the name cannot be matched automatically. It always wins. |
 | `programmes[].courses` | Optional. A CSV file (not a spreadsheet) to use instead of the PDF's courses. Its header row is `code,name_th,name_en,credits,category`. `category` is one of General education, Core, Major required, Major elective, Free elective, Thesis / project; leave it blank for unknown. |
 | `programmes[].name_en` | Optional. The English name used as-is in the mock files. |
 
@@ -208,13 +207,19 @@ pnpm workshop:mock my-university.json
 
 Options: `--size small|medium` (default `small`), `--seed N` (same input and
 seed give identical files), `--out DIR` (default `./workshop-mock-out`) and
-`--offline` (use the cached TCAS files only), `--cache DIR` (where TCAS files are cached) and `--tcas-file PATH:YEAR:ROUND` (use a TCAS file you already have).
+`--offline` (use the cached TCAS files only), `--cache DIR` (where TCAS files are cached) and `--tcas-file PATH:YEAR:ROUND` (use a TCAS file you already have; it is copied into the cache, and a later `--offline` run reads exactly the files that run used).
 TCAS files are cached in `<out>/.cache`. With no internet on the day, run once beforehand, then use `--offline`.
 
-You should see lines saying which TCAS programme each of your programmes was
-matched to. Check that each one is the programme you meant. If a match is
-wrong, or the script stops and lists candidates, set `tcas_code` for that
-programme and run again.
+You should see `TCAS matches:` followed by one line per programme you listed, for
+example `วิศวกรรมคอมพิวเตอร์ -> programme MOCK-P004: TCAS course code
+10140107300507A, faculty '...', programme '...'`, then `note:` lines. Check that
+each match is the programme you meant. If a match is wrong, or the script stops
+and lists candidates, set `tcas_code` for that programme and run again.
+
+Exit code 0 means the files were written. Exit code 2 means nothing was written:
+read the message above it. Thai course names read from a PDF may lose the spaces
+between Thai words, or be left blank when the PDF text is damaged; a `note:` line
+counts the blanks.
 
 **Check.**
 
@@ -224,7 +229,8 @@ pnpm workshop:check-mock workshop-mock-out my-university.json
 
 You should see every bachelor programme matched and no errors. This proves the
 files pass the app's importer and that the `tcas` connector will match the
-programmes.
+programmes. Exit code 0 means every check passed, 1 means a check failed (the
+lines above name it), 2 means a problem with the arguments or an unreadable file.
 
 **Load it.**
 

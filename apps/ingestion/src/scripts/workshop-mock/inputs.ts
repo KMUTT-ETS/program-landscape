@@ -260,5 +260,29 @@ export function resolveAnchors(inputs: Inputs, own: readonly TcasRow[]): Anchor[
     }
     out.push(anchorOf(inp, top[1]));
   }
+  rejectDuplicates(out);
   return out;
+}
+
+/** Two entries must not become the same programme: the second would silently vanish or collide. */
+function rejectDuplicates(anchors: readonly Anchor[]): void {
+  const seen = new Map<string, number>();
+  anchors.forEach((a, i) => {
+    const key =
+      a.input.level === 'BACHELOR'
+        ? `B\u0001${a.facultyTh}\u0001${a.programmeTh}`
+        : `${a.input.level}\u0001${squash(a.facultyTh)}\u0001${squash(a.input.name)}`;
+    const first = seen.get(key);
+    if (first !== undefined) {
+      const what =
+        a.input.level === 'BACHELOR'
+          ? `the same TCAS programme (${a.facultyTh} | ${a.programmeTh})`
+          : `the same ${a.input.level} programme in ${a.facultyTh}`;
+      throw new InputError(
+        `programmes #${first + 1} ('${anchors[first]!.input.name}') and #${i + 1} ('${a.input.name}') are ${what}. ` +
+          'List each programme once; use `tcas_code` to tell two different bachelor programmes apart.',
+      );
+    }
+    seen.set(key, i);
+  });
 }
