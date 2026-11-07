@@ -1,13 +1,13 @@
 # การติดตั้งบน Windows ด้วย WSL2
 
-> **English:** [`windows-wsl2.md`](./windows-wsl2.md)
+> **English:** [`windows-wsl2.md`](../../guides/windows-wsl2.md)
 
 ให้รัน Program Landscape บน Windows ภายใน **WSL2** (Windows Subsystem for Linux)
 ไม่ใช่บน Windows โดยตรง เมื่อทำเช่นนี้ทุกขั้นตอนในบทเรียนจะใช้ได้ตามที่เขียนไว้ทุกประการ
 เพราะภายใน WSL2 ท่านทำงานบน Linux โครงการนี้ไม่รองรับการรันบน Windows โดยตรง
 เนื่องจาก symlink การขึ้นบรรทัดใหม่ ความยาวของ path และการแชร์แฟ้มของ Docker ล้วนทำให้เกิดข้อผิดพลาด
 
-ทำหน้านี้ครั้งเดียว แล้วต่อด้วย [Getting started](../tutorials/getting-started.th.md)
+ทำหน้านี้ครั้งเดียว แล้วต่อด้วย [Getting started](../tutorials/getting-started.md)
 
 ## ติดตั้ง WSL2 และ Ubuntu
 

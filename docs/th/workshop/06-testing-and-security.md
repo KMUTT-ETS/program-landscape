@@ -1,6 +1,6 @@
 # Session 6: การทดสอบ การตรวจสอบความถูกต้อง และความปลอดภัย
 
-> **English:** [`06-testing-and-security.md`](./06-testing-and-security.md)
+> **English:** [`06-testing-and-security.md`](../../workshop/06-testing-and-security.md)
 
 **เวลา** ประมาณ 90 นาที
 
@@ -30,7 +30,7 @@ point to the code in packages/db/src/health-score.ts that applies it.
 ```
 
 วิธีการเบื้องหลังแต่ละคะแนนอธิบายไว้ใน
-[ระเบียบวิธีของ health score](../methodologies/health-score.md)
+[ระเบียบวิธีของ health score](../../methodologies/health-score.md)
 
 ## ใครเห็นอะไรได้
 
@@ -48,7 +48,7 @@ point to the code in packages/db/src/health-score.ts that applies it.
 และ `assertProgramAccessible` ตรวจว่าหลักสูตรอยู่ในขอบเขตของผู้ใช้ ชื่อบุคลากรมีกฎเพิ่มอีกหนึ่งข้อ:
 เฉพาะผู้ดูแลระบบ Faculty user ของคณะที่หลักสูตรสังกัด และ Program user ของหลักสูตรนั้นจึงจะเห็นชื่อ
 University user เปิดได้ทุกหลักสูตรแต่ไม่เห็นชื่อเลย ผู้อื่นจะเห็นส่วนเดียวกัน
-แต่ไม่มีชื่อ รหัสพนักงาน และความเชี่ยวชาญ รายละเอียดอยู่ใน [บทบาทและสิทธิ์](../auth/rbac.md)
+แต่ไม่มีชื่อ รหัสพนักงาน และความเชี่ยวชาญ รายละเอียดอยู่ใน [บทบาทและสิทธิ์](../../auth/rbac.md)
 
 ### ลองทำ
 
@@ -76,7 +76,7 @@ University user เปิดได้ทุกหลักสูตรแต่�
 - **log ถูกปกปิด** log ของคำขอตัด header การยืนยันตัวตน cookie และเหตุผลการส่งออกข้อมูลออก
 - **ทุกการแก้ไขถูกบันทึก** ทุกการอัปโหลดและการเปลี่ยนการตั้งค่าเขียนแถว audit ผ่าน `@AuditLog`
 
-การจัดการข้อมูลส่วนบุคคลตาม พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล อยู่ใน [PDPA](../pdpa.md)
+การจัดการข้อมูลส่วนบุคคลตาม พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล อยู่ใน [PDPA](../../pdpa.md)
 
 ### ลองทำ
 

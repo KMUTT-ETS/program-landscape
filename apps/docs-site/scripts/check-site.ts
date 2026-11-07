@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildSidebar } from '../.vitepress/sidebar';
+import { buildSidebar, buildThaiSidebar } from '../.vitepress/sidebar';
 import { checkBilingualTwins, checkSidebarCoverage, collectSidebarLinks, findRetiredNames, htmlRoute } from '../src/check-site';
 import { listRenderedPages, pageRoute, toPosix } from '../src/manifest';
 
@@ -15,7 +15,7 @@ if (!fs.existsSync(distDir)) {
   process.exitCode = 1;
 } else {
   const routes = listRenderedPages(docsDir).map(pageRoute);
-  const links = collectSidebarLinks(buildSidebar(docsDir));
+  const links = collectSidebarLinks([...buildSidebar(docsDir), ...buildThaiSidebar(docsDir)]);
   const html = new Map<string, string>();
   for (const rel of fs.readdirSync(distDir, { recursive: true, encoding: 'utf8' }).map(toPosix)) {
     if (!rel.endsWith('.html') || rel === '404.html') continue;

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { BILINGUAL_PAGES, RETIRED_NAMES, RETIRED_NAME_ALLOWLIST, twinOf } from './manifest';
+import { BILINGUAL_PAGES, RETIRED_NAMES, RETIRED_NAME_ALLOWLIST, THAI_DIR, twinOf } from './manifest';
 
 export interface SidebarLike {
   link?: string;
@@ -28,7 +28,7 @@ export function checkSidebarCoverage(routes: readonly string[], sidebarLinks: re
   const pages = new Set(routes);
   const problems: SiteProblem[] = [];
   for (const route of [...pages].sort()) {
-    if (route !== '/' && !links.has(route)) {
+    if (route !== '/' && route !== `/${THAI_DIR}/` && !links.has(route)) {
       problems.push({
         kind: 'missing-from-sidebar',
         detail: `${route} is rendered but has no sidebar entry — add it to apps/docs-site/.vitepress/sidebar.ts, or to EXCLUDED in apps/docs-site/src/manifest.ts`,
@@ -95,9 +95,15 @@ export function fencedBlocks(md: string): string[] {
   return out;
 }
 
-function linksTo(md: string, fileName: string): boolean {
+/** True when one of the first 30 lines of `md` (the page at `fromRel`) links to the page `toRel`. */
+function linksTo(md: string, fromRel: string, toRel: string): boolean {
   const top = md.split(/\r?\n/).slice(0, 30).join('\n');
-  return new RegExp(`\\]\\([^)]*${fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(#[^)]*)?\\)`).test(top);
+  for (const m of top.matchAll(/\]\(([^)\s]+)\)/g)) {
+    const target = (m[1] ?? '').replace(/#.*$/, '');
+    if (target === '' || /^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith('/')) continue;
+    if (path.posix.normalize(path.posix.join(path.posix.dirname(fromRel), target)) === toRel) return true;
+  }
+  return false;
 }
 
 /** Structural comparison of an English page and its Thai twin. */
@@ -119,11 +125,11 @@ export function checkTwinPair(enRel: string, en: string, th: string | null): Sit
     const i = ec.findIndex((b, n) => b !== tc[n]);
     if (i >= 0) problems.push(problem(`code drift — fenced code block ${i + 1} differs between English and ${thRel}`));
   }
-  if (!linksTo(en, path.posix.basename(thRel))) {
-    problems.push(problem(`the English page must link to ${path.posix.basename(thRel)} near the top`));
+  if (!linksTo(en, enRel, thRel)) {
+    problems.push(problem(`the English page must link to ${thRel} near the top`));
   }
-  if (!linksTo(th, path.posix.basename(enRel))) {
-    problems.push(problem(`${thRel} must link back to ${path.posix.basename(enRel)} near the top`));
+  if (!linksTo(th, thRel, enRel)) {
+    problems.push(problem(`${thRel} must link back to ${enRel} near the top`));
   }
   return problems;
 }

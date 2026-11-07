@@ -20,6 +20,7 @@ describe('collectSidebarLinks', () => {
 describe('checkSidebarCoverage', () => {
   it('passes when routes and links match, ignoring the landing page', () => {
     expect(checkSidebarCoverage(['/', '/a', '/b'], ['/a', '/b'])).toEqual([]);
+    expect(checkSidebarCoverage(['/', '/th/', '/a'], ['/a'])).toEqual([]);
   });
 
   it('reports a rendered page missing from the sidebar, naming where to fix it', () => {
@@ -67,8 +68,8 @@ describe('findRetiredNames', () => {
 });
 
 describe('bilingual twin check', () => {
-  const en = ['# T', '[ไทย](./A.th.md)', '## One', '### Two', '```bash', 'pnpm x', '```', '#### skipped'].join('\n');
-  const th = ['# ท', '[English](./A.md)', '## หนึ่ง', '### สอง', '```bash', 'pnpm x', '```'].join('\n');
+  const en = ['# T', '[ไทย](../th/a/A.md)', '## One', '### Two', '```bash', 'pnpm x', '```', '#### skipped'].join('\n');
+  const th = ['# ท', '[English](../../a/A.md)', '## หนึ่ง', '### สอง', '```bash', 'pnpm x', '```'].join('\n');
 
   it('counts only ## and ### headings outside code', () => {
     expect(structuralHeadings(en + '\n```\n## not a heading\n```')).toEqual(['## One', '### Two']);
@@ -80,7 +81,7 @@ describe('bilingual twin check', () => {
   });
 
   it('reports a missing twin', () => {
-    expect(checkTwinPair('a/A.md', en, null)[0]?.detail).toContain('A.th.md is missing');
+    expect(checkTwinPair('a/A.md', en, null)[0]?.detail).toContain('th/a/A.md is missing');
   });
 
   it('reports heading drift', () => {
@@ -94,9 +95,22 @@ describe('bilingual twin check', () => {
   });
 
   it('reports missing links in either direction', () => {
-    const a = checkTwinPair('a/A.md', en.replace('./A.th.md', './B.md'), th);
-    expect(a[0]?.detail).toContain('must link to A.th.md');
-    const b = checkTwinPair('a/A.md', en, th.replace('./A.md', './B.md'));
-    expect(b[0]?.detail).toContain('must link back to A.md');
+    const a = checkTwinPair('a/A.md', en.replace('../th/a/A.md', '../th/a/B.md'), th);
+    expect(a[0]?.detail).toContain('must link to th/a/A.md');
+    const b = checkTwinPair('a/A.md', en, th.replace('../../a/A.md', '../../a/B.md'));
+    expect(b[0]?.detail).toContain('must link back to a/A.md');
+  });
+
+  it('resolves links, so a same-named page in another folder does not count', () => {
+    const wrongDir = th.replace('../../a/A.md', './A.md');
+    expect(checkTwinPair('a/A.md', en, wrongDir)[0]?.detail).toContain('must link back');
+  });
+
+  it('accepts the docs/th layout and rejects a link back to the wrong page', () => {
+    expect(checkTwinPair('tutorials/a.md', '# A\n[ไทย](../th/tutorials/a.md)', '# A\n[English](../../tutorials/a.md)')).toEqual([]);
+    const p = checkTwinPair('tutorials/a.md', '# A\n[ไทย](../th/tutorials/a.md)', '# A\n[English](../../tutorials/b.md)');
+    expect(p).toHaveLength(1);
+    expect(p[0]?.kind).toBe('bilingual-twin');
+    expect(p[0]?.detail).toContain('must link back');
   });
 });

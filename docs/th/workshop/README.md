@@ -1,6 +1,6 @@
 # Workshop: ติดตั้งและใช้งาน Program Deep-Dive
 
-> **English:** [`README.md`](./README.md)
+> **English:** [`README.md`](../../workshop/README.md)
 
 workshop ภาคปฏิบัติ 1.5 วัน สำหรับเจ้าหน้าที่ IT ของมหาวิทยาลัยที่นำ Program
 Landscape ไปใช้ เริ่มจากโน้ตบุ๊กที่ยังไม่ได้ติดตั้งอะไร และจบด้วย Program Deep-Dive
@@ -44,15 +44,15 @@ University (มหาวิทยาลัยสาธิตเวิร์ก�
 
 | หน้า | ใช้เมื่อ |
 |---|---|
-| [ก่อนวันอบรม](./00-before-the-day.th.md) | ที่บ้าน สัปดาห์ก่อนวันอบรม |
-| [Session 1: environment และ AI tools](./01-environment-and-ai-tools.th.md) | วันที่ 1 |
-| [Session 2: สถาปัตยกรรมและ source code](./02-architecture-and-source.th.md) | วันที่ 1 |
-| [Session 3: ข้อมูลมหาวิทยาลัย](./03-university-data.th.md) | วันที่ 1 |
-| [Session 6: การทดสอบและความปลอดภัย](./06-testing-and-security.th.md) | วันที่ 2 |
-| [การแก้ปัญหา](./troubleshooting.th.md) | ทุกเวลา |
-| [คู่มือผู้จัด](./facilitator.th.md) | สำหรับผู้ดำเนินการอบรม |
+| [ก่อนวันอบรม](./00-before-the-day.md) | ที่บ้าน สัปดาห์ก่อนวันอบรม |
+| [Session 1: environment และ AI tools](./01-environment-and-ai-tools.md) | วันที่ 1 |
+| [Session 2: สถาปัตยกรรมและ source code](./02-architecture-and-source.md) | วันที่ 1 |
+| [Session 3: ข้อมูลมหาวิทยาลัย](./03-university-data.md) | วันที่ 1 |
+| [Session 6: การทดสอบและความปลอดภัย](./06-testing-and-security.md) | วันที่ 2 |
+| [การแก้ปัญหา](./troubleshooting.md) | ทุกเวลา |
+| [คู่มือผู้จัด](./facilitator.md) | สำหรับผู้ดำเนินการอบรม |
 
 ## ก่อนวันอบรม
 
-ทำ[งานเตรียมการ](./00-before-the-day.th.md)ที่บ้าน เพราะต้องดาวน์โหลดหลาย GB และเครือข่ายในห้องอบรมอาจช้า
+ทำ[งานเตรียมการ](./00-before-the-day.md)ที่บ้าน เพราะต้องดาวน์โหลดหลาย GB และเครือข่ายในห้องอบรมอาจช้า
 นำโน้ตบุ๊กที่ผ่านการตรวจความพร้อมแล้วมาในวันอบรม

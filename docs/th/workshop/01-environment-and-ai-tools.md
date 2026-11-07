@@ -1,6 +1,6 @@
 # Session 1: ความพร้อมของ Local Environment และ AI Tools
 
-> **English:** [`01-environment-and-ai-tools.md`](./01-environment-and-ai-tools.md)
+> **English:** [`01-environment-and-ai-tools.md`](../../workshop/01-environment-and-ai-tools.md)
 
 **เวลา** ประมาณ 45 นาที
 
@@ -8,7 +8,7 @@
 
 ยืนยันว่าเครื่องมือทุกตัวบนแล็ปท็อปตอบสนอง AI key ใช้งานได้ และ AI coding assistant
 อ่าน repository ได้ ยังไม่มีการสร้างอะไรใน session นี้ หากท่านทำงานเตรียมการใน
-[ก่อนวันอบรม](./00-before-the-day.th.md) แล้ว session นี้จะเป็นการตรวจสอบเป็นส่วนใหญ่
+[ก่อนวันอบรม](./00-before-the-day.md) แล้ว session นี้จะเป็นการตรวจสอบเป็นส่วนใหญ่
 
 ## ตรวจสอบเครื่องมือแต่ละตัว
 
@@ -39,7 +39,7 @@ docker compose ps
 เปิด `.env` แล้วตรวจสอบว่า `AI_PROVIDER` ระบุผู้ให้บริการของท่าน (`google` หรือ `openrouter`)
 และตั้งค่า key ที่ตรงกันแล้ว ค่า `stub` ทำให้แอปทำงานโดยไม่เรียก AI จริง ซึ่งใช้ได้สำหรับ session 1 และ 2
 แต่ใช้กับ pipeline ใน session 3 ไม่ได้ หากยังไม่ได้ทดสอบ key ให้ทำตามขั้นตอนใน
-[ก่อนวันอบรม](./00-before-the-day.th.md#ขอ-ai-key-และตรวจสอบว่าใช้งานได้)
+[ก่อนวันอบรม](./00-before-the-day.md#ขอ-ai-key-และตรวจสอบว่าใช้งานได้)
 
 ## ตรวจสอบว่า AI assistant อ่าน repo ได้
 
@@ -69,5 +69,5 @@ You are in the Program Landscape repository. Without changing any file:
 | `command not found: pnpm` | รัน `corepack enable` แล้วเปิด terminal ใหม่ |
 | `node --version` แสดงเวอร์ชันอื่น | รัน `nvm use` ในโฟลเดอร์โครงการ |
 | container อยู่ในสถานะ `unhealthy` หรือรีสตาร์ตซ้ำ | รัน `docker compose logs <name>` แล้วแสดงให้ผู้จัดดู |
-| สร้าง image ของ Gotenberg ไม่สำเร็จ | ไม่มีแฟ้มฟอนต์ TH Sarabun New ทั้งสี่แฟ้มใน `infra/gotenberg/fonts/` ดู [Getting started ขั้นที่ 4](../tutorials/getting-started.th.md#4-รันการตั้งค่าครั้งเดียว) |
+| สร้าง image ของ Gotenberg ไม่สำเร็จ | ไม่มีแฟ้มฟอนต์ TH Sarabun New ทั้งสี่แฟ้มใน `infra/gotenberg/fonts/` ดู [Getting started ขั้นที่ 4](../tutorials/getting-started.md#4-รันการตั้งค่าครั้งเดียว) |
 | assistant ตอบจากความรู้ทั่วไป ไม่ใช่จาก repository | เริ่ม assistant จากโฟลเดอร์โครงการ และอนุญาตให้อ่านแฟ้ม |

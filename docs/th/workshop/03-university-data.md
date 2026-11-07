@@ -1,6 +1,6 @@
 # Session 3: การเชื่อมโยงข้อมูลมหาวิทยาลัย
 
-> **English:** [`03-university-data.md`](./03-university-data.md)
+> **English:** [`03-university-data.md`](../../workshop/03-university-data.md)
 
 **เวลา** หนึ่งช่วงบ่าย ประมาณ 3 ชั่วโมง
 
@@ -10,7 +10,7 @@
 และเห็น Deep-Dive ของหลักสูตรนั้นแสดงเนื้อหา ทุกคนทำเส้นทางข้อมูลตัวอย่าง
 หากนำแฟ้มของตนเองมา ให้ทำซ้ำด้วยแฟ้มเหล่านั้นต่อ
 
-ขั้นตอนเป็นขั้นตอนเดียวกับ [Get Program Deep-Dive working](../tutorials/program-deep-dive.th.md)
+ขั้นตอนเป็นขั้นตอนเดียวกับ [Get Program Deep-Dive working](../tutorials/program-deep-dive.md)
 หน้านี้บอกว่าใช้ค่าและแฟ้มใด และทำตามลำดับใด เพื่อให้ขั้นตอนที่ช้าทำงานไปพร้อมกับงานอื่น
 
 ## เริ่มขั้นตอนที่ใช้เวลานานก่อน
@@ -30,7 +30,7 @@ pipeline ใช้เวลาประมาณ 20 ถึง 25 นาทีต
 ### Organisation profile
 
 เปิด `/admin/organization` แล้วกรอกแท็บ "Identity" ตามที่
-[ขั้นตอนที่ 1](../tutorials/program-deep-dive.th.md#ขั้นตอนที่-1-ตั้งค่า-organisation-profile)
+[ขั้นตอนที่ 1](../tutorials/program-deep-dive.md#ขั้นตอนที่-1-ตั้งค่า-organisation-profile)
 อธิบาย โดยใช้ค่าต่อไปนี้:
 
 | ช่อง | ค่า |
@@ -50,7 +50,7 @@ pipeline ใช้เวลาประมาณ 20 ถึง 25 นาทีต
 แฟ้มอยู่ใน `workshop/sample-data/` ใน repository ทุกบุคคลและทุกตัวเลขในแฟ้มเป็นข้อมูลสมมติ
 อัปโหลดตามลำดับหมายเลข แต่ละแฟ้มที่หน้าชุดข้อมูลของตนใต้ `/admin/data-setup`
 ด้วยปุ่ม "Upload filled template" ตามที่อธิบายใน
-[ขั้นตอนที่ 2](../tutorials/program-deep-dive.th.md#ขั้นตอนที่-2-อัปโหลดโครงสร้างองค์กรและหลักสูตร)
+[ขั้นตอนที่ 2](../tutorials/program-deep-dive.md#ขั้นตอนที่-2-อัปโหลดโครงสร้างองค์กรและหลักสูตร)
 
 | แฟ้ม | หน้าชุดข้อมูล |
 |---|---|
@@ -87,7 +87,7 @@ pipeline ใช้เวลาประมาณ 20 ถึง 25 นาทีต
 - `tcas` จับคู่หลักสูตรด้วยชื่อภาษาไทยของมหาวิทยาลัย และมหาวิทยาลัยสมมติไม่มีในตาราง TCAS ใด
 - `openalex-works` ต้องใช้ OpenAlex institution ID จริง
 - `kmitl-skill-mapping` ต้องใช้ข้อมูลรับรองของ KMITL หากผู้จัดให้มา ให้รัน connector นี้
-  แล้วรันคำสั่งใน [ทักษะตลาดแรงงาน](../tutorials/program-deep-dive.th.md#labour-market-skills)
+  แล้วรันคำสั่งใน [ทักษะตลาดแรงงาน](../tutorials/program-deep-dive.md#labour-market-skills)
   ซึ่งใช้เวลาประมาณหนึ่งชั่วโมง จึงควรเริ่มก่อน pipeline
 
 ### PDF หลักสูตรและ pipeline
@@ -108,7 +108,7 @@ pnpm programs:pipeline WDU-CPE-BE
 ### Setup checklist
 
 เปิดแท็บ "Setup checklist" ของหลักสูตร ตาม
-[ขั้นตอนที่ 6](../tutorials/program-deep-dive.th.md#ขั้นตอนที่-6-ทำให้-setup-checklist-เป็นสีเขียว)
+[ขั้นตอนที่ 6](../tutorials/program-deep-dive.md#ขั้นตอนที่-6-ทำให้-setup-checklist-เป็นสีเขียว)
 รายการสีแดงแต่ละรายการระบุสิ่งที่ขาด
 
 บางรายการยังคงเป็นสีแดงหรือ "not applicable" ในเส้นทางข้อมูลตัวอย่าง ซึ่งถูกต้องแล้ว:
@@ -127,7 +127,7 @@ pnpm programs:pipeline WDU-CPE-BE
 
 1. แก้ Organisation profile เป็นชื่อมหาวิทยาลัยของท่าน ชื่อภาษาไทยต้องตรงกับตาราง TCAS ทุกตัวอักษร
 2. อัปโหลดแฟ้มตามลำดับเดียวกัน เมื่อแฟ้มถูกปฏิเสธ ข้อความจะระบุแถวและคอลัมน์
-   กฎอยู่ใน [การนำเข้าข้อมูลจาก spreadsheet](../data-import.th.md)
+   กฎอยู่ใน [การนำเข้าข้อมูลจาก spreadsheet](../data-import.md)
 3. รัน `tcas` และรัน `openalex-works` หากมี key แบบฟรี
 4. แนบ PDF หลักสูตรของท่าน ตรวจสอบก่อนด้วย `pnpm curriculum:check "<file.pdf>"`
    แล้วรัน pipeline

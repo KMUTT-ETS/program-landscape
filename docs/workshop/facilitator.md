@@ -1,6 +1,6 @@
 # Facilitator guide
 
-> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [`facilitator.th.md`](./facilitator.th.md)
+> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [ฉบับภาษาไทย](../th/workshop/facilitator.md)
 
 For the people running the 1.5-day workshop. Participants follow the session
 pages on their own laptops; your job is to keep everyone moving and to rescue

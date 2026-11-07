@@ -1,6 +1,6 @@
 # การแก้ปัญหา
 
-> **English:** [`troubleshooting.md`](./troubleshooting.md)
+> **English:** [`troubleshooting.md`](../../workshop/troubleshooting.md)
 
 รวมทุกข้อผิดพลาดที่หน้าต่าง ๆ ของ workshop กล่าวถึงไว้ในที่เดียว ค้นหาสิ่งที่ท่านเห็นในคอลัมน์ซ้าย
 หากไม่มีในหน้านี้ ให้แสดงข้อความทั้งหมดแก่ผู้จัด
@@ -9,14 +9,14 @@
 
 | สิ่งที่เห็น | สาเหตุ | วิธีแก้ |
 |---|---|---|
-| สร้าง image ของ Gotenberg ไม่สำเร็จ หรือมีข้อความ "expected at least 4 Sarabun font faces" | ไม่มีแฟ้มฟอนต์ TH Sarabun New ทั้งสี่แฟ้มใน `infra/gotenberg/fonts/` | วางแฟ้มไว้ที่นั่น ตั้งชื่อตาม [Getting started ขั้นที่ 4](../tutorials/getting-started.th.md#4-รันการตั้งค่าครั้งเดียว) แล้วรัน `pnpm setup` อีกครั้ง |
+| สร้าง image ของ Gotenberg ไม่สำเร็จ หรือมีข้อความ "expected at least 4 Sarabun font faces" | ไม่มีแฟ้มฟอนต์ TH Sarabun New ทั้งสี่แฟ้มใน `infra/gotenberg/fonts/` | วางแฟ้มไว้ที่นั่น ตั้งชื่อตาม [Getting started ขั้นที่ 4](../tutorials/getting-started.md#4-รันการตั้งค่าครั้งเดียว) แล้วรัน `pnpm setup` อีกครั้ง |
 | "Cannot connect to the Docker daemon" | Docker ไม่ทำงาน | เริ่ม Docker แล้วรันคำสั่งอีกครั้ง บน WSL2: `sudo systemctl start docker` |
 | "permission denied while trying to connect to the Docker daemon socket" | เพิ่มผู้ใช้เข้ากลุ่ม `docker` แล้ว แต่ terminal ยังเป็นหน้าต่างเก่า | ปิดหน้าต่าง Ubuntu ทุกหน้าต่าง รัน `wsl --shutdown` ใน PowerShell แล้วเปิด Ubuntu อีกครั้ง |
 | "port is already allocated" | โปรแกรมอื่นใช้พอร์ตใดพอร์ตหนึ่งใน 3000, 4000, 5432, 6379, 9000, 9001, 3001 | หยุดโปรแกรมนั้น แล้วเริ่มใหม่ |
 | "Environment variable not found: DATABASE_URL" | ไม่มีลิงก์ `.env` ของแต่ละแอป | รัน `pnpm link-env` แล้วรันคำสั่งที่ล้มเหลวอีกครั้ง |
 | การลงชื่อเข้าใช้วนกลับมาที่เดิม | สาเหตุเดียวกัน | รัน `pnpm link-env` แล้วเริ่ม `pnpm dev` ใหม่ |
 | ข้อผิดพลาดของ Node หรือการติดตั้ง | ใช้ Node.js ผิดเวอร์ชัน | รัน `nvm use` แล้ว `pnpm setup` อีกครั้ง |
-| การติดตั้งและ `pnpm dev` ช้ามากบน Windows | โครงการอยู่ใต้ `/mnt/c/` | clone ใหม่ไว้ใต้โฟลเดอร์ home ของ Linux ดู [การติดตั้งบน Windows ด้วย WSL2](../guides/windows-wsl2.th.md) |
+| การติดตั้งและ `pnpm dev` ช้ามากบน Windows | โครงการอยู่ใต้ `/mnt/c/` | clone ใหม่ไว้ใต้โฟลเดอร์ home ของ Linux ดู [การติดตั้งบน Windows ด้วย WSL2](../guides/windows-wsl2.md) |
 | ทุกแฟ้มขึ้นว่าถูกแก้ไขหลัง clone | การขึ้นบรรทัดใหม่ถูกแปลง | รัน `git config --global core.autocrlf input` แล้ว clone ใหม่ |
 | แล็ปท็อปค้างระหว่างที่แอปทำงาน | หน่วยความจำไม่พอสำหรับ WSL2 หรือ Windows | ปิดโปรแกรมอื่น หรือปรับค่า `memory=` ใน `.wslconfig` |
 

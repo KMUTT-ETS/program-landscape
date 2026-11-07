@@ -1,6 +1,6 @@
 # ก่อนวันอบรม
 
-> **English:** [`00-before-the-day.md`](./00-before-the-day.md)
+> **English:** [`00-before-the-day.md`](../../workshop/00-before-the-day.md)
 
 ทำส่วนนี้ที่บ้านในสัปดาห์ก่อน workshop เพราะต้องดาวน์โหลดหลาย GB และเครือข่ายในห้องอบรมอาจช้า
 ใช้เวลาหนึ่งถึงสองชั่วโมง ส่วนใหญ่เป็นการรอ นำแล็ปท็อปที่ตั้งค่าระบบไว้แล้วและผ่านการตรวจความพร้อมมาในวันอบรม
@@ -14,14 +14,14 @@
 
 ## ติดตั้งเครื่องมือ
 
-- **Windows:** ทำตาม [การติดตั้งบน Windows ด้วย WSL2](../guides/windows-wsl2.th.md)
+- **Windows:** ทำตาม [การติดตั้งบน Windows ด้วย WSL2](../guides/windows-wsl2.md)
   ซึ่งติดตั้ง WSL2, Docker, Git และ Node.js
 - **macOS หรือ Linux:** ติดตั้ง Git, Docker พร้อม Compose v2 และ Node.js 24 (24.22.1 ขึ้นไป) ตามรายการใน
-  [Getting started ขั้นที่ 1](../tutorials/getting-started.th.md#1-ตรวจสอบสิ่งที่ต้องมี)
+  [Getting started ขั้นที่ 1](../tutorials/getting-started.md#1-ตรวจสอบสิ่งที่ต้องมี)
 
 ## ดาวน์โหลดโค้ดและรัน setup หนึ่งครั้ง
 
-ทำตาม [Getting started](../tutorials/getting-started.th.md) ขั้นที่ 2, 3 และ 4:
+ทำตาม [Getting started](../tutorials/getting-started.md) ขั้นที่ 2, 3 และ 4:
 clone repository สร้าง `.env` วางแฟ้มฟอนต์ TH Sarabun New ทั้งสี่แฟ้ม และรันการตั้งค่าครั้งเดียว
 การตั้งค่าจะดาวน์โหลดแพ็กเกจทั้งหมดและสร้าง Docker image ทุกตัว ซึ่งเป็นส่วนที่ไม่ควรทำบนเครือข่ายของห้องอบรม
 
@@ -30,7 +30,7 @@ clone repository สร้าง `.env` วางแฟ้มฟอนต์ TH 
 ## ขอ AI key และตรวจสอบว่าใช้งานได้
 
 ท่านต้องมี key สำหรับ pipeline ใน session 3 วิธีขอ key อยู่ใน
-[Getting started ขั้นที่ 1](../tutorials/getting-started.th.md#1-ตรวจสอบสิ่งที่ต้องมี)
+[Getting started ขั้นที่ 1](../tutorials/getting-started.md#1-ตรวจสอบสิ่งที่ต้องมี)
 ให้ขอ **Google Gemini key** ไว้ทุกกรณี เพราะระบบใช้ Google สำหรับ embedding เสมอ
 
 ตรวจสอบ key แต่ละตัวด้วยคำขอเดียว ใส่ key ของท่านแทนส่วนที่อยู่ในวงเล็บมุม
@@ -71,10 +71,10 @@ opencode auth login
 ทำเฉพาะเมื่อต้องการนำเข้าข้อมูลของมหาวิทยาลัยตนเองหลังจบเส้นทางข้อมูลตัวอย่าง
 
 1. ส่งออกชุดข้อมูลตามรายการใน
-   [Get Program Deep-Dive working ขั้นตอนที่ 2](../tutorials/program-deep-dive.th.md#ขั้นตอนที่-2-อัปโหลดโครงสร้างองค์กรและหลักสูตร)
+   [Get Program Deep-Dive working ขั้นตอนที่ 2](../tutorials/program-deep-dive.md#ขั้นตอนที่-2-อัปโหลดโครงสร้างองค์กรและหลักสูตร)
    อย่างน้อยคือ คณะ ภาควิชา หลักสูตร บุคลากร อาจารย์ประจำหลักสูตร การรับเข้า การเงิน และผลลัพธ์บัณฑิต
 2. กรอกลงในแม่แบบ คอลัมน์ของแต่ละชุดข้อมูลอยู่ใน
-   [การนำเข้าข้อมูลจาก spreadsheet](../data-import.th.md) แฟ้มตัวอย่างใน
+   [การนำเข้าข้อมูลจาก spreadsheet](../data-import.md) แฟ้มตัวอย่างใน
    `workshop/sample-data/` แสดงตัวอย่างที่กรอกแล้วของทุกชุด
 3. **ลบข้อมูลส่วนบุคคลออกก่อนที่แฟ้มจะออกจากสำนักงานของท่าน** ไม่มีเลขประจำตัวประชาชน
    ไม่มีวันเกิด ไม่มีที่อยู่หรือหมายเลขโทรศัพท์ ระบบนำเข้าจะปฏิเสธแฟ้มที่มีค่าคล้ายเลขประจำตัวประชาชน
@@ -92,5 +92,5 @@ docker compose images
 ```
 
 ท่านควรเห็นข้อความ "Fresh-install check passed." และรายการที่มี image ของ
-`postgres`, `redis`, `minio` และ `gotenberg` หากข้อใดไม่ผ่าน ให้ค้นหาใน[หน้าการแก้ปัญหา](./troubleshooting.th.md)
+`postgres`, `redis`, `minio` และ `gotenberg` หากข้อใดไม่ผ่าน ให้ค้นหาใน[หน้าการแก้ปัญหา](./troubleshooting.md)
 หรือสอบถามผู้จัดก่อนวันอบรม

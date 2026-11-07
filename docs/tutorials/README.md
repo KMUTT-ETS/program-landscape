@@ -1,6 +1,6 @@
 # Tutorials
 
-> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [`README.th.md`](./README.th.md)
+> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [ฉบับภาษาไทย](../th/tutorials/README.md)
 
 Step-by-step walkthroughs for an adopting university. Each one names the exact
 pages, files and buttons, and what you should see after each step.

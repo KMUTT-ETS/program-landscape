@@ -1,6 +1,6 @@
 # Session 2: platform architecture and source code
 
-> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [`02-architecture-and-source.th.md`](./02-architecture-and-source.th.md)
+> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [ฉบับภาษาไทย](../th/workshop/02-architecture-and-source.md)
 
 **Time.** About 90 minutes.
 

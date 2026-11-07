@@ -27,7 +27,6 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
         { text: 'Licensing', link: '/licensing' },
         { text: 'Getting started', link: '/tutorials/getting-started' },
         { text: 'Windows setup (WSL2)', link: '/guides/windows-wsl2' },
-        { text: 'Windows setup (WSL2) (Thai)', link: '/guides/windows-wsl2.th' },
         { text: 'Architecture', link: '/architecture' },
         { text: 'Evaluation pipeline', link: '/evaluation-pipeline' },
       ],
@@ -39,9 +38,6 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
         { text: 'Getting started', link: '/tutorials/getting-started' },
         { text: 'Get Program Deep-Dive working', link: '/tutorials/program-deep-dive' },
         { text: 'Deep-Dive data map', link: '/adopters/deep-dive-data-map' },
-        { text: 'Tutorials overview (Thai)', link: '/tutorials/README.th' },
-        { text: 'Getting started (Thai)', link: '/tutorials/getting-started.th' },
-        { text: 'Get Program Deep-Dive working (Thai)', link: '/tutorials/program-deep-dive.th' },
         { text: 'Adapt the registrar connector (advanced)', link: '/tutorials/adapt-the-registrar-connector' },
       ],
     },
@@ -56,14 +52,6 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
         { text: 'Session 6: testing and security', link: '/workshop/06-testing-and-security' },
         { text: 'Troubleshooting', link: '/workshop/troubleshooting' },
         { text: 'Facilitator guide', link: '/workshop/facilitator' },
-        { text: 'Overview (Thai)', link: '/workshop/README.th' },
-        { text: 'Before the day (Thai)', link: '/workshop/00-before-the-day.th' },
-        { text: 'Session 1: environment and AI tools (Thai)', link: '/workshop/01-environment-and-ai-tools.th' },
-        { text: 'Session 2: architecture and source (Thai)', link: '/workshop/02-architecture-and-source.th' },
-        { text: 'Session 3: university data (Thai)', link: '/workshop/03-university-data.th' },
-        { text: 'Session 6: testing and security (Thai)', link: '/workshop/06-testing-and-security.th' },
-        { text: 'Troubleshooting (Thai)', link: '/workshop/troubleshooting.th' },
-        { text: 'Facilitator guide (Thai)', link: '/workshop/facilitator.th' },
       ],
     },
     {
@@ -71,7 +59,6 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
       items: [
         { text: 'Ingestion framework', link: '/data-sources' },
         { text: 'Importing from spreadsheets', link: '/data-import' },
-        { text: 'Importing from spreadsheets (Thai)', link: '/data-import.th' },
         { text: 'Source catalogue', link: '/data-sources/README' },
         { text: 'Per-source specs', collapsed: true, items: dataSourceItems(docsDir) },
         { text: 'Connector session template', link: gen('connector-session-template') },
@@ -149,7 +136,6 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
     },
     {
       text: 'ภาษาไทย (Thai)',
-      items: [{ text: 'คู่มือสำหรับสถาบันผู้นำไปใช้', link: '/adopters/README.th' }],
     },
     {
       text: 'Reference',
@@ -157,6 +143,31 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
         { text: 'pnpm scripts', link: gen('scripts') },
         { text: 'Environment variables', link: gen('env') },
         { text: 'Repository README', link: gen('readme') },
+      ],
+    },
+  ];
+}
+
+/** The Thai locale: every page under docs/th/, in reading order. Regrouped in Task 3. */
+export function buildThaiSidebar(_docsDir: string): DefaultTheme.SidebarItem[] {
+  return [
+    {
+      text: 'ภาษาไทย',
+      items: [
+        { text: 'คู่มือสำหรับสถาบันผู้นำไปใช้', link: '/th/adopters/README' },
+        { text: 'บทเรียน: ภาพรวม', link: '/th/tutorials/README' },
+        { text: 'Getting started', link: '/th/tutorials/getting-started' },
+        { text: 'การติดตั้งบน Windows ด้วย WSL2', link: '/th/guides/windows-wsl2' },
+        { text: 'ทำให้ Program Deep-Dive ใช้งานได้', link: '/th/tutorials/program-deep-dive' },
+        { text: 'นำเข้าข้อมูลจากสเปรดชีต', link: '/th/data-import' },
+        { text: 'Workshop: ภาพรวม', link: '/th/workshop/README' },
+        { text: 'ก่อนวันอบรม', link: '/th/workshop/00-before-the-day' },
+        { text: 'Session 1: Local Environment และ AI Tools', link: '/th/workshop/01-environment-and-ai-tools' },
+        { text: 'Session 2: สถาปัตยกรรมระบบและ Source Code', link: '/th/workshop/02-architecture-and-source' },
+        { text: 'Session 3: การเชื่อมโยงข้อมูลมหาวิทยาลัย', link: '/th/workshop/03-university-data' },
+        { text: 'Session 6: การทดสอบและความปลอดภัย', link: '/th/workshop/06-testing-and-security' },
+        { text: 'การแก้ปัญหา', link: '/th/workshop/troubleshooting' },
+        { text: 'คู่มือผู้จัด', link: '/th/workshop/facilitator' },
       ],
     },
   ];

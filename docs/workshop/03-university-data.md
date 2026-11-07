@@ -1,6 +1,6 @@
 # Session 3: university data connection
 
-> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [`03-university-data.th.md`](./03-university-data.th.md)
+> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [ฉบับภาษาไทย](../th/workshop/03-university-data.md)
 
 **Time.** One afternoon, about 3 hours.
 

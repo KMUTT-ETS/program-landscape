@@ -5,7 +5,7 @@ import { defineConfig, type Plugin } from 'vitepress';
 import { repoLinkPlugin } from '../src/link-plugin';
 import { excludedGlobs, isUnderDir } from '../src/manifest';
 import { githubSlugify } from '../src/slugify';
-import { buildSidebar } from './sidebar';
+import { buildSidebar, buildThaiSidebar } from './sidebar';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..', '..', '..');
@@ -44,6 +44,24 @@ export default defineConfig({
   cleanUrls: false,
   ignoreDeadLinks: false,
   lastUpdated: false,
+  locales: {
+    root: { label: 'English', lang: 'en' },
+    th: {
+      label: 'ไทย',
+      lang: 'th',
+      link: '/th/',
+      title: 'Program Landscape',
+      description: 'คู่มือนักพัฒนาสำหรับสถาบันที่นำ Program Landscape ไปใช้',
+      themeConfig: {
+        nav: [
+          { text: 'คู่มือผู้นำไปใช้', link: '/th/adopters/README' },
+          { text: 'บทเรียน', link: '/th/tutorials/README' },
+          { text: 'เวิร์กช็อป', link: '/th/workshop/README' },
+        ],
+        sidebar: buildThaiSidebar(docsDir),
+      },
+    },
+  },
   markdown: {
     // The docs are written for GitHub; keep its heading anchors so their #links resolve here too.
     anchor: { slugify: githubSlugify },
@@ -58,6 +76,8 @@ export default defineConfig({
     plugins: [resolveVueForPages()],
   },
   themeConfig: {
+    // The switcher goes to the other locale's home; each bilingual page links its twin at the top.
+    i18nRouting: false,
     nav: [
       { text: 'Adopter guide', link: '/adopters/README' },
       { text: 'Scripts', link: '/_generated/scripts' },

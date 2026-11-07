@@ -1,6 +1,6 @@
 # Tutorial: get Program Deep-Dive working
 
-> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [`program-deep-dive.th.md`](./program-deep-dive.th.md)
+> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [ฉบับภาษาไทย](../th/tutorials/program-deep-dive.md)
 
 **Outcome.** `/programs/<id>` shows real content, not empty states, for a
 programme of your university. The "Setup checklist" tab for that programme is

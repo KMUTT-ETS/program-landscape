@@ -1,6 +1,6 @@
 # Workshop: set up Program Deep-Dive
 
-> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [`README.th.md`](./README.th.md)
+> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [ฉบับภาษาไทย](../th/workshop/README.md)
 
 A 1.5-day hands-on workshop for the IT staff of a university that adopts
 Program Landscape. You start from a clean laptop and finish with the Program

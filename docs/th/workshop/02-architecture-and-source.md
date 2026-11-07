@@ -1,6 +1,6 @@
 # Session 2: สถาปัตยกรรมระบบและ Source Code
 
-> **English:** [`02-architecture-and-source.md`](./02-architecture-and-source.md)
+> **English:** [`02-architecture-and-source.md`](../../workshop/02-architecture-and-source.md)
 
 **เวลา** ประมาณ 90 นาที
 
@@ -28,8 +28,8 @@ Program Landscape เป็น repository เดียวที่มีหล�
 บริการสี่ตัวทำงานใน Docker: `postgres` (ฐานข้อมูล), `redis` (คิวงานและแคช),
 `minio` (ที่เก็บแฟ้ม เช่น PDF ที่อัปโหลด) และ `gotenberg` (แปลงหน้าเป็น PDF)
 
-รายละเอียดเพิ่มเติม: [Architecture](../architecture.md) และ
-[คู่มือผู้นำไปใช้](../adopters/README.th.md)
+รายละเอียดเพิ่มเติม: [Architecture](../../architecture.md) และ
+[คู่มือผู้นำไปใช้](../adopters/README.md)
 
 ## ไล่ตามส่วนหนึ่งของ Deep-Dive ตั้งแต่ต้นจนจบ
 
@@ -78,11 +78,11 @@ section of the Program Deep-Dive? Show the file paths.
 6. **ทุกการคำนวณมีเวอร์ชันของวิธีการ** อธิบายไว้ใน `docs/methodologies/`
 
 นอกจากนี้: TypeScript แบบ strict ห้ามใช้ `any` ตรวจข้อมูลนำเข้าด้วย Zod และใช้สีจาก design token เท่านั้น
-รายการทั้งหมดอยู่ใน [project contract](../../CLAUDE.md)
+รายการทั้งหมดอยู่ใน [project contract](../../../CLAUDE.md)
 
 ## เริ่มแอปและยืนยันผู้ดูแลระบบ
 
-ทำตาม [Getting started](../tutorials/getting-started.th.md) ขั้นที่ 5, 6 และ 7:
+ทำตาม [Getting started](../tutorials/getting-started.md) ขั้นที่ 5, 6 และ 7:
 เริ่มแอปด้วย `pnpm dev` ตรวจสอบว่าทำงานปกติ และยืนยันผู้ดูแลระบบคนแรกที่ `/setup`
 ทำขั้นที่ 7 ทันที เพราะผู้ที่เปิดหน้า setup คนแรกจะได้เป็นผู้ดูแลระบบ
 

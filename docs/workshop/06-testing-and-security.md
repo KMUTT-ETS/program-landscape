@@ -1,6 +1,6 @@
 # Session 6: testing, validation and security
 
-> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [`06-testing-and-security.th.md`](./06-testing-and-security.th.md)
+> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [ฉบับภาษาไทย](../th/workshop/06-testing-and-security.md)
 
 **Time.** About 90 minutes.
 

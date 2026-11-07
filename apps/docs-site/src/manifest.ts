@@ -28,7 +28,7 @@ export const EXCLUDED: readonly string[] = [
 ];
 
 /**
- * English pages that must have a Thai twin (`<name>.th.md` next to them). check-site verifies
+ * English pages that must have a Thai twin (`th/<same path>`). check-site verifies
  * each twin exists, mirrors the English structure and links both ways.
  */
 export const BILINGUAL_PAGES: readonly string[] = [
@@ -53,11 +53,14 @@ export const BILINGUAL_PAGES: readonly string[] = [
  * so a reader working through a step-by-step page keeps their place. Links to a
  * heading on the same page stay in the current tab.
  */
-export const NEW_TAB_DOC_PREFIXES: readonly string[] = ['workshop/'];
+export const NEW_TAB_DOC_PREFIXES: readonly string[] = ['workshop/', 'th/workshop/'];
 
-/** 'adopters/README.md' -> 'adopters/README.th.md'. */
+/** Folder (inside docs/) holding the Thai locale; each twin sits at the English page's path. */
+export const THAI_DIR = 'th';
+
+/** 'adopters/README.md' -> 'th/adopters/README.md'. */
 export function twinOf(docsRel: string): string {
-  return docsRel.replace(/\.md$/, '.th.md');
+  return `${THAI_DIR}/${docsRel}`;
 }
 
 export function isExcluded(docsRel: string): boolean {
@@ -98,7 +101,7 @@ export const RETIRED_NAMES: readonly string[] = [
 export const RETIRED_NAME_ALLOWLIST: readonly string[] = [
   '/glossary-th-en',
   '/adopters/README',
-  '/adopters/README.th',
+  '/th/adopters/README',
 ];
 
 export function toPosix(p: string): string {

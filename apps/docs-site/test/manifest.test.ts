@@ -10,6 +10,7 @@ import {
   listRenderedPages,
   pageRoute,
   toPosix,
+  twinOf,
 } from '../src/manifest';
 
 describe('manifest', () => {
@@ -25,16 +26,15 @@ describe('manifest', () => {
   it('turns folder exclusions into globs and keeps file exclusions as-is', () => {
     expect(excludedGlobs()).toContain('superpowers/**');
     expect(excludedGlobs()).toContain('user-manual.md');
-    expect(isExcluded('adopters/README.th.md')).toBe(false);
+    expect(isExcluded('th/adopters/README.md')).toBe(false);
   });
 
   it('maps docs-relative paths to routes', () => {
     expect(pageRoute('index.md')).toBe('/');
     expect(pageRoute('adopters/README.md')).toBe('/adopters/README');
     expect(pageRoute('_generated/env.md')).toBe('/_generated/env');
-    expect(pageRoute('methodologies/program-health-and-lifecycle.th.md')).toBe(
-      '/methodologies/program-health-and-lifecycle.th',
-    );
+    expect(pageRoute('th/tutorials/getting-started.md')).toBe('/th/tutorials/getting-started');
+    expect(pageRoute('th/index.md')).toBe('/th/');
   });
 
   it('lists rendered pages sorted, skipping exclusions and non-markdown', () => {
@@ -50,6 +50,11 @@ describe('manifest', () => {
   it('gives every gathered file a unique target name', () => {
     const targets = GATHERED.map((g) => g.target);
     expect(new Set(targets).size).toBe(targets.length);
+  });
+
+  it('puts a Thai twin under docs/th/ at the same path', () => {
+    expect(twinOf('tutorials/getting-started.md')).toBe('th/tutorials/getting-started.md');
+    expect(twinOf('data-import.md')).toBe('th/data-import.md');
   });
 
   it('keeps KKU-only pages off the site', () => {

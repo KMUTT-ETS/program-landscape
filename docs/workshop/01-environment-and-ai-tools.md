@@ -1,6 +1,6 @@
 # Session 1: local environment and AI tools
 
-> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [`01-environment-and-ai-tools.th.md`](./01-environment-and-ai-tools.th.md)
+> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [ฉบับภาษาไทย](../th/workshop/01-environment-and-ai-tools.md)
 
 **Time.** About 45 minutes.
 

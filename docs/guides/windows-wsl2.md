@@ -1,6 +1,6 @@
 # Windows setup with WSL2
 
-> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [`windows-wsl2.th.md`](./windows-wsl2.th.md)
+> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [ฉบับภาษาไทย](../th/guides/windows-wsl2.md)
 
 Run Program Landscape on Windows inside **WSL2** (Windows Subsystem for Linux),
 not on Windows itself. Everything in the tutorials then works exactly as

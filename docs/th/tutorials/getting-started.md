@@ -1,6 +1,6 @@
 # Getting started: จากการ clone ใหม่จนแอปทำงานได้
 
-> **English:** [`getting-started.md`](./getting-started.md)
+> **English:** [`getting-started.md`](../../tutorials/getting-started.md)
 
 **ผลลัพธ์** ท่านมี Program Landscape ทำงานบนเครื่องแล็ปท็อปของท่าน ท่านได้สร้างบัญชีผู้ดูแลระบบคนแรกแล้ว และลงชื่อเข้าใช้แล้ว
 
@@ -19,7 +19,7 @@
 7. แฟ้มฟอนต์ TH Sarabun New ทั้งสี่แฟ้ม (ขั้นที่ 4 บอกว่าต้องวางไว้ที่ใด)
 
 **บน Windows** ให้ทำงานภายใน WSL2 ตั้งค่าก่อนตาม
-[การติดตั้งบน Windows ด้วย WSL2](../guides/windows-wsl2.th.md) ซึ่งติดตั้ง Git,
+[การติดตั้งบน Windows ด้วย WSL2](../guides/windows-wsl2.md) ซึ่งติดตั้ง Git,
 Docker และ Node.js ให้ด้วย
 
 **แล็ปท็อปของท่าน** ต้องมีหน่วยความจำอย่างน้อย 16 GB และดิสก์ว่างอย่างน้อย 25 GB
@@ -72,7 +72,7 @@ cp .env.example .env
    `THSarabunNew-BoldItalic.ttf` แฟ้มเหล่านี้ไม่อยู่ใน repository และ image ของบริการ PDF
    จะสร้างไม่ได้หากไม่มีแฟ้มเหล่านี้ ดาวน์โหลดได้จาก SIPA (สำนักงานส่งเสริมอุตสาหกรรมซอฟต์แวร์แห่งชาติ ผู้เผยแพร่ฟอนต์)
    หรือ f0nt.com แล้วเปลี่ยนชื่อแฟ้มตามข้างต้น รายละเอียดอยู่ใน
-   [คู่มือฟอนต์ของ Gotenberg](../_generated/gotenberg-fonts.md) (หรือ `infra/gotenberg/README.md`)
+   [คู่มือฟอนต์ของ Gotenberg](../../_generated/gotenberg-fonts.md) (หรือ `infra/gotenberg/README.md`)
    ฟอนต์ "Sarabun" ของ Google Fonts เป็นคนละแบบและใช้แทนไม่ได้ ตรวจสอบด้วย:
 
 ```bash
@@ -135,7 +135,7 @@ pnpm dev
 
 ## ขั้นต่อไป
 
-ทำต่อด้วย [Get Program Deep-Dive working](./program-deep-dive.th.md) ส่วน workshop ที่สร้างจากขั้นตอนเหล่านี้คือ [Workshop: ติดตั้งและใช้งาน Program Deep-Dive](../workshop/README.th.md)
+ทำต่อด้วย [Get Program Deep-Dive working](./program-deep-dive.md) ส่วน workshop ที่สร้างจากขั้นตอนเหล่านี้คือ [Workshop: ติดตั้งและใช้งาน Program Deep-Dive](../workshop/README.md)
 
 ## หากมีปัญหา
 

@@ -1,6 +1,6 @@
 # Before the day
 
-> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [`00-before-the-day.th.md`](./00-before-the-day.th.md)
+> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [ฉบับภาษาไทย](../th/workshop/00-before-the-day.md)
 
 Do this at home, the week before the workshop. It downloads several gigabytes,
 and the room network may be slow. It takes one to two hours, mostly waiting.
