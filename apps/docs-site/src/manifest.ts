@@ -46,6 +46,22 @@ export const BILINGUAL_PAGES: readonly string[] = [
   'workshop/06-testing-and-security.md',
   'workshop/troubleshooting.md',
   'workshop/facilitator.md',
+  // The adopter guide's task-sized pages (split 2026-11-07).
+  'adopters/codebase-layout.md',
+  'adopters/data-tiers.md',
+  'adopters/pdpa-and-governance.md',
+  'adopters/scope-and-effort.md',
+  'adopters/traps.md',
+  'guides/adapt-a-methodology.md',
+  'guides/configuration.md',
+  'guides/configure-ai.md',
+  'guides/curriculum-pdfs-and-ai-digest.md',
+  'guides/deploy.md',
+  'guides/extend-with-claude-code.md',
+  'guides/rebrand.md',
+  'guides/testing-and-ci.md',
+  'guides/upstream-fixes.md',
+  'guides/write-a-connector.md',
 ];
 
 /**
@@ -100,8 +116,9 @@ export const RETIRED_NAMES: readonly string[] = [
 /** Routes allowed to contain retired names because they record them deliberately. */
 export const RETIRED_NAME_ALLOWLIST: readonly string[] = [
   '/glossary-th-en',
-  '/adopters/README',
-  '/th/adopters/README',
+  // Rebrand records the retired names under "The name" so nobody reintroduces them.
+  '/guides/rebrand',
+  '/th/guides/rebrand',
 ];
 
 export function toPosix(p: string): string {

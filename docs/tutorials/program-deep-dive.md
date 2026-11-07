@@ -268,7 +268,7 @@ pnpm programs:approve-pending --rematerialise --program-id=<id>
 The first command builds the taxonomy from the curriculum's skill names. The
 second applies the stored curriculum result again. It makes no AI call. Then run
 the pipeline for the programme once more. The full description is in
-[Building your skill taxonomy](../adopters/README.md#building-your-skill-taxonomy).
+[Building your skill taxonomy](../guides/curriculum-pdfs-and-ai-digest.md#building-your-skill-taxonomy).
 
 ## When a section is empty but the rows exist
 

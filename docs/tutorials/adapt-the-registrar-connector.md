@@ -92,7 +92,7 @@ Read these four files before changing anything. They are short:
 The shape to keep: `fetch` runs both queries in one connection and validates every
 row; `transform` turns one (programme, cohort) group into records; `load` upserts
 and reports what it could not map. The contract behind this is in
-[the connector contract](../adopters/README.md#9-the-connector-contract-and-how-to-write-one).
+[the connector contract](../guides/write-a-connector.md).
 
 ## Step 3 — Set the connection
 
@@ -297,7 +297,7 @@ latest full-year intake from `enrollment_metrics`, so it should now render for a
 programme with a mapped intake. Rows written by this
 connector carry `methodology_version = 'kku-registry.v1'` and the run's id, and
 the run id is what lets them pass the provenance filter — see
-[the `realDataWhere` trap](../adopters/README.md#trap-2-realdatawhere--empty-sections-with-rows-in-the-database).
+[the `realDataWhere` trap](../adopters/traps.md#trap-2-realdatawhere--empty-sections-with-rows-in-the-database).
 
 ## Step 10 — Prove it and record it
 

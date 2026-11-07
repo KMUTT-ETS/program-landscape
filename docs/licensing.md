@@ -251,7 +251,7 @@ Worth recording, so that a future review does not redo settled work:
 - **The licensing contact is a role address, not a maintainer's personal address** — currently a marked placeholder for KKU to fill in. Personal addresses in licence files stop working when the person moves on, and a licence outlives its maintainers.
 - **TH Sarabun New font files are deliberately not committed** (`infra/gotenberg/README.md`), and the Docker build fails loudly without them. Licensing hygiene enforced by the build, which is the only kind that survives.
 - **`SECURITY.md` already routes vulnerability reports to a role address** (`security@kku.ac.th`), and `LICENSE` points at it so the two contacts do not get confused.
-- **`docs/adopters/README.md` chapter 2 states the licence obligations** in the terms an adopting developer actually needs, and points at this document for their legal office.
+- **The adopter guide (`docs/adopters/README.md`, section "Licence") states the licence obligations** in the terms an adopting developer actually needs, and points at this document for their legal office.
 
 ---
 
@@ -270,7 +270,7 @@ For whoever runs the release. Ordered by dependency, not by importance.
 | 7 | Publish `CONTRIBUTING.md` with DCO, and add a DCO check to CI (§3.4) | Engineering + legal | Recommended |
 | 8 | Add SPDX headers to KKU-authored source; add `NOTICE` (§3.5) | Engineering | Recommended |
 | 9 | Confirm no remaining file describes the project as internal, proprietary, or confidential | Engineering | **Yes** |
-| 10 | Confirm the rebranding checklist in `docs/adopters/README.md` chapter 11 is accurate against the current tree | Engineering | Recommended |
+| 10 | Confirm the rebranding checklist in `docs/guides/rebrand.md` is accurate against the current tree | Engineering | Recommended |
 | 11 | Have KKU legal review this document and record their decisions against each item in §3 | KKU legal | **Yes** |
 
 ---
@@ -288,4 +288,4 @@ For whoever runs the release. Ordered by dependency, not by importance.
 - SPDX licence list — <https://spdx.org/licenses/>
 - REUSE Software specification (SPDX header tooling) — <https://reuse.software/>
 
-**Related in this repository:** [`LICENSE`](../LICENSE) · [`docs/adopters/README.md`](adopters/README.md) chapter 2 · [`SECURITY.md`](../SECURITY.md) · [`docs/pdpa.md`](pdpa.md)
+**Related in this repository:** [`LICENSE`](../LICENSE) · [`docs/adopters/README.md`](adopters/README.md) (section "Licence") · [`SECURITY.md`](../SECURITY.md) · [`docs/pdpa.md`](pdpa.md)

@@ -97,6 +97,9 @@ You should see it install packages, start the Docker containers, apply the
 database migrations, register every data source (all switched off) and load the
 generic reference data. It ends without errors.
 
+Do not run `pnpm db:seed:kku`. It loads KKU's own development data (faculties,
+departments, demo accounts) and has no place in your installation.
+
 3. Check that nothing of another university is in your database.
 
 ```bash
@@ -160,6 +163,6 @@ workshop built on these steps is [Workshop: set up Program Deep-Dive](../worksho
 | "Environment variable not found: DATABASE_URL" | Run `pnpm link-env`, then run the failed command again. |
 | "Cannot connect to the Docker daemon" | Start Docker, then run `pnpm setup` again. |
 | "port is already allocated" | Stop the program that uses the port, then start again. |
-| Sign-in goes round in a circle | Run `pnpm link-env` and restart `pnpm dev`. |
+| Sign-in goes round in a circle | Run `pnpm link-env` and restart `pnpm dev`. See [Trap 4](../adopters/traps.md#trap-4-per-app-env-files-and-the-silent-edge-middleware-failure). |
 | The api or ingestion stops at start with a missing key message | Set `AI_PROVIDER=stub` or add the key for your provider, then restart `pnpm dev`. |
 | Node or install errors | Run `nvm use`, then `pnpm setup` again. |

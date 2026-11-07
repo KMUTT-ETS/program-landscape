@@ -58,7 +58,9 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
       items: [
         { text: 'Adopter guide', link: '/adopters/README' },
         { text: 'Licensing', link: '/licensing' },
+        { text: 'Scope and effort', link: '/adopters/scope-and-effort' },
         { text: 'Architecture', link: '/architecture' },
+        { text: 'How the codebase is laid out', link: '/adopters/codebase-layout' },
       ],
     },
     {
@@ -89,7 +91,17 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
       text: 'Guides',
       items: [
         { text: 'Import from spreadsheets', link: '/data-import' },
+        { text: 'Configuration and environment', link: '/guides/configuration' },
+        { text: 'Write a connector', link: '/guides/write-a-connector' },
         { text: 'Connector session template', link: gen('connector-session-template') },
+        { text: 'Curriculum documents and the AI digest', link: '/guides/curriculum-pdfs-and-ai-digest' },
+        { text: 'Configure the AI layer', link: '/guides/configure-ai' },
+        { text: 'Rebrand the platform', link: '/guides/rebrand' },
+        { text: 'Adapt a methodology', link: '/guides/adapt-a-methodology' },
+        { text: 'Fork and take upstream fixes', link: '/guides/upstream-fixes' },
+        { text: 'Testing and CI', link: '/guides/testing-and-ci' },
+        { text: 'Deploy and size the infrastructure', link: '/guides/deploy' },
+        { text: 'Extend with Claude Code', link: '/guides/extend-with-claude-code' },
         { text: 'Backup and disaster recovery', link: '/backup-dr' },
         { text: 'Staff Profile API', link: '/integrations/staff-profile-api' },
         { text: 'Dev database safety', link: '/dev-database-safety' },
@@ -99,9 +111,11 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
     {
       text: 'Concepts',
       items: [
+        { text: 'Data integration: four tiers', link: '/adopters/data-tiers' },
         { text: 'Ingestion framework', link: '/data-sources' },
         { text: 'Evaluation pipeline', link: '/evaluation-pipeline' },
         { text: 'Council-readiness checklist', link: '/readiness-checklist' },
+        { text: 'PDPA and governance', link: '/adopters/pdpa-and-governance' },
         { text: 'PDPA', link: '/pdpa' },
         { text: 'DSAR workflow', link: '/dsar-workflow' },
         { text: 'Security review', link: '/security-review' },
@@ -127,6 +141,7 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
         { text: 'Deep-Dive data map', link: '/adopters/deep-dive-data-map' },
         { text: 'Design system', link: '/design-system' },
         { text: 'Glossary TH–EN', link: '/glossary-th-en' },
+        { text: 'Traps that will cost you days', link: '/adopters/traps' },
         { text: 'DB indexes', link: '/db-indexes' },
         { text: 'Gotenberg fonts', link: gen('gotenberg-fonts') },
         { text: 'Security policy', link: gen('security-policy') },
@@ -142,7 +157,7 @@ export const NAV: DefaultTheme.NavItem[] = [
   { text: 'Tutorials', link: '/tutorials/README' },
   { text: 'Workshop', link: '/workshop/README' },
   { text: 'Guides', link: '/data-import' },
-  { text: 'Concepts', link: '/data-sources' },
+  { text: 'Concepts', link: '/adopters/data-tiers' },
   { text: 'Reference', link: gen('scripts') },
 ];
 
@@ -151,7 +166,11 @@ export function buildThaiSidebar(_docsDir: string): DefaultTheme.SidebarItem[] {
   const groups: DefaultTheme.SidebarItem[] = [
     {
       text: 'เริ่มต้น',
-      items: [{ text: 'คู่มือสำหรับสถาบันผู้นำไปใช้', link: '/th/adopters/README' }],
+      items: [
+        { text: 'คู่มือสำหรับสถาบันผู้นำไปใช้', link: '/th/adopters/README' },
+        { text: 'ขอบเขตและภาระงาน', link: '/th/adopters/scope-and-effort' },
+        { text: 'โครงสร้างของ codebase', link: '/th/adopters/codebase-layout' },
+      ],
     },
     {
       text: 'บทเรียน',
@@ -178,10 +197,31 @@ export function buildThaiSidebar(_docsDir: string): DefaultTheme.SidebarItem[] {
     },
     {
       text: 'คู่มือปฏิบัติ',
-      items: [{ text: 'นำเข้าข้อมูลจากสเปรดชีต', link: '/th/data-import' }],
+      items: [
+        { text: 'นำเข้าข้อมูลจากสเปรดชีต', link: '/th/data-import' },
+        { text: 'การตั้งค่าและ environment', link: '/th/guides/configuration' },
+        { text: 'การเขียน connector', link: '/th/guides/write-a-connector' },
+        { text: 'เอกสารหลักสูตรและการสรุปด้วย AI', link: '/th/guides/curriculum-pdfs-and-ai-digest' },
+        { text: 'การตั้งค่าชั้น AI', link: '/th/guides/configure-ai' },
+        { text: 'การปรับแบรนด์และ UI', link: '/th/guides/rebrand' },
+        { text: 'การปรับระเบียบวิธี', link: '/th/guides/adapt-a-methodology' },
+        { text: 'การ fork และการรับ fix จาก upstream', link: '/th/guides/upstream-fixes' },
+        { text: 'การทดสอบและ CI', link: '/th/guides/testing-and-ci' },
+        { text: 'การ deploy และการกำหนดขนาด', link: '/th/guides/deploy' },
+        { text: 'การต่อยอดด้วย Claude Code', link: '/th/guides/extend-with-claude-code' },
+      ],
     },
-    { text: 'แนวคิด', items: [] },
-    { text: 'อ้างอิง', items: [] },
+    {
+      text: 'แนวคิด',
+      items: [
+        { text: 'การเชื่อมต่อข้อมูล: สี่ระดับ', link: '/th/adopters/data-tiers' },
+        { text: 'PDPA และธรรมาภิบาลข้อมูล', link: '/th/adopters/pdpa-and-governance' },
+      ],
+    },
+    {
+      text: 'อ้างอิง',
+      items: [{ text: 'กับดักที่จะกินเวลาไปหลายวัน', link: '/th/adopters/traps' }],
+    },
   ];
   return groups.filter((g) => (g.items?.length ?? 0) > 0);
 }
@@ -191,4 +231,6 @@ export const THAI_NAV: DefaultTheme.NavItem[] = [
   { text: 'บทเรียน', link: '/th/tutorials/README' },
   { text: 'เวิร์กช็อป', link: '/th/workshop/README' },
   { text: 'คู่มือปฏิบัติ', link: '/th/data-import' },
+  { text: 'แนวคิด', link: '/th/adopters/data-tiers' },
+  { text: 'อ้างอิง', link: '/th/adopters/traps' },
 ];

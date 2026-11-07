@@ -181,7 +181,7 @@ pnpm skills:normalise --source=program_digest --auto-promote
 pnpm programs:approve-pending --rematerialise --program-id=<id>
 ```
 
-คำสั่งแรกสร้าง taxonomy จากชื่อทักษะในหลักสูตร คำสั่งที่สองนำผลของหลักสูตรที่เก็บไว้มาใช้อีกครั้ง โดยไม่เรียก AI จากนั้นรัน pipeline ของหลักสูตรนั้นอีกครั้ง คำอธิบายฉบับเต็มอยู่ใน [Building your skill taxonomy](../../adopters/README.md#building-your-skill-taxonomy)
+คำสั่งแรกสร้าง taxonomy จากชื่อทักษะในหลักสูตร คำสั่งที่สองนำผลของหลักสูตรที่เก็บไว้มาใช้อีกครั้ง โดยไม่เรียก AI จากนั้นรัน pipeline ของหลักสูตรนั้นอีกครั้ง คำอธิบายฉบับเต็มอยู่ใน [Building your skill taxonomy](../guides/curriculum-pdfs-and-ai-digest.md#การสร้างอนุกรมวิธานทักษะของคุณ)
 
 ## เมื่อส่วนหนึ่งว่างแต่มีแถวข้อมูลอยู่
 
