@@ -8,5 +8,5 @@
 |---|---|---|
 | 1 | [Getting started](./getting-started.th.md) | แอปทำงานบนเครื่องแล็ปท็อปของท่าน และลงชื่อเข้าใช้ด้วยผู้ดูแลระบบคนแรกแล้ว |
 | 2 | [Get Program Deep-Dive working](./program-deep-dive.th.md) | `/programs/<id>` แสดงเนื้อหาจริงของหลักสูตรหนึ่งหลักสูตร และแท็บ Setup checklist เป็นสีเขียว |
-| 3 | [Workshop guide](./workshop.th.md) | วาระครึ่งวัน สิ่งที่ผู้เข้าร่วมต้องนำมา รายการตรวจสอบที่ส่งล่วงหน้า และวิธีแก้ปัญหาที่พบบ่อย |
+| 3 | [Workshop: ติดตั้งและใช้งาน Program Deep-Dive](../workshop/README.th.md) | workshop ภาคปฏิบัติ 1.5 วัน: งานเตรียมการ หนึ่งหน้าต่อหนึ่ง session หน้าการแก้ปัญหา และคู่มือผู้จัด |
 | ขั้นสูง (ไม่บังคับ) | [Adapt the registrar connector](./adapt-the-registrar-connector.md) | ตัวอย่างของ KKU: connector ของงานทะเบียนอ่านระบบข้อมูลนักศึกษาโดยตรง (มีเฉพาะฉบับภาษาอังกฤษ) |

@@ -48,15 +48,15 @@ Remove personal data first: no national ID numbers, no birth dates.
 
 | Page | When |
 |---|---|
-| Before the day | At home, the week before |
-| Session 1: environment and AI tools | Day 1 |
-| Session 2: architecture and source code | Day 1 |
-| Session 3: university data | Day 1 |
-| Session 6: testing and security | Day 2 |
-| Troubleshooting | Any time |
-| Facilitator guide | For the people running the day |
+| [Before the day](./00-before-the-day.md) | At home, the week before |
+| [Session 1: environment and AI tools](./01-environment-and-ai-tools.md) | Day 1 |
+| [Session 2: architecture and source code](./02-architecture-and-source.md) | Day 1 |
+| [Session 3: university data](./03-university-data.md) | Day 1 |
+| [Session 6: testing and security](./06-testing-and-security.md) | Day 2 |
+| [Troubleshooting](./troubleshooting.md) | Any time |
+| [Facilitator guide](./facilitator.md) | For the people running the day |
 
 ## Before the day
 
-Do the pre-work at home. It downloads several gigabytes, and the room network
+Do the [pre-work](./00-before-the-day.md) at home. It downloads several gigabytes, and the room network
 may be slow. Bring a laptop that has passed its ready check.

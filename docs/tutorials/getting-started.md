@@ -148,7 +148,7 @@ programmes, students or staff. You load them next.
 ## Next step
 
 Continue with [Get Program Deep-Dive working](./program-deep-dive.md). The
-facilitator page for a workshop is [Workshop guide](./workshop.md).
+workshop built on these steps is [Workshop: set up Program Deep-Dive](../workshop/README.md).
 
 ## If something goes wrong
 

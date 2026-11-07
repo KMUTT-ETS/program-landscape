@@ -133,7 +133,7 @@ pnpm dev
 
 ## ขั้นต่อไป
 
-ทำต่อด้วย [Get Program Deep-Dive working](./program-deep-dive.th.md) ส่วนหน้าสำหรับผู้จัด workshop คือ [Workshop guide](./workshop.th.md)
+ทำต่อด้วย [Get Program Deep-Dive working](./program-deep-dive.th.md) ส่วน workshop ที่สร้างจากขั้นตอนเหล่านี้คือ [Workshop: ติดตั้งและใช้งาน Program Deep-Dive](../workshop/README.th.md)
 
 ## หากมีปัญหา
 

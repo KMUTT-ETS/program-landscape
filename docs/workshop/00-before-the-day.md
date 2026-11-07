@@ -104,5 +104,5 @@ docker compose images
 
 You should see "Fresh-install check passed." and a list that includes the
 `postgres`, `redis`, `minio` and `gotenberg` images. If either fails, look it
-up in the workshop's Troubleshooting page, or ask the facilitator before the
+up in [Troubleshooting](./troubleshooting.md), or ask the facilitator before the
 day.

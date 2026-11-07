@@ -92,5 +92,5 @@ docker compose images
 ```
 
 ท่านควรเห็นข้อความ "Fresh-install check passed." และรายการที่มี image ของ
-`postgres`, `redis`, `minio` และ `gotenberg` หากข้อใดไม่ผ่าน ให้ค้นหาในหน้าการแก้ปัญหาของ workshop
+`postgres`, `redis`, `minio` และ `gotenberg` หากข้อใดไม่ผ่าน ให้ค้นหาใน[หน้าการแก้ปัญหา](./troubleshooting.th.md)
 หรือสอบถามผู้จัดก่อนวันอบรม
