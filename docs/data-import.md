@@ -89,6 +89,8 @@ thing from **Programme Teaching Staff** above: one says who stood in front of
 a particular class, the other says who the programme's teaching team is, and
 only the second is importable.
 
+**No exports yet?** A generator can write a mock set for your own university from the public TCAS files and your curriculum PDFs. See [No exports? Generate a mock set for your university](workshop/03-university-data.md#no-exports-generate-a-mock-set-for-your-university).
+
 ## Class Offerings replaces a term; everything else merges
 
 This is the one dataset that behaves differently, and it is worth
