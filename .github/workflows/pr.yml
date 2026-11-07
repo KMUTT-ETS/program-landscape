@@ -268,17 +268,6 @@ jobs:
           DATABASE_URL: postgresql://kku:kku@localhost:5432/kku_landscape?schema=public
         run: pnpm data-sources:audit
 
-      # The workshop mock-data generator (scripts/workshop-mock) is Python; its
-      # compatibility test in apps/api runs the generator, so `python3` must
-      # import openpyxl and pypdf here or that test is skipped.
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Install workshop-mock Python dependencies
-        run: pip install -r scripts/workshop-mock/requirements.txt
-      - name: Workshop-mock Python unit tests
-        run: cd scripts/workshop-mock && python -m unittest discover -s tests
-
       - name: Test
         env:
           DATABASE_URL: postgresql://kku:kku@localhost:5432/kku_landscape?schema=public

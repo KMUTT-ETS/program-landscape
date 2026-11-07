@@ -1,9 +1,9 @@
 // Compatibility check for the workshop mock-data generator
-// (scripts/workshop-mock): proves the generated files pass the app's real
+// (apps/ingestion/src/scripts/workshop-mock): proves the generated files pass the app's real
 // importer and that the `tcas` connector's matcher would link the generated
 // bachelor programmes to the university's public TCAS rows.
 //
-//   pnpm workshop:check-mock <dir> <input.toml>
+//   pnpm workshop:check-mock <dir> <input.json>
 //
 // Relative paths resolve against the folder you ran pnpm from.
 import fs from 'node:fs';
@@ -148,8 +148,8 @@ export function checkMockDir(
   return { errors, matched, unmatched };
 }
 
-// Header spellings by year. Twin of ALIASES in scripts/workshop-mock/wsmock/tcas.py
-// (only the columns the matcher needs).
+// Header spellings by year (only the columns the matcher needs; the generator's reader is
+// apps/ingestion/src/scripts/workshop-mock/tcas.ts).
 const ALIASES: Record<'institution' | 'code' | 'faculty' | 'programme' | 'major', string[]> = {
   institution: ['สถาบัน', 'university_name'],
   code: ['รหัสหลักสูตร', 'program_id'],
@@ -196,29 +196,52 @@ export function readTcasFile(file: string): TcasMatchRow[] {
   return out;
 }
 
-export function universityFromToml(file: string): string {
-  const m = /^\s*university\s*=\s*"((?:[^"\\]|\\.)*)"/m.exec(fs.readFileSync(file, 'utf8'));
-  if (!m) throw new Error(`${file}: no university = "..." line`);
-  return (m[1] as string).replace(/\\(.)/g, '$1');
+export function universityFromInput(file: string): string {
+  let data: unknown;
+  try {
+    data = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
+  } catch (e) {
+    throw new Error(`${file}: ${(e as Error).message}`);
+  }
+  const u = (data as { university?: unknown } | null)?.university;
+  if (typeof u !== 'string' || u.trim() === '') throw new Error(`${file}: no "university" text`);
+  return u.trim();
 }
 
 function main(argv: string[]): number {
   const base = process.env.INIT_CWD ?? process.cwd();
-  const [dirArg, tomlArg] = argv;
-  if (!dirArg || !tomlArg) {
-    console.log('Usage: pnpm workshop:check-mock <dir> <input.toml>');
+  const [dirArg, inputArg] = argv;
+  if (!dirArg || !inputArg) {
+    console.log('Usage: pnpm workshop:check-mock <dir> <input.json>');
     return 2;
   }
   const dir = path.resolve(base, dirArg);
-  const toml = path.resolve(base, tomlArg);
+  const input = path.resolve(base, inputArg);
   const cache = path.join(dir, '.cache');
-  const cached = fs.existsSync(cache) ? fs.readdirSync(cache).filter((f) => f.endsWith('.xlsx')) : [];
+  const cached = fs.existsSync(cache) ? fs.readdirSync(cache).filter((f) => f.endsWith('.xlsx') && !f.startsWith('~$')) : [];
   if (cached.length === 0) {
     console.log(`No TCAS files in ${cache}. Run the generator first (it caches them there).`);
     return 2;
   }
-  const rows = cached.flatMap((f) => readTcasFile(path.join(cache, f)));
-  const result = checkMockDir(dir, rows, universityFromToml(toml));
+  const rows: TcasMatchRow[] = [];
+  for (const f of cached) {
+    // an editor's lock file (~$name.xlsx) or a half-copied file must not stop the check
+    if (f.startsWith('~$')) continue;
+    try {
+      rows.push(...readTcasFile(path.join(cache, f)));
+    } catch (e) {
+      console.log(`${f}: ${(e as Error).message}`);
+      return 1;
+    }
+  }
+  let university: string;
+  try {
+    university = universityFromInput(input);
+  } catch (e) {
+    console.log((e as Error).message);
+    return 2;
+  }
+  const result = checkMockDir(dir, rows, university);
   console.log(`Matched ${result.matched.length} bachelor programme(s) to TCAS rows:`);
   for (const m of result.matched) console.log(`  ok    ${m}`);
   for (const m of result.unmatched) console.log(`  MISS  ${m}`);
