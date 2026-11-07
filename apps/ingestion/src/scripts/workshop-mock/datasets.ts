@@ -3,7 +3,7 @@
 // Every figure of a programme-year comes from one plan (`computePlan`) that is derived from the
 // world alone, with string-seeded generators, so two sheets can never disagree and the result
 // does not depend on anything but the world (and its `seed`).
-import { getImportDataset } from '@kku/db';
+import { getImportDataset, normaliseCourseCode } from '@kku/db';
 import { FREE, GE, type Course } from './courses';
 import { makeRng, type Rng } from './rng';
 import type { Publication, RosterLink, Staff } from './people';
@@ -233,7 +233,14 @@ const staffRows = (w: World): Row[] =>
 const programmeFaculty = (w: World): Row[] => rowsOf('program-faculty', w.links.map((l) => [l.programmeCode, l.employeeCode, l.role, null]));
 function programmeCourses(w: World): Row[] {
   const items: Cell[][] = [];
-  for (const p of w.slice.programmes) for (const c of w.courses.get(p.code) ?? []) items.push([p.code, c.code, c.nameTh, c.nameEn, c.credits, c.category]);
+  for (const p of w.slice.programmes) {
+    const seen = new Set<string>(); // the importer treats 'MEE 364' and 'MEE364' as one course
+    for (const c of w.courses.get(p.code) ?? []) {
+      if (seen.has(normaliseCourseCode(c.code))) continue;
+      seen.add(normaliseCourseCode(c.code));
+      items.push([p.code, c.code, c.nameTh, c.nameEn, c.credits, c.category]);
+    }
+  }
   return rowsOf('programme-courses', items);
 }
 const research = (w: World): Row[] => rowsOf('research-outputs', w.publications.map((x) => [x.employeeCode, x.year, x.type, x.title, x.venue, x.citations, null]));
@@ -391,7 +398,7 @@ function evaluations(w: World): Row[] {
   for (const p of w.slice.programmes)
     for (const c of w.courses.get(p.code) ?? []) {
       if (c.category === GE || c.category === FREE) continue;
-      const codeKey = c.code.replace(/\s+/g, '').toUpperCase();
+      const codeKey = normaliseCourseCode(c.code);
       const rng = r(w.seed, 'eval', p.code, c.code);
       const sems = rng.choice([[1], [2], [1, 2]]);
       for (const y of [last - 1, last])

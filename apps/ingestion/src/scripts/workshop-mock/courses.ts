@@ -1,6 +1,7 @@
 // Course lists for each programme: read from the PDF, a CSV, or invented.
 import fs from 'node:fs';
 import path from 'node:path';
+import { normaliseCourseCode } from '@kku/db';
 import { courseCodeRegex } from '@kku/shared';
 import { extractNativeText } from '../../pdf-intake/pipeline/native-text-extractor';
 import type { Rng } from './rng';
@@ -100,7 +101,7 @@ export function parseCoursesFromText(raw: string): { courses: Course[]; lostMark
     const segEnd = i + 1 < matches.length ? (matches[i + 1]!.index ?? text.length) : text.length;
     let seg = text.slice(start + m[0].length, segEnd);
     const code = m[0].replace(/\s+/g, ' ').trim();
-    if (seen.has(code)) continue;
+    if (seen.has(normaliseCourseCode(code))) continue; // 'MEE 364' and 'MEE364' are one course to the importer
     let credits: number | null = null;
     let tail = ''; // whatever follows this course's credits: the next heading, if there is one
     const cm = CREDITS_RE.exec(seg);
@@ -142,7 +143,7 @@ export function parseCoursesFromText(raw: string): { courses: Course[]; lostMark
     const hasThai = THAI_CHAR.test(thaiPart);
     const nameTh = hasThai ? cleanThaiName(thaiPart) : null;
     if (hasThai && nameTh === null && hasControl(thaiPart)) lostMarks++;
-    seen.set(code, { code, nameTh, nameEn, credits: credits ?? 3, category });
+    seen.set(normaliseCourseCode(code), { code, nameTh, nameEn, credits: credits ?? 3, category });
     category = categoryAfter(tail, category);
   }
   return { courses: [...seen.values()], lostMarks };
@@ -222,8 +223,8 @@ export function coursesFromCsv(file: string): Course[] {
   for (const r of rows.slice(1)) {
     const get = (name: string): string | undefined => (col(name) >= 0 ? r[col(name)] : undefined);
     const code = (get('code') ?? '').trim();
-    if (!code || seen.has(code)) continue;
-    seen.add(code);
+    if (!code || seen.has(normaliseCourseCode(code))) continue;
+    seen.add(normaliseCourseCode(code));
     const n = Number((get('credits') ?? '').trim());
     const credits = (get('credits') ?? '').trim() !== '' && Number.isFinite(n) ? Math.trunc(n) : 3;
     out.push({
@@ -315,18 +316,19 @@ export function shareWithSibling(anchorCourses: readonly Course[], siblingCourse
       shared.add(copy);
     } else out.push({ ...c });
   });
-  // an unshared sibling course must not reuse a code the anchor already uses
-  const anchorCodes = new Set(anchorCourses.map((c) => c.code));
-  const used = new Set([...out.filter((c) => shared.has(c)).map((c) => c.code), ...out.filter((c) => !anchorCodes.has(c.code)).map((c) => c.code)]);
+  // an unshared sibling course must not reuse a code the anchor already uses (compared the way the importer does)
+  const n = normaliseCourseCode;
+  const anchorCodes = new Set(anchorCourses.map((c) => n(c.code)));
+  const used = new Set([...out.filter((c) => shared.has(c)).map((c) => n(c.code)), ...out.filter((c) => !anchorCodes.has(n(c.code))).map((c) => n(c.code))]);
   for (const c of out) {
-    if (shared.has(c) || c.category === GE || !anchorCodes.has(c.code)) continue;
+    if (shared.has(c) || c.category === GE || !anchorCodes.has(n(c.code))) continue;
     const m = /^([A-Z]+) (\d)/.exec(c.code);
     const [pre, yr] = m ? [m[1]!, m[2]!] : ['XXX', '1'];
     for (let nn = 99; nn > 0; nn--) {
       const cand = `${pre} ${yr}${String(nn).padStart(2, '0')}`;
-      if (!used.has(cand) && !anchorCodes.has(cand)) {
+      if (!used.has(n(cand)) && !anchorCodes.has(n(cand))) {
         c.code = cand;
-        used.add(cand);
+        used.add(n(cand));
         break;
       }
     }

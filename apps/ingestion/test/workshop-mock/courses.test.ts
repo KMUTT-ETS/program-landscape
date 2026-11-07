@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { normaliseCourseCode } from '@kku/db';
 import { isCourseCode } from '@kku/shared';
 import {
   CATEGORIES,
@@ -9,6 +10,7 @@ import {
   coursesFromCsv,
   coursesFromPdf,
   inventedCourses,
+  parseCoursesFromText,
   shareWithSibling,
 } from '../../src/scripts/workshop-mock/courses';
 import { makeRng } from '../../src/scripts/workshop-mock/rng';
@@ -177,6 +179,28 @@ describe('shareWithSibling', () => {
       const anchorCodes = new Set(anchor.map((c) => c.code));
       const others = new Set(codes.filter((c) => anchorCodes.has(c) && !shared.has(c)));
       expect(others).toEqual(new Set(anchor.filter((c) => c.category === 'General education').map((c) => c.code)));
+    }
+  });
+});
+
+describe('codes that differ only in spacing', () => {
+  it('PDF text yields one course for MEE 364 / MEE364', () => {
+    const { courses } = parseCoursesFromText('MEE 364 Heat Transfer 3 MEE 365 Fluids 3 MEE364 Heat Transfer again 3 mee 3');
+    expect(courses.map((c) => c.code)).toEqual(['MEE 364', 'MEE 365']);
+  });
+  it('CSV keeps the first spelling', () => {
+    const f = path.join(tmp(), 'd.csv');
+    fs.writeFileSync(f, 'code,name_th,name_en,credits,category\nMEE 364,,A,3,core\nMEE364,,B,3,core\n', 'utf-8');
+    expect(coursesFromCsv(f).map((c) => c.code)).toEqual(['MEE 364']);
+  });
+  it('a sibling share never yields two normalised-equal codes', () => {
+    for (let seed = 0; seed < 10; seed++) {
+      const rng = makeRng(seed);
+      const anchor = inventedCourses(prog(), rng, 'Department of Mechanical Engineering');
+      const sib = inventedCourses(prog(), rng, 'Department of Mechanical Engineering').map((c, i) => (i % 5 === 0 ? { ...c, code: c.code.replace(' ', '') } : c));
+      const out = shareWithSibling(anchor, sib, rng);
+      const norm = out.map((c) => normaliseCourseCode(c.code));
+      expect(new Set(norm).size).toBe(norm.length);
     }
   });
 });
