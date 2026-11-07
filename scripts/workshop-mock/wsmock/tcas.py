@@ -74,10 +74,32 @@ def _int(v: object) -> int | None:
     return None if n is None else int(n)
 
 
-def _find(headers: list[str], pred) -> int | None:
-    for i, h in enumerate(headers):
-        if pred(h):
-            return i
+def _norm(h: object) -> str:
+    """Header comparison only: collapse whitespace (incl. newlines)."""
+    return " ".join(str(h or "").split())
+
+
+ALIASES = {
+    "institution": ["สถาบัน", "university_name"],
+    "code": ["รหัสหลักสูตร", "program_id"],
+    "faculty": ["คณะ", "คณะ/สำนักวิชา", "program_lookup_programs.faculty_name_th"],
+    "programme": ["หลักสูตร", "ชื่อหลักสูตร", "program_name_th"],
+    "major": ["สาขา/วิชาเอก", "สาขาวิชา/วิชาเอก", "แขนง/วิชาเอก", "major_name_th"],
+    "quota": ["รับ"],
+    "applicants": ["สมัคร"],
+    "pass": ["ผ่าน"],
+    "pass1": ["ผ่าน(รอบ1)", "ผ่าน ประมวลผลครั้งที่ 1"],
+    "pass2": ["ผ่าน(รอบ2)", "ผ่าน ประมวลผลครั้งที่ 2"],
+    "min": ["คะแนนต่ำสุด", "คะแนนต่ำสุด ประมวลผลครั้งที่ 1"],
+    "max": ["คะแนนสูงสุด", "คะแนนสูงสุด ประมวลผลครั้งที่ 1"],
+}
+
+
+def _index(headers: list[str], key: str) -> int | None:
+    for alias in ALIASES[key]:
+        for i, h in enumerate(headers):
+            if h == alias:
+                return i
     return None
 
 
@@ -85,48 +107,47 @@ def _read_file(path: Path, year: int, rnd: str) -> list[TcasRow]:
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
     try:
         it = wb.worksheets[0].iter_rows(values_only=True)
-        headers = [(_text(h) or "") for h in next(it)]
-
-        def exact(name: str) -> int | None:
-            return _find(headers, lambda h: h == name)
-
-        c_inst, c_code = exact("สถาบัน"), exact("รหัสหลักสูตร")
-        c_fac, c_prog, c_major = exact("คณะ"), exact("หลักสูตร"), exact("สาขา/วิชาเอก")
-        c_quota, c_app = exact("รับ"), exact("สมัคร")
-        # Header wording differs between years, so pass columns match by shape.
-        c_p1 = _find(headers, lambda h: h.startswith("ผ่าน") and "1" in h)
-        c_p2 = _find(headers, lambda h: h.startswith("ผ่าน") and "2" in h)
-        c_min = _find(headers, lambda h: h.startswith("คะแนนต่ำสุด") and "2" not in h)
-        c_max = _find(headers, lambda h: h.startswith("คะแนนสูงสุด") and "2" not in h)
-        if c_inst is None or c_code is None:
+        headers = [_norm(h) for h in next(it)]
+        ix = {k: _index(headers, k) for k in ALIASES}
+        if ix["institution"] is None or ix["code"] is None:
             raise ValueError(f"{path.name}: missing institution/course-code header")
 
-        def at(r: tuple, i: int | None) -> object:
+        def at(r: tuple, key: str) -> object:
+            i = ix[key]
             return r[i] if i is not None and i < len(r) else None
 
         out: list[TcasRow] = []
         for r in it:
-            code, inst = _text(at(r, c_code)), _text(at(r, c_inst))
+            code, inst = _text(at(r, "code")), _text(at(r, "institution"))
             if not code or not inst:
                 continue
-            p1, p2 = _int(at(r, c_p1)), _int(at(r, c_p2))
-            admitted = None if p1 is None and p2 is None else (p1 or 0) + (p2 or 0)
+            plain = _int(at(r, "pass"))
+            p1, p2 = _int(at(r, "pass1")), _int(at(r, "pass2"))
+            if plain is not None:
+                admitted = plain
+            elif p1 is None and p2 is None:
+                admitted = None
+            else:
+                admitted = (p1 or 0) + (p2 or 0)
             out.append(
                 TcasRow(
                     course_code=code,
                     institution=inst,
-                    faculty=_text(at(r, c_fac)) or "",
-                    programme=_text(at(r, c_prog)) or "",
-                    major=_text(at(r, c_major)),
+                    faculty=_text(at(r, "faculty")) or "",
+                    programme=_text(at(r, "programme")) or "",
+                    major=_text(at(r, "major")),
                     entry_year_be=year,
                     round=rnd,
-                    quota=_int(at(r, c_quota)),
-                    applicants=_int(at(r, c_app)),
+                    quota=_int(at(r, "quota")),
+                    applicants=_int(at(r, "applicants")),
                     admitted=admitted,
-                    min_score=_num(at(r, c_min)),
-                    max_score=_num(at(r, c_max)),
+                    min_score=_num(at(r, "min")),
+                    max_score=_num(at(r, "max")),
                 )
             )
+        empty = sum(1 for x in out if not x.faculty or not x.programme)
+        if empty:
+            print(f"warning: {path.name}: {empty} of {len(out)} rows have empty faculty or programme")
         return out
     finally:
         wb.close()
@@ -143,16 +164,17 @@ def _download(url: str, dest: Path) -> None:
 
 
 def load_rows(
-    cache_dir: Path, *, offline: bool, files: list[Path] | None = None
+    cache_dir: Path,
+    *,
+    offline: bool,
+    files: list[tuple[Path, int, str]] | None = None,
 ) -> list[TcasRow]:
-    """Read TCAS rows. `files` bypasses download (tests); the year is read from
-    the matching TCAS_FILES entry by file name, defaulting to 2567."""
+    """Read TCAS rows. `files` (path, entry_year_be, round) bypasses download
+    (tests and local files)."""
     rows: list[TcasRow] = []
     if files is not None:
-        by_name = {Path(u).name: (y, r) for u, y, r in TCAS_FILES}
-        for f in files:
-            year, rnd = by_name.get(f.name, (2567, "3"))
-            rows.extend(_read_file(f, year, rnd))
+        for f, year, rnd in files:
+            rows.extend(_read_file(Path(f), year, rnd))
         return rows
     for url, year, rnd in TCAS_FILES:
         dest = cache_dir / Path(url).name
@@ -183,12 +205,17 @@ def closest_institutions(rows: list[TcasRow], university: str, n: int = 5) -> li
 
 
 def round3_totals(rows: list[TcasRow]) -> dict[int, TcasTotals]:
-    """Per entry year, summed over distinct course codes (a code repeated by
-    rounds 3.1 and 3.2 counts once: the first row seen)."""
+    """Per entry year, summed over distinct course codes. A code repeated by
+    rounds 3.1 and 3.2 counts once: the row that states `admitted`, else the
+    first seen."""
     seen: dict[tuple[int, str], TcasRow] = {}
     for r in rows:
-        if r.round.startswith("3"):
-            seen.setdefault((r.entry_year_be, r.course_code), r)
+        if not r.round.startswith("3"):
+            continue
+        key = (r.entry_year_be, r.course_code)
+        cur = seen.get(key)
+        if cur is None or (cur.admitted is None and r.admitted is not None):
+            seen[key] = r
     acc: dict[int, list] = {}
     for (year, _), r in seen.items():
         a = acc.setdefault(year, [0, 0, None])
