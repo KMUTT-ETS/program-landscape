@@ -91,12 +91,16 @@ Also: TypeScript strict with no `any`, input checked with Zod, colours only
 from design tokens. The full list is in the
 [project contract](../_generated/project-contract.md).
 
-## Start the app and claim the administrator
+## Start the app and sign in
 
-Follow [Getting started](../tutorials/getting-started.md) steps 5, 6 and 7:
-start the app with `pnpm dev`, check it is healthy, and claim the first
-administrator at `/setup`. Do step 7 at once: the first person to open the
-setup page becomes the administrator.
+Start the app with `pnpm dev` and check it is healthy, as in
+[Getting started](../tutorials/getting-started.md) steps 5 and 6. Then sign in
+with the administrator you claimed during the
+[rehearsal](./00-before-the-day.md#rehearse-once-with-the-sample-university).
+
+If you skipped the rehearsal or reset your database, claim the administrator
+now at `/setup` ([Getting started](../tutorials/getting-started.md) step 7), at
+once: the first person to open the setup page becomes the administrator.
 
 ## You are done when
 

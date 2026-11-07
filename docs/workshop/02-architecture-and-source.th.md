@@ -80,11 +80,15 @@ section of the Program Deep-Dive? Show the file paths.
 นอกจากนี้: TypeScript แบบ strict ห้ามใช้ `any` ตรวจข้อมูลนำเข้าด้วย Zod และใช้สีจาก design token เท่านั้น
 รายการทั้งหมดอยู่ใน [project contract](../_generated/project-contract.md)
 
-## เริ่มแอปและยืนยันผู้ดูแลระบบ
+## เริ่มแอปและเข้าระบบ
 
-ทำตาม [Getting started](../tutorials/getting-started.th.md) ขั้นที่ 5, 6 และ 7:
-เริ่มแอปด้วย `pnpm dev` ตรวจสอบว่าทำงานปกติ และยืนยันผู้ดูแลระบบคนแรกที่ `/setup`
-ทำขั้นที่ 7 ทันที เพราะผู้ที่เปิดหน้า setup คนแรกจะได้เป็นผู้ดูแลระบบ
+เริ่มแอปด้วย `pnpm dev` และตรวจสอบว่าทำงานปกติ ตาม [Getting started](../tutorials/getting-started.th.md)
+ขั้นที่ 5 และ 6 จากนั้นเข้าระบบด้วยผู้ดูแลระบบที่ยืนยันไว้ตอน
+[ซ้อม](./00-before-the-day.th.md#ซ้อมหนึ่งครั้งกับมหาวิทยาลัยตัวอย่าง)
+
+หากไม่ได้ซ้อมหรือล้างฐานข้อมูลไปแล้ว ให้ยืนยันผู้ดูแลระบบที่ `/setup` ทันที
+([Getting started](../tutorials/getting-started.th.md) ขั้นที่ 7)
+เพราะผู้ที่เปิดหน้า setup คนแรกจะได้เป็นผู้ดูแลระบบ
 
 ## เสร็จเมื่อ
 

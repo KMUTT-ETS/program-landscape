@@ -50,7 +50,8 @@ Remove personal data before any file leaves your office:
 - no birth dates, addresses, phone numbers or personal e-mail addresses;
 - never names together with student or staff IDs.
 
-Files that contain national ID numbers or birth dates are refused in the room.
+The importer refuses files that contain national ID numbers. Do not bring
+birth dates either: helpers will ask you to remove them.
 
 ## Questions
 
