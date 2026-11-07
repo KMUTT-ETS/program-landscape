@@ -1,0 +1,6 @@
+university = "มหาวิทยาลัยเทคโนโลยีพระจอมเกล้าธนบุรี"
+region = "Bangkok"
+
+[[programme]]
+name = "วิศวกรรมวัสดุ"
+pdf = "../fixtures/curriculum-sample.pdf"
