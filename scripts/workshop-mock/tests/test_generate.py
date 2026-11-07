@@ -1,5 +1,8 @@
 import contextlib
 import io
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -102,6 +105,21 @@ class GenerateTests(unittest.TestCase):
             self.assertIn("faculties", str(cm.exception))
             self.assertIn(h[1], str(cm.exception))
             self.assertIn("row 2", str(cm.exception))
+
+    def test_identical_bytes_across_hash_seeds_in_subprocesses(self):
+        gen = HERE.parent / "generate.py"
+        with tempfile.TemporaryDirectory() as d:
+            outs = []
+            for hs in ("1", "2"):
+                out = Path(d) / f"o{hs}"
+                env = dict(os.environ, PYTHONHASHSEED=hs)
+                r = subprocess.run([sys.executable, str(gen), str(INPUT), "--tcas-file", TCAS_ARG,
+                                    "--out", str(out)], env=env, capture_output=True, text=True)
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                outs.append({p.name: p.read_bytes() for p in out.iterdir() if p.is_file()})
+            self.assertEqual(outs[0].keys(), outs[1].keys())
+            for k in outs[0]:
+                self.assertEqual(outs[0][k], outs[1][k], k)
 
     def test_readme_content(self):
         with tempfile.TemporaryDirectory() as d:

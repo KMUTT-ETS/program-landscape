@@ -70,6 +70,14 @@ class PdfTests(unittest.TestCase):
 
 
 class NameTests(unittest.TestCase):
+    def test_csv_control_char_name_is_none(self):
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "c.csv"
+            f.write_text("code,name_th,name_en,credits,category\nAB 101,ชื่อ\x00เสีย,Good,3,\n", encoding="utf-8")
+            (c,) = courses_from_csv(f)
+            self.assertIsNone(c.name_th)
+            self.assertEqual(c.name_en, "Good")
+
     def test_combining_start_dropped(self):
         self.assertIsNone(_clean_thai_name("ัสิกส์ทั่วไป"))
         self.assertIsNone(_clean_thai_name("ab"))

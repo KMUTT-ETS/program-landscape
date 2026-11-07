@@ -132,6 +132,11 @@ def courses_from_pdf(pdf: Path) -> tuple[list[Course], str]:
 
 # ---------------------------------------------------------------- CSV
 
+def _clean_csv_name(v: str | None) -> str | None:
+    s = (v or "").strip()
+    return None if not s or _has_control(s) else s
+
+
 def courses_from_csv(path: Path) -> list[Course]:
     out: list[Course] = []
     seen: set[str] = set()
@@ -148,8 +153,8 @@ def courses_from_csv(path: Path) -> list[Course]:
                 credits = 3
             out.append(Course(
                 code,
-                (row.get("name_th") or "").strip() or None,
-                (row.get("name_en") or "").strip() or None,
+                _clean_csv_name(row.get("name_th")),
+                _clean_csv_name(row.get("name_en")),
                 credits,
                 by_label.get((row.get("category") or "").strip().lower(), REQ),
             ))
