@@ -5,7 +5,7 @@ import { defineConfig, type Plugin } from 'vitepress';
 import { repoLinkPlugin } from '../src/link-plugin';
 import { excludedGlobs, isUnderDir } from '../src/manifest';
 import { githubSlugify } from '../src/slugify';
-import { buildSidebar, buildThaiSidebar } from './sidebar';
+import { NAV, THAI_NAV, buildSidebar, buildThaiSidebar } from './sidebar';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..', '..', '..');
@@ -53,11 +53,7 @@ export default defineConfig({
       title: 'Program Landscape',
       description: 'คู่มือนักพัฒนาสำหรับสถาบันที่นำ Program Landscape ไปใช้',
       themeConfig: {
-        nav: [
-          { text: 'คู่มือผู้นำไปใช้', link: '/th/adopters/README' },
-          { text: 'บทเรียน', link: '/th/tutorials/README' },
-          { text: 'เวิร์กช็อป', link: '/th/workshop/README' },
-        ],
+        nav: THAI_NAV,
         sidebar: buildThaiSidebar(docsDir),
       },
     },
@@ -78,11 +74,7 @@ export default defineConfig({
   themeConfig: {
     // The switcher goes to the other locale's home; each bilingual page links its twin at the top.
     i18nRouting: false,
-    nav: [
-      { text: 'Adopter guide', link: '/adopters/README' },
-      { text: 'Scripts', link: '/_generated/scripts' },
-      { text: 'Environment', link: '/_generated/env' },
-    ],
+    nav: NAV,
     sidebar: buildSidebar(docsDir),
     search: { provider: 'local' },
     outline: [2, 3],

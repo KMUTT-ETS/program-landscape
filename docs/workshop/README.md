@@ -46,6 +46,9 @@ Remove personal data first: no national ID numbers, no birth dates.
 
 ## Pages
 
+Sessions 4 and 5 are still in preparation, so the pages go from session 3
+straight to session 6.
+
 | Page | When |
 |---|---|
 | [Before the day](./00-before-the-day.md) | At home, the week before |
