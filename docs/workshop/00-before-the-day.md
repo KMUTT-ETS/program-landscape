@@ -2,9 +2,12 @@
 
 > **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [`00-before-the-day.th.md`](./00-before-the-day.th.md)
 
-Do this at home, the week before the workshop. It downloads several gigabytes,
-and the room network may be slow. It takes one to two hours, mostly waiting.
-Bring the laptop with the app already set up and the ready check passing.
+Do this at home. Start after the [early notice](./early-notice.md) and finish by
+the **readiness form deadline, 19 November, 18:00**. The pre-workshop online on
+16 November walks through this page. It downloads several gigabytes, and the
+room network may be slow. It takes one to two hours, mostly waiting, plus about
+30 minutes for the rehearsal. Bring the laptop with the app already set up and
+the rehearsal done.
 
 ## Your laptop
 
@@ -23,19 +26,16 @@ Bring the laptop with the app already set up and the ready check passing.
 ## Get the code and run setup once
 
 Follow [Getting started](../tutorials/getting-started.md) steps 2, 3 and 4:
-clone the repository, create `.env`, put the four TH Sarabun New font files in
-place, and run the one-time setup. The setup downloads every package and
+clone the repository, create `.env`, and run the one-time setup. The setup downloads every package and
 builds every Docker image, which is the part you do not want to do on the
 workshop network.
-
-You do not need to go further. Claiming the administrator happens in the room.
 
 ## Get an AI key and check it works
 
 You need a key for the pipeline in session 3. How to get one is in
 [Getting started, step 1](../tutorials/getting-started.md#1-check-what-you-need).
-Get a **Google Gemini key** in any case, because the app always uses Google for
-embeddings.
+A Google Gemini key is the simplest choice: it also covers embeddings. With an
+OpenRouter key only, set `AI_OPENROUTER_EMBEDDING_MODEL` as that page explains.
 
 Check each key with one request. Put your key in place of the angle brackets.
 Start the line with a space so most shells leave it out of your history.
@@ -74,9 +74,31 @@ Sign in when asked. Then start `opencode` in the project folder, type
 often, so choose from the list you see on the day rather than a name from this
 page. You can also connect your Gemini or OpenRouter key to opencode instead.
 
-## Real-data track: prepare your files
+## Rehearse once with the sample university
 
-Only if you want to load your own university's data after the sample track.
+Run the **Sample track** of [Session 3](./03-university-data.md#sample-track) from
+start to end on your own laptop: start the app, claim the administrator, upload
+the 13 sample files, run `un-wpp`, attach the curriculum PDF, and run the
+pipeline for `WDU-CPE-BE`. It takes about 30 minutes, mostly the pipeline, and
+costs about USD 0.40 to 0.80 on your key.
+
+You are done when `/programs/<id>` for `WDU-CPE-BE` shows content in its
+Executive snapshot. This proves your key, Docker and the pipeline all work.
+
+- **Keep this database.** On Day 1 you sign in with the administrator you
+  created here; you do not claim it again. The sample university stays
+  alongside your own data, which you load on Day 1.
+- **If the pipeline fails twice, or the key runs out of credit,** stop. Do not
+  keep retrying and spending: report it on the readiness form.
+- `un-wpp` is now in your database, so you will not download it again in the
+  room.
+
+## Prepare your programme's data
+
+Choose your data path (A real, B mixed, C mock) as described in the
+[early notice](./early-notice.md#pick-your-data-path).
+
+For the files you can get from your university (paths A and B):
 
 1. Export the datasets listed in
    [Get Program Deep-Dive working, step 2](../tutorials/program-deep-dive.md#step-2-upload-the-organisation-and-the-programmes),
@@ -93,7 +115,20 @@ Only if you want to load your own university's data after the sample track.
 5. Know your university's exact Thai name as it is written in the TCAS
    admission tables.
 
-## Check you are ready
+For the datasets you could not get (path B), or for all of them (path C),
+generate them with `pnpm workshop:mock` as described in
+[Session 3](./03-university-data.md#no-exports-generate-a-mock-set-for-your-university),
+then run `pnpm workshop:check-mock` until it reports no errors.
+
+Check the curriculum PDF of your programme:
+
+```bash
+pnpm curriculum:check "<file.pdf>"
+```
+
+Do not upload your own data yet. That is Day 1, in Session 3.
+
+## Send the readiness form
 
 In the project folder:
 
@@ -106,3 +141,16 @@ You should see "Fresh-install check passed." and a list that includes the
 `postgres`, `redis`, `minio` and `gotenberg` images. If either fails, look it
 up in [Troubleshooting](./troubleshooting.md), or ask the facilitator before the
 day.
+
+The instructor shares the readiness form link at the pre-workshop. It asks for:
+
+- your operating system;
+- whether `pnpm adopter:fresh-check` passed;
+- whether the sample Deep-Dive of `WDU-CPE-BE` shows content;
+- your AI provider (Gemini or OpenRouter) and your coding assistant;
+- your data path: A, B or C;
+- for each dataset, whether it is real or mock;
+- the programme you chose, and whether its PDF passed `curriculum:check`;
+- anything still blocking you.
+
+Send it by **19 November, 18:00**. Never paste keys, the environment file or personal data into the form.
