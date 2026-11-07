@@ -115,7 +115,7 @@ pnpm curriculum:check "<file.pdf>"
 ## ขั้นตอนที่ 5: รัน pipeline
 
 1. เปิด `/admin/programs/<id>?tab=pipeline`
-2. คลิก "Run pipeline"
+2. คลิก "Run full pipeline"
 3. รอ แต่ละ phase จะแสดงสถานะเมื่อเสร็จ
 
 pipeline ใช้ผู้ให้บริการ AI ที่ท่านตั้งไว้ใน `.env` (`AI_PROVIDER` เป็น google, anthropic หรือ openrouter) มีค่าใช้จ่ายประมาณ USD 0.80 ต่อหลักสูตร

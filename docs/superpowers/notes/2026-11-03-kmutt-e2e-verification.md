@@ -71,6 +71,34 @@ whole), F5 (5,000-row limit per upload), the free-tier Google embedding limit
 (~1,000 course texts a day; the overlap step resumes), the course Category
 column (blank reads as Unknown).
 
+## Run 3 (`program_landscape_e2e3_test`, 2026-11-04 → 11-07)
+
+A third clean install, made after the KMUTT files were sorted into `used/`
+(uploaded), `used/prepared/` (rows filtered, publications split, course
+Category filled by code prefix) and `mock/` (generated stand-ins for the
+datasets KMUTT has no file for). Nothing from the earlier runs was reused.
+
+- Setup, organisation profile, all 30 uploads (first try), connectors and the
+  market-skill step: same results as run 2 (5,852 names; 60 min, then a rerun
+  of under a minute with 0 failures).
+- `curriculum:check` found the PLO, roster and appendix headings; the PDF
+  attached from the Files tab.
+- First pipeline run: phases 3, 5, 6, 7 and RE failed on OpenRouter HTTP 402
+  (account out of credits — environment, not code). After a top-up, a rerun
+  from the Pipeline tab passed every phase: 23.4 min, USD 0.07 (phase 1 reused
+  the first run's extraction). phaseOV DEGRADED on the embedding quota, 53
+  pairs scored on shared course codes, as documented.
+- Setup checklist: first 46 of 48. The extra gap was demographic resilience:
+  the mock population sheet carried only national `TH` rows, and the driver
+  reads only the organisation's region (documented in `data-import.md`). After
+  adding `Central` rows and uploading the sheet again: **47 of 48**, the same
+  single gap as before (registration yield, no Reported column).
+- Deep-Dive: every section rendered, no page errors. Content notes: no trend
+  signals (fresh install); curriculum revision found no major-elective course,
+  because the prefix-based Category fill produces none.
+- Docs fix: the programme Pipeline tab button is "Run full pipeline", not
+  "Run pipeline" (both tutorials corrected).
+
 ## Open
 
 - KKU invariance of the v5.6 changes is argued from code and tests, not measured:

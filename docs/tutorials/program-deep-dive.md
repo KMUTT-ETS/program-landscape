@@ -157,7 +157,7 @@ overwritten by the pipeline.
 ## Step 5: Run the pipeline
 
 1. Open `/admin/programs/<id>?tab=pipeline`.
-2. Click "Run pipeline".
+2. Click "Run full pipeline".
 3. Wait. The phases show their status as they finish.
 
 The pipeline uses the AI provider you set in `.env` (`AI_PROVIDER` is google,
