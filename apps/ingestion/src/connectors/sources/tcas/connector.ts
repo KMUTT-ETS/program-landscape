@@ -1,6 +1,8 @@
 import * as xlsx from 'xlsx';
 import { prisma } from '@kku/db';
 import {
+  buildTcasMatchIndex,
+  findOwnProgrammeMatch,
   isOwnInstitution,
   outboundUserAgent,
   type ConnectorContext,
@@ -10,6 +12,7 @@ import {
   type RawRecord,
 } from '@kku/shared';
 import { ApiConnector } from '../../base/api-connector';
+import { BUILT_IN_TCAS_FILES, resolveTcasFiles, type TcasFile } from './files';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TCAS — annual admission statistics from mytcas.com (CUPT).
@@ -34,25 +37,6 @@ import { ApiConnector } from '../../base/api-connector';
 // TCAS1/2/4 are NOT yet ingested — files exist on the same site but
 // per user direction (2026-05-02) those connectors will land later.
 // ─────────────────────────────────────────────────────────────────────────────
-
-interface TcasFile {
-  url: string;
-  entryYearBE: number;
-  round: '3' | '3.1' | '3.2';
-}
-
-// Stable URLs probed against assets.mytcas.com — verified 2026-05-02.
-// When new TCAS years publish, append entries here (curator action).
-const TCAS3_FILES: TcasFile[] = [
-  { url: 'https://assets.mytcas.com/maxmin/TCAS62_maxmin.xlsx', entryYearBE: 2562, round: '3' },
-  { url: 'https://assets.mytcas.com/maxmin/TCAS63_maxmin.xlsx', entryYearBE: 2563, round: '3' },
-  { url: 'https://assets.mytcas.com/maxmin/TCAS64_maxmin.xlsx', entryYearBE: 2564, round: '3' },
-  { url: 'https://assets.mytcas.com/maxmin/TCAS65_maxmin.xlsx', entryYearBE: 2565, round: '3' },
-  { url: 'https://assets.mytcas.com/maxmin/TCAS66_maxmin.xlsx', entryYearBE: 2566, round: '3' },
-  { url: 'https://assets.mytcas.com/67/TCAS67_maxmin.xlsx',     entryYearBE: 2567, round: '3' },
-  { url: 'https://assets.mytcas.com/68/T68-stat-r3_1-maxmin-20May25.xlsx', entryYearBE: 2568, round: '3.1' },
-  { url: 'https://assets.mytcas.com/68/T68-stat-r3_2-maxmin-24May25.xlsx', entryYearBE: 2568, round: '3.2' },
-];
 
 const FETCH_TIMEOUT_MS = 60_000;
 
@@ -84,11 +68,13 @@ interface TcasRowRaw {
 export class TcasRealConnector extends ApiConnector {
   readonly slug = 'tcas';
   readonly mocked = false;
+  private fileListSource: 'discovered' | 'built-in' = 'built-in';
+  private fileCount = BUILT_IN_TCAS_FILES.length;
 
   override async healthCheck(_ctx: ConnectorContext): Promise<HealthStatus> {
     const start = Date.now();
     try {
-      const probe = TCAS3_FILES[TCAS3_FILES.length - 1]!.url; // freshest
+      const probe = BUILT_IN_TCAS_FILES[BUILT_IN_TCAS_FILES.length - 1]!.url; // freshest
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 10_000);
       const res = await fetch(probe, {
@@ -113,7 +99,10 @@ export class TcasRealConnector extends ApiConnector {
 
   async fetch(ctx: ConnectorContext, _since?: Date): Promise<RawRecord[]> {
     const records: RawRecord[] = [];
-    for (const file of TCAS3_FILES) {
+    const resolved = await resolveTcasFiles();
+    this.fileListSource = resolved.source;
+    this.fileCount = resolved.files.length;
+    for (const file of resolved.files) {
       try {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -208,22 +197,19 @@ export class TcasRealConnector extends ApiConnector {
         faculty: { select: { nameTh: true } },
       },
     });
-    // Index by faculty + programme name for O(1) lookup. Multiple
-    // KKU programs can share a faculty + programme prefix (with major
-    // disambiguation); we tolerate ambiguity by preferring the entry
-    // whose major matches the TCAS programme suffix.
-    const kkuByFacultyProgramme = new Map<string, typeof kkuPrograms>();
-    for (const p of kkuPrograms) {
-      const key = `${p.faculty.nameTh}${p.nameTh}`;
-      const arr = kkuByFacultyProgramme.get(key) ?? [];
-      arr.push(p);
-      kkuByFacultyProgramme.set(key, arr);
-    }
+    const matchIndex = buildTcasMatchIndex(
+      kkuPrograms.map((p) => ({
+        id: p.id,
+        nameTh: p.nameTh,
+        majors: p.majors,
+        facultyNameTh: p.faculty.nameTh,
+      })),
+    );
 
     let loaded = 0;
     let failed = 0;
-    let kkuMatched = 0;
-    let kkuUnmatched = 0;
+    let ownMatched = 0;
+    let ownUnmatched = 0;
     const unmatchedSamples: string[] = [];
 
     for (const n of normalized) {
@@ -234,17 +220,17 @@ export class TcasRealConnector extends ApiConnector {
         if (isKku) {
           const facultyNameTh = String(p.facultyName ?? '');
           const programmeName = String(p.programmeName ?? '');
-          const candidate = findKkuMatch(
-            kkuByFacultyProgramme,
+          const candidate = findOwnProgrammeMatch(
+            matchIndex,
             facultyNameTh,
             programmeName,
             String(p.majorName ?? ''),
           );
           if (candidate) {
             programId = candidate.id;
-            kkuMatched++;
+            ownMatched++;
           } else {
-            kkuUnmatched++;
+            ownUnmatched++;
             if (unmatchedSamples.length < 10) {
               unmatchedSamples.push(`${facultyNameTh} | ${programmeName}`);
             }
@@ -308,59 +294,16 @@ export class TcasRealConnector extends ApiConnector {
       recordsLoaded: loaded,
       recordsFailed: failed,
       metadata: {
-        files: TCAS3_FILES.length,
-        kkuMatched,
-        kkuUnmatched,
+        files: this.fileCount,
+        fileListSource: this.fileListSource,
+        ownMatched,
+        ownUnmatched,
         unmatchedSamples,
       },
     };
   }
 }
 
-function findKkuMatch(
-  index: Map<string, Array<{ id: string; nameTh: string; majors: string[] }>>,
-  facultyNameTh: string,
-  programmeName: string,
-  majorName: string,
-): { id: string } | null {
-  // Strategy: try the full programme name first, then strip the
-  // common "หลักสูตร...บัณฑิต " prefix and try the parenthesised
-  // major / department portion against KKU's nameTh.
-  // TCAS programme names look like "วิทยาศาสตรบัณฑิต (คณิตศาสตร์) คณิตศาสตร์".
-  // KKU's Program.nameTh tends to be the bracketed major or the
-  // major alone; majors[0] is the canonical short name.
-  for (const candidates of [
-    index.get(`${facultyNameTh}${programmeName}`),
-  ]) {
-    if (candidates && candidates.length > 0) return candidates[0]!;
-  }
-  // Try parenthesised content as the programme key.
-  const parenMatch = programmeName.match(/\(([^)]+)\)/);
-  if (parenMatch) {
-    const inner = parenMatch[1]!.trim();
-    const list = index.get(`${facultyNameTh}${inner}`);
-    if (list && list.length > 0) return list[0]!;
-  }
-  // Try stripping the leading "หลักสูตร...บัณฑิต " prefix.
-  const stripped = programmeName.replace(/^หลักสูตร[^ ]*บัณฑิต[\s]*/, '').trim();
-  if (stripped !== programmeName) {
-    const list = index.get(`${facultyNameTh}${stripped}`);
-    if (list && list.length > 0) return list[0]!;
-  }
-  // Final fallback: scan KKU programs in this faculty whose nameTh
-  // appears as a substring of the TCAS programme/major.
-  for (const [key, candidates] of index.entries()) {
-    if (!key.startsWith(`${facultyNameTh}`)) continue;
-    for (const cand of candidates) {
-      if (cand.nameTh && programmeName.includes(cand.nameTh)) return cand;
-      if (majorName && cand.nameTh && majorName.includes(cand.nameTh)) return cand;
-      for (const m of cand.majors) {
-        if (m && programmeName.includes(m)) return cand;
-      }
-    }
-  }
-  return null;
-}
 
 function stringOrEmpty(v: unknown): string {
   return v === null || v === undefined ? '' : String(v);

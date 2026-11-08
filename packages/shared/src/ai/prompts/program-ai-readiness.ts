@@ -64,20 +64,58 @@ import type { AiMessage } from '../types';
 
 export const PROGRAM_AI_READINESS_VERSION = 'program-ai-readiness.v4';
 
+// ── Parser leniency (not a prompt change — the template text is untouched) ──
+// A model overshooting a length cap by a few characters, or emitting a stray
+// type in one optional list item, must not fail a Council-facing phase.
+// Over-length text is clamped with an ellipsis; a malformed list item is
+// dropped. Lists whose minimum would no longer hold still fail validation.
+export function clampText(max: number): (v: unknown) => unknown {
+  return (v) =>
+    typeof v === 'string' && v.length > max ? `${v.slice(0, Math.max(0, max - 1)).trimEnd()}\u2026` : v;
+}
+
+function text(min: number, max: number): z.ZodEffects<z.ZodString, string, unknown> {
+  return z.preprocess(clampText(max), z.string().min(min).max(max)) as z.ZodEffects<
+    z.ZodString,
+    string,
+    unknown
+  >;
+}
+
+function nullableText(max: number): z.ZodEffects<z.ZodNullable<z.ZodString>, string | null, unknown> {
+  return z.preprocess(
+    (v) => (typeof v === 'string' ? clampText(max)(v) : null),
+    z.string().max(max).nullable(),
+  ) as z.ZodEffects<
+    z.ZodNullable<z.ZodString>,
+    string | null,
+    unknown
+  >;
+}
+
+/** Drops items that fail `item`, truncates to `max`, then validates the rest. */
+function lenientList<I extends z.ZodTypeAny>(item: I, min: number, max: number) {
+  return z.preprocess(
+    (v) =>
+      Array.isArray(v) ? v.filter((i) => item.safeParse(i).success).slice(0, max) : v,
+    z.array(item).min(min).max(max),
+  );
+}
+
 export const ProgramAiReadinessGapSchema = z.object({
-  topic: z.string().min(5).max(160),
+  topic: text(5, 160),
   severity: z.enum(['major', 'moderate', 'minor']),
-  observation: z.string().min(20).max(800),
+  observation: text(20, 800),
   /** Optional name of a peer institution / program / framework that handles
    *  this dimension well in the same discipline. */
-  peerReference: z.string().max(300).nullable(),
+  peerReference: nullableText(300),
 });
 export type ProgramAiReadinessGap = z.infer<typeof ProgramAiReadinessGapSchema>;
 
 export const ProgramAiReadinessRecommendationSchema = z.object({
   priority: z.enum(['high', 'medium', 'low']),
-  title: z.string().min(5).max(160),
-  detail: z.string().min(30).max(900),
+  title: text(5, 160),
+  detail: text(30, 900),
   effortHorizon: z.enum(['short', 'medium', 'long']),
 });
 export type ProgramAiReadinessRecommendation = z.infer<
@@ -108,7 +146,7 @@ export type AutomationZone = z.infer<typeof AutomationZoneSchema>;
 // 3-6 entries per program; the LLM should consolidate, not enumerate
 // every micro-task.
 export const TaskFamilyAssessmentSchema = z.object({
-  label: z.string().min(5).max(160),
+  label: text(5, 160),
   /** Preferred human-agency level for this task family in the
    *  local labour-market context. */
   has: HumanAgencyLevelSchema,
@@ -117,7 +155,7 @@ export const TaskFamilyAssessmentSchema = z.object({
   zone: AutomationZoneSchema,
   /** 1-2 sentence justification grounded in the program's
    *  discipline + likely graduate roles. */
-  rationale: z.string().min(20).max(500),
+  rationale: text(20, 500),
 });
 export type TaskFamilyAssessment = z.infer<typeof TaskFamilyAssessmentSchema>;
 
@@ -131,52 +169,65 @@ export const ProgramAiReadinessAssessmentSchema = z.object({
    *  field is moving toward Y. Programs that are AI-ready in this
    *  discipline have Z." Used by Council members who aren't familiar
    *  with how AI shows up outside CS. */
-  disciplineAiContext: z.string().min(80).max(1500),
+  disciplineAiContext: text(80, 1500),
   /** 4-6 specific AI applications relevant to THIS discipline.
    *  Title + 1-2 sentence description. NOT generic ML. */
-  aiApplicationsForDiscipline: z
-    .array(
-      z.object({
-        title: z.string().min(5).max(80),
-        description: z.string().min(20).max(300),
-      }),
-    )
-    .min(3)
-    .max(6),
+  aiApplicationsForDiscipline: lenientList(
+    z.object({
+      title: text(5, 80),
+      description: text(20, 300),
+    }),
+    3,
+    6,
+  ),
   /** 1-2 sentence assessment of what the curriculum currently teaches
    *  about AI, citing actual course/skill names from the input snapshot. */
-  currentCoverageAssessment: z.string().min(40).max(800),
+  currentCoverageAssessment: text(40, 800),
   /** 1-2 sentence summary visible at the top of the section. */
-  summary: z.string().min(40).max(500),
+  summary: text(40, 500),
   /** Discipline-specific gaps. */
-  gaps: z.array(ProgramAiReadinessGapSchema).min(0).max(6),
+  gaps: lenientList(ProgramAiReadinessGapSchema, 0, 6),
   /** Discipline-specific actionable recommendations. */
-  recommendations: z.array(ProgramAiReadinessRecommendationSchema).min(1).max(6),
+  recommendations: lenientList(ProgramAiReadinessRecommendationSchema, 1, 6),
   /** 2-3 institutions globally that lead in AI for THIS discipline.
    *  Must NOT be generic CS schools unless the program IS a CS program. */
-  peerReferences: z
-    .array(
-      z.object({
-        institution: z.string().min(2).max(100),
-        country: z.string().min(2).max(60),
-        whatTheyDo: z.string().min(20).max(200),
-      }),
-    )
-    .max(4),
+  peerReferences: lenientList(
+    z.object({
+      institution: text(2, 100),
+      country: text(2, 60),
+      whatTheyDo: text(20, 200),
+    }),
+    0,
+    4,
+  ),
   // ── v3 additions ──────────────────────────────────────────────────
   /** Task families the program's graduates produce, with HAS + zone.
    *  3-6 entries. Drives the "what posture does this program need"
    *  discussion separately from "is this program AI-ready". */
-  taskFamilies: z.array(TaskFamilyAssessmentSchema).min(2).max(6).optional(),
+  taskFamilies: z.preprocess(
+    (v) => {
+      if (!Array.isArray(v)) return v;
+      const kept = v.filter((i) => TaskFamilyAssessmentSchema.safeParse(i).success).slice(0, 6);
+      // Optional section: fewer than two usable families is dropped, not fatal.
+      return kept.length >= 2 ? kept : undefined;
+    },
+    z.array(TaskFamilyAssessmentSchema).min(2).max(6).optional(),
+  ),
   /** 1-paragraph strategic posture: given the mix of HAS levels and
    *  automation zones, what does AI readiness MEAN for this program?
    *  e.g. "Clinical-care programs (Red Light) should focus on AI
    *  literacy + supervised decision-support rather than automation
    *  per se" vs "Data analytics (Green Light) should treat fluent AI
    *  use as a core graduate competency". */
-  automationOutlook: z.string().min(40).max(1200).optional(),
+  automationOutlook: z.preprocess(
+    (v) => (typeof v === 'string' ? clampText(1200)(v) : undefined),
+    z.string().min(40).max(1200).optional(),
+  ),
   /** Literal citation string — Council provenance. */
-  frameworkCitation: z.string().optional(),
+  frameworkCitation: z.preprocess(
+    (v) => (typeof v === 'string' ? v : undefined),
+    z.string().optional(),
+  ),
   confidence: z.number().min(0).max(1),
 });
 export type ProgramAiReadinessAssessmentPayload = z.infer<

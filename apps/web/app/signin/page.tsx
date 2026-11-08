@@ -1,5 +1,7 @@
+import { redirect } from 'next/navigation';
 import { SignInForm } from './sign-in-form';
-import { prisma } from '@kku/db';
+import { prisma, isSetupAvailable, getOrganizationProfile } from '@kku/db';
+import { shouldOfferPasswordForm } from '@/lib/auth/password-hash';
 import { SignalsFeed, type FeedItem } from './signals-feed';
 import { fetchTodaysHeadlines, type NewsItem } from '@/lib/news/today';
 import { ProductMark } from '@/components/brand/product-mark-component';
@@ -25,7 +27,15 @@ export const dynamic = 'force-dynamic';
 // pane fills the viewport; the form column stays the same width
 // (~340px) so it doesn't feel narrower on a phone — just better
 // breathing room above and below.
-export default async function SignInPage() {
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams?: { password?: string };
+}) {
+  // A fresh installation redirects here; if it has never been claimed,
+  // there is no account to sign in to yet.
+  if (await isSetupAvailable()) redirect('/setup');
+
   const ssoConfigured = Boolean(
     process.env.KKU_SSO_WEB_BASE &&
       process.env.KKU_SSO_API_BASE &&
@@ -34,8 +44,23 @@ export default async function SignInPage() {
       process.env.KKU_SSO_CLIENT_SECRET &&
       process.env.KKU_SSO_REDIRECT_URI,
   );
-  const localAuthEnabled = process.env.ENABLE_LOCAL_AUTH === 'true';
+  // The password form is hidden wherever SSO is configured, so an
+  // installation whose accounts are all SSO accounts never invites anyone
+  // to type a password. `?password=1` brings it back — the bootstrap admin
+  // signs in this way, and wiring SSO would otherwise shut the only door
+  // they have. See shouldOfferPasswordForm().
+  const localAuthEnabled = shouldOfferPasswordForm({
+    localAuthEnabled: process.env.ENABLE_LOCAL_AUTH === 'true',
+    ssoConfigured,
+    forced: searchParams?.password === '1',
+  });
   const branding = await brandingForRequest();
+  // Where to send people who need an account — the organisation's own
+  // contact, never a hard-coded address. Hidden when none is set.
+  const contactEmail = await getOrganizationProfile()
+    .then((p) => p?.contactEmail ?? null)
+    .catch(() => null);
+  const ssoLabel = branding ? `${branding.shortNameEn} SSO` : 'single sign-on';
 
   // News fetch (parallel), with TrendSignal fallback so the right pane
   // is always populated during dev / offline.
@@ -105,6 +130,8 @@ export default async function SignInPage() {
               <SignInForm
                 ssoConfigured={ssoConfigured}
                 localAuthEnabled={localAuthEnabled}
+                devHints={process.env.ENABLE_LOCAL_AUTH === 'true'}
+                ssoLabel={ssoLabel}
               />
             </div>
           </div>
@@ -112,13 +139,17 @@ export default async function SignInPage() {
 
         <footer className="w-full px-6 pb-8 sm:px-10 sm:pb-10 md:px-16">
           <div className="text-[12px] text-text-tertiary leading-relaxed border-t border-border-subtle pt-5">
-            Need access? Contact the{' '}
-            <a
-              href="mailto:denpong@kku.ac.th"
-              className="text-text-secondary underline-offset-4 hover:underline hover:text-accent-default transition-colors"
-            >
-              Office of the Vice President for Education and Digital
-            </a>
+            Need access? Contact{' '}
+            {contactEmail ? (
+              <a
+                href={`mailto:${contactEmail}`}
+                className="text-text-secondary underline-offset-4 hover:underline hover:text-accent-default transition-colors"
+              >
+                your administrator
+              </a>
+            ) : (
+              'your administrator'
+            )}
             .
           </div>
           <div className="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[11px] leading-relaxed text-text-tertiary">
@@ -219,7 +250,7 @@ export default async function SignInPage() {
           <p className="text-[13px] text-white/80 mb-6 leading-relaxed">
             {news.length > 0
               ? 'A live pull from world + Thailand news on education, technology, and policy — randomised on each visit.'
-              : 'Curated signals on changes shaping the strategic outlook for KKU programs.'}
+              : 'Curated signals on changes shaping the strategic outlook for ' + (branding ? `${branding.shortNameEn} ` : '') + 'programs.'}
           </p>
           <SignalsFeed items={feedItems} />
         </div>

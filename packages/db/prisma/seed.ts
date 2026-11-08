@@ -1,3 +1,5 @@
+// KKU development seed — never run on an adopter install.
+// Adopters use `pnpm db:seed:reference` (prisma/seed-reference.ts).
 import {
   CourseType,
   CurriculumStatus,
@@ -13,6 +15,8 @@ import {
   SkillTaxonomy,
   UserRole,
 } from '@prisma/client';
+import { seedReference, tagSkillSectors } from '../src/seed-reference';
+import { backfillKkuSfrBands } from '../src/kku-sfr-band';
 import { formatDataSourceSync, syncDataSourcesFromCatalog } from '../src/data-source-sync';
 
 const prisma = new PrismaClient();
@@ -56,6 +60,7 @@ const pick = <T>(arr: readonly T[]): T => arr[Math.floor(rand() * arr.length)]!;
 // kku-finance, kku-research, kmitl-skill-mapping) + the curated workflow.
 // ──────────────────────────────────────────────────────────────────────────
 const SEED_MOCKS = process.env.SEED_MOCKS === 'true';
+console.log(`SEED_MOCKS=${SEED_MOCKS} — ${SEED_MOCKS ? 'mock data will be seeded' : 'mock data will NOT be seeded'}`);
 
 // ──────────────────────────────────────────────────────────────────────────
 // 1. Faculties (24) and Departments (12)
@@ -268,17 +273,9 @@ const USERS: Array<{
 // ──────────────────────────────────────────────────────────────────────────
 
 async function main() {
-  // Cost methodology baseline
-  const costMethodology = await prisma.costMethodology.upsert({
-    where: { version: 'v1' },
-    update: {},
-    create: {
-      version: 'v1',
-      description:
-        'Initial placeholder cost-allocation methodology. Replace in prompt 14 after consulting KKU Finance Division.',
-      effectiveDate: new Date('2024-01-01'),
-    },
-  });
+  // Generic reference data (sectors, placeholder cost methodology, external AI sources)
+  await seedReference(prisma);
+  const costMethodology = await prisma.costMethodology.findUniqueOrThrow({ where: { version: 'v1' } });
 
   // Academic-year rollover boundary. Seed 2026-06-16 so BE 2569 reads
   // complete + BE 2570 in-progress immediately, with a stale-warning that
@@ -300,6 +297,7 @@ async function main() {
     });
     facultyByCode.set(f.code, row);
   }
+  await backfillKkuSfrBands(prisma);
 
   // ── Departments ─────────────────────────────────────────────────────────
   const departmentByCode = new Map<string, { id: string; facultyId: string }>();
@@ -381,13 +379,15 @@ async function main() {
   // Synthetic 500-skill placeholder — kept so downstream seed code
   // (course-skill mapping) has enough breadth to pick from. Real
   // extraction in prompt 04 replaces these as it runs.
-  const skills = buildSkills();
-  for (const s of skills) {
-    await prisma.skill.upsert({
-      where: { code: s.code },
-      update: {},
-      create: s,
-    });
+  if (SEED_MOCKS) {
+    const skills = buildSkills();
+    for (const s of skills) {
+      await prisma.skill.upsert({
+        where: { code: s.code },
+        update: {},
+        create: s,
+      });
+    }
   }
 
   // Real KKU taxonomy seed — ~60 skills with parent-child relationships
@@ -806,7 +806,7 @@ async function main() {
   if (SEED_MOCKS) await seedDecisionSamples();
 
   // ── External AI sources (Phase 5) — always seed catalog ─────────────────
-  await seedExternalAiSources();
+  await seedKkuExternalAiSource();
 
   // ── Summary ─────────────────────────────────────────────────────────────
   const counts = {
@@ -856,57 +856,9 @@ async function main() {
 // ──────────────────────────────────────────────────────────────────────────
 
 async function seedGapAnalyzerData() {
-  // ── Sectors ─────────────────────────────────────────────────────────────
-  const sectors = [
-    { code: 'BCG-BIO',     family: 'BCG'    as const, nameTh: 'เศรษฐกิจชีวภาพ',           nameEn: 'Bio-economy',             demandMultiplier: 1.15 },
-    { code: 'BCG-CIRCULAR',family: 'BCG'    as const, nameTh: 'เศรษฐกิจหมุนเวียน',        nameEn: 'Circular economy',        demandMultiplier: 1.05 },
-    { code: 'BCG-GREEN',   family: 'BCG'    as const, nameTh: 'เศรษฐกิจสีเขียว',          nameEn: 'Green economy',           demandMultiplier: 1.20 },
-    { code: 'SC-AUTO',     family: 'SCURVE' as const, nameTh: 'ยานยนต์สมัยใหม่',           nameEn: 'Next-gen automotive',     demandMultiplier: 1.25 },
-    { code: 'SC-SMART',    family: 'SCURVE' as const, nameTh: 'อิเล็กทรอนิกส์อัจฉริยะ',     nameEn: 'Smart electronics',       demandMultiplier: 1.20 },
-    { code: 'SC-MED',      family: 'SCURVE' as const, nameTh: 'ศูนย์การแพทย์',             nameEn: 'Medical hub',             demandMultiplier: 1.30 },
-    { code: 'SC-DIGITAL',  family: 'SCURVE' as const, nameTh: 'เศรษฐกิจดิจิทัล',           nameEn: 'Digital economy',         demandMultiplier: 1.35 },
-    { code: 'SC-AGRI',     family: 'SCURVE' as const, nameTh: 'เกษตรและอาหารขั้นสูง',      nameEn: 'Advanced agri/food',      demandMultiplier: 1.15 },
-  ];
-  for (const s of sectors) {
-    await prisma.sector.upsert({
-      where: { code: s.code },
-      update: {},
-      create: s,
-    });
-  }
-
-  // ── Skill-sector tagging ────────────────────────────────────────────────
-  // Best-effort heuristic: look up each skill by keyword and tag.
-  const sectorIdByCode = new Map(
-    (await prisma.sector.findMany({ select: { id: true, code: true } })).map((s) => [s.code, s.id]),
-  );
+  // Sectors come from seedReference(); tag skills now that the full skill set exists.
+  await tagSkillSectors(prisma);
   const allSkills = await prisma.skill.findMany({ select: { id: true, code: true, nameEn: true } });
-
-  const tagBy = (needle: RegExp, sectorCode: string, weight = 1.0) => {
-    const sectorId = sectorIdByCode.get(sectorCode);
-    if (!sectorId) return [];
-    return allSkills
-      .filter((sk) => needle.test(sk.nameEn) || needle.test(sk.code))
-      .map((sk) => ({ skillId: sk.id, sectorId, weight }));
-  };
-
-  const skillSectorRows = [
-    ...tagBy(/bio|genetic|microb|biotech|life-sci|biology/i, 'BCG-BIO'),
-    ...tagBy(/recycl|circular|waste|reuse|sustainab/i, 'BCG-CIRCULAR'),
-    ...tagBy(/green|renewable|solar|wind|clean.?energy/i, 'BCG-GREEN'),
-    ...tagBy(/auto|vehicle|ev|battery|mechatronic/i, 'SC-AUTO'),
-    ...tagBy(/electron|embedded|iot|sensor|semicon/i, 'SC-SMART'),
-    ...tagBy(/medic|health|clinic|nurs|pharma/i, 'SC-MED'),
-    ...tagBy(/data|ai|machine.?learning|software|cloud|cyber|digital|program/i, 'SC-DIGITAL'),
-    ...tagBy(/agri|farm|food|crop|livestock|soil/i, 'SC-AGRI'),
-  ];
-  for (const r of skillSectorRows) {
-    await prisma.skillSector.upsert({
-      where: { skillId_sectorId: { skillId: r.skillId, sectorId: r.sectorId } },
-      update: {},
-      create: r,
-    });
-  }
 
   // ── JobPostingSkill joins — gated (depends on mock job postings) ─────
   if (SEED_MOCKS) {
@@ -966,6 +918,7 @@ async function seedGapAnalyzerData() {
   }
   } // end if (SEED_MOCKS) — OccupationDemand
 
+  if (SEED_MOCKS) {
   // ── DemographicProjection ── public reference data, always seeded ─────
   // Thailand 18-22 cohort projection: ~4.5M in 2020, shrinking ~1.8%/year.
   // Northeast ~1.2M, same shrink rate.
@@ -998,6 +951,7 @@ async function seedGapAnalyzerData() {
       },
     });
   }
+  } // end if (SEED_MOCKS) — DemographicProjection
 
   // ── ForecastRun (back-test history) ── gated (synthetic data) ────────
   if (SEED_MOCKS) {
@@ -1408,135 +1362,12 @@ async function seedDecisionSamples() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// External AI sources (Phase 5) — catalog of intelligence feeds.
-// Seeded in PAUSED state so the operator activates each one explicitly
-// after deciding cadence + verifying any required env keys.
-// Idempotent: upserts by slug, no destructive updates.
+// KKU-only external AI source (the Thai Khon Kaen news search). The generic
+// feed catalogue lives in src/seed-reference.ts. PAUSED until an operator
+// activates it; idempotent upsert by slug.
 // ─────────────────────────────────────────────────────────────────────────
-async function seedExternalAiSources() {
+async function seedKkuExternalAiSource() {
   const seeds = [
-    {
-      slug: 'wef-global-risks',
-      name: 'World Economic Forum',
-      description: 'WEF Global Risks Report, future-of-jobs publications, and weekly insights blog.',
-      kind: 'URL_LIST' as const,
-      signalType: 'POLICY' as const,
-      defaultImpact: 0.7,
-      cadenceCron: '0 8 * * 1',
-      configJson: {
-        urls: [
-          'https://www.weforum.org/reports/global-risks-report-2026',
-          'https://www.weforum.org/agenda/archive/jobs-and-the-future-of-work/',
-        ],
-      },
-    },
-    {
-      slug: 'imd-competitiveness',
-      name: 'IMD World Competitiveness',
-      description: 'IMD World Competitiveness Center publications + news + research.',
-      kind: 'URL_LIST' as const,
-      signalType: 'POLICY' as const,
-      defaultImpact: 0.65,
-      cadenceCron: '0 8 1 * *',
-      configJson: {
-        urls: [
-          'https://www.imd.org/centers/wcc/world-competitiveness-center/',
-          'https://www.imd.org/news/',
-          'https://www.imd.org/research-knowledge/',
-        ],
-      },
-    },
-    {
-      slug: 'thailand-boi',
-      name: 'Thailand BOI',
-      description:
-        'Thailand Board of Investment — English-language news + research reports. PAUSED by default: BOI now serves an Incapsula bot challenge to non-browser clients; needs headless-browser fetcher to harvest.',
-      kind: 'URL_LIST' as const,
-      signalType: 'POLICY' as const,
-      defaultImpact: 0.6,
-      cadenceCron: '0 8 * * 2',
-      configJson: {
-        urls: [
-          'https://www.boi.go.th/en/news_business',
-          'https://www.boi.go.th/index.php?page=research_report',
-        ],
-      },
-    },
-    {
-      slug: 'world-bank-thailand',
-      name: 'World Bank Thailand',
-      description: 'World Bank Thailand country page — overview + Thailand-specific news.',
-      kind: 'URL_LIST' as const,
-      signalType: 'POLICY' as const,
-      defaultImpact: 0.55,
-      cadenceCron: '0 9 1 * *',
-      configJson: {
-        urls: [
-          'https://www.worldbank.org/en/country/thailand/overview',
-          'https://www.worldbank.org/en/news/all?qterm=Thailand&displayconttype_exact=News',
-        ],
-      },
-    },
-    {
-      slug: 'oecd-education',
-      name: 'OECD Education',
-      description:
-        'OECD education skills, higher-education, and labour-market policy publications. PAUSED by default — OECD CDN aggressively blocks non-browser fetches (TLS fingerprinting); requires a headless-browser fetcher to harvest. Switch to ACTIVE after headless support lands.',
-      kind: 'URL_LIST' as const,
-      signalType: 'POLICY' as const,
-      defaultImpact: 0.6,
-      cadenceCron: '0 9 1 * *',
-      configJson: {
-        urls: [
-          'https://www.oecd.org/en/topics/policy-areas/education-and-skills.html',
-        ],
-      },
-    },
-    {
-      slug: 'unesco-iesalc',
-      name: 'UNESCO IESALC',
-      description: 'UNESCO International Institute for Higher Education — policy briefs + global reports.',
-      kind: 'URL_LIST' as const,
-      signalType: 'POLICY' as const,
-      defaultImpact: 0.55,
-      cadenceCron: '0 9 1 * *',
-      configJson: {
-        urls: [
-          'https://www.iesalc.unesco.org/en/publications/',
-          'https://en.unesco.org/news/higher-education',
-        ],
-      },
-    },
-    {
-      slug: 'mhesi-news',
-      name: 'MHESI announcements',
-      description: 'Thai Ministry of Higher Education, Science, Research and Innovation — policy notices, regulation, funding calls.',
-      kind: 'URL_LIST' as const,
-      signalType: 'POLICY' as const,
-      defaultImpact: 0.7,
-      cadenceCron: '0 9 * * *',
-      configJson: {
-        urls: [
-          'https://www.mhesi.go.th/index.php/news.html',
-          'https://www.mhesi.go.th/',
-        ],
-      },
-    },
-    {
-      slug: 'asean-he',
-      name: 'ASEAN University Network',
-      description: 'ASEAN University Network — secretariat news + higher-education programmes. (Switched from asean.org which returns 307 to bot fetchers.)',
-      kind: 'URL_LIST' as const,
-      signalType: 'POLICY' as const,
-      defaultImpact: 0.5,
-      cadenceCron: '0 9 1 * *',
-      configJson: {
-        urls: [
-          'https://aunsec.org/news',
-          'https://aunsec.org/',
-        ],
-      },
-    },
     {
       slug: 'google-news-kku',
       name: 'Google News — KKU & Thai HE',
@@ -1557,7 +1388,6 @@ async function seedExternalAiSources() {
       },
     },
   ];
-
   for (const s of seeds) {
     await prisma.externalAiSource.upsert({
       where: { slug: s.slug },
@@ -1572,17 +1402,9 @@ async function seedExternalAiSources() {
         cadenceCron: s.cadenceCron,
         configJson: s.configJson,
       },
-      update: {
-        // Only refresh purely-cosmetic fields. Don't touch operator-
-        // managed fields (status, cadenceCron, configJson) on re-seed.
-        name: s.name,
-        description: s.description,
-      },
+      update: { name: s.name, description: s.description },
     });
   }
-
-  // eslint-disable-next-line no-console
-  console.log(`seedExternalAiSources: seeded ${seeds.length} sources (PAUSED by default)`);
 }
 
 main()

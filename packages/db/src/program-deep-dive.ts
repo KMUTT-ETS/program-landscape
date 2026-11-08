@@ -6,6 +6,8 @@ import {
   type ProgramResearchExpertise,
 } from '@kku/shared';
 import { prisma } from './index';
+import { NATIONAL_REGION, projectionRegionForInstitution } from './projection-region';
+import { eligibleProjectionRegions, pickProjectionSource } from './projection-source';
 import {
   computeHealthScores,
   computeProgramDimensionAverages,
@@ -21,6 +23,7 @@ import { programJobThaiSkillCoverage } from './jobthai';
 import { JOBTHAI_MIN_RELEVANT_SKILLS } from './jobthai-bridge';
 import { realDataWhere, realDataSql } from './data-quality';
 import { programFunnelYears } from './program-funnel';
+import { admittedCount } from './public-tcas-basis';
 import { academicYearContextSync, getAcademicYearContext } from './academic-year';
 import { pickFinancialYear } from './financial-year';
 import { readinessFor, type ExpertiseReadiness } from './program-research-expertise';
@@ -294,7 +297,7 @@ async function computeLastAnalysedAt(programId: string): Promise<Date | null> {
 //
 // Stage definitions:
 //   Applied        TCAS3 applicants (where TCAS3 data exists)
-//   Admitted       TCAS3 admittedPass1 + admittedPass2 (where TCAS3 exists)
+//   Admitted       TCAS3 max(admittedPass1, admittedPass2) (where TCAS3 exists)
 //   Enrolled       Total cohort entrants − RENOUNCED − NO_REPORT
 //   Persisted      Enrolled − early dropouts (FINANCIAL/ACADEMIC/VOLUNTARY/TRANSFERRED)
 //                  — STILL_ENROLLED counts here too, since those completed Year 2+
@@ -383,7 +386,7 @@ export async function programDemandFunnel(programId: string) {
     const cur = tcasByYear.get(t.entryYearBE);
     const candidate = {
       applicants: t.applicants,
-      admitted: t.admittedPass1 + t.admittedPass2,
+      admitted: admittedCount(t.admittedPass1, t.admittedPass2),
       round: t.round,
     };
     if (!cur || cur.round.localeCompare(t.round) < 0) {
@@ -1170,7 +1173,7 @@ export async function programAiReadiness(programId: string): Promise<ProgramAiRe
       priority: 'medium',
       title: 'Spin up an AI / domain research collaboration',
       detail:
-        'Identify 2-3 faculty for cross-disciplinary AI research projects with KKU\'s College of Computing or external partners (NECTEC, AI Thailand, ASEAN AI consortium). Target: at least 15% of departmental publications touching AI within 3 years.',
+        'Identify 2-3 faculty for cross-disciplinary AI research projects with your institution\'s computing faculty or external partners (NECTEC, AI Thailand, ASEAN AI consortium). Target: at least 15% of departmental publications touching AI within 3 years.',
       effortHorizon: 'long',
     });
   }
@@ -1948,7 +1951,7 @@ function labelToPhrase(label: string): string {
 
 // ── AI-driven peer programs (QS / THE-ranked universities) ─────────────
 // Two-phase comparison:
-//   1. AI picks 3-5 best-fit peers per tier (program-peer-selection.v1)
+//   1. AI picks 3-5 best-fit peers per tier (program-peer-selection.v3)
 //   2. AI writes a frank comparative review (program-peer-review.v1)
 //      surfacing strengths · weaknesses · per-tier verdicts ·
 //      improvement recommendations.
@@ -2192,7 +2195,7 @@ export async function programTcasStats(
     admittedPass1: r.admittedPass1,
     admittedPass2: r.admittedPass2,
     competitionRatio: r.quota > 0 ? r.applicants / r.quota : 0,
-    fillRate: r.quota > 0 ? (r.admittedPass1 + r.admittedPass2) / r.quota : 0,
+    fillRate: r.quota > 0 ? admittedCount(r.admittedPass1, r.admittedPass2) / r.quota : 0,
     minScorePass1: r.minScorePass1,
     maxScorePass1: r.maxScorePass1,
     minScorePass2: r.minScorePass2,
@@ -2342,7 +2345,7 @@ function aggregateRows(rows: Array<{
   const totalQuota = rows.reduce((s, r) => s + r.quota, 0);
   const totalApplicants = rows.reduce((s, r) => s + r.applicants, 0);
   const totalAdmitted = rows.reduce(
-    (s, r) => s + r.admittedPass1 + r.admittedPass2,
+    (s, r) => s + admittedCount(r.admittedPass1, r.admittedPass2),
     0,
   );
   const minScores = rows
@@ -2490,9 +2493,17 @@ export async function universityTcasStats(): Promise<UniversityTcasStats | null>
 export type DemographicRiskLevel = 'low' | 'medium' | 'high' | 'unknown';
 
 export interface ProgramDemographicOutlook {
-  /** Always 'TH' (v2 is national-primary). The union is retained for
-   *  back-compat with downstream consumers. */
-  catchmentRegion: 'Northeast' | 'TH';
+  /** Region the projection is anchored to. Always 'TH' today (v2 is
+   *  national-primary); typed as a string so a regional primary can follow
+   *  without another API change. */
+  catchmentRegion: string;
+  /** The institution's own projection region (organisation profile
+   *  `regionEn`, resolved against the regions the data carries). Null when it
+   *  resolves to the national series - there is then no separate comparator
+   *  and `cohortPopulationRegional` is null on every row. */
+  comparatorRegion: string | null;
+  /** Source of the regional comparator; may differ from `source` (UN carries national figures only). */
+  comparatorSource: string | null;
   source: string;
   /** The cohort the projection is anchored to — '18-22' for bachelor
    *  programmes, '23-29' for graduate programmes. */
@@ -2522,7 +2533,7 @@ export interface ProgramDemographicOutlook {
     year: number;
     /** NATIONAL 18-22 (or 23-29) cohort population. */
     cohortPopulation: number;
-    /** Northeast catchment cohort — kept as a comparator. */
+    /** The institution's regional cohort (`comparatorRegion`) — a comparator. */
     cohortPopulationRegional: number | null;
     /** Share of the NATIONAL cohort needed to maintain today's intake.
      *  Null when intake is unknown. */
@@ -2658,16 +2669,37 @@ export async function programDemographicOutlook(
     academicYearContextSync(now).latestCompleteEntryYearBE,
   );
 
-  // Demographic projection rows. Pin to the canonical NESDC-mid-
-  // variant source (`NESDC-PopProj-2010-2040`) — the older synthetic
-  // `NESDC-v1` rows from the original seed remain for gap-analysis
-  // back-compat but must not double-up here.
-  const CANONICAL_SOURCE = 'NESDC-PopProj-2010-2040';
-  const allRows = await prisma.demographicProjection.findMany({
-    where: { ageCohort, source: CANONICAL_SOURCE },
+  // Demographic projection rows. The national block comes from the best
+  // source with a national row (spreadsheet > UN WPP > NESDC); the regional
+  // comparator may come from a different source because UN carries national
+  // figures only. Other editions (the older synthetic `NESDC-v1`) are never
+  // mixed in.
+  const nationalSource = await pickProjectionSource({ cohort: ageCohort });
+  if (!nationalSource) return null;
+  const nationalRows = await prisma.demographicProjection.findMany({
+    where: { ageCohort, source: nationalSource },
     orderBy: { year: 'asc' },
   });
-  if (allRows.length === 0) return null;
+  if (nationalRows.length === 0) return null;
+
+  const resolvedRegion = projectionRegionForInstitution(
+    await eligibleProjectionRegions({ cohort: ageCohort }),
+  );
+  let comparatorRegion = resolvedRegion === NATIONAL_REGION ? null : resolvedRegion;
+  let comparatorSource: string | null = null;
+  let comparatorRows: typeof nationalRows = [];
+  if (comparatorRegion) {
+    comparatorSource = await pickProjectionSource({ cohort: ageCohort, needRegion: comparatorRegion });
+    if (comparatorSource) {
+      comparatorRows = await prisma.demographicProjection.findMany({
+        where: { ageCohort, source: comparatorSource, region: comparatorRegion },
+        orderBy: { year: 'asc' },
+      });
+    } else {
+      comparatorRegion = null;
+    }
+  }
+  const allRows = nationalRows;
 
   const nowCE = now.getUTCFullYear();
   const horizons = [0, 5, 10, 15];
@@ -2676,11 +2708,11 @@ export async function programDemographicOutlook(
   for (const h of horizons) {
     const targetYear = nowCE + h;
     const nationalRow = allRows.find(
-      (r) => r.region === 'TH' && r.year === targetYear,
+      (r) => r.region === NATIONAL_REGION && r.year === targetYear,
     );
-    const regionalRow = allRows.find(
-      (r) => r.region === 'Northeast' && r.year === targetYear,
-    );
+    const regionalRow = comparatorRegion
+      ? comparatorRows.find((r) => r.year === targetYear)
+      : undefined;
     if (!nationalRow) continue;
     if (anchorNational === null) anchorNational = nationalRow.population;
     const requiredShare =
@@ -2745,8 +2777,10 @@ export async function programDemographicOutlook(
   }
 
   return {
-    catchmentRegion: 'TH',
-    source: allRows[0]!.source,
+    catchmentRegion: NATIONAL_REGION,
+    comparatorRegion,
+    comparatorSource,
+    source: nationalSource,
     ageCohort,
     baselineYearOneIntake,
     funnelBaseline,
@@ -2778,7 +2812,7 @@ const SALARY_BY_FUND_VERSION = 'salary-by-fund.v1';
 // in `staff_compensation_cube.level`. The cube stores Thai abbreviated
 // forms ('ผศ', 'รศ', 'ศ', 'อ.') — we match by `startsWith` so variants
 // like 'ผศ.ดร.' / 'ศ.เกียรติคุณ' still resolve to the same rank bucket.
-const RANK_TO_LEVEL_PREFIXES: Record<
+export const RANK_TO_LEVEL_PREFIXES: Record<
   'PROF' | 'ASSOC_PROF' | 'ASST_PROF' | 'LECTURER',
   string[]
 > = {
@@ -2788,7 +2822,7 @@ const RANK_TO_LEVEL_PREFIXES: Record<
   LECTURER: ['อ.', 'อ ', 'อาจารย์'],
 };
 
-function levelMatchesRank(
+export function levelMatchesRank(
   level: string | null,
   rank: 'PROF' | 'ASSOC_PROF' | 'ASST_PROF' | 'LECTURER',
 ): boolean {
@@ -3604,7 +3638,7 @@ export async function programOutcomes(programId: string) {
   });
   const latest = outcomes[0];
   const employer = await prisma.employerFeedback.findMany({
-    where: { programId },
+    where: { programId, ...realDataWhere() },
     orderBy: { year: 'desc' },
     take: 10,
   });

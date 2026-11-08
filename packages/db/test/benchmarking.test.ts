@@ -49,6 +49,7 @@ vi.mock('../src/index', async () => {
   };
 });
 
+import { setOrganizationForTest, type Institution } from '@kku/shared';
 import {
   computeDistinctiveness,
   computeProgramPeers,
@@ -56,8 +57,15 @@ import {
   computeWhiteSpaces,
 } from '../src/benchmarking';
 
+const ORG: Institution = {
+  nameTh: 'มหาวิทยาลัยทดสอบ', nameEn: 'Example University', shortNameEn: 'EXU', shortNameTh: 'มทส',
+  regionTh: null, regionEn: null, contactEmail: null, appUrl: 'https://example.test',
+  intakeFloorBachelor: 20, intakeFloorPostgrad: 5, openalexInstitutionId: null,
+};
+
 beforeEach(() => {
   for (const fn of Object.values(mocks)) fn.mockReset();
+  setOrganizationForTest(ORG);
 });
 
 describe('computeProgramPeers — ranks by skill overlap', () => {
@@ -216,5 +224,26 @@ describe('computeSubjectLeadership — ranking trend direction', () => {
     ]);
     const r = await computeSubjectLeadership('CS');
     expect(r.trendsBySource.THE?.[0]?.trend).toBe('stable');
+  });
+
+  it('reads the configured institution\u2019s percentile, not a hard-coded KKU row', async () => {
+    mocks.peerRankingFindMany.mockResolvedValue([
+      { institution: 'KKU', source: 'THE', subjectArea: 'CS', year: 2025, rank: 10, percentile: 99 },
+      { institution: 'EXU', source: 'THE', subjectArea: 'CS', year: 2024, rank: 300, percentile: 40 },
+      { institution: 'Example University', source: 'THE', subjectArea: 'CS', year: 2025, rank: 200, percentile: 55 },
+    ]);
+    const r = await computeSubjectLeadership('CS');
+    expect(r.kkuPercentileLatest).toBe(55);
+  });
+});
+
+describe('own-institution alias for KKU', () => {
+  it('accepts the legacy KKU literal only when the institution is Khon Kaen University', async () => {
+    const rows = [{ institution: 'KKU', source: 'THE', subjectArea: 'CS', year: 2025, rank: 10, percentile: 99 }];
+    mocks.peerRankingFindMany.mockResolvedValue(rows);
+    setOrganizationForTest({ ...ORG, nameEn: 'Khon Kaen University', shortNameEn: 'Khon Kaen' });
+    expect((await computeSubjectLeadership('CS')).kkuPercentileLatest).toBe(99);
+    setOrganizationForTest(ORG);
+    expect((await computeSubjectLeadership('CS')).kkuPercentileLatest).toBeNull();
   });
 });

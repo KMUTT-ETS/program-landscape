@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 // Smoke test — dev login → home → theme toggle → logout.
 //
 // Prerequisites:
-//   pnpm db:up && pnpm db:seed
+//   pnpm db:up && pnpm data-sources:sync --apply && SEED_MOCKS=true pnpm db:seed:kku
 //   pnpm --filter web exec playwright install --with-deps  (one-time)
 //   pnpm dev                                                (in another terminal)
 //   pnpm --filter web test:e2e

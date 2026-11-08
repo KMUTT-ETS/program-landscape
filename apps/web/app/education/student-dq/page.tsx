@@ -164,7 +164,7 @@ export default async function StudentDqPage({ searchParams }: { searchParams: Pr
                 ? drillRes.error
                 : null
           }
-          emptyMessage="No DQ results have been loaded yet. Run the kku-dq connector from /admin/data-sources/kku-dq, then reload this page."
+          emptyMessage="No DQ results have been loaded yet. Upload the Digital Competency Cohorts and Digital Competency Modules sheets in Data setup (/admin/data-setup), then reload this page."
         />
       )}
     </AuthedAppShell>

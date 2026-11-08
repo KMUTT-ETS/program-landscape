@@ -23,9 +23,9 @@ const input = (over: Partial<RiskAssessmentInput> = {}): RiskAssessmentInput => 
 
 const user = (i: RiskAssessmentInput): string => buildRiskAssessmentMessages(i)[1]!.content as string;
 
-describe('risk-assessment.v4 overlap context', () => {
+describe('risk-assessment.v5 overlap context', () => {
   it('bumps the version and the method catalogue follows', () => {
-    expect(RISK_ASSESSMENT_VERSION).toBe('risk-assessment.v4');
+    expect(RISK_ASSESSMENT_VERSION).toBe('risk-assessment.v5');
     expect(AI_METHOD_CATALOG.find((m) => m.methodPrefix === 'risk-assessment')?.currentVersion).toBe(RISK_ASSESSMENT_VERSION);
   });
   it('the system prompt says overlap measures are for review and never closure', () => {

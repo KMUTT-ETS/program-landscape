@@ -710,7 +710,7 @@ const connectorNodes: TopologyNode[] = [
       notes: [
         'Dry run counts only and makes no model call; --apply writes',
         'Idempotent: a vector is re-embedded only when the sha256 of its text changes',
-        'Course categories come from a separate phase-2b backfill (program-courses-extract.v4), run first',
+        'Course categories come from a separate phase-2b backfill (program-courses-extract.v5), run first',
         'Bundled to dist/ for prod operator-run.',
       ],
     },
@@ -759,7 +759,7 @@ const connectorNodes: TopologyNode[] = [
     subtitle: 'Phase 1 · digest + faculty + skills + pedagogy',
     details: {
       description:
-        'Per-PDF Gemini extraction — 4 prompts run in parallel: program-digest.v2 (course list + recruitment summary + generalised skills), program-faculty.v1 (responsible lecturers), program-skills-detailed.v2 (ESCO-tagged skill weights), program-pedagogy.v1.1 (teaching-method distribution).',
+        'Per-PDF Gemini extraction — 4 prompts run in parallel: program-digest.v4 (course list + recruitment summary + generalised skills), program-faculty.v3 (responsible lecturers), program-skills-detailed.v4 (ESCO-tagged skill weights), program-pedagogy.v1.1 (teaching-method distribution).',
       cadence: 'Per-PDF · programs-pipeline phase 1',
       notes: [
         'Writes AiExtraction rows (4 types); materialise step lifts approved digests into Program + ProgramCourse + ProgramSkill',
@@ -792,7 +792,7 @@ const connectorNodes: TopologyNode[] = [
     subtitle: 'Phase 5 · selection + review',
     details: {
       description:
-        'Two-step peer benchmarking: program-peer-selection.v1 picks 6–10 similar programs from THE/QS/SCImago + KKU\'s seeded peer sets; program-peer-review.v2 (thinking mode) writes the comparative narrative.',
+        'Two-step peer benchmarking: program-peer-selection.v3 picks 6–10 similar programs from THE/QS/SCImago + KKU\'s seeded peer sets; program-peer-review.v2 (thinking mode) writes the comparative narrative.',
       cadence: 'Per-program · programs-pipeline phase 5',
     },
   },
@@ -813,7 +813,7 @@ const connectorNodes: TopologyNode[] = [
     lane: 'ai',
     kind: 'ai-task',
     label: 'Program narrative',
-    subtitle: 'Phase 7 · program-strategic-narrative.v2',
+    subtitle: 'Phase 7 · program-strategic-narrative.v3',
     details: {
       description:
         "Thai-primary strategic narrative — the one the Council reads on the Deep-Dive's hero section. Synthesises every prior phase's output into a 600-word brief with confidence + caveats.",
@@ -856,7 +856,7 @@ const connectorNodes: TopologyNode[] = [
     lane: 'ai',
     kind: 'ai-task',
     label: 'Course list extraction',
-    subtitle: 'Phase 2b · program-courses-extract.v4',
+    subtitle: 'Phase 2b · program-courses-extract.v5',
     details: {
       description:
         "Reads the course list out of the มคอ.2 — code, title, credits, description, and the หมวด each course sits under (ศึกษาทั่วไป / บังคับ / เลือก / วิทยานิพนธ์). The category is what makes elective-to-required advice possible downstream.",
@@ -996,7 +996,7 @@ const connectorNodes: TopologyNode[] = [
     lane: 'ai',
     kind: 'ai-task',
     label: 'Risk assessment',
-    subtitle: 'Phase 8 · risk-assessment.v4',
+    subtitle: 'Phase 8 · risk-assessment.v5',
     details: {
       description:
         'Combines deterministic L1/L2/L3 scores (risk-scoring.v1) with AI narrative + 2-4 specific RiskMeasure recommendations per program. Writes RiskAssessment + RiskMeasure + KRI breach evaluations.',

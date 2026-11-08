@@ -64,7 +64,7 @@ export async function fetchJob108Page(url: string): Promise<string> {
   const timer = setTimeout(() => controller.abort(), JOB108_TIMEOUT_MS);
   try {
     const res = await fetch(url, {
-      headers: { 'User-Agent': outboundUserAgent(), Accept: 'text/html,application/xhtml+xml,application/xml' },
+      headers: { 'User-Agent': outboundUserAgent('job-108'), Accept: 'text/html,application/xhtml+xml,application/xml' },
       signal: controller.signal,
     });
     if (!res.ok) throw new Job108FetchError(url, res.status, `HTTP ${res.status} for ${url}`);

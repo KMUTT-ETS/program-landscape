@@ -18,6 +18,8 @@ describe('OrganizationClient', () => {
     expect(html).toContain('Thai name');
     expect(html).not.toMatch(/version \d/i);
     expect(html).toContain('Create organisation');
+    expect(html).toContain('OpenAlex institution ID');
+    expect(html).toContain('I60837268');
   });
 
   it('prefills an existing profile and shows its version', () => {
@@ -27,7 +29,9 @@ describe('OrganizationClient', () => {
           profile: {
             id: 'default', nameTh: 'มหาวิทยาลัยตัวอย่าง', nameEn: 'Example University', shortNameTh: 'มต.',
             shortNameEn: 'EXU', regionTh: null, regionEn: null, contactEmail: null,
-            appUrl: 'https://landscape.example.ac.th', version: 3, updatedAt: '2026-10-15T00:00:00Z', updatedBy: null,
+            appUrl: 'https://landscape.example.ac.th',
+            intakeFloorBachelor: 30, intakeFloorPostgrad: 8, openalexInstitutionId: null,
+            version: 3, updatedAt: '2026-10-15T00:00:00Z', updatedBy: null,
             logoLightKey: null, logoDarkKey: null, faviconKey: null, primaryColor: null, secondaryColor: null,
           },
         }}

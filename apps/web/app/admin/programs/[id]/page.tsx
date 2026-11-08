@@ -6,6 +6,7 @@ import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { AdminBackNav } from '@/components/admin-back-nav';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { Badge, PageHeader } from '@kku/ui';
+import type { SetupChecklistData } from './setup-checklist';
 import { ProgramEditClient, type ProgramDetail } from './client';
 
 export const dynamic = 'force-dynamic';
@@ -52,6 +53,8 @@ export default async function AdminProgramDetailPage({
     );
   }
   const program = programRes.data;
+  const checklistRes = await apiFetchSafe<SetupChecklistData>(`/admin/programs/${id}/setup-checklist`);
+  const checklist = checklistRes.ok ? checklistRes.data : null;
 
   return (
     <AuthedAppShell user={user}>
@@ -83,6 +86,7 @@ export default async function AdminProgramDetailPage({
         program={program}
         faculties={faculties}
         departments={departments}
+        checklist={checklist}
       />
     </AuthedAppShell>
   );

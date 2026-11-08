@@ -16,6 +16,7 @@ import {
 } from '@/components/dashboard/quick-action-thumbnails';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
+import { brandingForRequest } from '@/lib/branding';
 import { prisma } from '@kku/db';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { apiFetchAsUniversityUser } from '@/lib/api-client';
@@ -158,6 +159,7 @@ export default async function HomePage() {
     redirect('/signin');
   }
   const user = session.user as SessionUser;
+  const orgShortName = (await brandingForRequest())?.shortNameEn;
 
   const currentYear = new Date().getUTCFullYear();
   // researchYearFrom retained for the per-user PublicationsSparkline
@@ -259,7 +261,7 @@ export default async function HomePage() {
         staffCounts.total > 0
           ? staffCounts.total.toLocaleString('en-US')
           : '—',
-      hint: 'KKU HR roster',
+      hint: 'HR roster',
       icon: <Sparkles className="size-icon-sm" />,
     },
     {
@@ -289,7 +291,7 @@ export default async function HomePage() {
         <HeroBanner
           eyebrow={
             <>
-              <span>KKU</span>
+              <span>{orgShortName ?? 'Program Landscape'}</span>
               <span aria-hidden className="opacity-40">/</span>
               <span className="text-text-secondary">Welcome back</span>
             </>
@@ -410,7 +412,7 @@ export default async function HomePage() {
           ) : (
             <Card padding="md" className="flex flex-col gap-2">
               <p className="text-[11px] font-medium uppercase tracking-wide text-text-tertiary">
-                All KKU programs
+                All programs
               </p>
               <p className="text-xs text-text-secondary">
                 Browse all programs across every faculty.

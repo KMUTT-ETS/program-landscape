@@ -1,6 +1,6 @@
 import { Controller, Get, NotFoundException, Param, Query } from '@nestjs/common';
 import { z } from 'zod';
-import { prisma, type Prisma } from '@kku/db';
+import { PROGRAMME_COURSES_IMPORT_VERSION, prisma, type Prisma } from '@kku/db';
 import { Authorized, Provenance, ZodValidationPipe } from '../common';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -83,6 +83,156 @@ export class AdminDataSetupRawController {
 type DatasetFetcher = (q: RawDataQuery) => Promise<RawDatasetResult>;
 
 const DATASETS: Record<string, DatasetFetcher> = {
+  // ── Organisation backbone (spreadsheet import) ──────────────────────────
+  // Tier 0 of the import framework. On an installation with no registrar
+  // connector these are the only way the org chart exists at all, so the
+  // raw view doubles as the adopter's confirmation that an upload landed.
+  faculties: async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.FacultyWhereInput = q.q
+      ? {
+          OR: [
+            { code: { contains: q.q, mode: 'insensitive' } },
+            { nameEn: { contains: q.q, mode: 'insensitive' } },
+            { nameTh: { contains: q.q } },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.faculty.findMany({
+        where,
+        orderBy: { code: 'asc' },
+        skip,
+        take: q.pageSize,
+        include: { _count: { select: { departments: true, programs: true } } },
+      }),
+      prisma.faculty.count({ where }),
+    ]);
+    return {
+      title: 'Faculties',
+      description:
+        'Faculties, colleges and institutes. Populated by the Faculties spreadsheet import, or by the seed on a KKU installation.',
+      columns: [
+        { key: 'code', label: 'Code' },
+        { key: 'nameTh', label: 'Name (TH)' },
+        { key: 'nameEn', label: 'Name (EN)' },
+        { key: 'kind', label: 'Kind' },
+        { key: 'departments', label: 'Departments', numeric: true },
+        { key: 'programs', label: 'Programmes', numeric: true },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        code: r.code,
+        nameTh: r.nameTh,
+        nameEn: r.nameEn,
+        kind: r.kind,
+        departments: r._count.departments,
+        programs: r._count.programs,
+        imported: r.ingestionRunId !== null,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
+  departments: async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.DepartmentWhereInput = q.q
+      ? {
+          OR: [
+            { code: { contains: q.q, mode: 'insensitive' } },
+            { nameEn: { contains: q.q, mode: 'insensitive' } },
+            { nameTh: { contains: q.q } },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.department.findMany({
+        where,
+        orderBy: { code: 'asc' },
+        skip,
+        take: q.pageSize,
+        include: { faculty: { select: { code: true } }, _count: { select: { programs: true } } },
+      }),
+      prisma.department.count({ where }),
+    ]);
+    return {
+      title: 'Departments',
+      description: 'Departments within a faculty. Optional — an installation may put programmes directly under a faculty.',
+      columns: [
+        { key: 'code', label: 'Code' },
+        { key: 'nameTh', label: 'Name (TH)' },
+        { key: 'nameEn', label: 'Name (EN)' },
+        { key: 'facultyCode', label: 'Faculty' },
+        { key: 'programs', label: 'Programmes', numeric: true },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        code: r.code,
+        nameTh: r.nameTh,
+        nameEn: r.nameEn,
+        facultyCode: r.faculty?.code ?? '—',
+        programs: r._count.programs,
+        imported: r.ingestionRunId !== null,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
+  programmes: async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.ProgramWhereInput = q.q
+      ? {
+          OR: [
+            { code: { contains: q.q, mode: 'insensitive' } },
+            { nameEn: { contains: q.q, mode: 'insensitive' } },
+            { nameTh: { contains: q.q } },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.program.findMany({
+        where,
+        orderBy: { code: 'asc' },
+        skip,
+        take: q.pageSize,
+        include: { faculty: { select: { code: true } }, department: { select: { code: true } } },
+      }),
+      prisma.program.count({ where }),
+    ]);
+    return {
+      title: 'Programmes',
+      description:
+        'Curricula. "Canonical" means the programme carries a sequence number; Council surfaces list only canonical programmes, and the importer assigns one on insert.',
+      columns: [
+        { key: 'code', label: 'Code' },
+        { key: 'nameEn', label: 'Name (EN)' },
+        { key: 'level', label: 'Level' },
+        { key: 'status', label: 'Status' },
+        { key: 'facultyCode', label: 'Faculty' },
+        { key: 'departmentCode', label: 'Department' },
+        { key: 'canonical', label: 'Canonical' },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        code: r.code,
+        nameEn: r.nameEn,
+        level: r.level,
+        status: r.status,
+        facultyCode: r.faculty?.code ?? '—',
+        departmentCode: r.department?.code ?? '—',
+        canonical: r.sequenceNoFromSheet !== null,
+        imported: r.ingestionRunId !== null,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
   // ── Student information (kku-registry) ──────────────────────────────────
   'enrollment-metrics': async (q) => {
     const skip = (q.page - 1) * q.pageSize;
@@ -133,6 +283,752 @@ const DATASETS: Record<string, DatasetFetcher> = {
         graduatedOnTime: r.graduatedOnTime,
         graduatedLate: r.graduatedLate,
         dropouts: r.dropouts,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
+  // ── Admissions and teaching ──────────────────────────────────────────────
+  'admission-campaigns': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.AdmissionCampaignStatWhereInput = q.q
+      ? {
+          OR: [
+            { campaignName: { contains: q.q, mode: 'insensitive' } },
+            { program: { code: { contains: q.q, mode: 'insensitive' } } },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.admissionCampaignStat.findMany({
+        where,
+        include: { program: { select: { code: true } } },
+        orderBy: [{ acadYearBE: 'desc' }, { round: 'asc' }, { campaignName: 'asc' }],
+        skip,
+        take: q.pageSize,
+      }),
+      prisma.admissionCampaignStat.count({ where }),
+    ]);
+    return {
+      title: 'Admission campaigns — the recruitment funnel per campaign',
+      description:
+        'One row per (programme, year, round, campaign). Year is BUDDHIST ERA. An imported row carries no registrar identifiers — those columns are null and the import sheet does not offer them.',
+      columns: [
+        { key: 'acadYearBE', label: 'Year (BE)', numeric: true },
+        { key: 'round', label: 'Round' },
+        { key: 'programCode', label: 'Programme' },
+        { key: 'campaignName', label: 'Campaign' },
+        { key: 'planPerYear', label: 'Planned', numeric: true },
+        { key: 'totalApplicants', label: 'Applicants', numeric: true },
+        { key: 'totalPassed', label: 'Passed', numeric: true },
+        { key: 'regReported', label: 'Reported', numeric: true },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        acadYearBE: r.acadYearBE,
+        round: r.round,
+        programCode: r.program?.code ?? '—',
+        campaignName: r.campaignName,
+        planPerYear: r.planPerYear,
+        totalApplicants: r.totalApplicants,
+        totalPassed: r.totalPassed,
+        regReported: r.regReported,
+        imported: r.ingestionRunId !== null,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
+  'class-offerings': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.ClassOfferingWhereInput = q.q
+      ? {
+          OR: [
+            { courseCode: { contains: q.q, mode: 'insensitive' } },
+            { courseNameEn: { contains: q.q, mode: 'insensitive' } },
+            { courseNameTh: { contains: q.q } },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.classOffering.findMany({
+        where,
+        orderBy: [{ acadYearBE: 'desc' }, { semester: 'desc' }, { courseCode: 'asc' }, { section: 'asc' }],
+        skip,
+        take: q.pageSize,
+      }),
+      prisma.classOffering.count({ where }),
+    ]);
+    return {
+      title: 'Class offerings — sections taught per term',
+      description:
+        'One row per section. Year is BUDDHIST ERA. Uploading a term through the spreadsheet import REPLACES the rows that import created for it; rows a connector wrote are left alone.',
+      columns: [
+        { key: 'term', label: 'Term' },
+        { key: 'courseCode', label: 'Course' },
+        { key: 'section', label: 'Sec', numeric: true },
+        { key: 'courseNameEn', label: 'Name (EN)' },
+        { key: 'enrollSeat', label: 'Enrolled', numeric: true },
+        { key: 'totalSeat', label: 'Seats', numeric: true },
+        { key: 'classGpa', label: 'Class GPA', numeric: true },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        term: `${r.acadYearBE}/${r.semester}`,
+        courseCode: r.courseCode,
+        section: r.section,
+        courseNameEn: r.courseNameEn ?? r.courseNameTh ?? '',
+        enrollSeat: r.enrollSeat,
+        totalSeat: r.totalSeat,
+        classGpa: r.classGpa,
+        imported: r.ingestionRunId !== null,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
+  'program-faculty': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.ProgramFacultyWhereInput = q.q
+      ? {
+          OR: [
+            { program: { code: { contains: q.q, mode: 'insensitive' } } },
+            { program: { nameEn: { contains: q.q, mode: 'insensitive' } } },
+            { facultyMember: { employeeCode: { contains: q.q, mode: 'insensitive' } } },
+            { facultyMember: { nameEn: { contains: q.q, mode: 'insensitive' } } },
+            { facultyMember: { nameTh: { contains: q.q } } },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.programFaculty.findMany({
+        where,
+        orderBy: [{ program: { code: 'asc' } }, { role: 'asc' }],
+        skip,
+        take: q.pageSize,
+        include: {
+          program: { select: { code: true, nameEn: true } },
+          facultyMember: { select: { employeeCode: true, nameEn: true, nameTh: true } },
+          programRevision: { select: { curriculumYearBE: true } },
+        },
+      }),
+      prisma.programFaculty.count({ where }),
+    ]);
+    return {
+      title: 'Programme teaching staff — who teaches what',
+      description:
+        'One row per person per programme. This is the link that lets publications, seniority and staffing ratios reach a programme page; without it the Capability dimension of the health score reads null. Rows not marked Imported were extracted from the curriculum PDF by AI, and a start-over cannot remove them.',
+      columns: [
+        { key: 'programmeCode', label: 'Programme' },
+        { key: 'programmeName', label: 'Programme name' },
+        { key: 'employeeCode', label: 'Employee' },
+        { key: 'staffName', label: 'Staff name' },
+        { key: 'role', label: 'Role' },
+        { key: 'curriculumYear', label: 'Curriculum year (CE)', numeric: true },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        programmeCode: r.program.code,
+        programmeName: r.program.nameEn ?? '',
+        employeeCode: r.facultyMember.employeeCode,
+        staffName: r.facultyMember.nameTh || r.facultyMember.nameEn || '',
+        role: r.role,
+        // Stored Buddhist-era; shown as the Common Era year the sheet asks for.
+        curriculumYear:
+          r.programRevision?.curriculumYearBE != null
+            ? r.programRevision.curriculumYearBE - 543
+            : null,
+        imported: r.ingestionRunId !== null,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
+  'programme-courses': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.ProgramCourseWhereInput = q.q
+      ? {
+          OR: [
+            { program: { code: { contains: q.q, mode: 'insensitive' } } },
+            { program: { nameEn: { contains: q.q, mode: 'insensitive' } } },
+            { courseCode: { contains: q.q.replace(/\s+/g, '').toUpperCase() } },
+            { courseNameEn: { contains: q.q, mode: 'insensitive' } },
+            { courseNameTh: { contains: q.q } },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.programCourse.findMany({
+        where,
+        orderBy: [{ program: { code: 'asc' } }, { courseCode: 'asc' }],
+        skip,
+        take: q.pageSize,
+        include: { program: { select: { code: true, nameEn: true } } },
+      }),
+      prisma.programCourse.count({ where }),
+    ]);
+    return {
+      title: 'Programme course lists',
+      description:
+        'One row per course per programme. Rows marked Imported came from a spreadsheet upload, which takes precedence over PDF extraction for that programme; the others were extracted from the curriculum PDF.',
+      columns: [
+        { key: 'programmeCode', label: 'Programme' },
+        { key: 'programmeName', label: 'Programme name' },
+        { key: 'courseCode', label: 'Course code' },
+        { key: 'courseNameTh', label: 'Course name (Thai)' },
+        { key: 'courseNameEn', label: 'Course name (English)' },
+        { key: 'credits', label: 'Credits', numeric: true },
+        { key: 'category', label: 'Category' },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        programmeCode: r.program.code,
+        programmeName: r.program.nameEn ?? '',
+        courseCode: r.courseCodeRaw,
+        courseNameTh: r.courseNameTh,
+        courseNameEn: r.courseNameEn,
+        credits: r.credits,
+        category: r.category,
+        imported: r.methodVersion === PROGRAMME_COURSES_IMPORT_VERSION,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
+  'course-evaluations': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.EvaluationResponseSummaryWhereInput = q.q
+      ? {
+          OR: [
+            { courseCode: { contains: q.q.replace(/\s+/g, '').toUpperCase() } },
+            { courseNameEn: { contains: q.q, mode: 'insensitive' } },
+            { courseNameTh: { contains: q.q } },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.evaluationResponseSummary.findMany({
+        where,
+        orderBy: [{ acadYearBE: 'desc' }, { semester: 'asc' }, { courseCode: 'asc' }, { section: 'asc' }],
+        skip,
+        take: q.pageSize,
+        include: { faculty: { select: { code: true } } },
+      }),
+      prisma.evaluationResponseSummary.count({ where }),
+    ]);
+    return {
+      title: 'Course evaluations',
+      description:
+        'Overall course ratings, one row per course section per term. The academic year is shown as the Common Era year the sheet asks for (stored as Buddhist era). Rows marked Imported came from a spreadsheet upload.',
+      columns: [
+        { key: 'courseCode', label: 'Course code' },
+        { key: 'courseNameEn', label: 'Course name (English)' },
+        { key: 'academicYear', label: 'Academic year', numeric: true },
+        { key: 'semester', label: 'Semester', numeric: true },
+        { key: 'section', label: 'Section', numeric: true },
+        { key: 'averageRating', label: 'Average rating', numeric: true },
+        { key: 'respondents', label: 'Respondents', numeric: true },
+        { key: 'facultyCode', label: 'Faculty' },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        courseCode: r.courseCodeRaw,
+        courseNameEn: r.courseNameEn,
+        academicYear: r.acadYearBE - 543,
+        semester: r.semester,
+        section: r.section,
+        averageRating: Number(r.ratingAvg),
+        respondents: r.respondentCount,
+        facultyCode: r.faculty?.code ?? null,
+        imported: r.methodologyVersion === 'xlsx-import.v1',
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
+  'external-grants': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.ResearchServiceProjectWhereInput = q.q
+      ? {
+          OR: [
+            { titleTh: { contains: q.q } },
+            { titleEn: { contains: q.q, mode: 'insensitive' } },
+            { leadFacultyName: { contains: q.q } },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.researchServiceProject.findMany({
+        where,
+        orderBy: [{ fiscalYearBe: 'desc' }, { id: 'asc' }],
+        skip,
+        take: q.pageSize,
+        include: { _count: { select: { members: true } } },
+      }),
+      prisma.researchServiceProject.count({ where }),
+    ]);
+    return {
+      title: 'External grants',
+      description:
+        'Externally funded projects, one row per project. Fiscal year is BUDDHIST ERA (the Thai fiscal year starting 1 October of the previous calendar year); the import template asks for Common Era and converts on load. Budget is the whole-project figure. Rows marked Imported came from a spreadsheet upload.',
+      columns: [
+        { key: 'project', label: 'Project' },
+        { key: 'type', label: 'Type' },
+        { key: 'fiscalYearBe', label: 'Fiscal year (BE)', numeric: true },
+        { key: 'budgetThb', label: 'Budget (THB)', numeric: true },
+        { key: 'funder', label: 'Funder' },
+        { key: 'leadFaculty', label: 'Lead faculty' },
+        { key: 'members', label: 'Team size', numeric: true },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        project: r.titleEn ?? r.titleTh,
+        type: r.typeRaw,
+        fiscalYearBe: r.fiscalYearBe,
+        budgetThb: r.budgetThb === null ? null : Number(r.budgetThb),
+        funder: r.funderName,
+        leadFaculty: r.leadFacultyName,
+        members: r._count.members,
+        imported: r.sourceProposalKey.startsWith('xlsx:'),
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
+  'external-grant-team': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.ResearchServiceProjectMemberWhereInput = q.q
+      ? {
+          OR: [
+            { project: { titleTh: { contains: q.q } } },
+            { project: { titleEn: { contains: q.q, mode: 'insensitive' } } },
+            { facultyMember: { employeeCode: { contains: q.q } } },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.researchServiceProjectMember.findMany({
+        where,
+        orderBy: [{ projectId: 'asc' }, { role: 'asc' }, { id: 'asc' }],
+        skip,
+        take: q.pageSize,
+        include: {
+          project: { select: { titleTh: true, titleEn: true, sourceProposalKey: true } },
+          facultyMember: { select: { employeeCode: true } },
+        },
+      }),
+      prisma.researchServiceProjectMember.count({ where }),
+    ]);
+    return {
+      title: 'External grant team',
+      description:
+        'Who is on each external grant. Imported rows name staff by employee code only; connector rows may carry no resolved staff member. Rows marked Imported came from a spreadsheet upload.',
+      columns: [
+        { key: 'project', label: 'Project' },
+        { key: 'role', label: 'Role' },
+        { key: 'employeeCode', label: 'Employee code' },
+        { key: 'facultyName', label: 'Faculty' },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        project: r.project.titleEn ?? r.project.titleTh,
+        role: r.role === 'LEAD' ? 'Lead' : 'Co-investigator',
+        employeeCode: r.facultyMember?.employeeCode ?? null,
+        facultyName: r.facultyName,
+        imported: r.project.sourceProposalKey.startsWith('xlsx:'),
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
+  'employer-feedback': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.EmployerFeedbackWhereInput = q.q
+      ? {
+          OR: [
+            { employerName: { contains: q.q, mode: 'insensitive' } },
+            {
+              program: {
+                OR: [
+                  { code: { contains: q.q, mode: 'insensitive' } },
+                  { nameEn: { contains: q.q, mode: 'insensitive' } },
+                  { nameTh: { contains: q.q } },
+                ],
+              },
+            },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.employerFeedback.findMany({
+        where,
+        include: { program: { select: { code: true, nameEn: true } } },
+        orderBy: [{ year: 'desc' }, { programId: 'asc' }, { employerName: 'asc' }],
+        skip,
+        take: q.pageSize,
+      }),
+      prisma.employerFeedback.count({ where }),
+    ]);
+    return {
+      title: 'Employer feedback',
+      description:
+        'One row per programme per survey year per employer ("All employers" when the sheet left it blank). Satisfaction is a 0–1 proportion. Rows covering fewer than five respondents are refused on import.',
+      columns: [
+        { key: 'year', label: 'Survey year', numeric: true },
+        { key: 'programCode', label: 'Programme' },
+        { key: 'programNameEn', label: 'Name (EN)' },
+        { key: 'employerName', label: 'Employer' },
+        { key: 'satisfactionScore', label: 'Satisfaction', numeric: true },
+        { key: 'sampleSize', label: 'Respondents', numeric: true },
+      ],
+      items: rows.map((r) => ({
+        year: r.year,
+        programCode: r.program.code,
+        programNameEn: r.program.nameEn,
+        employerName: r.employerName,
+        satisfactionScore: r.satisfactionScore,
+        sampleSize: r.sampleSize,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
+  'population-projections': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.DemographicProjectionWhereInput = q.q
+      ? {
+          OR: [
+            { region: { contains: q.q, mode: 'insensitive' } },
+            { source: { contains: q.q, mode: 'insensitive' } },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.demographicProjection.findMany({
+        where,
+        orderBy: [{ source: 'asc' }, { region: 'asc' }, { year: 'asc' }, { ageCohort: 'asc' }],
+        skip,
+        take: q.pageSize,
+      }),
+      prisma.demographicProjection.count({ where }),
+    ]);
+    return {
+      title: 'Population projections',
+      description:
+        'Projected population per region, year and age group. Every edition is listed; readers use spreadsheet uploads (xlsx:…) first, then the UN WPP pull, then the NESDC starter series.',
+      columns: [
+        { key: 'source', label: 'Source' },
+        { key: 'region', label: 'Region' },
+        { key: 'year', label: 'Year', numeric: true },
+        { key: 'ageCohort', label: 'Age group' },
+        { key: 'population', label: 'Population', numeric: true },
+      ],
+      items: rows.map((r) => ({
+        source: r.source,
+        region: r.region,
+        year: r.year,
+        ageCohort: r.ageCohort,
+        population: r.population,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
+  'ranked-universities': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.RankedUniversityWhereInput = q.q
+      ? {
+          OR: [
+            { name: { contains: q.q, mode: 'insensitive' } },
+            { country: { contains: q.q, mode: 'insensitive' } },
+          ],
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.rankedUniversity.findMany({
+        where,
+        orderBy: [{ rankingYear: 'desc' }, { region: 'asc' }, { qsWorldRank: 'asc' }, { name: 'asc' }],
+        skip,
+        take: q.pageSize,
+      }),
+      prisma.rankedUniversity.count({ where }),
+    ]);
+    return {
+      title: 'University rankings',
+      description:
+        'The universities the AI peer selection chooses from, one row per university per ranking year. Only the latest ranking year is used.',
+      columns: [
+        { key: 'name', label: 'University' },
+        { key: 'country', label: 'Country' },
+        { key: 'region', label: 'Region' },
+        { key: 'rankingYear', label: 'Year', numeric: true },
+        { key: 'qsWorldRank', label: 'QS world', numeric: true },
+        { key: 'theWorldRank', label: 'THE world', numeric: true },
+        { key: 'qsAsiaRank', label: 'QS Asia', numeric: true },
+        { key: 'theAsiaRank', label: 'THE Asia', numeric: true },
+      ],
+      items: rows.map((r) => ({
+        name: r.name,
+        country: r.country,
+        region: r.region,
+        rankingYear: r.rankingYear,
+        qsWorldRank: r.qsWorldRank,
+        theWorldRank: r.theWorldRank,
+        qsAsiaRank: r.qsAsiaRank,
+        theAsiaRank: r.theAsiaRank,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
+  'digital-competency-cohorts': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.DqStudentCubeWhereInput = q.q
+      ? { OR: [{ programName: { contains: q.q } }, { facultyName: { contains: q.q } }] }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.dqStudentCube.findMany({
+        where,
+        orderBy: [{ cohortYearBe: 'desc' }, { facultyName: 'asc' }, { programName: 'asc' }],
+        skip,
+        take: q.pageSize,
+      }),
+      prisma.dqStudentCube.count({ where }),
+    ]);
+    return {
+      title: 'Digital competency — cohorts',
+      description:
+        'One row per programme per entry cohort: students tested, with scores, and passing every module. Entry year is BUDDHIST ERA; the import template asks for Common Era and converts on load.',
+      columns: [
+        { key: 'cohortYearBe', label: 'Entry year (BE)', numeric: true },
+        { key: 'facultyName', label: 'Faculty' },
+        { key: 'programName', label: 'Programme' },
+        { key: 'studentsTested', label: 'Tested', numeric: true },
+        { key: 'studentsWithScores', label: 'With scores', numeric: true },
+        { key: 'studentsAllPassed', label: 'Passed all', numeric: true },
+      ],
+      items: rows.map((r) => ({
+        cohortYearBe: r.cohortYearBe,
+        facultyName: r.facultyName,
+        programName: r.programName,
+        studentsTested: r.studentsTested,
+        studentsWithScores: r.studentsWithScores,
+        studentsAllPassed: r.studentsAllPassed,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
+  'digital-competency-modules': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.DqModuleCubeWhereInput = q.q
+      ? { OR: [{ programName: { contains: q.q } }, { facultyName: { contains: q.q } }] }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.dqModuleCube.findMany({
+        where,
+        orderBy: [{ cohortYearBe: 'desc' }, { facultyName: 'asc' }, { programName: 'asc' }, { moduleNo: 'asc' }],
+        skip,
+        take: q.pageSize,
+      }),
+      prisma.dqModuleCube.count({ where }),
+    ]);
+    return {
+      title: 'Digital competency — modules',
+      description:
+        'One row per programme per entry cohort per module. The mean is the stored score sum divided by students taking. Entry year is BUDDHIST ERA.',
+      columns: [
+        { key: 'cohortYearBe', label: 'Entry year (BE)', numeric: true },
+        { key: 'programName', label: 'Programme' },
+        { key: 'moduleKey', label: 'Module' },
+        { key: 'takenCount', label: 'Taking', numeric: true },
+        { key: 'meanScore', label: 'Mean score', numeric: true },
+        { key: 'studentsInScope', label: 'In scope', numeric: true },
+      ],
+      items: rows.map((r) => ({
+        cohortYearBe: r.cohortYearBe,
+        programName: r.programName,
+        moduleKey: r.moduleKey,
+        takenCount: r.takenCount,
+        meanScore: r.takenCount > 0 ? Math.round((r.scoreSum / r.takenCount) * 100) / 100 : null,
+        studentsInScope: r.studentsInScope,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
+  // ── Cohort progression and outcomes ──────────────────────────────────────
+  'student-cohorts': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.StudentCohortDistributionWhereInput = q.q
+      ? {
+          program: {
+            OR: [
+              { code: { contains: q.q, mode: 'insensitive' } },
+              { nameEn: { contains: q.q, mode: 'insensitive' } },
+              { nameTh: { contains: q.q } },
+            ],
+          },
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.studentCohortDistribution.findMany({
+        where,
+        include: { program: { select: { code: true, nameEn: true } } },
+        orderBy: [{ entryYearBE: 'desc' }, { programId: 'asc' }],
+        skip,
+        take: q.pageSize,
+      }),
+      prisma.studentCohortDistribution.count({ where }),
+    ]);
+    return {
+      title: 'Student cohorts — still enrolled per entry year',
+      description:
+        'One row per (programme, entry cohort). Entry year is BUDDHIST ERA, as the registrar records it; the import template asks for a Common Era year and converts on load.',
+      columns: [
+        { key: 'entryYearBE', label: 'Entry year (BE)', numeric: true },
+        { key: 'programCode', label: 'Programme' },
+        { key: 'programNameEn', label: 'Name (EN)' },
+        { key: 'studentCount', label: 'Still enrolled', numeric: true },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        entryYearBE: r.entryYearBE,
+        programCode: r.program?.code ?? r.programId,
+        programNameEn: r.program?.nameEn ?? '',
+        studentCount: r.studentCount,
+        imported: r.ingestionRunId !== null,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
+  'alumni-cohorts': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.AlumniCohortStatusWhereInput = q.q
+      ? {
+          program: {
+            OR: [
+              { code: { contains: q.q, mode: 'insensitive' } },
+              { nameEn: { contains: q.q, mode: 'insensitive' } },
+              { nameTh: { contains: q.q } },
+            ],
+          },
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.alumniCohortStatus.findMany({
+        where,
+        include: { program: { select: { code: true, nameEn: true } } },
+        orderBy: [{ entryYearBE: 'desc' }, { programId: 'asc' }, { statusBucket: 'asc' }],
+        skip,
+        take: q.pageSize,
+      }),
+      prisma.alumniCohortStatus.count({ where }),
+    ]);
+    return {
+      title: 'Alumni cohorts — outcome per entry year',
+      description:
+        'One row per (programme, entry cohort, outcome). Entry year is BUDDHIST ERA. A status the Deep-Dive does not recognise is counted under "other" rather than refused.',
+      columns: [
+        { key: 'entryYearBE', label: 'Entry year (BE)', numeric: true },
+        { key: 'programCode', label: 'Programme' },
+        { key: 'statusBucket', label: 'Status' },
+        { key: 'count', label: 'Count', numeric: true },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        entryYearBE: r.entryYearBE,
+        programCode: r.program?.code ?? r.programId,
+        statusBucket: r.statusBucket,
+        count: r.count,
+        imported: r.ingestionRunId !== null,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
+  // ── Graduate outcomes ────────────────────────────────────────────────────
+  'graduate-outcomes': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.GraduateOutcomeWhereInput = q.q
+      ? {
+          program: {
+            OR: [
+              { code: { contains: q.q, mode: 'insensitive' } },
+              { nameEn: { contains: q.q, mode: 'insensitive' } },
+              { nameTh: { contains: q.q } },
+            ],
+          },
+        }
+      : {};
+    const [rows, total] = await prisma.$transaction([
+      prisma.graduateOutcome.findMany({
+        where,
+        include: { program: { select: { code: true, nameEn: true } } },
+        orderBy: [{ surveyYear: 'desc' }, { graduationYear: 'desc' }, { programId: 'asc' }],
+        skip,
+        take: q.pageSize,
+      }),
+      prisma.graduateOutcome.count({ where }),
+    ]);
+    return {
+      title: 'Graduate outcomes — employment survey per cohort × survey',
+      description:
+        'One row per (programme, graduation year, survey year). A cohort surveyed again the following year is a second row, not a correction. Rows covering fewer than five respondents are refused on import.',
+      columns: [
+        { key: 'surveyYear', label: 'Surveyed', numeric: true },
+        { key: 'graduationYear', label: 'Graduated', numeric: true },
+        { key: 'programCode', label: 'Programme', format: 'truncate' },
+        { key: 'programNameEn', label: 'Name (EN)' },
+        { key: 'employmentRate', label: 'Employed', numeric: true },
+        { key: 'averageSalary', label: 'Salary/mo', numeric: true },
+        { key: 'jobRelevanceScore', label: 'Relevance', numeric: true },
+        { key: 'furtherStudyRate', label: 'Further study', numeric: true },
+        { key: 'sampleSize', label: 'Sample', numeric: true },
+        { key: 'imported', label: 'Imported' },
+      ],
+      items: rows.map((r) => ({
+        surveyYear: r.surveyYear,
+        graduationYear: r.graduationYear,
+        programCode: r.program?.code ?? r.programId,
+        programNameEn: r.program?.nameEn ?? '',
+        employmentRate: r.employmentRate,
+        averageSalary: Number(r.averageSalary),
+        jobRelevanceScore: r.jobRelevanceScore,
+        furtherStudyRate: r.furtherStudyRate,
+        sampleSize: r.sampleSize,
+        imported: r.ingestionRunId !== null,
       })),
       total,
       page: q.page,
@@ -293,6 +1189,7 @@ const DATASETS: Record<string, DatasetFetcher> = {
             { nameEn: { contains: q.q, mode: 'insensitive' } },
             { nameTh: { contains: q.q } },
             { employeeId: { contains: q.q, mode: 'insensitive' } },
+            { employeeCode: { contains: q.q, mode: 'insensitive' } },
             { orcid: { contains: q.q, mode: 'insensitive' } },
           ],
         }
@@ -315,12 +1212,14 @@ const DATASETS: Record<string, DatasetFetcher> = {
     ]);
     return {
       title: 'Academic staff — faculty roster',
-      description: 'Source: kku-hr connector (HCMEmployee + epm_report.workforce_hcm_actual). Active + retired members. EMPLOYEEID is the HR-internal employment number (NOT citizen ID — confirmed not PII). Citizen ID stays hashed at source. ORCID + OpenAlex IDs are filled lazily by kku-research; publication count is cross-joined from research_outputs.',
+      description: 'Sources: the kku-hr connector (HCMEmployee + epm_report.workforce_hcm_actual) and the Staff spreadsheet import (rows marked Imported). Active + retired members. Employee is the HR-internal employment number for connector rows (NOT citizen ID — confirmed not PII; citizen ID stays hashed at source) and the uploaded Employee Code for imported rows. ORCID + OpenAlex IDs are filled lazily by kku-research; publication count is cross-joined from research_outputs.',
       columns: [
-        // EMPLOYEEID — un-hashed HR-internal employment number, not PII.
-        // Distinct from employee_code (which is `hr_<hash>` and stays as
-        // the unique cross-system join key).
-        { key: 'employeeId', label: 'EMPLOYEEID', format: 'truncate' },
+        // Connector rows: EMPLOYEEID, the un-hashed HR-internal employment
+        // number (not PII). Their employee_code is `hr_<hash>` and means
+        // nothing to a reader, so it is never shown.
+        // Imported rows: the adopter's own Employee Code. The import does not
+        // write employee_id, so without this the column is blank for them.
+        { key: 'employee', label: 'Employee', format: 'truncate' },
         { key: 'nameTh', label: 'Name (TH)' },
         { key: 'nameEn', label: 'Name (EN)' },
         { key: 'rank', label: 'Rank' },
@@ -350,9 +1249,11 @@ const DATASETS: Record<string, DatasetFetcher> = {
           linkTemplate: 'https://openalex.org/{value}',
         },
         { key: 'retirementDate', label: 'Retire', format: 'date' },
+        { key: 'imported', label: 'Imported' },
       ],
       items: rows.map((r) => ({
-        employeeId: r.employeeId,
+        imported: r.ingestionRunId !== null,
+        employee: r.employeeId ?? (r.ingestionRunId !== null ? r.employeeCode : null),
         nameTh: r.nameTh,
         nameEn: r.nameEn,
         rank: r.rank,
@@ -363,6 +1264,58 @@ const DATASETS: Record<string, DatasetFetcher> = {
         orcid: r.orcid,
         openalexAuthorId: r.openalexAuthorId,
         retirementDate: r.retirementDate?.toISOString() ?? null,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
+  'staff-salary-by-funding': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    const where: Prisma.StaffCompensationCubeWhereInput = {
+      isAcademic: true,
+      ...(q.q
+        ? {
+            OR: [
+              { facultyName: { contains: q.q } },
+              { salType: { contains: q.q, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
+    const [rows, total] = await prisma.$transaction([
+      prisma.staffCompensationCube.findMany({
+        where,
+        orderBy: [{ fiscalYear: 'desc' }, { facultyName: 'asc' }, { level: 'asc' }, { salType: 'asc' }],
+        skip,
+        take: q.pageSize,
+      }),
+      prisma.staffCompensationCube.count({ where }),
+    ]);
+    return {
+      title: 'Staff salary by funding',
+      description:
+        'Academic staff only. One row per faculty, rank and funding source per fiscal year (Buddhist era). Salaries are monthly. Groups under five people are refused on import.',
+      columns: [
+        { key: 'fiscalYear', label: 'FY (BE)', numeric: true },
+        { key: 'facultyName', label: 'Faculty' },
+        { key: 'level', label: 'Rank' },
+        { key: 'salType', label: 'Funding source' },
+        { key: 'headcount', label: 'Headcount', numeric: true },
+        { key: 'meanSalary', label: 'Mean monthly', numeric: true, format: 'currency-thb' },
+        { key: 'minSalary', label: 'Min', numeric: true, format: 'currency-thb' },
+        { key: 'maxSalary', label: 'Max', numeric: true, format: 'currency-thb' },
+      ],
+      items: rows.map((r) => ({
+        fiscalYear: r.fiscalYear,
+        facultyName: r.facultyName,
+        level: r.level,
+        salType: r.salType,
+        headcount: r.headcount,
+        meanSalary: r.meanSalary,
+        minSalary: r.minSalary,
+        maxSalary: r.maxSalary,
       })),
       total,
       page: q.page,
@@ -457,6 +1410,63 @@ const DATASETS: Record<string, DatasetFetcher> = {
         subGroupName: r.subGroupName,
         careerName: r.careerName,
         iscoCode: r.iscoCode,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  },
+
+  'career-skill-demand': async (q) => {
+    const skip = (q.page - 1) * q.pageSize;
+    // Imported rows hang off careers with a negative id; the API's are positive.
+    const where: Prisma.KmitlCareerSkillDemandWhereInput = {
+      kmitlCareerId: { lt: 0 },
+      ...(q.q
+        ? {
+            OR: [
+              { skillNameRaw: { contains: q.q, mode: 'insensitive' } },
+              { career: { careerName: { contains: q.q, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
+    };
+    const [rows, total] = await prisma.$transaction([
+      prisma.kmitlCareerSkillDemand.findMany({
+        where,
+        include: {
+          career: { select: { careerName: true, groupName: true, subGroupName: true } },
+          skill: { select: { nameEn: true, nameTh: true } },
+        },
+        orderBy: [{ percentage: 'desc' }],
+        skip,
+        take: q.pageSize,
+      }),
+      prisma.kmitlCareerSkillDemand.count({ where }),
+    ]);
+    return {
+      title: 'Career skill demand (uploaded)',
+      description:
+        'Rows uploaded through the Career Skill Demand sheet. A skill showing as unresolved matched nothing in the skill taxonomy and does not score; upload the sheet again once the programme pipeline has built your skills.',
+      columns: [
+        { key: 'group', label: 'Group' },
+        { key: 'subGroup', label: 'Sub-group' },
+        { key: 'careerName', label: 'Career' },
+        { key: 'skillNameRaw', label: 'Skill (as uploaded)' },
+        { key: 'skillResolved', label: 'Skill (resolved)' },
+        { key: 'dataScope', label: 'Scope' },
+        { key: 'dataSource', label: 'Source' },
+        { key: 'percentage', label: 'Share of postings (%)', numeric: true },
+      ],
+      items: rows.map((r) => ({
+        group: r.career?.groupName ?? '',
+        subGroup: r.career?.subGroupName ?? '',
+        careerName: r.career?.careerName ?? '',
+        skillNameRaw: r.skillNameRaw,
+        skillResolved: r.skill ? `${r.skill.nameEn} / ${r.skill.nameTh}` : '(unresolved)',
+        dataScope: r.dataScope,
+        dataSource: r.dataSource,
+        percentage: r.percentage,
       })),
       total,
       page: q.page,

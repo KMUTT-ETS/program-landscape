@@ -48,7 +48,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24.22.2'
           cache: 'pnpm'
 
       - run: pnpm install --frozen-lockfile
@@ -64,9 +64,12 @@ jobs:
           done
 
       - name: Apply migrations + seed
+        env:
+          SEED_MOCKS: 'true'
         run: |
           pnpm db:migrate
-          pnpm db:seed
+          pnpm data-sources:sync --apply
+          pnpm db:seed:kku
 
       - name: Install Playwright browsers
         run: pnpm --filter web exec playwright install --with-deps chromium

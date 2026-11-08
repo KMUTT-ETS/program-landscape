@@ -21,6 +21,9 @@ All 40 catalog sources are now listed. Rows marked *(no spec yet)* have a connec
 | **A** Internal | `kku-research` | KKU Research Affairs | **`real`** | [kku-research.md](./kku-research.md) | — |
 | **A** Internal | `kku-evaluations` | KKU Student Evaluations (Teaching & Learning) | **`real`** | [kku-evaluations.md](./kku-evaluations.md) | Phase 0 complete 2026-05-19 |
 | **A** Internal | `kku-research-services` | KKU Research & Academic Services (external grants) | **`real`** | [kku-research-services.md](./kku-research-services.md) | MySQL views, daily 04:00 |
+| **A** Internal | `xlsx-faculties` | Spreadsheet import — faculties | **`real`** | [../data-import.md](../data-import.md) | Adopter upload path |
+| **A** Internal | `xlsx-departments` | Spreadsheet import — departments | **`real`** | [../data-import.md](../data-import.md) | Adopter upload path |
+| **A** Internal | `xlsx-programmes` | Spreadsheet import — programmes | **`real`** | [../data-import.md](../data-import.md) | Adopter upload path |
 | **A** Internal | `digital-transcript` | Thailand Digital Transcript | `mocked` | [digital-transcript.md](./digital-transcript.md) | — |
 | **A** Internal | `mhesi-cisa` | MHESI CISA portal | `mocked` | [mhesi-cisa.md](./mhesi-cisa.md) | — |
 | **B** National | `nso-labor-force` | NSO Thailand | `mocked` | [nso-labor-force.md](./nso-labor-force.md) | PDF pipeline |
@@ -33,6 +36,7 @@ All 40 catalog sources are now listed. Rows marked *(no spec yet)* have a connec
 | **B** National | `nxpo-reports` | NXPO | **`real`** | [nxpo-reports.md](./nxpo-reports.md) | PDF bulk-load |
 | **B** National | `boi-sectoral` | BOI | **`real`** | [boi-sectoral.md](./boi-sectoral.md) | PDF bulk-load |
 | **B** National | `eeco-reports` | EECO | **`real`** | [eeco-reports.md](./eeco-reports.md) | PDF bulk-load |
+| **C** Intl | `openalex-works` | OpenAlex publications | **`real`** | [openalex-works.md](./openalex-works.md) | Free key; institution id from the org profile |
 | **C** Intl | `openalex` | OpenAlex | `deprecated` | [openalex.md](./openalex.md) | Free; priority target |
 | **C** Intl | `wef-future-of-jobs` | World Economic Forum | **`real`** | [wef-future-of-jobs.md](./wef-future-of-jobs.md) | Annual PDF |
 | **C** Intl | `oecd-reports` | OECD | **`real`** | [oecd-reports.md](./oecd-reports.md) | Mixed API + PDF |
@@ -49,11 +53,13 @@ All 40 catalog sources are now listed. Rows marked *(no spec yet)* have a connec
 | **A** Internal | `kku-hr-processed` | KKU HR Processed — salary aggregate | **`real`** | — *(no spec yet)* | — |
 | **A** Internal | `kku-tcas-funnel` | KKU TCAS Admission Funnel | `deprecated` | — *(no spec yet)* | Superseded by `tcas` |
 | **B** National | `job-108` | Job-108 — Thai government job announcements | **`real`** | [job-108.md](./job-108.md) | Public web, honest UA, no proxy |
+| **B** National | `xlsx-career-skill-demand` | Spreadsheet import — career skill demand | **`real`** | [../data-import.md](../data-import.md) | Fallback when KMITL API credentials are unavailable |
 | **B** National | `kmitl-skill-mapping` | LinkedIn Labour-Market Insights (MHESI subscription, KMITL-hosted) | **`real`** | [kmitl-skill-mapping.md](./kmitl-skill-mapping.md) | Institutional-partner API |
-| **B** National | `thailand-demographics` | Thailand Demographics (DOPA · NESDC · BOI repost) | `mocked` | — *(no spec yet)* | — |
-| **C** International | `the-rankings` | Times Higher Education (THE) Subject Rankings | `mocked` | — *(no spec yet)* | Subscription |
-| **C** International | `qs-rankings` | QS Subject Rankings | `mocked` | — *(no spec yet)* | Subscription |
-| **C** International | `scimago` | SCImago Journal & Institution Rankings | `mocked` | — *(no spec yet)* | Public |
+| **B** National | `thailand-demographics` | Thailand Demographics (DOPA · NESDC · BOI repost) | `deprecated` | [un-wpp.md](./un-wpp.md) | Never had a connector; use `un-wpp` or the Population Projections spreadsheet |
+| **C** International | `un-wpp` | UN World Population Prospects 2024 | **`real`** | [un-wpp.md](./un-wpp.md) | Public bulk CSV, national cohorts |
+| **C** International | `the-rankings` | Times Higher Education (THE) Subject Rankings | `deprecated` | — *(no spec yet)* | Never had a connector; use the University Rankings spreadsheet (`xlsx-ranked-universities`) |
+| **C** International | `qs-rankings` | QS Subject Rankings | `deprecated` | — *(no spec yet)* | Never had a connector; use the University Rankings spreadsheet (`xlsx-ranked-universities`) |
+| **C** International | `scimago` | SCImago Journal & Institution Rankings | `deprecated` | — *(no spec yet)* | Never had a connector; use the University Rankings spreadsheet (`xlsx-ranked-universities`) |
 | **C** International | `imd-rankings` | IMD World Competitiveness Rankings | **`real`** | — *(no spec yet)* | Subscription |
 
 Phase ordering tracks the prompt-14 priority list: A (highest-leverage internal) → B (national Thai) → C (regional + international).

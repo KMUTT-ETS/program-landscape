@@ -5,11 +5,12 @@ import { defineConfig, type Plugin } from 'vitepress';
 import { repoLinkPlugin } from '../src/link-plugin';
 import { excludedGlobs, isUnderDir } from '../src/manifest';
 import { githubSlugify } from '../src/slugify';
-import { buildSidebar } from './sidebar';
+import { NAV, THAI_NAV, buildSidebar, buildThaiSidebar } from './sidebar';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..', '..', '..');
 const docsDir = path.join(repoRoot, 'docs');
+const themeDir = path.join(here, 'theme');
 
 const vitepressEntry = createRequire(import.meta.url).resolve('vitepress');
 
@@ -17,7 +18,8 @@ const vitepressEntry = createRequire(import.meta.url).resolve('vitepress');
  * Pages live in docs/, outside this package, where pnpm's strict layout makes `vue` unresolvable.
  * VitePress aliases bare `vue` for the client build only; the SSR build imports `vue` and
  * `vue/server-renderer` from every compiled page. Resolve those as VitePress itself would, so the
- * pages and the theme share one Vue.
+ * pages and the theme share one Vue. The theme's own .vue components (theme/) need the same:
+ * `vue` is not a dependency of this package either.
  */
 function resolveVueForPages(): Plugin {
   return {
@@ -25,7 +27,8 @@ function resolveVueForPages(): Plugin {
     enforce: 'pre',
     resolveId(id, importer, options) {
       if (id !== 'vue' && !id.startsWith('vue/')) return null;
-      if (importer === undefined || !isUnderDir(importer, docsDir)) return null;
+      if (importer === undefined) return null;
+      if (!isUnderDir(importer, docsDir) && !isUnderDir(importer, themeDir)) return null;
       return this.resolve(id, vitepressEntry, { ...options, skipSelf: true });
     },
   };
@@ -41,6 +44,20 @@ export default defineConfig({
   cleanUrls: false,
   ignoreDeadLinks: false,
   lastUpdated: false,
+  locales: {
+    root: { label: 'English', lang: 'en' },
+    th: {
+      label: 'ไทย',
+      lang: 'th',
+      link: '/th/',
+      title: 'Program Landscape',
+      description: 'คู่มือนักพัฒนาสำหรับสถาบันที่นำ Program Landscape ไปใช้',
+      themeConfig: {
+        nav: THAI_NAV,
+        sidebar: buildThaiSidebar(docsDir),
+      },
+    },
+  },
   markdown: {
     // The docs are written for GitHub; keep its heading anchors so their #links resolve here too.
     anchor: { slugify: githubSlugify },
@@ -55,11 +72,9 @@ export default defineConfig({
     plugins: [resolveVueForPages()],
   },
   themeConfig: {
-    nav: [
-      { text: 'Adopter guide', link: '/adopters/README' },
-      { text: 'Scripts', link: '/_generated/scripts' },
-      { text: 'Environment', link: '/_generated/env' },
-    ],
+    // The switcher goes to the other locale's home; each bilingual page links its twin at the top.
+    i18nRouting: false,
+    nav: NAV,
     sidebar: buildSidebar(docsDir),
     search: { provider: 'local' },
     outline: [2, 3],

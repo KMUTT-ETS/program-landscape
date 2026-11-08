@@ -3,8 +3,15 @@
 Every external data source this app consumes is listed below. The canonical
 machine-readable version lives in
 [`packages/shared/src/ingestion/catalog.ts`](../packages/shared/src/ingestion/catalog.ts)
-— `pnpm db:seed` upserts a `DataSource` row per entry, so this document
-and the DB never drift.
+— `pnpm data-sources:sync --apply` creates a `DataSource` row per entry
+(`pnpm setup` runs it, and so does every deploy), so this document and the DB
+never drift. **A fresh installation schedules nothing.** Rows are created with
+scheduling off, and the sync never changes it on an existing row. To turn a
+source on, open `/admin/data-sources`, set its mode and enable its schedule.
+Mock connectors are refused (the run is recorded as `SKIPPED`,
+`MOCK_NOT_ALLOWED`) unless `ALLOW_MOCK_CONNECTOR_RUNS=true`, which only KKU
+developers set locally. Sources marked `kkuExample` describe KKU's own systems
+and are of no use to other universities.
 
 ## Ingestion architecture
 
@@ -105,7 +112,8 @@ modules can be built against them.
 2. Add a connector class under `apps/ingestion/src/connectors/sources/`
    extending the right base (`ApiConnector`, `PdfUploadConnector`, …).
 3. Register it in `apps/ingestion/src/connectors/registry.ts`.
-4. Run `pnpm db:seed` — the new DataSource row appears.
+4. Run `pnpm data-sources:sync --apply` — the new DataSource row appears,
+   with scheduling off. Switch it on at `/admin/data-sources`.
 5. The admin UI at `/admin/data-sources` shows it immediately; admins
    can Run-now without restarting. Scheduled cadence takes effect
    after the ingestion worker's next bounce.

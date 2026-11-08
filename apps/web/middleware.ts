@@ -22,6 +22,11 @@ import { decodeJwt } from '@/lib/auth/jwt-codec';
 
 const PUBLIC_PATHS = [
   /^\/signin(\/|$)/,
+  // First-run wizard. A fresh installation has no account to authenticate
+  // against, so this cannot sit behind the auth gate. The page itself
+  // redirects to /signin once the installation has been claimed, and the
+  // claim is re-checked inside the transaction that performs it.
+  /^\/setup(\/|$)/,
   // Brand assets — the sign-in page and favicon load them before a session exists.
   /^\/brand\/(logo-light|logo-dark|favicon)$/,
   /^\/api\/auth(\/|$)/,

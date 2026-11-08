@@ -24,9 +24,14 @@ import { prisma } from './index';
 
 export const STUDENT_DQ_METHODOLOGY_VERSION = 'student-dq.v1';
 
-/** Connector slug that writes both cubes — the provenance anchor for
- *  `refreshedAt` and the coverage panel. */
-const DQ_SOURCE_SLUG = 'kku-dq';
+/** Sources that write the cubes — the provenance anchor for `refreshedAt`
+ *  and the coverage panel: the KKU connector, or either spreadsheet dataset
+ *  an adopting institution uploads. */
+const DQ_SOURCE_SLUGS = [
+  'kku-dq',
+  'xlsx-digital-competency-cohorts',
+  'xlsx-digital-competency-modules',
+] as const;
 
 /**
  * Small-cell suppression floor.
@@ -900,14 +905,14 @@ async function latestDqRun(): Promise<{
   refreshedAt: Date | null;
   coverage: DqOverview['coverage'];
 } | null> {
-  const source = await prisma.dataSource.findUnique({
-    where: { slug: DQ_SOURCE_SLUG },
+  const sources = await prisma.dataSource.findMany({
+    where: { slug: { in: [...DQ_SOURCE_SLUGS] } },
     select: { id: true },
   });
-  if (!source) return null;
+  if (sources.length === 0) return null;
 
   const run = await prisma.ingestionRun.findFirst({
-    where: { dataSourceId: source.id, status: 'SUCCEEDED' },
+    where: { dataSourceId: { in: sources.map((s) => s.id) }, status: 'SUCCEEDED' },
     orderBy: { createdAt: 'desc' },
     select: { completedAt: true, createdAt: true, metadata: true },
   });

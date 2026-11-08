@@ -94,6 +94,12 @@ async function main() {
   // 1. Distinct recruitment programs + a representative campaign name
   //    (prefer one carrying a parenthetical; shortest wins for cleanliness).
   const rows = await prisma.admissionCampaignStat.findMany({
+    // Spreadsheet-imported campaigns carry no registrar identifier — they
+    // name their programme directly, so there is nothing here to map. The
+    // column became nullable when admission campaigns were made importable;
+    // without this filter a null would be used as a Map key and the script
+    // would propose a mapping for the string "null".
+    where: { recruitmentProgramId: { not: null } },
     select: {
       recruitmentProgramId: true,
       facultyId: true,
@@ -103,11 +109,14 @@ async function main() {
   });
   const byPid = new Map<string, RecruitProgram>();
   for (const r of rows) {
-    const ex = byPid.get(r.recruitmentProgramId);
+    // The `where` above already excluded these; this narrows the type.
+    const recruitmentProgramId = r.recruitmentProgramId;
+    if (recruitmentProgramId === null) continue;
+    const ex = byPid.get(recruitmentProgramId);
     const hasParen = r.campaignName.includes('(');
     if (!ex) {
-      byPid.set(r.recruitmentProgramId, {
-        recruitmentProgramId: r.recruitmentProgramId,
+      byPid.set(recruitmentProgramId, {
+        recruitmentProgramId,
         facultyId: r.facultyId,
         facultyNameTh: r.facultyNameTh,
         repName: r.campaignName,

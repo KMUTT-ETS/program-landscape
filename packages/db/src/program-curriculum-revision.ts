@@ -5,6 +5,7 @@ import {
   type ProgramCurriculumRevision,
   type CurriculumRevisionInput,
   type CurriculumRevisionCourse,
+  COURSE_CODE_SOURCE,
 } from '@kku/shared';
 import { prisma } from './index';
 import { normaliseCourseCode } from './course-code-normalise';
@@ -126,10 +127,11 @@ function normaliseForQuoteMatch(s: string): string {
  *  requirement with a word it could have guessed. */
 const MIN_QUOTE_CHARS = 12;
 
-/** Course-code shape as it appears in KKU curriculum prose, e.g. EN241100 or
- *  the occasional 'EN 241100'. Deliberately loose: the point is to notice
+/** Course-code shape as it appears in curriculum prose: the old loose 5-6
+ *  digit form (EN241100, 'EN 241100', EN 24110) OR the shared course-code
+ *  pattern (adds 3-digit codes such as MEE 221). Deliberately loose: the point is to notice
  *  something that LOOKS like a code and check it, not to parse codes. */
-const PROSE_COURSE_CODE_RE = /\b[A-Z]{2,4}\s?\d{5,6}\b/g;
+const PROSE_COURSE_CODE_RE = new RegExp(`\\b[A-Z]{2,4}\\s?\\d{5,6}\\b|${COURSE_CODE_SOURCE}`, 'g');
 
 /**
  * Strip every unfounded claim from a model payload.

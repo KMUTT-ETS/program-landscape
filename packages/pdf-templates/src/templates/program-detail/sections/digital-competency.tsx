@@ -106,7 +106,7 @@ export function renderDigitalCompetencySection(
             {formatPct(dq.passRatePct)}
           </span>
           <span className="stat-label">
-            {dq.passMark === null ? 'Pass rate' : `At or above KKU pass mark (${dq.passMark})`}
+            {dq.passMark === null ? 'Pass rate' : `At or above the pass mark (${dq.passMark})`}
           </span>
         </div>
         <div className="stat" data-stat="dq-scored-students">

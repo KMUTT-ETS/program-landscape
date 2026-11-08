@@ -12,7 +12,9 @@
 #
 # apps/api and apps/web stay alpine; they don't need Playwright.
 
-ARG NODE_VERSION_BUILDER=20-bookworm-slim
+# Node 24.22.1+ is required (Node2Shell security release, Oct 2026).
+# The runner stage copies its node binary from this image too.
+ARG NODE_VERSION_BUILDER=24.22.2-bookworm-slim
 # Keep this in lockstep with `playwright` in apps/ingestion/package.json.
 # Bump whenever Playwright is upgraded — the image bundles a matching
 # Chromium build, so a drift = silent runtime errors.
@@ -75,11 +77,19 @@ RUN pnpm deploy --filter ingestion --prod --legacy /tmp/ingestion \
 # ── Stage 3: runner ──────────────────────────────────────────────────
 # Microsoft Playwright image — Ubuntu 24.04 (noble) with Chromium +
 # Firefox + WebKit + every system dep pre-installed at /ms-playwright.
-# Bundles Node 20. Image size is large (~1.2 GB) but self-contained.
+# Image size is large (~1.2 GB) but self-contained.
 # Alternative (apt-installing 30+ deps in a vanilla Ubuntu image) drifts
 # every Chromium release; the Microsoft image is the canonical answer.
 FROM mcr.microsoft.com/playwright:${PLAYWRIGHT_VERSION} AS runner
 WORKDIR /app
+# The Playwright image bundles its own Node at /usr/bin/node (v24.15.0 in
+# v1.60.0-noble), which predates the Node2Shell fix. Replace it with the
+# patched binary from the builder image (bookworm glibc 2.36 binary runs
+# on noble's glibc 2.39) and fail the build if the version is too old.
+COPY --from=deps /usr/local/bin/node /usr/bin/node
+RUN node -e "const [a,b,c]=process.versions.node.split('.').map(Number); \
+  const ok = a>26 || (a===26 && (b>12 || (b===12 && c>=1))) || (a===24 && (b>22 || (b===22 && c>=1))); \
+  if (!ok) { console.error('Node ' + process.version + ' is below the Node2Shell fix'); process.exit(1); }"
 RUN apt-get update \
   && apt-get install -y --no-install-recommends tini procps \
   && rm -rf /var/lib/apt/lists/* \

@@ -88,6 +88,14 @@ export const PERMISSIONS = [
   'kku_sso_mapping:manage',
   'data_sources:read',
   'data_sources:configure',
+  // Clearing an imported dataset ("start over"): deletes every row the
+  // spreadsheet importer wrote for one dataset, leaving connector-written
+  // rows alone. Separate from data_sources:configure so the destructive
+  // action is not reachable by the permission that routine uploads use.
+  // Held today by SUPER_ADMIN and SYSTEM_ADMIN (both spread PERMISSIONS);
+  // split later if an adopter wants an uploader who cannot clear.
+  // Asserted in apps/api/test/import-controller.test.ts.
+  'imports:destroy',
   // BullMQ queue inspection + management (ai-jobs / ingestion / pdf-intake
   // / trend-monitors). Read = look at counts and job payloads; manage =
   // retry / remove / clean / pause / resume.

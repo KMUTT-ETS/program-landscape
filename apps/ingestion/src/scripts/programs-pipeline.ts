@@ -69,14 +69,15 @@
 //
 //   Phase 7 — Strategic narrative (Pro thinking)
 //      - programs:narrative                 (gemini-3.1-pro-preview)
-//      Runs LAST among the narrative chain — consumes every prior phase.
+//      Runs LAST — after phase 8 — and consumes every prior phase, the risk
+//      assessment included (it would otherwise read the RISK channel as
+//      missing on a first run).
 //
 //   Phase 8 — Risk analysis (deterministic + Pro narrative)
 //      - risks:assess <code>                (math + gemini-3.1-pro-preview)
 //      Subprocess. Consumes Phase 4 (financials, enrolment) + Phase 5
-//      (peer subject + white-spaces) — independent of narrative, so it
-//      could run in parallel with Phase 7, but kept sequential for
-//      simpler operator-visible progress.
+//      (peer subject + white-spaces). Does not read the narrative, so it
+//      runs BEFORE Phase 7, which consumes its risk assessment.
 //
 // Cost optimization landed:
 //   - Per-method model routing — extraction tasks stay on flash; peer
@@ -100,6 +101,7 @@
 //   pnpm programs:pipeline <code> --only=phase5    # peers only
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { kkuLinkageConfigured } from '../lib/kku-linkage-config';
 import { organizationErrorForExitCode, scriptExitCode } from '../lib/organization-exit';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -153,6 +155,8 @@ import { generateProgramPeerReview } from '../program-peers/review';
 import { generateProgramStrategicNarrative } from '../program-narrative/run';
 import { runProgramAiReadiness } from '../program-ai-readiness/run';
 import { runOverlapPhase } from '../program-overlap/phase';
+import { ensureProgramSkills } from '../program-skills/ensure-skill-taxonomy';
+import { realEnsureSkillsDeps } from '../program-skills/ensure-skill-taxonomy-deps';
 
 // Phase list + display metadata live in @kku/shared — see the header comment
 // in packages/shared/src/pipeline/program-phases.ts for why (five hand-kept
@@ -366,6 +370,12 @@ async function processProgram(
   }
   const pdfPrep =
     sharedPdfPrep?.status === 'SUCCEEDED' ? sharedPdfPrep.prep : undefined;
+  // NO_TEXT is final for the whole run: log once and skip all five PDF
+  // phases, rather than letting each extractor re-fetch the same PDF.
+  const noTextReason = sharedPdfPrep?.status === 'NO_TEXT' ? sharedPdfPrep.reason : null;
+  if (noTextReason && (shouldRun('phase1') || shouldRun('phase2b'))) {
+    console.log(`  ⚠ ${noTextReason}`);
+  }
 
   // ── Phase 1 + Phase 2b — PDF AI extraction (parallel) ────────────
   // Five extractors hit the same prepared PDF in parallel: digest,
@@ -390,31 +400,31 @@ async function processProgram(
   if (phase1Enabled || phase2bEnabled) {
     const t = Date.now();
     const [digest, faculty, skills, pedagogy, coursesExtract] = await Promise.all([
-      phase1Enabled
+      phase1Enabled && !noTextReason
         ? runProgramDigest({ programId: program.id, ai, storage, force: args.force, pdfPrep, systemContext: sharedSystemContext }).catch((e) => ({
             status: 'FAILED' as const, reason: String(e?.message ?? e),
           }))
-        : Promise.resolve({ status: 'SKIPPED' as const, reason: 'phase1 disabled' }),
-      phase1Enabled
+        : Promise.resolve({ status: 'SKIPPED' as const, reason: noTextReason ?? 'phase1 disabled' }),
+      phase1Enabled && !noTextReason
         ? runProgramFacultyExtraction({ programId: program.id, ai, storage, force: args.force, pdfPrep, systemContext: sharedSystemContext }).catch((e) => ({
             status: 'FAILED' as const, reason: String(e?.message ?? e),
           }))
-        : Promise.resolve({ status: 'SKIPPED' as const, reason: 'phase1 disabled' }),
-      phase1Enabled
+        : Promise.resolve({ status: 'SKIPPED' as const, reason: noTextReason ?? 'phase1 disabled' }),
+      phase1Enabled && !noTextReason
         ? runProgramSkillsDetailed({ programId: program.id, ai, storage, force: args.force, pdfPrep }).catch((e) => ({
             status: 'FAILED' as const, reason: String(e?.message ?? e),
           }))
-        : Promise.resolve({ status: 'SKIPPED' as const, reason: 'phase1 disabled' }),
-      phase1Enabled
+        : Promise.resolve({ status: 'SKIPPED' as const, reason: noTextReason ?? 'phase1 disabled' }),
+      phase1Enabled && !noTextReason
         ? runProgramPedagogy({ programId: program.id, ai, storage, force: args.force, pdfPrep }).catch((e) => ({
             status: 'FAILED' as const, reason: String(e?.message ?? e),
           }))
-        : Promise.resolve({ status: 'SKIPPED' as const, reason: 'phase1 disabled' }),
-      phase2bEnabled
+        : Promise.resolve({ status: 'SKIPPED' as const, reason: noTextReason ?? 'phase1 disabled' }),
+      phase2bEnabled && !noTextReason
         ? runProgramCoursesExtract({ programId: program.id, ai, storage, pdfPrep }).catch((e) => ({
             status: 'FAILED' as const, reason: String(e?.message ?? e),
           }))
-        : Promise.resolve({ status: 'SKIPPED' as const, reason: 'phase2b disabled' }),
+        : Promise.resolve({ status: 'SKIPPED' as const, reason: noTextReason ?? 'phase2b disabled' }),
     ]);
     const phaseDuration = Date.now() - t;
     if (phase1Enabled) {
@@ -432,6 +442,7 @@ async function processProgram(
         ok:
           digest.status !== 'FAILED' &&
           faculty.status !== 'FAILED' &&
+          !(faculty.status === 'SUCCEEDED' && faculty.degraded) &&
           skills.status !== 'FAILED' &&
           pedagogy.status !== 'FAILED',
         notes: [
@@ -439,7 +450,11 @@ async function processProgram(
           summarise(faculty, 'faculty'),
           summarise(skills, 'skills'),
           summarise(pedagogy, 'pedagogy'),
-        ].join(' '),
+          faculty.status === 'SUCCEEDED' && faculty.degraded ? `DEGRADED — faculty: ${faculty.notes ?? ''}` : null,
+          noTextReason ? `NO_TEXT — ${noTextReason}` : null,
+        ]
+          .filter((x): x is string => x !== null)
+          .join(' '),
       });
     }
     if (phase2bEnabled) {
@@ -486,12 +501,17 @@ async function processProgram(
   // it's safe to run AFTER phase 2b's already-finished course writes.
   if (shouldRun('phase2')) {
     const r = await runApprovePending(program.id);
+    // Build the skill taxonomy from the digest's own vocabulary when its
+    // names do not match, and re-apply the stored digest (no new AI digest),
+    // so phases 3, 6 and 7 below see the skills.
+    const tTax = Date.now();
+    const tax = await ensureProgramSkills(program.id, realEnsureSkillsDeps(ai));
     phases.push({
       name: 'phase2 approve+materialise',
-      durationMs: r.ms,
-      costUsd: 0,
+      durationMs: r.ms + (Date.now() - tTax),
+      costUsd: tax.costUsd,
       ok: r.ok,
-      notes: r.notes,
+      notes: `${r.notes}; skills: ${tax.notes}`,
     });
   }
 
@@ -514,12 +534,24 @@ async function processProgram(
       durationMs: Date.now() - t,
       costUsd: cost,
       ok: careersOutcome.status !== 'FAILED' && demandOutcome.status !== 'FAILED',
-      notes: `careers=${careersOutcome.status} demand=${demandOutcome.status}`,
+      notes:
+        `careers=${careersOutcome.status} demand=${demandOutcome.status}` +
+        ('reason' in demandOutcome && demandOutcome.status === 'SKIPPED' ? ` (${demandOutcome.reason})` : ''),
     });
   }
 
   // ── Phase 4 — Oracle / MSSQL data linkage (parallel via subprocess) ─
-  if (shouldRun('phase4')) {
+  const linkage = kkuLinkageConfigured();
+  if (shouldRun('phase4') && !linkage.ok) {
+    phases.push({
+      name: 'phase4 Oracle/MSSQL (parallel)',
+      durationMs: 0,
+      costUsd: 0,
+      ok: true,
+      notes:
+        'skipped — institution registry/HR databases are not configured (KKU-only linkage; adopters upload spreadsheets)',
+    });
+  } else if (shouldRun('phase4')) {
     const t = Date.now();
     const subs: Array<Promise<{ name: string; ok: boolean; ms: number }>> = [];
     for (const script of [
@@ -715,28 +747,6 @@ async function processProgram(
     }
   }
 
-  // ── Phase 7 — Strategic narrative (Pro thinking) ─────────────────
-  // Runs after every other AI phase because it consumes their persisted
-  // signals (health, AI readiness, lifecycle, TCAS, financials, demand,
-  // demographic, peer review). Pre-computes the official Council
-  // brief so the Deep-Dive UI shows it on first load.
-  if (shouldRun('phase7')) {
-    const t = Date.now();
-    const r = await generateProgramStrategicNarrative({ programId: program.id, ai }).catch((e) => ({
-      status: 'FAILED' as const, reason: String(e?.message ?? e),
-    }));
-    phases.push({
-      name: 'phase7 strategic narrative (Pro)',
-      durationMs: Date.now() - t,
-      costUsd: r.status === 'SUCCEEDED' ? r.costUsd : 0,
-      ok: r.status !== 'FAILED',
-      notes:
-        r.status === 'SUCCEEDED'
-          ? `${r.contentLength} chars · conf ${r.confidence.toFixed(2)}`
-          : `${r.status}${'reason' in r ? ': ' + r.reason : ''}`,
-    });
-  }
-
   // ── Phase OV — Programme overlap (program-overlap.v1) ────────────
   // Re-scores every same-level pair that involves THIS programme and writes
   // a scoped ProgramOverlapRun; readers merge it over the latest full run.
@@ -761,7 +771,7 @@ async function processProgram(
   // Subprocess: risks-assess.ts owns its own dotenv, prisma, ai service.
   // Treated the same as the Oracle/MSSQL phase 4 scripts. Consumes
   // financial + enrolment (phase 4) and peer subject (phase 5). Runs
-  // last so any of its inputs are already persisted.
+  // after its inputs are persisted and before phase 7, which reads its output.
   if (shouldRun('phase8')) {
     const t = Date.now();
     const r = await runChildScript('risks-assess.ts', [program.code]);
@@ -771,6 +781,31 @@ async function processProgram(
       costUsd: 0, // cost recorded on AiInference, not extractable from subprocess stdout
       ok: r.ok,
       notes: r.ok ? 'risk assessment + narrative + measures persisted' : 'risks-assess subprocess failed',
+    });
+  }
+
+  // ── Phase 7 — Strategic narrative (Pro thinking) ─────────────────
+  // Runs after every other phase INCLUDING phase 8: it consumes their
+  // persisted signals (health, AI readiness, lifecycle, TCAS, financials,
+  // demand, demographic, peer review, and the risk assessment). Phase 8 does
+  // not read the narrative, so on a first run the narrative would otherwise be
+  // written while the RISK channel was still empty (confidence 0.69 against
+  // 0.85 once phase 7 was re-run). Pre-computes the official Council
+  // brief so the Deep-Dive UI shows it on first load.
+  if (shouldRun('phase7')) {
+    const t = Date.now();
+    const r = await generateProgramStrategicNarrative({ programId: program.id, ai }).catch((e) => ({
+      status: 'FAILED' as const, reason: String(e?.message ?? e),
+    }));
+    phases.push({
+      name: 'phase7 strategic narrative (Pro)',
+      durationMs: Date.now() - t,
+      costUsd: r.status === 'SUCCEEDED' ? r.costUsd : 0,
+      ok: r.status !== 'FAILED',
+      notes:
+        r.status === 'SUCCEEDED'
+          ? `${r.contentLength} chars · conf ${r.confidence.toFixed(2)}`
+          : `${r.status}${'reason' in r ? ': ' + r.reason : ''}`,
     });
   }
 

@@ -394,7 +394,7 @@ async function buildAiInput(
 }
 
 /** The named same-level siblings behind the two overlap KRIs, for the AI
- *  prompt (risk-assessment.v4). One query for both siblings' names. */
+ *  prompt (risk-assessment.v5). One query for both siblings' names. */
 async function buildOverlapContext(
   overlap: OverlapRiskSignal | null,
 ): Promise<RiskAssessmentInput['overlapContext']> {

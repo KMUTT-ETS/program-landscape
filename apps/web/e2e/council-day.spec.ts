@@ -6,7 +6,7 @@ import { expect, test, type Page } from '@playwright/test';
 // failures localise.
 //
 // Prerequisites:
-//   pnpm db:up && pnpm db:seed
+//   pnpm db:up && pnpm data-sources:sync --apply && SEED_MOCKS=true pnpm db:seed:kku
 //   pnpm dev                                                (in another terminal)
 //   pnpm --filter web exec playwright install --with-deps  (one-time)
 //   pnpm --filter web test:e2e

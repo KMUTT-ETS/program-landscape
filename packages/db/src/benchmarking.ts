@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { ProgramLevel } from '@prisma/client';
+import { getInstitution } from '@kku/shared';
 import { prisma } from './index';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -241,8 +242,15 @@ export async function computeSubjectLeadership(subjectArea: string): Promise<Sub
     trendsBySource[source]!.push({ institution, source, years, trend });
   }
 
+  // The configured institution's own rows: ranking tables name it either by its
+  // full English name or by its short code (KKU's seed rows say 'KKU').
+  const own = getInstitution();
+  const ownNames = new Set([own.nameEn, own.shortNameEn].map((n) => n.trim().toLowerCase()));
+  // KKU's seeded ranking rows name it 'KKU' whatever its organisation profile's
+  // short name says; accepted only when the configured institution is KKU.
+  if (/khon kaen/i.test(own.nameEn)) ownNames.add('kku');
   const kkuLatest = rankings
-    .filter((r) => r.institution === 'KKU')
+    .filter((r) => ownNames.has(r.institution.trim().toLowerCase()))
     .sort((a, b) => b.year - a.year)[0];
 
   return {

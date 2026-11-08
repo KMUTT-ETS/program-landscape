@@ -5,7 +5,7 @@ import { notFound, redirect } from 'next/navigation';
 // into the browser bundle — so they are read here, on the server, and
 // passed down. Same for the suppression floor out of `@kku/db`, which
 // the DQ copy quotes: one definition, not two.
-import { DQ_MODULES, DQ_PASS_MARK, type SessionUser } from '@kku/shared';
+import { DQ_MODULES, DQ_PASS_MARK, isAdminGrade, type SessionUser } from '@kku/shared';
 import { DQ_MIN_CELL_STUDENTS, OVERALL_MEAN_MAX_MODULE_NO } from '@kku/db';
 import { auth } from '@/lib/auth';
 import { apiFetch, apiFetchEnvelope, apiFetchSafe } from '@/lib/api-client';
@@ -13,7 +13,9 @@ import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { Button, Card, PageHeader } from '@kku/ui';
 import { ChevronRight, FileText, Home, Printer } from 'lucide-react';
+import { brandingForRequest } from '@/lib/branding';
 import { DeepDiveClient, type DeepDiveDigitalCompetency } from './client';
+import { DEFAULT_ORG_SHORT_NAMES } from '@/lib/org-names';
 import type {
   DeepDiveOverview,
   DeepDiveDemandFunnel,
@@ -125,6 +127,10 @@ export default async function ProgramDeepDivePage({
     );
   }
 
+  const branding = await brandingForRequest();
+  const orgShortNameEn = branding?.shortNameEn ?? DEFAULT_ORG_SHORT_NAMES.en;
+  const orgShortNameTh = branding?.shortNameTh ?? DEFAULT_ORG_SHORT_NAMES.th;
+
   // Cockpit-style breadcrumb so users can navigate back from the
   // deepest level (program → department → faculty → KKU root) without
   // hunting for the browser back button.
@@ -146,8 +152,8 @@ export default async function ProgramDeepDivePage({
           >
             <Home className="size-icon-sm shrink-0" aria-hidden />
             <span className="flex flex-col leading-tight">
-              <span lang="th">มข. (ภาพรวม)</span>
-              <span className="text-[10px] text-text-tertiary">KKU University</span>
+              <span lang="th">{orgShortNameTh} (ภาพรวม)</span>
+              <span className="text-[10px] text-text-tertiary">{orgShortNameEn}</span>
             </span>
           </Link>
           <ChevronRight className="size-icon-sm text-text-tertiary shrink-0" aria-hidden />
@@ -188,6 +194,11 @@ export default async function ProgramDeepDivePage({
         subtitle={`${overview.program.code} · ${overview.program.nameTh} · ${overview.program.faculty.nameEn}${overview.program.department ? ` · ${overview.program.department.nameEn}` : ''}`}
         actions={
           <div className="flex items-center gap-2">
+            {isAdminGrade(user.effectiveRole ?? user.role) && (
+              <Button variant="ghost" size="sm" asChild>
+                <Link href={`/admin/programs/${id}?tab=checklist`}>Setup checklist</Link>
+              </Button>
+            )}
             <Button variant="ghost" size="sm" asChild>
               <Link href={`/programs/${id}/print`} target="_blank" rel="noopener noreferrer">
                 <Printer className="size-icon-md" />
@@ -213,12 +224,15 @@ export default async function ProgramDeepDivePage({
         }
       />
       <DeepDiveClient
+        orgShortNameEn={orgShortNameEn}
+        orgShortNameTh={orgShortNameTh}
         user={user}
         programId={id}
         overview={overview}
         demandFunnel={demandFunnel}
         studentCohorts={studentCohorts}
         tcasStats={tcasStats}
+        canOpenDataSources={isAdminGrade(user.effectiveRole ?? user.role)}
         recruitment={recruitment}
         aiPeers={aiPeers}
         aiReadiness={aiReadiness}

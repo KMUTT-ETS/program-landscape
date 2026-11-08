@@ -17,7 +17,7 @@
    ```
    (Claude Code sessions: we use `--from-empty` + hand-curated migration folders when the shadow DB isn't available — see any of the existing migrations under `packages/db/prisma/migrations/` for the convention.)
 3. Name the migration folder `YYYYMMDDHHMMSS_<descriptor>`. Commit both the `migration.sql` and any schema changes in the same PR.
-4. Dev smoke: `pnpm db:reset` + `pnpm db:seed` + `pnpm dev` + manual click-through.
+4. Dev smoke: `pnpm db:reset` + `pnpm data-sources:sync --apply` + `pnpm db:seed` + `pnpm dev` + manual click-through.
 5. PR review — at least one other engineer confirms the migration is forward-only (no `DROP TABLE`, no `DROP COLUMN` without a deprecation path).
 6. **Prod apply:** SSH to the server, `cd /opt/program-landscape`, run `pnpm db:migrate:safe`. This takes a pre-deploy Postgres snapshot (to MinIO `db-backups/pre-deploy/`) **before** running `prisma migrate deploy`.
 

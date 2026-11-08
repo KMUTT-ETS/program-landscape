@@ -11,18 +11,17 @@ import {
   Button,
   Card,
   EdgeGlow,
+  FreshnessBadge,
   PageHeader,
   Section,
 } from '@kku/ui';
 import {
   Banknote,
   BookText,
-  Building2,
   Database,
   ExternalLink,
   FileSearch,
   FileText,
-  GitBranch,
   Globe,
   GraduationCap,
   HelpCircle,
@@ -79,6 +78,39 @@ interface DataSetupStats {
   };
 }
 
+/** One row of GET /admin/imports — mirrors `ImportDatasetSummary` in the api. */
+interface ImportDatasetSummary {
+  slug: string;
+  title: string;
+  description: string;
+  tier: 0 | 1 | 2;
+  rowCount: number;
+  lastUpload: string | null;
+  batchCount: number;
+}
+
+// The registry's tiers, in load order. Each tier refers to the one above.
+const IMPORT_TIERS: readonly { tier: 0 | 1 | 2; step: number; title: string; hint: string }[] = [
+  {
+    tier: 0,
+    step: 1,
+    title: 'Organisation backbone',
+    hint: 'Faculties, departments and programmes. Every other dataset refers to these codes.',
+  },
+  {
+    tier: 1,
+    step: 2,
+    title: 'Core programme metrics',
+    hint: 'Enrolment, finance and graduate outcomes — one row per programme per year.',
+  },
+  {
+    tier: 2,
+    step: 3,
+    title: 'Students, staff, research and teaching',
+    hint: 'The remaining Deep-Dive inputs: cohorts, admissions, staff, budgets, publications and class offerings.',
+  },
+];
+
 const EMPTY_STATS: DataSetupStats = {
   programs: { total: 0, withCurriculumPdf: 0, missingCurriculumPdf: 0 },
   curriculumDocs: { total: 0 },
@@ -103,6 +135,7 @@ export default async function AdminDataSetupPage() {
   // doesn't depend on the numbers).
   const statsRes = await apiFetchSafe<DataSetupStats>('/admin/data-setup/stats');
   const stats = statsRes.ok ? statsRes.data : EMPTY_STATS;
+  const importsRes = await apiFetchSafe<ImportDatasetSummary[]>('/admin/imports');
 
   return (
     <AuthedAppShell user={user}>
@@ -129,6 +162,49 @@ export default async function AdminDataSetupPage() {
         </div>
       )}
 
+      {/* ── Institution data — every spreadsheet-importable dataset ─ */}
+      {/* First, because everything below hangs off the org backbone, and on
+          an installation with no registrar connector these uploads are the
+          only data that exists at all. The tiles come from the import
+          registry (GET /admin/imports), so a newly declared dataset appears
+          here without editing this page. */}
+      <Section
+        title="Institution data"
+        description="Everything the Program Deep-Dive reads about your own institution, importable from spreadsheets. Load the groups in order — each refers to the codes in the one before it."
+      >
+        {importsRes.ok ? (
+          <div className="flex flex-col gap-5">
+            {IMPORT_TIERS.map((tier) => {
+              const datasets = importsRes.data.filter((d) => d.tier === tier.tier);
+              if (datasets.length === 0) return null;
+              const filled = datasets.filter((d) => d.rowCount > 0).length;
+              return (
+                <div key={tier.tier} className="flex flex-col gap-2">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-semibold text-text-primary">
+                        {tier.step}. {tier.title}
+                      </h3>
+                      <p className="text-xs text-text-tertiary">{tier.hint}</p>
+                    </div>
+                    <span className="text-xs text-text-tertiary">
+                      {filled} of {datasets.length} loaded
+                    </span>
+                  </div>
+                  <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+                    {datasets.map((d) => (
+                      <ImportDatasetTile key={d.slug} dataset={d} />
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <DiagnosticEmptyState surface="spreadsheet imports" error={importsRes.error} />
+        )}
+      </Section>
+
       {/* ── Curriculum docs ──────────────────────────────────────── */}
       <Section
         title="Curriculum documents"
@@ -139,7 +215,7 @@ export default async function AdminDataSetupPage() {
             tone="glossy"
             icon={<GraduationCap />}
             title="Full program documents (มคอ.2)"
-            description="Every active KKU program should have a current curriculum PDF linked. Programs without one can't be digested into skills, recruitment summaries, or course lists."
+            description="Every active program should have a current curriculum PDF linked. Programs without one can't be digested into skills, recruitment summaries, or course lists."
             primary={{
               label: `${stats.programs.withCurriculumPdf} of ${stats.programs.total} programs`,
               tone:
@@ -171,6 +247,7 @@ export default async function AdminDataSetupPage() {
             secondary={[
               `${stats.facultyStaff.active} currently active`,
               `Source: kku-hr connector (live)`,
+              'Also importable from a spreadsheet — see Institution data above',
             ]}
             href="/admin/data-sources/kku-hr"
             cta="View kku-hr data source"
@@ -259,6 +336,7 @@ export default async function AdminDataSetupPage() {
               `${stats.studentInfo.enrollmentMetricRows} enrollment-metric rows total`,
               `${stats.studentInfo.programsWithoutEnrollment} programs with no enrollment data`,
               `Source: kku-registry connector (live)`,
+              'Also importable from a spreadsheet — see Institution data above',
             ]}
             href="/admin/data-sources/kku-registry"
             cta="View kku-registry data source"
@@ -283,6 +361,7 @@ export default async function AdminDataSetupPage() {
               `${stats.financial.programMetrics} financial-metric rows total`,
               `${stats.financial.facultyBudgetRows} faculty-budget rows`,
               `Source: kku-finance connector (live)`,
+              'Revenue is also importable from a spreadsheet (Institution data above); cost columns are not',
             ]}
             href="/admin/data-sources/kku-finance"
             cta="View kku-finance data source"
@@ -295,14 +374,14 @@ export default async function AdminDataSetupPage() {
       {/* ── Labour-market & research — auto-fed via connectors ──── */}
       <Section
         title="Labour-market & research signal"
-        description="Demand-side and discovery-side inputs that the AI compares the curriculum against — what employers want now vs what KKU researchers are publishing."
+        description="Demand-side and discovery-side inputs that the AI compares the curriculum against — what employers want now vs what your researchers are publishing."
       >
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <CategoryCard
             tone="glossy"
             icon={<TrendingUp />}
-            title="Labour-market skills demand (LinkedIn via MHESI)"
-            description="Aggregated skill demand from LinkedIn — profiles, Thai job postings, and university graduate data. The data is owned by LinkedIn; the institutional subscription / licence is held by MHESI. KMITL hosts the API endpoint on behalf of MHESI and is not the data owner. Drives the gap-analyzer's labour-market demand source and the health-score's labour-market-alignment driver."
+            title="Labour-market skills demand (KMITL Skill Mapping or the Career Skill Demand spreadsheet)"
+            description="Aggregated skill demand per career — how often each skill is asked for in profiles, job postings and graduate data. Load it through the connector, if your region has one, or the Career Skill Demand spreadsheet. Drives the gap-analyzer's labour-market demand source and the health-score's labour-market-alignment driver."
             primary={{
               label: `${stats.laborMarketSkills.kmitlSkillDemandRows.toLocaleString()} demand rows`,
               tone: stats.laborMarketSkills.kmitlSkillDemandRows > 0 ? 'success' : 'neutral',
@@ -310,7 +389,6 @@ export default async function AdminDataSetupPage() {
             secondary={[
               `${stats.laborMarketSkills.kmitlCareers.toLocaleString()} career taxonomy entries`,
               `${stats.laborMarketSkills.kmitlSkillGrowthRows.toLocaleString()} skill-growth rows (trend signal)`,
-              `Data: LinkedIn · Subscriber: MHESI · API host: KMITL · Live since 2026-05-01`,
             ]}
             href="/admin/data-sources/kmitl-skill-mapping"
             cta="View labour-market data source"
@@ -321,7 +399,7 @@ export default async function AdminDataSetupPage() {
           <CategoryCard
             icon={<BookText />}
             title="Research outputs"
-            description="Publications via OpenAlex (free institutional API). Drives the deep-dive research section, benchmarking subject leadership, and faculty-member impact views. Scopus enrichment deferred until KKU Library provides an API key."
+            description="Publications via OpenAlex (free institutional API). Drives the deep-dive research section, benchmarking subject leadership, and faculty-member impact views. Scopus enrichment deferred until your library provides an API key."
             primary={{
               label: `${stats.researchOutputs.total.toLocaleString()} papers`,
               tone: stats.researchOutputs.total > 0 ? 'success' : 'neutral',
@@ -348,7 +426,7 @@ export default async function AdminDataSetupPage() {
         <CategoryCard
           icon={<Database />}
           title="Connector management"
-          description="24 sources across Phase A (KKU internal), Phase B (Thailand national), Phase C (international). 5 currently live (kku-registry, kku-hr, kku-finance, kku-research, kmitl-skill-mapping); the rest run on seeded mock data."
+          description="24 sources across Phase A (institution internal), Phase B (Thailand national), Phase C (international). Sources that are not yet connected run on seeded mock data."
           primary={{
             label: `${stats.dataFeeds.live} live · ${stats.dataFeeds.mocked} mocked`,
             tone: 'neutral',
@@ -369,15 +447,35 @@ export default async function AdminDataSetupPage() {
       >
         <Card padding="md" tone="quiet">
           <ul className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2 lg:grid-cols-3">
+            <RawDatasetLink slug="faculties" label="Faculties" />
+            <RawDatasetLink slug="departments" label="Departments" />
+            <RawDatasetLink slug="programmes" label="Programmes" />
             <RawDatasetLink slug="enrollment-metrics" label="Enrollment metrics" />
             <RawDatasetLink slug="student-demographics" label="Student demographics" />
             <RawDatasetLink slug="financial-metrics" label="Financial — per program" />
+            <RawDatasetLink slug="graduate-outcomes" label="Graduate outcomes (employment survey)" />
+            <RawDatasetLink slug="employer-feedback" label="Employer feedback" />
+            <RawDatasetLink slug="population-projections" label="Population projections" />
+            <RawDatasetLink slug="ranked-universities" label="University rankings" />
+            <RawDatasetLink slug="student-cohorts" label="Student cohorts (still enrolled)" />
+            <RawDatasetLink slug="external-grants" label="External grants" />
+            <RawDatasetLink slug="external-grant-team" label="External grant team" />
+            <RawDatasetLink slug="digital-competency-cohorts" label="Digital competency — cohorts" />
+            <RawDatasetLink slug="digital-competency-modules" label="Digital competency — modules" />
+            <RawDatasetLink slug="alumni-cohorts" label="Alumni cohorts (outcome per cohort)" />
+            <RawDatasetLink slug="admission-campaigns" label="Admission campaigns (recruitment funnel)" />
+            <RawDatasetLink slug="class-offerings" label="Class offerings (sections per term)" />
             <RawDatasetLink slug="faculty-budgets" label="Faculty budgets" />
             <RawDatasetLink slug="faculty-members" label="Academic staff" />
+            <RawDatasetLink slug="program-faculty" label="Programme teaching staff (who teaches what)" />
+            <RawDatasetLink slug="programme-courses" label="Programme course lists" />
+            <RawDatasetLink slug="course-evaluations" label="Course evaluations" />
             <RawDatasetLink slug="faculty-compensation" label="Faculty compensation (aggregate)" />
+            <RawDatasetLink slug="staff-salary-by-funding" label="Staff salary by funding" />
+            <RawDatasetLink slug="career-skill-demand" label="Career skill demand (uploaded)" />
             <RawDatasetLink slug="kmitl-careers" label="Labour-market career taxonomy" />
-            <RawDatasetLink slug="kmitl-skill-demands" label="LinkedIn skill demand (15.8k)" />
-            <RawDatasetLink slug="kmitl-skill-growths" label="LinkedIn skill growth (7.4k)" />
+            <RawDatasetLink slug="kmitl-skill-demands" label="Skill demand" />
+            <RawDatasetLink slug="kmitl-skill-growths" label="Skill growth" />
             <RawDatasetLink slug="research-outputs" label="Research outputs" />
             <RawDatasetLink slug="skill-aliases" label="Skill alias cache" />
             <RawDatasetLink slug="proposed-skills" label="Proposed skills (review queue)" />
@@ -502,6 +600,37 @@ function CategoryCard({
         <div className="mt-1 border-t border-border-subtle pt-3">{footer}</div>
       )}
     </Card>
+  );
+}
+
+function ImportDatasetTile({ dataset }: { dataset: ImportDatasetSummary }) {
+  const empty = dataset.rowCount === 0;
+  return (
+    <li>
+      <Link
+        href={`/admin/data-setup/raw/${dataset.slug}`}
+        className="flex h-full flex-col gap-2 rounded-md border border-subtle bg-surface-1 p-3 hover:border-strong hover:bg-accent-subtle/40"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <span className="font-medium text-text-primary">{dataset.title}</span>
+          <Badge tone={empty ? 'neutral' : 'success'}>
+            {empty ? 'Empty' : `${dataset.rowCount.toLocaleString()} rows`}
+          </Badge>
+        </div>
+        <p className="text-xs leading-relaxed text-text-secondary">{dataset.description}</p>
+        <div className="mt-auto flex items-center justify-between gap-2 pt-1 text-xs text-text-tertiary">
+          {dataset.lastUpload ? (
+            <FreshnessBadge freshnessDate={dataset.lastUpload} label="Last upload" />
+          ) : (
+            <span>No spreadsheet uploaded yet</span>
+          )}
+          <span className="flex items-center gap-1">
+            Import or view
+            <ExternalLink className="size-icon-sm" aria-hidden />
+          </span>
+        </div>
+      </Link>
+    </li>
   );
 }
 

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { isAdminGrade, type SessionUser } from '@kku/shared';
+import { can, isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
@@ -8,12 +8,14 @@ import { AdminBackNav } from '@/components/admin-back-nav';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader, Section, Badge, FreshnessBadge } from '@kku/ui';
 import { ImdUploadWidget } from './imd-upload';
+import { RunNowButton } from './run-now-button';
 import { DataSourceMark, acknowledgementHref, isMarkedSource } from '@/components/data-source-mark';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Data Source — Stats' };
 
 interface SourceStats {
+  id: string;
   slug: string;
   name: string;
   status: string;
@@ -91,6 +93,11 @@ export default async function DataSourceStatsPage({ params }: { params: { slug: 
           ) : (
             stats.name
           )
+        }
+        actions={
+          can(user, 'ingestion:trigger') ? (
+            <RunNowButton dataSourceId={stats.id} name={stats.name} />
+          ) : undefined
         }
         subtitle={
           <span className="inline-flex items-center gap-3">

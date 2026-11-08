@@ -72,7 +72,8 @@ interface CampaignRoundNode extends CampaignMetrics {
 }
 
 interface CampaignSubProgramNode extends CampaignMetrics {
-  recruitmentProgramId: string;
+  /** The registrar's PROGRAMID. Null for a spreadsheet-imported campaign. */
+  recruitmentProgramId: string | null;
   currId: string | null;
   label: string;
   roundCount: number;
@@ -1051,7 +1052,7 @@ function CampaignDrill({ rows, zeroTrackCount }: { rows: CampaignProgramRow[]; z
         (r.programNameEn ?? '').toLowerCase().includes(q) ||
         r.facultyNameTh.toLowerCase().includes(q) ||
         r.subPrograms.some((n) =>
-          n.recruitmentProgramId.includes(q) || (n.currId ?? '').includes(q) || n.label.toLowerCase().includes(q) ||
+          (n.recruitmentProgramId ?? '').includes(q) || (n.currId ?? '').includes(q) || n.label.toLowerCase().includes(q) ||
           n.rounds.some((rd) => rd.tracks.some((t) => t.campaignName.toLowerCase().includes(q))),
         ),
     );
@@ -1164,7 +1165,7 @@ function ProgramGroup({ program: p, sort }: { program: CampaignProgramRow; sort:
           )}
         </td>
       </tr>
-      {open && sorted.map((n) => <SubProgramGroup key={n.recruitmentProgramId} node={n} sort={sort} />)}
+      {open && sorted.map((n) => <SubProgramGroup key={n.recruitmentProgramId ?? n.label} node={n} sort={sort} />)}
     </>
   );
 }
@@ -1185,7 +1186,9 @@ function SubProgramGroup({ node: n, sort }: { node: CampaignSubProgramNode; sort
             {open ? <ChevronUp className="size-icon-xs text-text-tertiary" /> : <ChevronDown className="size-icon-xs text-text-tertiary" />}
             <div>
               <div className="text-xs text-text-secondary" lang="th">{n.label.slice(0, 54)}</div>
-              <div className="font-tabular text-[11px] text-text-tertiary">{n.recruitmentProgramId}</div>
+              <div className="font-tabular text-[11px] text-text-tertiary">
+                {n.recruitmentProgramId ?? 'imported'}
+              </div>
             </div>
           </div>
         </td>

@@ -1,6 +1,7 @@
 import type { Queue } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { prisma } from '@kku/db';
+import { mockRunsAllowed, type Connector } from '@kku/shared';
 import type { IngestionJobData, IngestionJobResult } from './queue';
 
 // Reads DataSource rows from the DB at boot and registers one BullMQ
@@ -19,9 +20,17 @@ import type { IngestionJobData, IngestionJobResult } from './queue';
 export class IngestionScheduler {
   private readonly logger = new Logger('IngestionScheduler');
 
-  constructor(private readonly queue: Queue<IngestionJobData, IngestionJobResult>) {}
+  constructor(
+    private readonly queue: Queue<IngestionJobData, IngestionJobResult>,
+    private readonly registry: Map<string, Connector>,
+    private readonly env: NodeJS.ProcessEnv = process.env,
+  ) {}
 
-  async registerSchedules(): Promise<{ registered: number; skipped: number }> {
+  async registerSchedules(): Promise<{
+    registered: number;
+    skipped: number;
+    skippedSlugs: { slug: string; reason: 'unregistered' | 'mock-only' }[];
+  }> {
     const sources = await prisma.dataSource.findMany({
       where: {
         scheduleEnabled: true,
@@ -38,9 +47,23 @@ export class IngestionScheduler {
 
     let registered = 0;
     let skipped = 0;
+    const skippedSlugs: { slug: string; reason: 'unregistered' | 'mock-only' }[] = [];
+    const allowMocks = mockRunsAllowed(this.env);
 
     for (const src of sources) {
       if (!src.cadenceCron) {
+        skipped++;
+        continue;
+      }
+      const connector = this.registry.get(src.slug);
+      const reason = !connector
+        ? 'unregistered'
+        : connector.mocked && !allowMocks
+          ? 'mock-only'
+          : null;
+      if (reason) {
+        this.logger.warn(`Not scheduling ${src.slug}: ${reason}`);
+        skippedSlugs.push({ slug: src.slug, reason });
         skipped++;
         continue;
       }
@@ -62,7 +85,7 @@ export class IngestionScheduler {
       registered++;
     }
 
-    return { registered, skipped };
+    return { registered, skipped, skippedSlugs };
   }
 
   // Enqueues a one-off manual run. Used by the NestJS admin controller

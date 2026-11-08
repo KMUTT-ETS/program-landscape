@@ -29,7 +29,12 @@ import type { AiMessage } from '../types';
 // exemption list). No extraction-logic change.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PROGRAM_FACULTY_VERSION = 'program-faculty.v2';
+// v3 (2026-11-03, adopter plan 5): the title-prefix list adds the common
+// short and English academic titles (ศ.ดร., ศ., รศ., ผศ., Prof., Assoc.
+// Prof., Asst. Prof., Dr.); the model is asked to fill nameEn whenever
+// the document prints an English name; the worked example no longer names
+// a real university. Output schema unchanged.
+export const PROGRAM_FACULTY_VERSION = 'program-faculty.v3';
 
 export const ProgramFacultyRoleSchema = z.enum([
   'COORDINATOR', // อาจารย์ผู้รับผิดชอบหลักสูตร
@@ -109,7 +114,7 @@ export function buildProgramFacultyMessages(
   "staff": [
     {
       "role": "COORDINATOR" | "CORE" | "INSTRUCTOR" | "SPECIAL",
-      "titlePrefix": "ผศ.ดร." | "รศ.ดร." | "ดร." | "อ." | null,
+      "titlePrefix": "ศ.ดร." | "ศ." | "รศ.ดร." | "รศ." | "ผศ.ดร." | "ผศ." | "ดร." | "อ." | "Prof." | "Assoc. Prof." | "Asst. Prof." | "Prof. Dr." | "Assoc. Prof. Dr." | "Asst. Prof. Dr." | "Dr." | "นพ." | "พญ." | "ทพ." | "ทพญ." | "ภก." | "ภญ." | null,
       "nameTh": "<ชื่อ-นามสกุลภาษาไทย ไม่รวมคำนำหน้า>",
       "nameEn": "<ชื่อภาษาอังกฤษถ้ามี ไม่รวมคำนำหน้า>",
       "qualifications": ["ปริญญา/สถาบัน/ปี"],
@@ -121,12 +126,12 @@ export function buildProgramFacultyMessages(
 }
 
 กฎ:
-- แยก "คำนำหน้าทางวิชาการ" (ผศ.ดร. / รศ.ดร. / ดร. / อ.) ออกจากชื่อ ใส่ใน titlePrefix
+- แยก "คำนำหน้าทางวิชาการ" (ศ.ดร. / ศ. / รศ.ดร. / รศ. / ผศ.ดร. / ผศ. / ดร. / อ. / Prof. / Assoc. Prof. / Asst. Prof. / Prof. Dr. / Assoc. Prof. Dr. / Asst. Prof. Dr. / Dr. และคำนำหน้าทางการแพทย์ เช่น นพ. / พญ. / ทพ. / ทพญ. / ภก. / ภญ. รวมถึงแบบรวม เช่น ผศ.นพ. / รศ.พญ.) ออกจากชื่อ ใส่ใน titlePrefix
 - nameTh ต้องเป็นชื่อบริสุทธิ์ ไม่รวมคำนำหน้า ไม่รวมเลข
-- หากเอกสารระบุชื่อภาษาอังกฤษคู่กัน ให้ใส่ใน nameEn เช่นกัน — ห้ามแปลเอง
+- หากเอกสารพิมพ์ชื่อภาษาอังกฤษคู่กัน (ในวงเล็บ หรือในบรรทัดถัดไป) ต้องใส่ใน nameEn เสมอ ไม่รวมคำนำหน้า — ห้ามแปลหรือถอดเสียงเอง
 - หากอาจารย์ปรากฏในหลายประเภท ให้ใส่ entry เดียว เลือก role ที่สูงที่สุด ตามลำดับ COORDINATOR > CORE > INSTRUCTOR > SPECIAL
 - หากเอกสารไม่มีรายชื่ออาจารย์ที่ระบุชัด ให้ส่ง staff เป็น array ว่างพร้อม confidence ต่ำ
-- qualifications: หนึ่งบรรทัดต่อปริญญา เช่น ["ปร.ด. (วิศวกรรมเครื่องกล), จุฬาลงกรณ์มหาวิทยาลัย, 2553", "วศ.ม., มหาวิทยาลัยขอนแก่น, 2548"]
+- qualifications: หนึ่งบรรทัดต่อปริญญา เช่น ["ปร.ด. (วิศวกรรมเครื่องกล), จุฬาลงกรณ์มหาวิทยาลัย, 2553", "วศ.ม., มหาวิทยาลัยตัวอย่าง, 2548"]
 - ระวังตัวเลขที่ไม่ใช่ชื่อ (เช่น เลขประจำตัว 13 หลัก, ปี พ.ศ., รหัสตำแหน่ง) — อย่าดึงมาเป็นชื่อ
 
 LANGUAGE RULE (English-only free text):
@@ -158,16 +163,16 @@ BANNED PHRASES (do not use these words/phrases or their close paraphrases in rea
 
 [ส่วน มคอ.2]
 "3. อาจารย์ผู้รับผิดชอบหลักสูตร
-1. ผศ.ดร.สมชาย ใจดี — ปร.ด. (วิศวกรรมเครื่องกล) มหาวิทยาลัยขอนแก่น 2553 — ความเชี่ยวชาญ: เทอร์โมไดนามิกส์
-2. รศ.ดร.วิชัย รักงาน — Ph.D. (Mechanical Engineering), University of Tokyo, 2548
+1. ผศ.ดร.สมชาย ใจดี — ปร.ด. (วิศวกรรมเครื่องกล) มหาวิทยาลัยตัวอย่าง 2553 — ความเชี่ยวชาญ: เทอร์โมไดนามิกส์
+2. รศ.ดร.วิชัย รักงาน (Assoc. Prof. Wichai Rakngan, Ph.D.) — Ph.D. (Mechanical Engineering), Example University, 2548
 อาจารย์ประจำหลักสูตร
 1. ดร.สุดา ขยันเรียน
 2. อ.ปรีชา ตั้งใจ"
 
 [Output]
 {"staff":[
-  {"role":"COORDINATOR","titlePrefix":"ผศ.ดร.","nameTh":"สมชาย ใจดี","nameEn":"","qualifications":["ปร.ด. (วิศวกรรมเครื่องกล) มหาวิทยาลัยขอนแก่น 2553"],"specialization":"เทอร์โมไดนามิกส์"},
-  {"role":"COORDINATOR","titlePrefix":"รศ.ดร.","nameTh":"วิชัย รักงาน","nameEn":"","qualifications":["Ph.D. (Mechanical Engineering), University of Tokyo, 2548"],"specialization":""},
+  {"role":"COORDINATOR","titlePrefix":"ผศ.ดร.","nameTh":"สมชาย ใจดี","nameEn":"","qualifications":["ปร.ด. (วิศวกรรมเครื่องกล) มหาวิทยาลัยตัวอย่าง 2553"],"specialization":"เทอร์โมไดนามิกส์"},
+  {"role":"COORDINATOR","titlePrefix":"รศ.ดร.","nameTh":"วิชัย รักงาน","nameEn":"Wichai Rakngan","qualifications":["Ph.D. (Mechanical Engineering), Example University, 2548"],"specialization":""},
   {"role":"CORE","titlePrefix":"ดร.","nameTh":"สุดา ขยันเรียน","nameEn":"","qualifications":[],"specialization":""},
   {"role":"CORE","titlePrefix":"อ.","nameTh":"ปรีชา ตั้งใจ","nameEn":"","qualifications":[],"specialization":""}
 ],"confidence":0.95,"reasoning":"Section 3 clearly lists 4 named staff members."}`;

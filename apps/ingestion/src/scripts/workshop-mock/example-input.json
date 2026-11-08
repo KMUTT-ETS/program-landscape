@@ -1,0 +1,16 @@
+{
+  "university": "มหาวิทยาลัยเทคโนโลยีพระจอมเกล้าธนบุรี",
+  "region": "Central",
+  "programmes": [
+    {
+      "name": "วิศวกรรมคอมพิวเตอร์",
+      "pdf": "pdfs/computer-engineering.pdf",
+      "level": "BACHELOR"
+    },
+    {
+      "name": "วิศวกรรมเครื่องกล",
+      "pdf": "pdfs/mechanical-engineering.pdf",
+      "faculty": "คณะวิศวกรรมศาสตร์"
+    }
+  ]
+}

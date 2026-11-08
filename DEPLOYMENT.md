@@ -168,6 +168,19 @@ cd program-landscape-1.0.0
 ORG_SEED_KKU=1 ./scripts/deploy.sh                 # KKU's own server; other installs omit ORG_SEED_KKU
 ```
 
+> **Upgrade note.** Deploys no longer change connector schedules. The catalogue
+> sync creates a `data_sources` row for any connector added in a release with
+> scheduling **off**, and leaves existing rows exactly as an administrator set
+> them. After upgrading, switch on any new connector you want in
+> `/admin/data-sources`. Mock connectors never run in production unless
+> `ALLOW_MOCK_CONNECTOR_RUNS=true`.
+>
+> From this release, sources whose connector resolves to a mock are no longer
+> scheduled, and manual runs of them are recorded `SKIPPED`
+> (`MOCK_NOT_ALLOWED`). KKU operators should review `/admin/data-sources` and
+> confirm `.env.prod` sets `CONNECTOR_<SLUG>_MODE=real` for every source they
+> still want running.
+
 ### Alternative: stream the images, skip the archive entirely
 
 Lightest option — writes ~4 MB to the server instead of ~9 GB, because the
@@ -198,6 +211,29 @@ already exists) without `ORG_SEED_KKU=1`, `deploy.sh` checks that the profile
 exists and stops before the swap when it does not — re-run with
 `ORG_SEED_KKU=1` (KKU) or `ORG_ALLOW_UNCONFIGURED=1` (other installs, then fill
 in `/admin/organization` after the deploy).
+
+**The first administrator (new installations only).** A database that has
+never been seeded has no administrator, and nothing in the product makes one:
+SSO provisioning creates every account as `PROGRAM_USER`, and promoting
+anyone is itself behind `/admin`. Immediately after the first deploy, open
+the site in a browser — it redirects to **`/setup`** — and create the first
+administrator there.
+
+Treat this as part of the deploy, not a later errand. **The page is
+unauthenticated and the first person to submit it becomes a `SUPER_ADMIN`**,
+so the window between the service accepting traffic and the form being
+submitted is a window in which anyone who can reach the address can claim the
+installation. It shuts permanently on first use, and stays shut even if that
+account is later removed (a `system_settings` row, `setup.completed`, is the
+latch).
+
+That account signs in with a password, because its installation has no SSO
+yet. The password form is hidden once SSO is configured; `/signin?password=1`
+brings it back. Promote an SSO account to administrator before relying on
+that, so the installation does not rest on one password.
+
+KKU's installation is unaffected — it already has administrators, which
+closes `/setup` on its own without the latch.
 
 `ORG_SEED_KKU=1` also fills KKU's logos, favicon and colours into the brand fields that are still empty (logos go to the MinIO `branding` bucket); it never overwrites anything an admin set.
 

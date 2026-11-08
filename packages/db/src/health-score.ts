@@ -1,6 +1,8 @@
 import { Prisma } from '@prisma/client';
+import type { SfrBand } from '@prisma/client';
 import { z } from 'zod';
-import { getInstitution } from '@kku/shared';
+import { getInstitution, intakeComplianceFor, intakeFloors } from '@kku/shared';
+import type { IntakeCompliance } from '@kku/shared';
 import type { ScopeLevel } from './scope';
 import { prisma } from './index';
 import { queryMetricByScope, type MetricRow } from './scope';
@@ -9,9 +11,12 @@ import { programFunnelYears, scopeFunnelLatestYear } from './program-funnel';
 import { JOBTHAI_MIN_LINK_SCORE, JOBTHAI_MIN_POSTINGS_FOR_SIGNAL, JOBTHAI_MIN_RELEVANT_SKILLS } from './jobthai-bridge';
 import { programJobThaiSkillCoverage } from './jobthai';
 import { DEMAND_SOURCE_LINKEDIN, demandMatchSourceWhere } from './demand-match-sources';
-import { getAcademicYearContext } from './academic-year';
+import { NATIONAL_REGION, projectionRegionForInstitution } from './projection-region';
+import { eligibleProjectionRegions, pickProjectionSource } from './projection-source';
+import { getAcademicYearContext, entryYearComplete } from './academic-year';
 import { GRANT_AWARD_LABEL, grantAward, withAward } from './grant-award';
 import { pickFinancialYear } from './financial-year';
+import { PUBLIC_TCAS_BASIS, PUBLIC_TCAS_ROUND3, publicTcasTotals } from './public-tcas-basis';
 import {
   dqCompetencyByScope,
   dqDriverScore,
@@ -221,7 +226,34 @@ export const FLAGSHIP_REVENUE_FLOOR_THB = 3_000_000;
 //   teaching staff member per year, last 3 complete Thai FY, log curve
 //   ฿0.1 M → 0 to ฿3 M → +10 (packages/db/src/grant-award.ts). Never lowers
 //   a score, never touches completeness, null base earns nothing.
-export const HEALTH_SCORE_VERSION = 'health-score.v5.4';
+//
+// v5.5 (2026-11-03) — the demographic-resilience driver reads the
+//   institution's region from the organisation profile (regionEn, matched
+//   against the regions the projection carries; no match or no profile ->
+//   the driver is null, never the national series) instead of a hard-coded
+//   'Northeast'. The student:staff-ratio band comes from the faculty's
+//   Teaching Mode (Faculty.sfrBand; default Professional) instead of a
+//   hard-coded faculty-code map; KKU's bands were backfilled by migration,
+//   so its scores are unchanged.
+//
+// v5.6 (2026-11-03) — when the latest complete admission-campaign year has no
+//   planned seats (an adopter's sheet often has applicants and passed counts
+//   but no seats), tcas_competition_ratio, tcas_fill_rate and
+//   tcas_competition_vs_peers fall back to the programme's public TCAS
+//   round-3 figures for that year (ratio = applicants / quota, fill =
+//   admitted / quota; each tcas_course_code counted once, then summed). The
+//   basis is recorded as `basis: 'public-tcas-round3'` in the driver raw.
+//   tcas_registration_yield has no public equivalent and stays null. The
+//   fallback also fires for a programme with no campaign rows at all (latest
+//   complete year that has public round-3 rows). tcas_registration_yield is
+//   null, reason 'reported-not-stated', when Confirmed is stated but no row
+//   states Reported (absent is not 0). The tcas_min_score_percentile driver
+//   retries with the signature of the programme's own Thai name when its
+//   TCAS subject key finds fewer than 3 peers. KKU's campaign data carries
+//   seats and Reported, so the funnel drivers are unchanged for it; the
+//   percentile fallback can move KKU programmes that previously read null
+//   and was not measured on KKU data (none is available on this branch).
+export const HEALTH_SCORE_VERSION = 'health-score.v5.6';
 
 // ── Cost-allocation methodology (gap #5) ────────────────────────────
 // The Financial dimension's `net_contribution_per_student` +
@@ -239,18 +271,23 @@ export const HEALTH_SCORE_VERSION = 'health-score.v5.4';
 // from PREVIEW_METHODOLOGIES.
 export const COST_ALLOCATION_VERSION = 'cost-allocation.v0';
 
-// ── KKU intake-floor policy ─────────────────────────────────────────
-// Council policy (2026): every program must hit a minimum new-intake
-// floor each academic year. Failing the floor is a structural risk
-// signal — strict for undergraduate (closure-track), watch-list for
-// postgraduate (where small-cohort is structurally normal).
+// ── Intake-floor policy ─────────────────────────────────────────────
+// Council policy: every programme must hit a minimum new-intake floor each
+// academic year. Failing the floor is a structural risk signal — strict for
+// undergraduate (closure-track), watch-list for postgraduate (where a small
+// cohort is structurally normal).
+//
+// The floors themselves are NOT here any more. They were `30` and `8`,
+// written in this file and copied into risk-scoring.ts, which judged every
+// adopting institution by one university's rule and gave two constants the
+// freedom to drift apart. They now sit on the organisation profile and are
+// read through @kku/shared's intake-policy module, which is also where the
+// curves live. An installation with no profile configured yields no floors,
+// and the driver below reads null rather than guessing.
 //
 // Compliance state surfaces in the attractiveness driver's `raw.compliance`
 // field and feeds the lifecycle verdict.
-export const KKU_INTAKE_FLOOR_BACHELOR = 30;
-export const KKU_INTAKE_FLOOR_POSTGRAD = 8;
-
-export type IntakeCompliance = 'compliant' | 'watch' | 'breach' | 'unknown';
+export type { IntakeCompliance } from '@kku/shared';
 
 /** Standalone helper for surface-layer code (deep-dive header, dashboard,
  *  cockpit). Returns the canonical compliance state for any program given
@@ -260,32 +297,8 @@ export function getKkuIntakePolicyVerdict(
   level: string,
   latestIntake: number | null,
 ): { state: IntakeCompliance; floor: number } {
-  const v = intakeComplianceFor(level, latestIntake);
+  const v = intakeComplianceFor(level, latestIntake, intakeFloors());
   return { state: v.state, floor: v.floor };
-}
-
-function intakeComplianceFor(
-  level: 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA' | string,
-  intake: number | null,
-): { state: IntakeCompliance; floor: number; score: number | null } {
-  if (intake === null) return { state: 'unknown', floor: 0, score: null };
-  if (level === 'BACHELOR') {
-    const floor = KKU_INTAKE_FLOOR_BACHELOR;
-    if (intake < floor) {
-      // Strict policy: severely punish — far below floor → 0;
-      // half the floor → ~25.
-      return { state: 'breach', floor, score: clamp((intake / floor) * 50) };
-    }
-    // At or above floor — scale to 100 at 2× floor.
-    return { state: 'compliant', floor, score: clamp(50 + ((intake - floor) / floor) * 50) };
-  }
-  // Postgraduate (MASTER / DOCTORAL / HIGHER_GRAD_DIPLOMA) — watch-list,
-  // not strict closure-track. Below floor still penalised but not zeroed.
-  const floor = KKU_INTAKE_FLOOR_POSTGRAD;
-  if (intake < floor) {
-    return { state: 'watch', floor, score: clamp(30 + (intake / floor) * 30) };
-  }
-  return { state: 'compliant', floor, score: clamp(60 + ((intake - floor) / floor) * 40) };
 }
 
 export const HEALTH_DIMENSIONS = [
@@ -875,6 +888,11 @@ async function resolveChildren(scope: ScopeLevel, scopeId: string | null): Promi
 // ──────────────────────────────────────────────────────────────────────────
 
 async function scoreAttractivenessProgram(programId: string): Promise<HealthScore> {
+  // This installation's council policy. Null when no organisation profile
+  // exists, which makes the intake driver read null rather than silently
+  // judging the programme by whatever floor happened to be in the source.
+  const floors = intakeFloors();
+
   // Latest COMPLETE year TCAS funnel — sums across rounds 1–4 + any
   // sub-rounds for the program's most recent FINISHED recruitment.
   // POWERBI.ADMISSION_STAT_CURRID gives quota / applicants / passed /
@@ -920,9 +938,18 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
     passed: number;
     sendCh: number;
     regReported: number;
+    /** False when no row of the year states a Reported figure (v5.6). */
+    regReportedStated: boolean;
     rounds: number;
     year: number;
     inProgressYear: number | null;
+    /** Set to PUBLIC_TCAS_BASIS when seats/applicants/passed come from the
+     *  public round-3 data (v5.6); absent when the campaign sheet supplied them. */
+    basis?: string;
+    /** Campaign basis: some other year states seats but the latest complete one does not. */
+    seatsStatedInOtherYears?: boolean;
+    /** Public basis only: no row states an admitted count (missing, not 0). */
+    admittedNotPublished?: boolean;
   } | null = null;
   if (latestComplete !== null) {
     funnelTotals = {
@@ -931,6 +958,7 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
       passed: latestComplete.totalPassed,
       sendCh: latestComplete.sendClearinghouse,
       regReported: latestComplete.regReported,
+      regReportedStated: latestComplete.regReportedStated,
       rounds: latestComplete.rounds,
       year: latestComplete.entryYearBE,
       inProgressYear:
@@ -938,7 +966,85 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
           ? latestYearOverall
           : null,
     };
+    // v5.6: no planned seats in the campaign sheet -> the public TCAS round-3
+    // figures for this programme and year stand in for seats / applicants /
+    // passed. Campaign seats, when present, are never overridden.
+    // Trigger: the programme's campaign data states no seat figure in ANY
+    // year (enroll_seats and plan_per_year both absent). A programme whose
+    // sheet carries seats but zero for one year keeps its campaign reading.
+    const noSeatsAnywhere = funnelYears.every((y) => y.enrollSeats <= 0 && (y.planPerYear ?? 0) <= 0);
+    if (funnelTotals.enrollSeats <= 0 && !noSeatsAnywhere) funnelTotals.seatsStatedInOtherYears = true;
+    if (funnelTotals.enrollSeats <= 0 && noSeatsAnywhere) {
+      const publicRows = await prisma.tcasAdmissionStat.findMany({
+        where: {
+          programId,
+          entryYearBE: latestComplete.entryYearBE,
+          round: { in: [...PUBLIC_TCAS_ROUND3] },
+          ...realDataWhere(),
+        },
+        select: {
+          tcasCourseCode: true,
+          quota: true,
+          applicants: true,
+          admittedPass1: true,
+          admittedPass2: true,
+        },
+      });
+      const pub = publicTcasTotals(publicRows);
+      if (pub) {
+        funnelTotals = {
+          ...funnelTotals,
+          enrollSeats: pub.quota,
+          applicants: pub.applicants,
+          passed: pub.admitted,
+          basis: PUBLIC_TCAS_BASIS,
+          admittedNotPublished: !pub.admittedPublished,
+        };
+      }
+    }
   }
+
+  // v5.6: a programme with NO campaign rows at all can still be scored on the
+  // public round-3 figures (the latest complete year that has any). On KKU's
+  // installation the impact of this branch was not measured.
+  if (funnelTotals === null && funnelYears.length === 0) {
+    const ay = await getAcademicYearContext();
+    const allPublic = await prisma.tcasAdmissionStat.findMany({
+      where: { programId, round: { in: [...PUBLIC_TCAS_ROUND3] }, ...realDataWhere() },
+      select: {
+        entryYearBE: true,
+        tcasCourseCode: true,
+        quota: true,
+        applicants: true,
+        admittedPass1: true,
+        admittedPass2: true,
+      },
+    });
+    const years = [...new Set(allPublic.map((r) => r.entryYearBE))]
+      .filter((y) => entryYearComplete(y, ay))
+      .sort((a, b) => b - a);
+    const year = years[0];
+    if (year !== undefined) {
+      const pub = publicTcasTotals(allPublic.filter((r) => r.entryYearBE === year));
+      if (pub) {
+        const newest = Math.max(...allPublic.map((r) => r.entryYearBE));
+        funnelTotals = {
+          enrollSeats: pub.quota,
+          applicants: pub.applicants,
+          passed: pub.admitted,
+          sendCh: 0,
+          regReported: 0,
+          regReportedStated: false,
+          rounds: 1,
+          year,
+          inProgressYear: newest > year ? newest : null,
+          basis: PUBLIC_TCAS_BASIS,
+          admittedNotPublished: !pub.admittedPublished,
+        };
+      }
+    }
+  }
+  const peerYear = funnelTotals?.year ?? latestComplete?.entryYearBE ?? null;
 
   // Peer competition ratio for the latest complete year — TCAS3 peer
   // rows in TcasAdmissionStat (KKU's own rows there were retired but
@@ -946,13 +1052,15 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
   // Program.nameTh (the new funnel doesn't carry programmeName).
   let peerMedianRatio: number | null = null;
   let peerCount = 0;
-  if (latestComplete !== null && programRow?.nameTh) {
+  if (peerYear !== null && programRow?.nameTh) {
     const subjectKey = extractSubjectSignature(programRow.nameTh);
     if (subjectKey.length >= 2) {
       const peerRows = await prisma.tcasAdmissionStat.findMany({
         where: {
-          entryYearBE: latestComplete.entryYearBE,
+          entryYearBE: peerYear,
           institutionName: { not: getInstitution().nameTh },
+          // Same round-3 basis as the programme's own fallback figures.
+          round: { in: [...PUBLIC_TCAS_ROUND3] },
           programmeName: { contains: subjectKey, mode: 'insensitive' },
           quota: { gt: 0 },
           ...realDataWhere(),
@@ -999,12 +1107,21 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
       label: 'tcas_fill_rate',
       value: (() => {
         if (!funnelTotals || funnelTotals.enrollSeats <= 0) return null;
+        // Public basis with no admitted figures: missing, never a 0 fill.
+        if (funnelTotals.admittedNotPublished) return null;
         // passed/seats ≥ 0.5 → 100, linear below.
         const fill = funnelTotals.passed / funnelTotals.enrollSeats;
         return fill >= 0.5 ? 100 : clamp((fill / 0.5) * 100);
       })(),
       raw: funnelTotals
-        ? { passed: funnelTotals.passed, seats: funnelTotals.enrollSeats }
+        ? {
+            ...(funnelTotals.admittedNotPublished ? { reason: 'admitted-not-published' } : {}),
+            passed: funnelTotals.passed,
+            seats: funnelTotals.enrollSeats,
+            year: funnelTotals.year,
+            ...(funnelTotals.seatsStatedInOtherYears ? { seatsStatedInOtherYears: true } : {}),
+            ...(funnelTotals.basis ? { basis: funnelTotals.basis } : {}),
+          }
         : null,
     },
     {
@@ -1015,6 +1132,8 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
         // are bleeding attractiveness. ≥0.85 = excellent; 0.5 = mid;
         // <0.3 = serious leakage.
         if (!funnelTotals || funnelTotals.sendCh <= 0) return null;
+        // Confirmed stated but Reported not: missing, never a 0 yield.
+        if (!funnelTotals.regReportedStated) return null;
         const yieldRate = funnelTotals.regReported / funnelTotals.sendCh;
         return yieldRate >= 0.85
           ? 100
@@ -1023,7 +1142,11 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
             : Math.max(0, yieldRate * 100);
       })(),
       raw: funnelTotals
-        ? { regReported: funnelTotals.regReported, sendCh: funnelTotals.sendCh }
+        ? {
+            ...(funnelTotals.regReportedStated || funnelTotals.sendCh <= 0 ? {} : { reason: 'reported-not-stated' }),
+            regReported: funnelTotals.regReported,
+            sendCh: funnelTotals.sendCh,
+          }
         : null,
     },
     {
@@ -1047,7 +1170,9 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
             : null,
         peerMedianRatio,
         peerCount,
-        year: latestComplete?.entryYearBE ?? null,
+        year: peerYear,
+        ...(funnelTotals?.seatsStatedInOtherYears ? { seatsStatedInOtherYears: true } : {}),
+        ...(funnelTotals?.basis ? { basis: funnelTotals.basis } : {}),
       },
     },
     {
@@ -1066,24 +1191,30 @@ async function scoreAttractivenessProgram(programId: string): Promise<HealthScor
       raw: { series: enrollment.map((r) => r.enrolled) },
     },
     {
-      // KKU intake-floor policy — bachelor=30, postgrad=8.
-      // Bachelor breaches are strict (closure-track); postgrad
-      // breaches are watch-list. The driver's `raw.compliance` is
-      // the canonical surface for UI badges + lifecycle verdicts.
+      // Intake-floor policy. The floors come from this installation's
+      // organisation profile, not from the source — see @kku/shared's
+      // intake-policy module. Bachelor breaches are strict
+      // (closure-track); postgraduate breaches are watch-list. The
+      // driver's `raw.compliance` is the canonical surface for UI badges
+      // and lifecycle verdicts.
+      //
+      // The label keeps its historic name: it is written into stored
+      // assessments and named in the methodology docs, so renaming it is a
+      // versioned change rather than a tidy-up.
       label: 'kku_intake_policy',
       value: (() => {
         const series = applyPartialYearDrop(
           enrollment.map((r) => ({ year: r.academicYear, value: r.enrolled })),
         );
         const latestIntake = series[series.length - 1]?.value ?? null;
-        return intakeComplianceFor(programRow?.level ?? 'BACHELOR', latestIntake).score;
+        return intakeComplianceFor(programRow?.level ?? 'BACHELOR', latestIntake, floors).score;
       })(),
       raw: (() => {
         const series = applyPartialYearDrop(
           enrollment.map((r) => ({ year: r.academicYear, value: r.enrolled })),
         );
         const latestIntake = series[series.length - 1]?.value ?? null;
-        const verdict = intakeComplianceFor(programRow?.level ?? 'BACHELOR', latestIntake);
+        const verdict = intakeComplianceFor(programRow?.level ?? 'BACHELOR', latestIntake, floors);
         return {
           level: programRow?.level ?? null,
           latestIntake,
@@ -1426,8 +1557,7 @@ async function scoreCapabilityProgram(programId: string): Promise<HealthScore> {
   // Latest-year enrolment + faculty discipline (drives the SFR band).
   // QS/THE both weight student-faculty ratio heavily — and apply
   // different thresholds by subject (clinical = strict, humanities =
-  // lenient). Pull the program's faculty.code so we can pick the
-  // right band.
+  // lenient). Pull the program's faculty teaching-mode band.
   const [latestEnrollment, programRow] = await Promise.all([
     prisma.enrollmentMetric.findFirst({
       where: { programId, ...realDataWhere() },
@@ -1436,11 +1566,11 @@ async function scoreCapabilityProgram(programId: string): Promise<HealthScore> {
     }),
     prisma.program.findUnique({
       where: { id: programId },
-      select: { faculty: { select: { code: true } } },
+      select: { faculty: { select: { sfrBand: true } } },
     }),
   ]);
   const enrolled = latestEnrollment?.enrolled ?? 0;
-  const sfrBand = sfrBandFor(programRow?.faculty?.code);
+  const sfrBand = sfrBandFor(programRow?.faculty?.sfrBand);
 
   // Publications: research outputs in the last 3 years for the same
   // faculty members.
@@ -1526,7 +1656,6 @@ async function scoreCapabilityProgram(programId: string): Promise<HealthScore> {
 //
 // Each band: linear from "world-class" at the lower bound to 0 at the
 // upper bound; below lower → 100; above upper → 0.
-type SfrBand = 'CLINICAL' | 'STEM_LAB' | 'STUDIO' | 'PROFESSIONAL' | 'HUMANITIES';
 const SFR_BANDS: Record<SfrBand, { lower: number; upper: number }> = {
   CLINICAL:     { lower: 6,  upper: 16 },
   STEM_LAB:     { lower: 10, upper: 28 },
@@ -1535,45 +1664,13 @@ const SFR_BANDS: Record<SfrBand, { lower: number; upper: number }> = {
   HUMANITIES:   { lower: 22, upper: 48 },
 };
 
-// Faculty-code → SFR band. Anchored to KKU's 24 faculties as of 2026-05.
-// Graduate School / MBA / International College roll up small cohorts of
-// mixed discipline; default them to PROFESSIONAL (mid-band) — analyst
-// can refine later via per-program override if needed.
-const SFR_BAND_BY_FACULTY: Record<string, SfrBand> = {
-  // Clinical / patient-supervised
-  MD:   'CLINICAL',
-  DT:   'CLINICAL',
-  VM:   'CLINICAL',
-  NU:   'CLINICAL',
-  AMS:  'CLINICAL',
-  PH:   'CLINICAL',
-  PHA:  'CLINICAL',
-  // Lab-intensive sciences + engineering
-  AG:   'STEM_LAB',
-  SC:   'STEM_LAB',
-  EN:   'STEM_LAB',
-  TC:   'STEM_LAB',
-  COC:  'STEM_LAB',
-  // Studio / individual-instruction
-  AR:   'STUDIO',
-  FAR:  'STUDIO',
-  // Professional / cohort-based
-  BS:   'PROFESSIONAL',
-  LAW:  'PROFESSIONAL',
-  EC:   'PROFESSIONAL',
-  COPA: 'PROFESSIONAL',
-  IC:   'PROFESSIONAL',
-  NK:   'PROFESSIONAL',
-  GS:   'PROFESSIONAL',
-  MBA:  'PROFESSIONAL',
-  // Humanities + lecture-heavy social science / education
-  HU:   'HUMANITIES',
-  ED:   'HUMANITIES',
-};
-
-function sfrBandFor(facultyCode: string | null | undefined): SfrBand {
-  if (!facultyCode) return 'PROFESSIONAL'; // defensive default — middle of the road
-  return SFR_BAND_BY_FACULTY[facultyCode] ?? 'PROFESSIONAL';
+/**
+ * The band for a faculty: its stored teaching mode, or PROFESSIONAL (the mid
+ * band) when none is set. Faculties on a fresh install carry none; KKU's were
+ * backfilled by migration 20261103120000_faculty_sfr_band.
+ */
+export function sfrBandFor(sfrBand: SfrBand | null | undefined): SfrBand {
+  return sfrBand ?? 'PROFESSIONAL';
 }
 
 function scoreStudentFacultyRatio(ratio: number, band: SfrBand): number {
@@ -1599,15 +1696,15 @@ async function scoreCapabilityScope(scopeId: string, scope: ScopeLevel): Promise
         scope === 'faculty'
           ? { id: scopeId }
           : { departments: { some: { id: scopeId } } },
-      select: { code: true },
+      select: { sfrBand: true },
     });
-    scopeBand = sfrBandFor(fac?.code);
+    scopeBand = sfrBandFor(fac?.sfrBand);
   } else if (scope === 'program') {
     const p = await prisma.program.findUnique({
       where: { id: scopeId },
-      select: { faculty: { select: { code: true } } },
+      select: { faculty: { select: { sfrBand: true } } },
     });
-    scopeBand = sfrBandFor(p?.faculty?.code);
+    scopeBand = sfrBandFor(p?.faculty?.sfrBand);
   }
   const links = await prisma.programFaculty.findMany({
     where: { programId: { in: programIds } },
@@ -1685,25 +1782,39 @@ async function scoreOutcomesProgram(programId: string, oRow: MetricRow | null): 
   });
   let percentile: number | null = null;
   if (kkuTcas && kkuTcas.minScorePass1 !== null) {
-    const subjectKey = extractSubjectSignature(kkuTcas.programmeName);
-    const peers = await prisma.tcasAdmissionStat.findMany({
-      where: {
-        entryYearBE: kkuTcas.entryYearBE,
-        round: kkuTcas.round,
-        minScorePass1: { not: null },
-        institutionName: { not: getInstitution().nameTh },
-        programmeName: { contains: subjectKey, mode: 'insensitive' },
-        ...realDataWhere(),
-      },
-      select: { minScorePass1: true, programmeName: true },
-    });
-    const peerScores = peers
-      .filter((p) => extractSubjectSignature(p.programmeName) === subjectKey)
-      .map((p) => p.minScorePass1!)
-      .filter((v): v is number => v !== null);
-    if (peerScores.length >= 3) {
-      const below = peerScores.filter((s) => s < kkuTcas.minScorePass1!).length;
-      percentile = (below / peerScores.length) * 100;
+    // The programme's own TCAS name is whatever the institution typed
+    // ("... สาขาวิชาวิศวกรรมเครื่องกล ปริญญาตรี 4 ปี"), and its signature can
+    // swallow trailing words that peers' names do not have. When that key
+    // finds too few peers, retry with the signature of the programme's own
+    // Thai name, as the competition-vs-peers driver does.
+    const ownName = await prisma.program.findUnique({ where: { id: programId }, select: { nameTh: true } });
+    const subjectKeys = [
+      ...new Set(
+        [extractSubjectSignature(kkuTcas.programmeName), ownName?.nameTh ? extractSubjectSignature(ownName.nameTh) : '']
+          .filter((k) => k.length >= 2),
+      ),
+    ];
+    for (const subjectKey of subjectKeys) {
+      const peers = await prisma.tcasAdmissionStat.findMany({
+        where: {
+          entryYearBE: kkuTcas.entryYearBE,
+          round: kkuTcas.round,
+          minScorePass1: { not: null },
+          institutionName: { not: getInstitution().nameTh },
+          programmeName: { contains: subjectKey, mode: 'insensitive' },
+          ...realDataWhere(),
+        },
+        select: { minScorePass1: true, programmeName: true },
+      });
+      const peerScores = peers
+        .filter((p) => extractSubjectSignature(p.programmeName) === subjectKey)
+        .map((p) => p.minScorePass1!)
+        .filter((v): v is number => v !== null);
+      if (peerScores.length >= 3) {
+        const below = peerScores.filter((s) => s < kkuTcas.minScorePass1!).length;
+        percentile = (below / peerScores.length) * 100;
+        break;
+      }
     }
   }
 
@@ -1957,7 +2068,7 @@ async function studentSatisfactionDriver(args: {
       coursesObserved: Number(r.courses),
       yearsObserved: Number(r.years),
       normalisation: '3.5 → 0, 5.0 → 100 (anchored linear)',
-      source: 'kku-evaluations.v1',
+      source: 'course-evaluations.v1',
     },
   };
 }
@@ -2158,7 +2269,8 @@ async function scoreRelevanceProgram(
     where: { id: programId },
     select: { kmitlCareerIds: true, level: true },
   });
-  const demoOutlook = await computeRequiredShareAt10Y(programId, program?.level ?? 'BACHELOR');
+  const demo = await computeRequiredShareAt10Y(programId, program?.level ?? 'BACHELOR');
+  const demoOutlook = demo.share;
   let demoValue: number | null = null;
   if (demoOutlook !== null) {
     // requiredShare 0.05% (5e-4) → 50; 0.001% → ~100; 0.2% → ~0.
@@ -2194,7 +2306,7 @@ async function scoreRelevanceProgram(
       raw: kmitlAlignment,
     },
     { label: 'demand_match_filled', value: demandMatchValue, raw: { totalRelevant: matchRows.length } },
-    { label: 'demographic_resilience', value: demoValue, raw: { requiredShare10y: demoOutlook } },
+    { label: 'demographic_resilience', value: demoValue, raw: { requiredShare10y: demoOutlook, region: demo.region, source: demo.source ?? null, reason: demo.reason } },
     // `targetedCareers` is the raw-payload field surfaced on the
     // hover tooltip for this driver. It's the COUNT of LinkedIn-demand
     // career groups the program has been mapped to — used to
@@ -2295,7 +2407,7 @@ const KMITL_QUADRANT_FALLBACK = [
 let _kmitlAlignmentCache: { at: number; map: Map<string, number> } | null = null;
 const KMITL_ALIGNMENT_TTL_MS = 60_000;
 
-async function computeKmitlProgramAlignment(): Promise<Map<string, number>> {
+export async function computeKmitlProgramAlignment(): Promise<Map<string, number>> {
   const now = Date.now();
   if (_kmitlAlignmentCache && now - _kmitlAlignmentCache.at < KMITL_ALIGNMENT_TTL_MS) {
     return _kmitlAlignmentCache.map;
@@ -2344,36 +2456,66 @@ async function _computeKmitlProgramAlignmentImpl(): Promise<Map<string, number>>
   return out;
 }
 
-async function computeRequiredShareAt10Y(
+export interface RequiredShareResult {
+  share: number | null;
+  /** The projection region used; null when none resolved. */
+  region: string | null;
+  /** The projection source used; null when none was picked. */
+  source?: string | null;
+  /** Why the share is null, when it is. */
+  reason: string | null;
+}
+
+// The 0.002 curve in the driver is calibrated for a REGIONAL cohort, so the
+// national 'TH' series is never substituted: an unset or unmatched region
+// leaves the driver null (a data gap, not a score).
+export async function computeRequiredShareAt10Y(
   programId: string,
   level: 'BACHELOR' | 'MASTER' | 'DOCTORAL' | 'HIGHER_GRAD_DIPLOMA',
-): Promise<number | null> {
+): Promise<RequiredShareResult> {
   const cohort = level === 'BACHELOR' ? '18-22' : '23-29';
   const targetYear = new Date().getUTCFullYear() + 10;
+  // Regions carried by an eligible source (national row now and at +10); the
+  // best source for the resolved region is picked below.
+  const regions = await eligibleProjectionRegions({ cohort });
+  const region = projectionRegionForInstitution(regions);
+  if (region === NATIONAL_REGION) {
+    return {
+      share: null,
+      region: null,
+      source: null,
+      reason:
+        'region-not-set: set the organisation region to one of the projection regions (' +
+        regions.filter((r) => r !== NATIONAL_REGION).join(', ') +
+        ')',
+    };
+  }
+  const source = await pickProjectionSource({ cohort, needRegion: region });
+  if (!source) return { share: null, region, source: null, reason: 'no-projection' };
   const projection = await prisma.demographicProjection.findFirst({
     where: {
-      region: 'Northeast',
+      region,
       ageCohort: cohort,
       year: targetYear,
-      source: 'NESDC-PopProj-2010-2040',
+      source,
     },
     select: { population: true },
   });
-  if (!projection || projection.population <= 0) return null;
+  if (!projection || projection.population <= 0) return { share: null, region, source, reason: 'no-projection' };
   const enrollment = await prisma.enrollmentMetric.findMany({
     where: { programId, ...realDataWhere() },
     orderBy: { academicYear: 'desc' },
     take: 2,
     select: { enrolled: true },
   });
-  if (enrollment.length === 0) return null;
+  if (enrollment.length === 0) return { share: null, region, source, reason: 'no-enrollment' };
   // Use the prior year if it's higher (in-progress current year is
   // partial — enrolled count would be too small).
   const baseline = enrollment.length >= 2 && enrollment[1]!.enrolled > enrollment[0]!.enrolled
     ? enrollment[1]!.enrolled
     : enrollment[0]!.enrolled;
-  if (baseline === 0) return null;
-  return baseline / projection.population;
+  if (baseline === 0) return { share: null, region, source, reason: 'no-enrollment' };
+  return { share: baseline / projection.population, region, source, reason: null };
 }
 
 async function collectProgramIdsForScope(scopeId: string, scope: ScopeLevel): Promise<string[]> {

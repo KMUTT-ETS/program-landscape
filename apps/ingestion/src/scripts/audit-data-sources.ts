@@ -22,7 +22,7 @@
 //
 // `prisma/seed.ts` writes BOTH `status` and `mocked` from `SOURCE_CATALOG`
 // on update as well as create. So the catalog is the source of truth, and
-// every `db:seed` / `db:reset` re-asserts it. A connector flipped real in the
+// every seed run re-asserts it. A connector flipped real in the
 // database but left `mocked: true` in the catalog gets silently re-mocked on
 // the next seed. That is exactly how the August regression happened.
 //
@@ -115,7 +115,7 @@ async function audit(): Promise<Finding[]> {
       findings.push({
         slug: entry.slug,
         issue: 'missing-row',
-        detail: 'in SOURCE_CATALOG but absent from data_sources — run pnpm db:seed',
+        detail: 'in SOURCE_CATALOG but absent from data_sources — run pnpm data-sources:sync --apply',
         fixable: false,
       });
       continue;

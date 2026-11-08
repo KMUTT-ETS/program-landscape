@@ -32,7 +32,8 @@ export type ConnectorMode = 'mocked' | 'real';
 
 const VALID_MODES: readonly ConnectorMode[] = ['mocked', 'real'];
 
-function slugToEnvKey(slug: string): string {
+/** Env var that selects mocked/real for one connector, e.g. kku-hr -> CONNECTOR_KKU_HR_MODE. */
+export function connectorModeEnvKey(slug: string): string {
   return `CONNECTOR_${slug.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_MODE`;
 }
 
@@ -60,7 +61,7 @@ export function resolveConnectorMode(
   slug: Slug,
   env: NodeJS.ProcessEnv = process.env,
 ): ConnectorModeResolution {
-  const perConnectorKey = slugToEnvKey(slug);
+  const perConnectorKey = connectorModeEnvKey(slug);
   const perConnector = parseMode(env[perConnectorKey]);
   if (perConnector) {
     return { mode: perConnector, source: 'per-connector-env', envKey: perConnectorKey };

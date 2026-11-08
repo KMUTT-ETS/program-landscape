@@ -12,6 +12,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   // ── Internal KKU systems ────────────────────────────────────────────────
   {
     slug: 'kku-registry',
+    kkuExample: true,
     name: 'KKU Registry (REG)',
     kind: 'API',
     inputFormat: 'JSON',
@@ -26,6 +27,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'kku-tcas-funnel',
+    kkuExample: true,
     name: 'KKU TCAS Admission Funnel (deprecated)',
     kind: 'API',
     inputFormat: 'JSON',
@@ -39,6 +41,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'kku-admission-campaigns',
+    kkuExample: true,
     name: 'KKU Actual Recruitment Campaigns',
     kind: 'API',
     inputFormat: 'JSON',
@@ -50,6 +53,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'kku-finance',
+    kkuExample: true,
     name: 'KKU Finance',
     kind: 'API',
     inputFormat: 'JSON',
@@ -64,6 +68,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'kku-hr',
+    kkuExample: true,
     name: 'KKU HR (Faculty roster)',
     kind: 'API',
     inputFormat: 'JSON',
@@ -78,6 +83,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'kku-alumni',
+    kkuExample: true,
     name: 'KKU Alumni Outcomes',
     kind: 'API',
     inputFormat: 'MIXED',
@@ -93,6 +99,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'kku-research',
+    kkuExample: true,
     name: 'KKU Research Outputs',
     kind: 'API',
     inputFormat: 'JSON',
@@ -118,12 +125,13 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     kind: 'API',
     inputFormat: 'JSON',
     cadenceCron: '0 1 * * *', // daily at 01:00
-    ownerContact: 'KKU Digital Transcript Team (existing KKU system)',
+    ownerContact: 'Registrar — digital transcript team (existing system)',
     notes: 'Skill claims per student. Already live in production — wiring here mirrors the claims feed.',
     mocked: true,
   },
   {
     slug: 'kku-evaluations',
+    kkuExample: true,
     name: 'KKU Student Evaluations (Teaching & Learning)',
     kind: 'API',
     inputFormat: 'JSON',
@@ -146,6 +154,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'kku-dq',
+    kkuExample: true,
     name: 'KKU Digital Intelligence (DQ) Student Scores',
     kind: 'API',
     inputFormat: 'JSON',
@@ -168,7 +177,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     kind: 'API',
     inputFormat: 'JSON',
     cadenceCron: '0 2 * * 1', // weekly Monday
-    ownerContact: 'KKU Academic Standards & Quality Office',
+    ownerContact: 'Academic standards & quality office',
     notes: 'Curriculum accreditation statuses. The existing CISA system already exposes an API — real wiring is cheap.',
     mocked: true,
   },
@@ -188,9 +197,11 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'MIXED',
     acceptsPdfUploads: true,
     cadenceCron: '0 9 15 2 *', // annual on Feb 15
-    ownerContact: 'KKU Strategic Planning Office (public statutory data)',
+    ownerContact: 'Strategic planning office (public statutory data)',
+    deprecated: true,
+    scheduleEnabled: false,
     notes:
-      'Annual population by age × region × sex from DOPA civil registration; long-term cohort projections from NESDC. BOI republishes summary tables at boi.go.th — used as the user-facing reference but the connector reads from DOPA/NESDC raw files because BOI is bot-firewalled (Incapsula). Drives the demographic ceiling on each program (the 18-22 cohort projection in the program\'s catchment region) and feeds the Gap Analyzer\'s supply-side forecasting.',
+      'DEPRECATED 2026-11-04 — never had a connector. Use un-wpp (UN World Population Prospects, national cohorts) or the Population Projections spreadsheet (xlsx-population-projections, any region and edition). Original scope: annual population by age × region × sex from DOPA civil registration; long-term cohort projections from NESDC. BOI republishes summary tables at boi.go.th — used as the user-facing reference but the connector reads from DOPA/NESDC raw files because BOI is bot-firewalled (Incapsula). Drives the demographic ceiling on each program (the 18-22 cohort projection in the program\'s catchment region) and feeds the Gap Analyzer\'s supply-side forecasting.',
     mocked: true,
   },
   {
@@ -200,7 +211,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'PDF',
     acceptsPdfUploads: true,
     cadenceCron: '0 8 10 * *', // monthly on the 10th (NSO publishes ~1st week)
-    ownerContact: 'KKU Data Office (no formal agreement — public data)',
+    ownerContact: 'Institutional data office (no formal agreement — public data)',
     notes: 'Quarterly labor force survey + annual employment statistics. Published as heavily-tabled PDF + occasional CSV. Routes through the prompt 03b PDF intake pipeline.',
     mocked: true,
   },
@@ -211,7 +222,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'MIXED',
     acceptsPdfUploads: true,
     cadenceCron: '0 9 15 5 *', // annual — results published mid-May
-    ownerContact: 'KKU Admissions Office',
+    ownerContact: 'Admissions office',
     notes:
       'Annual national admission test scores + programme-level cutoffs. Mixture of PDF summaries and a partial API. ' +
       'The connector class is still a mocked stub but the DataSource row holds 25,705 real CUPT peer rows ingested ' +
@@ -226,7 +237,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'MIXED',
     acceptsPdfUploads: true,
     cadenceCron: '0 7 * * 2', // weekly on Tuesday
-    ownerContact: 'KKU TVET liaison',
+    ownerContact: 'TVET liaison',
     notes: 'Thailand Professional Qualification Institute standards. Portal has an API for metadata + PDF downloads for the standards themselves.',
     mocked: true,
   },
@@ -260,7 +271,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     // cadence here would wake the connector every six hours to find no
     // PENDING batch.
     scheduleEnabled: false,
-    ownerContact: 'KKU Data Office',
+    ownerContact: 'JobThai data delivery (operator-uploaded files)',
     notes:
       'Manual XLSX drops of Thai job postings (47,643 rows in the 2026-09 drop). ' +
       'Un-deprecated 2026-09-13: the 2026-05-01 supersession by kmitl-skill-mapping ' +
@@ -286,14 +297,14 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     // the sitemap's lastmod keeps us from refetching the rest.
     scheduleEnabled: true,
     cadenceCron: '0 3 * * 1',
-    ownerContact: 'KKU Data Office',
+    ownerContact: 'Institutional data office',
     notes:
       'Thai government and state-enterprise recruitment announcements. Public-sector ' +
       'counterpart to jobthai, which is a private-sector board. Each announcement states, ' +
       'per position, seats, education level and an explicit field-of-study list. ' +
       "The site's robots.txt disallows four AI crawlers by name and permits the wildcard " +
       'everywhere except /go.php and /url.php. The connector must therefore identify ' +
-      'itself as KKU rather than route through a scraping proxy, and must never request ' +
+      'itself honestly as this organisation rather than route through a scraping proxy, and must never request ' +
       'those two paths.',
     mocked: false,
   },
@@ -303,7 +314,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     kind: 'API',
     inputFormat: 'JSON',
     cadenceCron: '0 */6 * * *', // every 6 hours (no longer scheduled — see deprecated)
-    ownerContact: 'KKU Data Office',
+    ownerContact: 'Institutional data office',
     notes: 'SUPERSEDED by kmitl-skill-mapping (2026-05-01). Catalog entry retained so historical IngestionRun rows don\'t orphan; full removal after kmitl-skill-mapping clears 30-day green-history gate.',
     mocked: true,
     deprecated: true,
@@ -315,7 +326,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'PDF',
     acceptsPdfUploads: true,
     cadenceCron: '0 6 * * *', // daily
-    ownerContact: 'KKU Strategic Planning Office',
+    ownerContact: 'Strategic planning office',
     notes: 'Ministry of Higher Education policy announcements — almost entirely PDF. Very noisy; the PDF intake pipeline filters.',
     mocked: false,
   },
@@ -326,7 +337,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'PDF',
     acceptsPdfUploads: true,
     cadenceCron: '0 7 * * 1', // weekly Monday
-    ownerContact: 'KKU Strategic Planning Office',
+    ownerContact: 'Strategic planning office',
     notes: 'National Economic & Social Development Council — 5-year plans + quarterly economic outlooks. Long PDFs (200+ pages) routed through 03b.',
     mocked: false,
   },
@@ -337,7 +348,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'PDF',
     acceptsPdfUploads: true,
     cadenceCron: '0 7 * * 3', // weekly Wednesday
-    ownerContact: 'KKU Research & Innovation Office',
+    ownerContact: 'Research & innovation office',
     notes: 'National Higher Education, Science, Research & Innovation Policy Council — R&D policy direction.',
     mocked: false,
   },
@@ -348,7 +359,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'MIXED',
     acceptsPdfUploads: true,
     cadenceCron: '0 8 5 * *', // monthly on the 5th
-    ownerContact: 'KKU Industry Liaison Office',
+    ownerContact: 'Industry liaison office',
     notes: 'Board of Investment — sector investment statistics. PDF reports + occasional Excel. Key input for S-curve + target industry analysis.',
     mocked: false,
   },
@@ -359,7 +370,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'PDF',
     acceptsPdfUploads: true,
     cadenceCron: '0 8 15 * *', // monthly on the 15th
-    ownerContact: 'KKU Industry Liaison Office',
+    ownerContact: 'Industry liaison office',
     notes: 'Eastern Economic Corridor Office — industrial development plans. Less relevant to Khon Kaen geographically, but workforce signals carry over.',
     mocked: false,
   },
@@ -372,7 +383,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'PDF',
     acceptsPdfUploads: true,
     cadenceCron: '0 10 1 5 *', // annual (May — when WEF typically publishes)
-    ownerContact: 'KKU Data Office',
+    ownerContact: 'Institutional data office',
     notes: 'World Economic Forum annual report. Foundational for future-skill taxonomies. Always a long PDF.',
     mocked: false,
   },
@@ -383,7 +394,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'PDF',
     acceptsPdfUploads: true,
     cadenceCron: '0 10 * * 1', // weekly Monday
-    ownerContact: 'KKU Data Office',
+    ownerContact: 'Institutional data office',
     notes: 'OECD skills + education outlook + sectoral reports. Thailand-specific reports pulled preferentially.',
     mocked: false,
   },
@@ -393,7 +404,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     kind: 'API',
     inputFormat: 'MIXED',
     cadenceCron: '0 11 * * 0', // weekly Sunday
-    ownerContact: 'KKU Data Office',
+    ownerContact: 'Institutional data office',
     notes: 'Labor data, education indicators, demographic projections. World Bank has a free API + long-form PDFs for narrative reports.',
     mocked: false,
   },
@@ -404,7 +415,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'PDF',
     acceptsPdfUploads: true,
     cadenceCron: '0 11 * * 4', // weekly Thursday
-    ownerContact: 'KKU Data Office',
+    ownerContact: 'Institutional data office',
     notes: 'Asian Development Bank — Greater Mekong Subregion reports. Critical for Laos/Myanmar/Cambodia peer context for some KKU programs.',
     mocked: false,
   },
@@ -418,7 +429,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     kind: 'API',
     inputFormat: 'JSON',
     cadenceCron: '0 12 * * 0', // weekly Sunday
-    ownerContact: 'KKU Library (existing subscription)',
+    ownerContact: 'Institution library (existing subscription)',
     notes:
       'SUPERSEDED — Scopus content is now sourced via the internal kku-publications mirror (10.130.2.151), which carries 18,900 distinct KKU papers with curator-grade author resolution. The Elsevier API pathway is no longer wired.',
     mocked: false,
@@ -431,7 +442,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     kind: 'API',
     inputFormat: 'JSON',
     cadenceCron: '0 13 * * 0', // weekly Sunday
-    ownerContact: 'KKU Data Office (public API, no agreement needed)',
+    ownerContact: 'Institutional data office (public API, no agreement needed)',
     notes:
       'SUPERSEDED — KKU publication metadata is now sourced via the internal kku-publications mirror, which adds PubMed coverage and replaces fuzzy name-matching with curator-grade person_id resolution.',
     mocked: false,
@@ -448,7 +459,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     // Run-now after each release. scheduleEnabled=false keeps the
     // BullMQ queue free of monthly mock-PDF runs.
     scheduleEnabled: false,
-    ownerContact: 'KKU Strategic Office (free imd.org/wcc summaries)',
+    ownerContact: 'Strategic planning office (free imd.org/wcc summaries)',
     notes:
       'IMD World Competitiveness Yearbook + World Talent Ranking + World Digital Competitiveness Ranking. Country-level only (~67 economies). Manual seed via `pnpm imd:seed` is the primary path; PDF intake of the public summary brochures is a secondary path. KKU Library does NOT have a Smartcomp subscription — restricted to free public summaries.',
     mocked: false,
@@ -460,7 +471,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     inputFormat: 'MIXED',
     acceptsPdfUploads: true,
     cadenceCron: '0 14 * * 6', // weekly Saturday
-    ownerContact: 'KKU Data Office',
+    ownerContact: 'Institutional data office',
     notes: 'Scrapes Thai + ASEAN peer universities\' program pages + downloads their brochure PDFs. Legal grey zone — stick to public catalogue pages.',
     mocked: true,
   },
@@ -470,8 +481,10 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     kind: 'API',
     inputFormat: 'JSON',
     cadenceCron: '0 3 1 * *', // monthly (rankings release annually; cadence covers new-edition releases)
-    ownerContact: 'KKU Library — licence + API credentials',
-    notes: 'THE subject rankings + annual overall rankings. Licensed API; free tier gives top-200 only. Subscription needed for full peer-group visibility.',
+    ownerContact: 'Institution library — licence + API credentials',
+    deprecated: true,
+    scheduleEnabled: false,
+    notes: 'DEPRECATED 2026-11-04 — never had a connector; QS and THE publish no data feed and SCImago refuses automated clients. Rankings now come from the University Rankings spreadsheet (xlsx-ranked-universities). Original scope: THE subject rankings + annual overall rankings. Licensed API; free tier gives top-200 only. Subscription needed for full peer-group visibility.',
     mocked: true,
   },
   {
@@ -480,8 +493,10 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     kind: 'API',
     inputFormat: 'JSON',
     cadenceCron: '0 4 1 * *',
-    ownerContact: 'KKU Library — licence + API credentials',
-    notes: 'QS WUR + subject rankings. Requires subscription agreement. HTML scrape is possible for the public tier but fragile.',
+    ownerContact: 'Institution library — licence + API credentials',
+    deprecated: true,
+    scheduleEnabled: false,
+    notes: 'DEPRECATED 2026-11-04 — never had a connector; QS and THE publish no data feed and SCImago refuses automated clients. Rankings now come from the University Rankings spreadsheet (xlsx-ranked-universities). Original scope: QS WUR + subject rankings. Requires subscription agreement. HTML scrape is possible for the public tier but fragile.',
     mocked: true,
   },
   {
@@ -490,12 +505,15 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     kind: 'SCRAPE',
     inputFormat: 'JSON',
     cadenceCron: '0 5 1 * *',
-    ownerContact: 'KKU Library',
-    notes: 'Research-based rankings. Free. Annual release; scraping annual XLSX is the practical pipeline.',
+    ownerContact: 'Institution library',
+    deprecated: true,
+    scheduleEnabled: false,
+    notes: 'DEPRECATED 2026-11-04 — never had a connector; QS and THE publish no data feed and SCImago refuses automated clients. Rankings now come from the University Rankings spreadsheet (xlsx-ranked-universities). Original scope: Research-based rankings. Free. Annual release; scraping annual XLSX is the practical pipeline.',
     mocked: true,
   },
   {
     slug: 'unicon-ds1001',
+    kkuExample: true,
     name: 'UNICON DS1001 — Student information',
     kind: 'API',
     inputFormat: 'JSON',
@@ -506,6 +524,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'unicon-ds2001',
+    kkuExample: true,
     name: 'UNICON DS2001 — Staff master record',
     kind: 'API',
     inputFormat: 'JSON',
@@ -516,6 +535,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'kku-hr-processed',
+    kkuExample: true,
     name: 'KKU HR Processed — Salary aggregate',
     kind: 'API',
     inputFormat: 'JSON',
@@ -526,6 +546,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'unicon-ds2003',
+    kkuExample: true,
     name: 'UNICON DS2003 — Employee education qualifications',
     kind: 'API',
     inputFormat: 'JSON',
@@ -536,6 +557,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'unicon-ds2004',
+    kkuExample: true,
     name: 'UNICON DS2004 — Academic staff per program',
     kind: 'API',
     inputFormat: 'JSON',
@@ -546,6 +568,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'kku-research-services',
+    kkuExample: true,
     name: 'KKU Research & Academic Services — external grants',
     kind: 'API',
     inputFormat: 'JSON',
@@ -555,7 +578,343 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'Externally funded research and academic-service projects with lead + co-investigators (MySQL views T_external_fund_View_landscape + coproject_landscape). Daily snapshot replace. Lead citizen id hashed in SQL.',
     mocked: false,
   },
+
+  // ── Spreadsheet import (xlsx-*) ────────────────────────────────────────────
+  // One per importable dataset, so uploaded rows carry provenance that
+  // realDataWhere() accepts. These MUST stay in step with IMPORT_DATASETS in
+  // packages/db/src/import/registry.ts; a test there asserts the
+  // correspondence, because a dataset with no source row loads successfully
+  // and is then invisible on every Council surface.
+  //
+  // mocked: false is load-bearing. scheduleEnabled: false because an upload
+  // is the trigger — there is nothing for a cadence to wake.
+  {
+    slug: 'xlsx-faculties',
+    name: 'Faculties (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes: 'Faculties uploaded through /admin/data-setup. Adopter-facing path for installations with no registrar connector.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-departments',
+    name: 'Departments (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes: 'Departments uploaded through /admin/data-setup.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-programmes',
+    name: 'Programmes (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes: 'Programmes uploaded through /admin/data-setup. Imported rows are assigned a sequence number so they are canonical.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-enrollment-metrics',
+    name: 'Enrolment (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Applications through to graduation per programme per academic year, uploaded through /admin/data-setup. ' +
+      'Shares the enrollment_metrics table with the registrar connector, so an upload updates only the columns it fills.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-financial-metrics',
+    name: 'Finance (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Tuition and other revenue per programme per academic year, uploaded through /admin/data-setup. ' +
+      'Revenue only — cost columns belong to the cost-allocation methodology and survive an upload untouched.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-graduate-outcomes',
+    name: 'Graduate Outcomes (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Employment survey results per programme per graduating cohort per survey, uploaded through /admin/data-setup. ' +
+      'Rows covering fewer than five respondents are refused.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-student-cohorts',
+    name: 'Student Cohorts (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Students still enrolled per programme per entry cohort, uploaded through /admin/data-setup. ' +
+      'The sheet asks for a Common Era year; the stored figure is Buddhist era.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-alumni-cohorts',
+    name: 'Alumni Cohorts (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Cohort outcomes per programme per entry cohort per status, uploaded through /admin/data-setup. ' +
+      'The sheet asks for a Common Era year; the stored figure is Buddhist era.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-faculty-members',
+    name: 'Staff (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Teaching-staff roster uploaded through /admin/data-setup. Carries names and an employer-assigned code; ' +
+      'no date of birth and no national ID, in any form.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-faculty-compensation',
+    name: 'Compensation (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Aggregate salary by faculty, department and rank, uploaded through /admin/data-setup. ' +
+      'A row covering fewer than five people is refused, the same floor the kku-hr connector applies in SQL.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-staff-salary-by-funding',
+    name: 'Staff Salary by Funding (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Monthly salary of academic staff by faculty, rank and funding source, uploaded through /admin/data-setup. ' +
+      'A row covering fewer than five people is refused.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-faculty-budgets',
+    name: 'Budgets (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Budget by division and fund category, uploaded through /admin/data-setup. ' +
+      'A division need not be a faculty; the faculty link is optional and only decides whether the figure rolls up.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-research-outputs',
+    name: 'Publications (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Research outputs uploaded through /admin/data-setup, one row per paper per author. ' +
+      'Shares research_outputs with the publications connectors; matching is by DOI, falling back to title and year within one person.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-admission-campaigns',
+    name: 'Admission Campaigns (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Admissions funnel per campaign, uploaded through /admin/data-setup. Offers none of the registrar-specific identifiers ' +
+      'the kku-admission-campaigns connector writes; those columns are null on an imported row.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-class-offerings',
+    name: 'Class Offerings (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Class sections for one term, uploaded through /admin/data-setup. TERM-SCOPED: uploading a term replaces it, ' +
+      'so a section missing from the file is treated as cancelled. The only import that deletes.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-program-faculty',
+    name: 'Programme Teaching Staff (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Which staff teach which programmes, uploaded through /admin/data-setup. The link the Deep-Dive faculty section, the ' +
+      'Capability health drivers and per-programme publication counts all read. Previously written only by an AI extraction ' +
+      'over the curriculum PDF, which an adopting university has no equivalent of.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-programme-courses',
+    name: 'Programme Course Lists (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Course lists per programme, uploaded through /admin/data-setup. PROGRAMME-SCOPED: a programme named in the file has its whole course list replaced. Takes precedence over phase 2b PDF extraction until started over.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-career-skill-demand',
+    name: 'Career Skill Demand (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Labour-market demand per career and skill (share of postings, 0-100), uploaded through /admin/data-setup as the fallback for the KMITL Skill Mapping API. Written to the same tables as kmitl-skill-mapping, with negative career ids so the two never collide.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-course-evaluations',
+    name: 'Course Evaluations (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Course-level overall student evaluation (mean of a 1-5 scale plus respondent count), uploaded through /admin/data-setup. Feeds the student-satisfaction driver; joins programme course lists on the normalised course code.',
+    mocked: false,
+  },
+  {
+    slug: 'un-wpp',
+    name: 'UN World Population Prospects 2024',
+    kind: 'API',
+    inputFormat: 'CSV',
+    scheduleEnabled: false,
+    cadenceCron: '0 5 1 * *', // monthly, once a schedule is enabled
+    ownerContact: 'Institution administrator',
+    notes:
+      'National population projection (medium variant) for the 15-17, 18-22 and 23-29 age groups, from the UN WPP 2024 bulk CSV (no credential). Country via UN_WPP_COUNTRY_ISO3 (default THA). Writes region TH, source UN-WPP2024; the projection source picker prefers a spreadsheet upload over it and it over the NESDC starter series. National only: regional drivers need the Population Projections spreadsheet.',
+    mocked: false,
+  },
+  {
+    slug: 'openalex-works',
+    name: 'OpenAlex publications',
+    kind: 'API',
+    inputFormat: 'JSON',
+    scheduleEnabled: false,
+    cadenceCron: '0 3 1 */3 *', // quarterly, once a schedule is enabled
+    ownerContact: 'Institution administrator',
+    notes:
+      'Publications of your university from OpenAlex, found by the institution id on the organisation profile (/admin/organization). Needs a free OPENALEX_API_KEY; while either is missing the run is recorded as FAILED with a CONFIG reason (nothing fetched), so the source shows unhealthy until configured. Staff are matched exactly (ORCID, OpenAlex id, English name, Thai name); a work already uploaded in the Publications spreadsheet with the same DOI is enriched, not duplicated. Also refuses (same CONFIG failure) when kku-research is live on this install; its publication mirror already fills research_outputs.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-population-projections',
+    name: 'Population Projections (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Projected population per region, year and age group, uploaded through /admin/data-setup. Stored as source xlsx:<Source Name>; takes precedence over the UN WPP and NESDC series.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-ranked-universities',
+    name: 'University Rankings (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'QS and THE ranks per university and ranking year, uploaded through /admin/data-setup (the template is pre-filled with a starter list). Feeds the AI peer selection and the benchmarking views.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-employer-feedback',
+    name: 'Employer Feedback (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Employer satisfaction (0-1) per programme, survey year and employer, uploaded through /admin/data-setup. Feeds the Top employers list in the Deep-Dive graduate outcomes section. Rows covering fewer than five respondents are refused.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-digital-competency-cohorts',
+    name: 'Digital Competency — Cohorts (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Digital competency test headcounts per programme and entry year (tested, scored, passed all modules), uploaded through /admin/data-setup. Feeds the Deep-Dive Digital competency section and the Student DQ dashboard.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-digital-competency-modules',
+    name: 'Digital Competency — Modules (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Mean score on each of the 13 digital competency modules per programme and entry year, uploaded through /admin/data-setup. Feeds the digital competency radar and overall mean.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-external-grants',
+    name: 'External Grants (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Externally funded research and academic-service projects with whole-project budgets, uploaded through /admin/data-setup. Feeds the Staff grants dashboard and the grant award on the Financial score.',
+    mocked: false,
+  },
+  {
+    slug: 'xlsx-external-grant-team',
+    name: 'External Grant Team (spreadsheet import)',
+    kind: 'CSV',
+    inputFormat: 'XLSX',
+    scheduleEnabled: false,
+    ownerContact: 'Institution administrator',
+    notes:
+      'Which staff member (by employee code) is on which external grant, uploaded through /admin/data-setup. Links grants to programmes through teaching staff.',
+    mocked: false,
+  },
 ] as const;
+
+/** True for connectors that only work against KKU's internal systems. */
+export function isKkuExample(slug: string): boolean {
+  return getCatalogEntry(slug)?.kkuExample === true;
+}
 
 export function getCatalogEntry(slug: string): SourceCatalogEntry | undefined {
   return SOURCE_CATALOG.find((e) => e.slug === slug);

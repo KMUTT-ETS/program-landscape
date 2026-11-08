@@ -311,10 +311,9 @@ export class DeepDiveController {
   @Authorized('programs:read:all')
   @Provenance({
     sources: [
-      { id: 'qs-rankings', name: 'QS World University Rankings 2025' },
-      { id: 'the-rankings', name: 'Times Higher Education World Rankings 2025' },
+      { id: 'xlsx-ranked-universities', name: 'University rankings (spreadsheet import, or the bundled starter list)' },
     ],
-    methodologyVersion: 'program-peer-selection.v1',
+    methodologyVersion: 'program-peer-selection.v3',
   })
   async aiPeers(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
     await assertProgramAccessible(programId, user);
@@ -325,7 +324,9 @@ export class DeepDiveController {
   @Authorized('programs:read:all')
   @Provenance({
     sources: [
-      { id: 'thailand-demographics', name: 'NESDC Population Projections (republished by BOI)' },
+      { id: 'xlsx-population-projections', name: 'Population projections (spreadsheet import)' },
+      { id: 'un-wpp', name: 'UN World Population Prospects 2024 (national)' },
+      { id: 'nesdc-reports', name: 'NESDC population projections (bundled starter series)' },
     ],
   })
   async demographicOutlook(@AuthSession() user: SessionUser, @Param('programId') programId: string) {

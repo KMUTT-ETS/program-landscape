@@ -6,9 +6,10 @@
 // Kept separate from the controller so the transform logic is unit-
 // testable in isolation.
 
-import { DQ_MODULES, DQ_PASS_MARK, scholarDisclosureLine } from '@kku/shared';
+import { DQ_MODULES, DQ_PASS_MARK, getInstitution, scholarDisclosureLine } from '@kku/shared';
 import {
   DQ_MIN_CELL_STUDENTS,
+  organizationTagline,
   curriculumRevisionReadiness,
   getProgramHealthBenchmarks,
   programAiPeers,
@@ -57,7 +58,7 @@ const DRIVER_LABELS: Record<string, string> = {
   tcas_competition_vs_peers: 'TCAS competition vs peers',
   tcas_fill_rate: 'TCAS fill rate',
   enrollment_trend_slope: 'Enrolment trend (3-yr slope)',
-  kku_intake_policy: 'KKU intake-floor policy',
+  kku_intake_policy: 'Intake-floor policy',
   net_contribution_per_student: 'Net contribution / student',
   tuition_revenue_trend: 'Tuition revenue trend',
   cost_per_student_vs_peers: 'Cost / student vs peers',
@@ -764,10 +765,7 @@ export async function buildProgramDetailData(
   // this builder now emits the raw signed numbers untouched.
   const demographicData: ProgramDetailData['demographic'] = demographic
     ? {
-        catchment:
-          demographic.catchmentRegion === 'Northeast'
-            ? 'Northeast Thailand'
-            : 'Thailand',
+        catchment: 'Thailand', // the series is NATIONAL; the regional comparator is not shown here
         ageCohort: demographic.ageCohort,
         source: demographic.source,
         baselineYearOneIntake: demographic.baselineYearOneIntake,
@@ -1343,6 +1341,7 @@ export async function buildProgramDetailData(
         }
       : null,
     healthMethodologyVersion: overview.health?.methodologyVersion ?? '',
+    organizationTagline: organizationTagline(getInstitution().shortNameEn),
     healthOverallScore,
     healthOverallCompletenessPct,
     lifecycle: lifecycleData,

@@ -364,7 +364,10 @@ export interface DeepDiveTcasStats {
 }
 
 export interface DeepDiveDemographicOutlook {
-  catchmentRegion: 'Northeast' | 'TH';
+  catchmentRegion: string;
+  /** The institution's own region (organisation profile); null when national. */
+  comparatorRegion: string | null;
+  comparatorSource?: string | null;
   source: string;
   ageCohort: '18-22' | '23-29';
   baselineYearOneIntake: number | null;

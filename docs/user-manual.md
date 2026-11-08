@@ -523,7 +523,7 @@ This is the operational workflow administrators and analysts follow to keep the 
 1. Module (e.g. `/cockpit`) calls `POST /pdf/generate` with template name + data payload.
 2. API validates data against the template's Zod schema.
 3. React components render HTML → **Gotenberg** (Docker container) → Chromium → PDF.
-4. Thai type uses **TH Sarabun New** (Cabinet-mandated font for official documents). This font **must be present in `infra/gotenberg/fonts/`** before `docker compose build gotenberg` — see `infra/gotenberg/README.md`.
+4. Thai type uses **TH Sarabun New** (Cabinet-mandated font for official documents). Its four files are committed in `infra/gotenberg/fonts/` and baked into the Gotenberg image — see `infra/gotenberg/README.md`.
 5. PDF is written to **MinIO bucket `pdf-output`** + a `PdfGeneration` row is inserted (with signed URL, byte size, page count).
 6. API returns the signed URL to the caller.
 
@@ -715,7 +715,7 @@ baseline, not a failure.
 | **Sign-in page loops back** | `.env` not symlinked into `apps/web` (Edge middleware can't see `NEXTAUTH_SECRET`) | `pnpm link-env` |
 | **PDF upload returns 500** | MinIO buckets missing | `pnpm minio:init` |
 | **PDF preview shows "Failed to load PDF"** | pdf.worker version mismatch in `/public` | `pnpm --filter web exec node scripts/copy-pdf-worker.mjs` |
-| **Council Pack PDF shows □□□ for Thai text** | TH Sarabun New not installed in Gotenberg image | Drop fonts into `infra/gotenberg/fonts/` + `docker compose build gotenberg` |
+| **Council Pack PDF shows □□□ for Thai text** | TH Sarabun New not installed in Gotenberg image | Check the four files are in `infra/gotenberg/fonts/`, then `docker compose build gotenberg` |
 | **AI output shows "placeholder — no API key"** | `AI_PROVIDER` unset or missing key; using stub | Set `AI_PROVIDER=google` or `anthropic` and corresponding key |
 | **Scope pill options greyed out** | Role doesn't cover that scope | Contact admin for role upgrade, or scope down to what you own |
 | **Scenario run rejects "scenario is not editable"** | Scenario is DECIDED or ARCHIVED (immutable) | Duplicate it — edits to historical scenarios are by design not allowed |

@@ -8,7 +8,8 @@ import { BrandTab } from './brand-tab';
 
 const base = {
   id: 'default', nameTh: 'ท', nameEn: 'Example University', shortNameTh: 'มต.', shortNameEn: 'EXU',
-  regionTh: null, regionEn: null, contactEmail: null, appUrl: 'https://x.example', version: 3,
+  regionTh: null, regionEn: null, contactEmail: null, appUrl: 'https://x.example',
+  intakeFloorBachelor: 30, intakeFloorPostgrad: 8, openalexInstitutionId: null, version: 3,
   updatedAt: '2026-10-16T00:00:00Z', updatedBy: null,
   logoLightKey: null, logoDarkKey: null, faviconKey: null, primaryColor: null, secondaryColor: null,
 };

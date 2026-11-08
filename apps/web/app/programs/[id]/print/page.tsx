@@ -3,6 +3,8 @@ import ReactMarkdown from 'react-markdown';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
+import { brandingForRequest } from '@/lib/branding';
+import { DEFAULT_ORG_SHORT_NAMES } from '@/lib/org-names';
 import type {
   DeepDiveAiPeers,
   DeepDiveAiReadiness,
@@ -58,6 +60,7 @@ export default async function ProgramPrintPage({
   if (!user?.userId) redirect('/signin');
 
   const { id } = await params;
+  const orgName = (await brandingForRequest())?.shortNameEn ?? DEFAULT_ORG_SHORT_NAMES.en;
   const [
     overview,
     lifecycle,
@@ -168,6 +171,7 @@ export default async function ProgramPrintPage({
         )}
 
         <FooterBand
+          orgName={orgName}
           overview={overview}
           generatedAtLabel={generatedAtLabel}
         />
@@ -253,11 +257,11 @@ function CoverBand({
   const status = STATUS_TONE[overview.program.status];
   return (
     <header className="print-keep mb-3 bg-gradient-to-br from-surface-1 to-surface-2 text-text-primary">
-      {/* KKU cardinal stripe */}
+      {/* Brand accent stripe */}
       <div className="h-2 w-full bg-danger/85" aria-hidden />
       <div className="mx-auto flex max-w-[186mm] flex-col gap-3 px-4 py-4 print:max-w-none">
         <div className="flex items-center justify-between gap-4 text-[0.65rem] uppercase tracking-[0.18em] text-text-tertiary">
-          <span>KKU Program Landscape</span>
+          <span>Program Landscape</span>
           <span>Internal program detail report</span>
         </div>
         <div className="flex flex-wrap items-end justify-between gap-4">
@@ -646,7 +650,7 @@ const DRIVER_LABELS: Record<string, string> = {
   tcas_competition_vs_peers: 'TCAS competition vs peers',
   tcas_fill_rate: 'TCAS fill rate',
   enrollment_trend_slope: 'Enrolment trend (3-yr slope)',
-  kku_intake_policy: 'KKU intake-floor policy',
+  kku_intake_policy: 'Intake-floor policy',
   net_contribution_per_student: 'Net contribution / student',
   tuition_revenue_trend: 'Tuition revenue trend',
   cost_per_student_vs_peers: 'Cost / student vs peers',
@@ -1434,8 +1438,7 @@ function RecruitmentBlock({ data }: { data: DeepDiveRecruitment }) {
       )}
 
       <p className="mt-2 text-[0.65rem] text-text-tertiary">
-        Source: <span className="font-tabular">POWERBI.ADMISSION_STAT_CURRID</span> via the
-        kku-tcas-funnel connector. Plan/yr is the annual seat target;
+        Source: the Admission Campaigns dataset. Plan/yr is the annual seat target;
         Allocated is total seats opened across rounds; vs Plan = reg-reported ÷
         Plan. {data.methodologyVersion}.
       </p>
@@ -1494,7 +1497,7 @@ function TcasBlock({ data }: { data: DeepDiveTcasStats }) {
                   {h.competitionRatio.toFixed(2)}×
                 </td>
                 <td className="py-1 text-right font-tabular text-text-secondary">
-                  {(h.fillRate * 100).toFixed(1)}%
+                  {h.admittedPass1 === 0 && h.admittedPass2 === 0 ? '—' : `${(h.fillRate * 100).toFixed(1)}%`}
                 </td>
                 <td className="py-1 text-right font-tabular">
                   {h.minScorePass1 !== null ? h.minScorePass1.toFixed(2) : '—'}
@@ -1669,7 +1672,7 @@ function DemographicBlock({ data }: { data: DeepDiveDemographicOutlook }) {
     <SectionCard
       title="Demographic outlook"
       subtitle={`Catchment ${
-        data.catchmentRegion === 'Northeast' ? 'Northeast Thailand' : 'Thailand'
+        data.catchmentRegion === 'TH' ? 'Thailand' : data.catchmentRegion
       } · age ${data.ageCohort} cohort · ${data.source}`}
       accent="border-l-chart-3"
     >
@@ -1687,7 +1690,7 @@ function DemographicBlock({ data }: { data: DeepDiveDemographicOutlook }) {
           label="+15y cohort contraction"
           value={formatCohortChangePct(data.fifteenYearContraction)}
           valueTone={data.fifteenYearContraction > 30 ? 'text-warning' : ''}
-          subtitle={`${data.catchmentRegion === 'Northeast' ? 'Northeast' : 'Thailand'} ${data.ageCohort} cohort`}
+          subtitle={`${data.catchmentRegion === 'TH' ? 'National' : data.catchmentRegion} ${data.ageCohort} cohort`}
         />
         <KpiTile
           label="Demographic ceiling"
@@ -2667,9 +2670,11 @@ function DecisionsBlock({ data }: { data: DeepDiveDecisions }) {
 // ---------------------------------------------------------------------------
 
 function FooterBand({
+  orgName,
   overview,
   generatedAtLabel,
 }: {
+  orgName: string;
   overview: DeepDiveOverview;
   generatedAtLabel: string;
 }) {
@@ -2677,7 +2682,7 @@ function FooterBand({
     <footer className="print-keep mt-2 rounded-md border border-border-subtle bg-surface-2/50 p-3 text-[0.65rem] text-text-tertiary">
       <div className="flex flex-wrap justify-between gap-2">
         <span>
-          KKU Program Landscape — Internal program detail report
+          Program Landscape — Internal program detail report
         </span>
         <span className="font-tabular">{overview.program.code}</span>
       </div>
@@ -2689,7 +2694,7 @@ function FooterBand({
         <span>Generated {generatedAtLabel}</span>
       </div>
       <p className="mt-2 leading-relaxed">
-        This document is for internal KKU use. Figures may include preview-quality
+        This document is for internal {orgName} use. Figures may include preview-quality
         connectors still completing their 30-day green-history gate. Refer to the
         live deep-dive page for the most recent values, and to the methodology docs
         in <span className="font-tabular">docs/methodologies/</span> for the

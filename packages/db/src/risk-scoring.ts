@@ -21,6 +21,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { Prisma, ProgramLevel, ProgramStatus, AutomationRisk, KkuRiskLevel, RiskTier } from '@prisma/client';
+import { intakeFloors } from '@kku/shared';
+import { campaignPlanKeySql } from './campaign-plan-key';
 import { prisma } from './index';
 import { programDemographicOutlook } from './program-deep-dive';
 import { programFunnelRoundRows } from './program-funnel';
@@ -151,7 +153,13 @@ const TIER_THRESHOLDS = {
   // anything ≥ HIGH → CRITICAL
 } as const;
 
-const KKU_INTAKE_FLOOR_BACHELOR = 30; // mirrors health-score policy
+// The intake floor used to be duplicated here as `const
+// KKU_INTAKE_FLOOR_BACHELOR = 30; // mirrors health-score policy`. A comment
+// is not a mechanism: the two copies were free to drift, and both judged
+// every adopting institution by one university's rule. It now comes from the
+// organisation profile through @kku/shared's intake-policy module, and
+// `null` — no profile configured — means the floor-based signals below are
+// withheld rather than assumed.
 
 const L1_WEIGHTS = {
   competitionRatio: 0.35, // applications / planPerYear
@@ -382,9 +390,14 @@ export function scoreL1Recruitment(inputs: ProgramRiskInputs): DriverScore {
   // Fill rate — reported / plan
   if (latest?.reported != null && latest.plan != null && latest.plan > 0) {
     const fillRate = latest.reported / latest.plan;
-    // KKU intake-floor policy reinforces: under 30 → flagged regardless.
+    // The intake floor reinforces: under it, flagged regardless of fill
+    // rate. With no floor configured there is nothing to be under, so no
+    // breach is claimed.
+    const bachelorFloor = intakeFloors()?.bachelor ?? null;
     const floorBreach =
-      inputs.level === 'BACHELOR' && latest.reported < KKU_INTAKE_FLOOR_BACHELOR;
+      inputs.level === 'BACHELOR' &&
+      bachelorFloor !== null &&
+      latest.reported < bachelorFloor;
     // Score: fillRate ≥ 1 → 0. fillRate ≤ 0.4 → 100. Linear in between.
     let score = Math.max(0, Math.min(100, (1 - fillRate) * 100 / 0.6));
     if (floorBreach) score = Math.max(score, 80);
@@ -1059,7 +1072,7 @@ async function computeCompetitivenessPercentile(
   // rounds, which would undercount a program that runs several intakes.
   const rows = await prisma.$queryRaw<Array<{ program_id: string; ratio: number }>>(Prisma.sql`
     WITH eligible AS (
-      SELECT c.program_id, c.recruitment_program_id, c.acad_year_be,
+      SELECT c.program_id, c.recruitment_program_id, c.round, c.campaign_name, c.acad_year_be,
              c.total_applicants, c.plan_per_year
       FROM admission_campaign_stats c
       JOIN programs p ON p.id = c.program_id
@@ -1074,8 +1087,8 @@ async function computeCompetitivenessPercentile(
     ),
     plan_by_prog AS (
       SELECT program_id, SUM(pp) AS plan FROM (
-        SELECT program_id, recruitment_program_id, MAX(plan_per_year) AS pp
-        FROM scoped GROUP BY program_id, recruitment_program_id
+        SELECT program_id, ${campaignPlanKeySql('scoped')} AS plan_key, MAX(plan_per_year) AS pp
+        FROM scoped GROUP BY program_id, plan_key
       ) s GROUP BY program_id
     ),
     apps_by_prog AS (
@@ -1491,16 +1504,19 @@ export function evaluateKris(inputs: ProgramRiskInputs, freshnessDate: Date): Kr
     }
   }
 
-  // KRI 5: bachelor intake floor (KKU policy)
-  if (inputs.level === 'BACHELOR' && reported > 0) {
+  // KRI 5: bachelor intake floor (institution policy).
+  // Withheld entirely when no floor is configured — an 'OK' here would be a
+  // claim that the intake clears a bar nobody has set.
+  const bachelorIntakeFloor = intakeFloors()?.bachelor ?? null;
+  if (inputs.level === 'BACHELOR' && reported > 0 && bachelorIntakeFloor !== null) {
     out.push({
       programId: inputs.programId,
       indicatorSlug: 'bachelor_intake_floor',
       value: reported,
       severity:
-        reported < KKU_INTAKE_FLOOR_BACHELOR
+        reported < bachelorIntakeFloor
           ? 'CRITICAL'
-          : reported < KKU_INTAKE_FLOOR_BACHELOR * 1.2
+          : reported < bachelorIntakeFloor * 1.2
           ? 'WARN'
           : 'OK',
       freshnessDate,

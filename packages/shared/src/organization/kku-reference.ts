@@ -15,4 +15,10 @@ export const KKU_REFERENCE_ORGANIZATION: Institution = {
   regionEn: 'Northeast',
   contactEmail: null,
   appUrl: 'https://program-landscape.kku.ac.th',
+  // KKU council policy, and the values the product shipped with before
+  // these became configurable.
+  intakeFloorBachelor: 30,
+  intakeFloorPostgrad: 8,
+  // KKU's id in OpenAlex (verified 2026-04-28; ROR 03cq4gr50).
+  openalexInstitutionId: 'I179193067',
 };

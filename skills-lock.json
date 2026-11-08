@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "presentation-design": {
+      "source": "jwynia/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/general/communication/presentation-design/SKILL.md",
+      "computedHash": "8fabe8c0e7028b444c5b8ebc3e4edc7a8e8baf74bd606dc51d03f1b38943bbfc"
+    },
+    "write-manual": {
+      "source": "rohitg00/ai-engineering-from-scratch",
+      "sourceType": "github",
+      "skillPath": "skills/write-manual/SKILL.md",
+      "computedHash": "a59c6d3d64dd048c2fbcb766b71748c0829e43ff65af63aedf6890975d64f2f2"
+    }
+  }
+}

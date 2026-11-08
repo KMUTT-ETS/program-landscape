@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 // Prisma is mocked so the test doesn't hit a real DB. We only exercise
 // tables this particular run touches — ingestion_runs, data_sources,
@@ -77,6 +77,7 @@ const fakeDataSourceRow = (slug: string) => ({
 
 describe('ConnectorRunner — end-to-end (mocked prisma)', () => {
   beforeEach(() => {
+    vi.stubEnv('ALLOW_MOCK_CONNECTOR_RUNS', 'true');
     pdfUpsert.mockReset();
     runCreate.mockReset();
     runUpdate.mockReset();
@@ -97,7 +98,34 @@ describe('ConnectorRunner — end-to-end (mocked prisma)', () => {
     userFindUnique.mockResolvedValue({ id: 'user-test' });
   });
 
-  it('threads an API connector through healthCheck → fetch → transform → load, and writes SUCCEEDED', async () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('skips a mock connector with MOCK_NOT_ALLOWED and leaves lastSyncedAt alone', async () => {
+    vi.stubEnv('ALLOW_MOCK_CONNECTOR_RUNS', '');
+    dataSourceFindUnique.mockResolvedValue(fakeDataSourceRow('kku-registry'));
+    const connector = new KkuRegistryConnector();
+    const fetchSpy = vi.spyOn(connector, 'fetch');
+    const runner = new ConnectorRunner(new Map([[connector.slug, connector]]));
+
+    const outcome = await runner.run({ dataSourceSlug: 'kku-registry', trigger: 'SCHEDULED' });
+
+    expect(outcome).toEqual({ runId: 'run-123', status: 'SKIPPED', recordsLoaded: 0, recordsFailed: 0 });
+    expect(runCreate).toHaveBeenCalledOnce();
+    const data = (runCreate.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data;
+    expect(data.status).toBe('SKIPPED');
+    expect(data.errorCode).toBe('MOCK_NOT_ALLOWED');
+    expect(data.dataSourceId).toBe('ds-kku-registry');
+    expect(data.completedAt).toBeInstanceOf(Date);
+    expect(data.errorMessage).toContain('CONNECTOR_KKU_REGISTRY_MODE=real');
+    expect(dataSourceUpdate).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(runUpdate).not.toHaveBeenCalled();
+    expect(runUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it('runs a mock connector when ALLOW_MOCK_CONNECTOR_RUNS=true: threads an API connector through healthCheck → fetch → transform → load, and writes SUCCEEDED', async () => {
     dataSourceFindUnique.mockResolvedValue(fakeDataSourceRow('kku-registry'));
 
     const connector = new KkuRegistryConnector();

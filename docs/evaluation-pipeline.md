@@ -114,7 +114,7 @@ Key invariants:
 | **Outcomes** | tcas_min_score_percentile · employment_rate · average_salary | `tcas_admission_stats` (peer subject set) + `graduate_outcomes` (PENDING — kku-alumni still mocked) |
 | **Relevance** | labour_market_alignment · demand_match_filled · demographic_resilience · strategic_sector_alignment | `program_skills × kmitl_career_skill_demands` (4-quadrant fallback) + `program_demand_matches` + `programDemographicOutlook` (computed from `demographic_projections`) + career→sector taxonomy |
 
-Version in force: `health-score.v5.4`. The external-grant award raises the Financial dimension, so the overall score, the BCG/KKU matrix, the lifecycle verdict and the risk score all see it through Financial; it can never lower any of them.
+Version in force: `health-score.v5.6`. The external-grant award raises the Financial dimension, so the overall score, the BCG/KKU matrix, the lifecycle verdict and the risk score all see it through Financial; it can never lower any of them.
 
 **Aggregation rule (critical):** faculty/department/university scopes are *not* simple averages of program scores. Since `health-score.v5.0` they carry the same driver sets as programs: per-program-calibrated drivers roll up as the mean of program values, scope-invariant drivers as ratio-of-sums (weighted by program size). Faculty overall ≠ mean of programs, deliberately; measured gap after v5.0 ~3.9 pts. Documented in §2.3 and §8.3 of the in-app paper (`apps/web/app/docs/methodology/content-en.tsx`).
 
@@ -194,7 +194,7 @@ Rule-based template, **not** AI-generated. Composed from:
 - Top 2 lifting drivers + top 2 dragging drivers (by absolute contribution)
 - Optional "AI peer review not yet generated" footer when modernityVerdict is null
 
-The Council brief AI prompt (`program-strategic-narrative.v1`) is separate — it consumes the lifecycle output as input, not vice versa.
+The Council brief AI prompt (`program-strategic-narrative.v3`) is separate — it consumes the lifecycle output as input, not vice versa.
 
 ---
 
@@ -226,7 +226,7 @@ The discipline-aware path is what gives the Risk Score's L2 component the "music
 `programAiReadiness()` is called by:
 - `programLifecycleVerdict` (driver 1 — the heaviest)
 - `scoreL2AiDisruption` (Risk Score, readiness deficit + disruption signal components)
-- `program-strategic-narrative.v1` (AI prompt input)
+- `program-strategic-narrative.v3` (AI prompt input)
 - Deep-Dive's AI Readiness section
 
 ---
@@ -313,10 +313,10 @@ grounding, confidence rubric, tell-ban, versioning, data-channel manifest) live 
 
 | Prompt | Output materialises into | When fired |
 |---|---|---|
-| `program-digest.v2` | `Program.*` (metadata + recruitmentSummary) + `ProgramSkill` (via materialise on approval) + `PROPOSED_SKILL` AiExtraction rows for the analyst queue | One-shot Gemini call against full curriculum PDF text; bulk via `pnpm programs:digest-bulk` |
-| `program-courses-extract.v4` | `program_courses` rows (canonical course-code list) | Regex-anchored candidate list + LLM completion, scoped to the มคอ.2 รายวิชา section; v4 also reads each course's หมวด grouping (`category`) from the section headings |
-| `program-faculty-extraction.v1` | `ProgramFaculty` curated roster links | Manual analyst trigger |
-| `program-skills-detailed.v2` | Deeper `ProgramSkill` enrichment beyond program-digest (compulsory/elective weight split, PLO linkage) | Manual |
+| `program-digest.v4` | `Program.*` (metadata + recruitmentSummary) + `ProgramSkill` (via materialise on approval) + `PROPOSED_SKILL` AiExtraction rows for the analyst queue | One-shot Gemini call against full curriculum PDF text; bulk via `pnpm programs:digest-bulk` |
+| `program-courses-extract.v5` | `program_courses` rows (canonical course-code list) | Regex-anchored candidate list + LLM completion, scoped to the มคอ.2 รายวิชา section; accepts KKU six-digit and three-letter + three-digit codes (v5 drops KKU-only wording); v4 added reading each course's หมวด grouping (`category`) from the section headings |
+| `program-faculty-extraction.v3` | `ProgramFaculty` curated roster links | Manual analyst trigger |
+| `program-skills-detailed.v4` | Deeper `ProgramSkill` enrichment beyond program-digest (compulsory/elective weight split, PLO linkage) | Manual |
 | `course-skill-extraction.v1` (`course-skills.v1`) | `CourseSkill` rows | On course-description AiExtraction approval |
 | `job-posting-skill-extraction.v1` (`job-posting-skills.v1`) | `JobPostingSkill` rows | On job-posting AiExtraction approval |
 | `graduate-employment-survey.v1` | Structured graduate-outcome rows | Survey-PDF intake |
@@ -329,7 +329,7 @@ grounding, confidence rubric, tell-ban, versioning, data-channel manifest) live 
 |---|---|
 | `career-kmitl-mapping.v1` | Map a Program → ≤N `kmitlCareerIds` (used by Deep-Dive Skills + relevance driver) |
 | `demand-skill-match.v2` | Pre-compute `program_demand_matches` — `(matchedDemanded, relevantDemanded)` per program × career → drives Relevance's `demand_match_filled` |
-| `program-peer-selection.v1` | Pick 3–5 best-fit peers per tier (WORLD / ASIA / SEA / THAILAND_PEER) → input to `program-peer-review.v4` |
+| `program-peer-selection.v3` | Pick 3–5 best-fit peers per tier (WORLD / ASIA / SEA / THAILAND_PEER) → input to `program-peer-review.v4` |
 | `skill-name-normaliser.v1` | Resolve `PROPOSED_SKILL` rows against `Skill.nameEn`/`nameTh` (taxonomy growth path); has an explicit `AMBIGUOUS` abstain path |
 | `pdf-classify.v1` | Classifies an intake PDF into `sourceCategory` (POLICY / REPORT / CURRICULUM / PEER_PROGRAM / SURVEY / COMMITTEE_MINUTES / JOB_POSTINGS_BATCH / OTHER) so the right extractor routes |
 | `job-field-taxonomy.v1` | Clusters JobThai's free-text field-of-study strings (≥ 5 mentions) into canonical fields with Thai + English names → `job_field_taxonomy` rows, `PROPOSED`, reviewed at `/admin/job-fields`. **The rows of the gap map.** Batched 200; existing non-rejected fields ride along as anchors |
@@ -341,7 +341,7 @@ grounding, confidence rubric, tell-ban, versioning, data-channel manifest) live 
 |---|---|---|
 | `program-peer-review.v4` | `program_peer_reviews.payloadJson` | **Drives lifecycle drivers 5+6** (`contentModernity.verdict` + `contentGaps[severity='major']`); feeds Deep-Dive Peer Comparison section; feeds AI-readiness gaps/recs (AI-filtered subset) |
 | `program-ai-readiness.v4` | `program_ai_readiness_assessments.payloadJson` | Discipline-aware override of deterministic AI readiness (Path B in §4), now with Human-Agency-Scale + automation-zone task-family analysis; feeds Risk L2 (readiness deficit + disruption signal); also feeds Deep-Dive |
-| `risk-assessment.v4` | `RiskAssessment` AI columns (narrative + measures + caveats) | Council-facing risk narrative + named mitigation measures; reconciles rule-derived candidate measures from `risk-measure-rules.v2`; v4 adds the named overlap siblings (program-overlap.v1) (the deterministic engine, NOT a prompt file — don't confuse with an AI prompt when searching) |
+| `risk-assessment.v5` | `RiskAssessment` AI columns (narrative + measures + caveats) | Council-facing risk narrative + named mitigation measures; reconciles rule-derived candidate measures from `risk-measure-rules.v2`; v4 adds the named overlap siblings (program-overlap.v1); v5 makes the example wording region-neutral (the deterministic engine, NOT a prompt file — don't confuse with an AI prompt when searching) |
 | `program-overlap-recommendation.v1` | `program_overlap_recommendations` | English reasoning for a flagged overlap pair (≥ 1 action and index ≥ 50): rationale, what is distinctive on each side, 2–4 next steps, confidence, and an optional disagreement with the rule-chosen action. **Never changes the action.** Re-run only when the pair's evidence hash or the prompt version changes |
 | `program-pedagogy.v1.1` | `ProgramPedagogyAssessment` → health-score `pedagogical_fit` relevance driver | Discipline-aware pedagogy fit (PBL/clinical/capstone/etc. vs discipline norms) + QA-system scoring, grounded in verbatim PDF quotes |
 | `decision-review.ts` (exports `outcome-review.v1`) | `DecisionOutcomeReview.payloadJson` | Fires at 6mo/1y/3y horizons after decision approval; produces actual-vs-projected narrative. File/constant name mismatch (`decision-review.ts` ↔ `outcome-review.v1`) — regularise at next bump |
@@ -350,7 +350,7 @@ grounding, confidence rubric, tell-ban, versioning, data-channel manifest) live 
 
 | Prompt | Surface | Notes |
 |---|---|---|
-| `program-strategic-narrative.v1` | `program_strategic_narratives.contentMarkdown` | Deep-Dive header brief; 250–400 words; 5-section markdown structure (Executive summary / Strategic position / Critical risks / Opportunities / Recommended actions); **no greetings, no closings** — hard rules in system prompt. Never sees graduate outcomes, demand match, trend signals, risk, or cohort data — the largest single grounding gap in the estate (see prompt audit) |
+| `program-strategic-narrative.v3` | `program_strategic_narratives.contentMarkdown` | Deep-Dive header brief; 250–400 words; 5-section markdown structure (Executive summary / Strategic position / Critical risks / Opportunities / Recommended actions); **no greetings, no closings** — hard rules in system prompt. Never sees graduate outcomes, demand match, trend signals, risk, or cohort data — the largest single grounding gap in the estate (see prompt audit) |
 | `expertise-narrative.v2` | `user_expertise_narratives` (profile page only) | Pure expertise extraction from education + publication titles; bilingual TH+EN narrative + parallel keyword arrays |
 | `gap-brief.v1` | `/gap-analysis` Council brief | One call over the ≤ 60 gap-map rows on screen: ≤ 5 findings, each citing one field's own numbers, plus what the data cannot tell. **Every finding is reconciled against the row it names before it is returned** — a mismatched verdict is corrected, and one resolving to `supply-unknown` or to an ambiguous field name is dropped rather than guessed. Replaced `gap-insights` and its 3 modes at v1.9.7. On-demand, not stored |
 | `scenario-insights.v1` | `/scenarios` AI panel | 5 modes incl. devils-advocate (argues *against* apparent-best scenario). On-demand, not stored |
@@ -375,7 +375,7 @@ ProgramSkill rows + faculty roster + research_outputs ─▶ programAiReadiness 
                                                                        │
                                        (deterministic, always runs)    │
                                                                        ▼
-program-peer-selection.v1 picks 3-5 peers/tier ─▶ program-peer-review.v4 ─▶ ProgramPeerReview
+program-peer-selection.v3 picks 3-5 peers/tier ─▶ program-peer-review.v4 ─▶ ProgramPeerReview
                                                                        │
                                   (contentModernity.verdict             │
                                    + contentGaps[major])                │
@@ -476,7 +476,7 @@ course embeddings, `program_learning_outcomes` (from the latest
 `PROGRAM_SKILLS_DETAILED` extraction), `program_market_profiles`, and
 `program_faculties × faculty_members` (active staff only). The index uses the
 course layers only; PLO alignment is computed and shown as context. Course categories come
-from `program-courses-extract.v4` (phase 2b); descriptions and CLOs from approved
+from `program-courses-extract.v5` (phase 2b); descriptions and CLOs from approved
 `PROGRAM_DIGEST` payloads; embeddings from `gemini-embedding-001` at 1536
 dimensions, written by `pnpm programs:overlap-prep`.
 
@@ -590,7 +590,7 @@ Every score row carries a `methodologyVersion`. Bumping rules:
 | Methodology doc rephrasing without code change | **no bump** | n/a |
 
 Per-prompt versions:
-- `program-digest.v1` · `program-peer-review.v2` · `program-peer-selection.v1` · `program-ai-readiness.v2` · `risk-assessment.v2` · `program-strategic-narrative.v1` · `expertise-narrative.v2` · `analyst-system.v1` · `analyst-safety.v1` · `outcome-review.v1` · `program-overlap-recommendation.v1`
+- `program-digest.v4` · `program-peer-review.v2` · `program-peer-selection.v3` · `program-ai-readiness.v2` · `risk-assessment.v2` · `program-strategic-narrative.v3` · `expertise-narrative.v2` · `analyst-system.v1` · `analyst-safety.v1` · `outcome-review.v1` · `program-overlap-recommendation.v1`
 
 Per-scorer versions:
 - `health-score.v3.4` (current; v1/v2/v2.1 retained for audit)

@@ -46,3 +46,14 @@ describe('fetchJob108Page', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
+
+describe('fetchJob108Page identity', () => {
+  it('uses the organisation user-agent', async () => {
+    const { outboundUserAgent } = await import('@kku/shared');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('<html></html>', { status: 200 }));
+    await fetchJob108Page(`${JOB108_BASE_URL}/id1.html`);
+    const headers = (fetchSpy.mock.calls[0]![1] as RequestInit).headers as Record<string, string>;
+    expect(headers['User-Agent']).toBe(outboundUserAgent('job-108'));
+    fetchSpy.mockRestore();
+  });
+});

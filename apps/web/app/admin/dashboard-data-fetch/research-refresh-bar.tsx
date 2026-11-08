@@ -84,7 +84,7 @@ export function ResearchRefreshBar({ initial }: ResearchDataSourceProps) {
       <Card className="p-3">
         <p className="text-sm text-text-tertiary">
           Data source <code>kku-research</code> is not registered yet. Run{' '}
-          <code>pnpm db:seed</code> to seed the catalog row.
+          <code>pnpm data-sources:sync --apply</code> to seed the catalog row.
         </p>
       </Card>
     );
@@ -107,7 +107,7 @@ export function ResearchRefreshBar({ initial }: ResearchDataSourceProps) {
           <span>{busy || inflight ? 'Refreshing…' : 'Refresh now'}</span>
         </Button>
         <span className="text-xs text-text-tertiary">
-          Re-pulls KKU publications from the <code>kku-publications</code> mirror
+          Re-pulls publications from the <code>kku-publications</code> mirror
           (Scopus + PubMed) and refreshes each paper&apos;s journal quartile,
           Top-10% tier and SJR — ~12 minutes for ~90K paper×author rows. Run
           after the Library curates a new batch or refreshes CiteScore metrics.

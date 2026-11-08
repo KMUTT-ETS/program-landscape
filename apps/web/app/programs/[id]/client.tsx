@@ -32,6 +32,7 @@ import {
   regenerateNarrativeAction,
   submitDisagreementAction,
 } from '@/lib/actions/program-deep-dive';
+import { OrgNamesProvider, useOrgNames } from './org-context';
 import { SectionBand, SectionRail, SpineItem, type RailItem } from '@/components/evidence';
 import { contractionMeterWidth, formatCohortChangePct } from '@/lib/format-cohort';
 // Client-safe SUBPATH, not the `@kku/shared` root barrel — see the note above
@@ -123,6 +124,11 @@ interface Props {
   demandFunnel: DeepDiveDemandFunnel | null;
   studentCohorts: DeepDiveStudentCohorts | null;
   tcasStats: DeepDiveTcasStats | null;
+  /**
+   * Admin-grade only. Empty states link to Data sources (TCAS) and to the
+   * Data setup import pages (cohorts, funnel), both behind the same gate.
+   */
+  canOpenDataSources: boolean;
   recruitment: DeepDiveRecruitment | null;
   aiPeers: DeepDiveAiPeers | null;
   aiReadiness: DeepDiveAiReadiness | null;
@@ -142,6 +148,9 @@ interface Props {
   trends: DeepDiveTrends | null;
   healthBenchmarks: DeepDiveHealthBenchmarks | null;
   digitalCompetency: DeepDiveDigitalCompetency | null;
+  /** The organisation's short names, for copy that names the university. */
+  orgShortNameEn: string;
+  orgShortNameTh: string;
   /** program-overlap.v1 siblings; null when no run covers the programme. */
   overlap: ProgramOverlapSection | null;
   /** Envelope meta of GET /programs/:id/overlap, for the provenance drawer. */
@@ -152,7 +161,7 @@ interface Props {
   /** The suppression floor (`DQ_MIN_CELL_STUDENTS`), quoted in the copy
    *  so it moves with the query layer rather than being written twice. */
   dqMinCellStudents: number;
-  /** KKU's own DQ pass mark, quoted where the radial floor is disclosed. */
+  /** The institution's own DQ pass mark, quoted where the radial floor is disclosed. */
   dqPassMark: number;
   /** `OVERALL_MEAN_MAX_MODULE_NO` — the highest module the headline mean
    *  averages over. Every sentence naming the module window derives from
@@ -272,6 +281,14 @@ const SECTIONS: Array<{
 ];
 
 export function DeepDiveClient(props: Props) {
+  return (
+    <OrgNamesProvider value={{ en: props.orgShortNameEn, th: props.orgShortNameTh }}>
+      <DeepDiveClientBody {...props} />
+    </OrgNamesProvider>
+  );
+}
+
+function DeepDiveClientBody(props: Props) {
   const router = useRouter();
   const [narrative, setNarrative] = React.useState<string | null>(null);
   const [narrativeBusy, setNarrativeBusy] = React.useState(false);
@@ -410,7 +427,7 @@ export function DeepDiveClient(props: Props) {
           statLabel="competition"
         >
           <RecruitmentSection data={props.recruitment} />
-          <TcasStatsSection data={props.tcasStats} />
+          <TcasStatsSection data={props.tcasStats} canOpenDataSources={props.canOpenDataSources} />
         </MacroGroup>
 
         <MacroGroup
@@ -420,8 +437,14 @@ export function DeepDiveClient(props: Props) {
           stat={railMeta.current.students}
           statLabel="active"
         >
-          <StudentCohortsSection data={props.studentCohorts} />
-          <DemandFunnelSection data={props.demandFunnel} />
+          <StudentCohortsSection
+            data={props.studentCohorts}
+            canOpenDataSources={props.canOpenDataSources}
+          />
+          <DemandFunnelSection
+            data={props.demandFunnel}
+            canOpenDataSources={props.canOpenDataSources}
+          />
           <DemographicOutlookSection data={props.demographicOutlook} />
         </MacroGroup>
 
@@ -471,7 +494,7 @@ export function DeepDiveClient(props: Props) {
           <MacroGroup
             id="overlap"
             title="Overlap"
-            subtitle="Same-level KKU programmes that share courses or equivalent course content with this one — for review, not decisions."
+            subtitle={`Same-level ${props.orgShortNameEn} programmes that share courses or equivalent course content with this one — for review, not decisions.`}
             stat={overlapStat?.count}
             statLabel={overlapStat?.label}
           >
@@ -1348,17 +1371,59 @@ function NarrativeSection({
   );
 }
 
-function DemandFunnelSection({ data }: { data: DeepDiveDemandFunnel | null }) {
-  if (!data) return <EmptyCard title="Demand funnel" note="No data — run kku-registry + alumni links." />;
-  const stages = data.stages.filter((s) => s.value > 0);
-  if (stages.length === 0) {
+/**
+ * Where an empty cohort section sends its reader. The spreadsheet import is
+ * the path every installation has; the registrar scripts only work where the
+ * kku-registry Oracle connection is configured, so they are a footnote.
+ */
+function CohortImportNote({
+  canOpenDataSources,
+  datasets,
+}: {
+  canOpenDataSources: boolean;
+  datasets: ReadonlyArray<{ slug: string; label: string }>;
+}) {
+  if (!canOpenDataSources) {
+    return <>This data has not been loaded yet. An administrator can import it from Data setup.</>;
+  }
+  return (
+    <>
+      Import it from Data setup:{' '}
+      {datasets.map((d, i) => (
+        <React.Fragment key={d.slug}>
+          {i > 0 && (i === datasets.length - 1 ? ' and ' : ', ')}
+          <Link href={`/admin/data-setup/raw/${d.slug}`} className="text-accent-default hover:underline">
+            {d.label}
+          </Link>
+        </React.Fragment>
+      ))}
+      . Installations connected to the registrar database can run the{' '}
+      <span className="font-tabular">pnpm programs:link-*</span> scripts instead.
+    </>
+  );
+}
+
+const FUNNEL_DATASETS = [
+  { slug: 'student-cohorts', label: 'Student cohorts' },
+  { slug: 'alumni-cohorts', label: 'Alumni cohorts' },
+  { slug: 'admission-campaigns', label: 'Admission campaigns' },
+] as const;
+
+function DemandFunnelSection({
+  data,
+  canOpenDataSources,
+}: {
+  data: DeepDiveDemandFunnel | null;
+  canOpenDataSources: boolean;
+}) {
+  const note = <CohortImportNote canOpenDataSources={canOpenDataSources} datasets={FUNNEL_DATASETS} />;
+  const stages = data ? data.stages.filter((s) => s.value > 0) : [];
+  if (!data || stages.length === 0) {
     return (
       <Section id="demand" title="Demand funnel">
         <Card>
-          <EmptyState
-            title="No funnel data"
-            description="Run `pnpm programs:link-cohorts <code>` and `pnpm programs:link-alumni <code>` to populate cohort-by-year + alumni-status data, then `pnpm registry:capture` for TCAS3 applicant counts."
-          />
+          <p className="text-sm font-medium text-text-secondary">No funnel data</p>
+          <p className="mt-1 text-sm text-text-tertiary">{note}</p>
         </Card>
       </Section>
     );
@@ -1590,13 +1655,25 @@ function StatusKpi({
   );
 }
 
-function StudentCohortsSection({ data }: { data: DeepDiveStudentCohorts | null }) {
+function StudentCohortsSection({
+  data,
+  canOpenDataSources,
+}: {
+  data: DeepDiveStudentCohorts | null;
+  canOpenDataSources: boolean;
+}) {
+  const org = useOrgNames();
   if (!data || data.cohorts.length === 0) {
     return (
       <Section id="cohorts" title="Cohort distribution by entry year">
         <EmptyCard
           title="No cohort data"
-          note="Run `pnpm programs:link-cohorts <code>` to populate from registrar data."
+          note={
+            <CohortImportNote
+              canOpenDataSources={canOpenDataSources}
+              datasets={[{ slug: 'student-cohorts', label: 'Student cohorts' }]}
+            />
+          }
         />
       </Section>
     );
@@ -1731,7 +1808,7 @@ function StudentCohortsSection({ data }: { data: DeepDiveStudentCohorts | null }
         </table>
 
         <p className="mt-3 border-t border-border-subtle pt-2 text-xs text-text-tertiary">
-          Entry year is taken from each student&apos;s registration code (Buddhist Era). KKU&apos;s
+          Entry year is taken from each student&apos;s registration code (Buddhist Era). {org.en}&apos;s
           academic year starts in June — students admitted before June 1 of their entry year are
           still classed as Incoming (Year 0).
           {data.programDurationYears !== null && (
@@ -1759,27 +1836,28 @@ interface PeerCompetitionVerdict {
   tooltip: string;
 }
 
-/** Compare a peer's competition ratio against KKU's and bucket the
- *  difference into a 5-step verdict. Higher peer ratio = peer is MORE
- *  competitive than KKU = unfavorable for KKU (warning colours).
- *  Lower peer ratio = KKU is more in-demand (success colours). */
+/** Compare a peer's competition ratio against the institution's own and
+ *  bucket the difference into a 5-step verdict. Higher peer ratio = peer is
+ *  MORE competitive = unfavorable for the institution (warning colours).
+ *  Lower peer ratio = the institution is more in-demand (success colours). */
 function competitionVerdict(
   peerRatio: number,
   kkuRatio: number,
+  orgName: string,
 ): PeerCompetitionVerdict {
   if (kkuRatio <= 0) {
     return {
       cellClass: 'bg-border-subtle/40 text-text-secondary',
       arrow: '·',
       deltaLabel: 'n/a',
-      tooltip: 'KKU has no quota — comparison unavailable',
+      tooltip: `${orgName} has no quota — comparison unavailable`,
     };
   }
   const ratioOfRatios = peerRatio / kkuRatio;
   const deltaPct = (ratioOfRatios - 1) * 100;
   const sign = deltaPct >= 0 ? '+' : '−';
   const deltaLabel = `${sign}${Math.abs(deltaPct).toFixed(0)}%`;
-  const tooltip = `Peer ${peerRatio.toFixed(2)}× vs KKU ${kkuRatio.toFixed(2)}× (${deltaLabel})`;
+  const tooltip = `Peer ${peerRatio.toFixed(2)}× vs ${orgName} ${kkuRatio.toFixed(2)}× (${deltaLabel})`;
 
   if (ratioOfRatios >= 1.5) {
     return {
@@ -1821,13 +1899,32 @@ function competitionVerdict(
   };
 }
 
-function TcasStatsSection({ data }: { data: DeepDiveTcasStats | null }) {
+function TcasStatsSection({
+  data,
+  canOpenDataSources,
+}: {
+  data: DeepDiveTcasStats | null;
+  canOpenDataSources: boolean;
+}) {
+  const org = useOrgNames();
   if (!data || data.history.length === 0) {
     return (
       <Section id="tcas" title="TCAS3 round-3 score detail & peer comparison">
         <EmptyCard
           title="No TCAS3 data"
-          note="Run `pnpm connector:run tcas` (with CONNECTOR_TCAS_MODE=real) to ingest mytcas.com TCAS62–TCAS68 maxmin xlsx files. Round 1 / Round 2 connectors land later."
+          note={
+            canOpenDataSources ? (
+              <>
+                Run the TCAS connector from{' '}
+                <Link href="/admin/data-sources/tcas" className="text-accent-default hover:underline">
+                  Data sources → TCAS
+                </Link>{' '}
+                to ingest the mytcas.com TCAS62–TCAS68 maxmin xlsx files. Round 1 / Round 2 connectors land later.
+              </>
+            ) : (
+              'TCAS round-3 score data has not been loaded yet. An administrator can run the TCAS connector from Data sources.'
+            )
+          }
         />
       </Section>
     );
@@ -1930,7 +2027,8 @@ function TcasStatsSection({ data }: { data: DeepDiveTcasStats | null }) {
                     {h.competitionRatio.toFixed(2)}×
                   </td>
                   <td className="py-1.5 text-right font-tabular text-text-secondary">
-                    {(h.fillRate * 100).toFixed(1)}%
+                    {/* No admitted counts published is missing, not a 0% fill. */}
+                    {h.admittedPass1 === 0 && h.admittedPass2 === 0 ? '—' : `${(h.fillRate * 100).toFixed(1)}%`}
                   </td>
                   <td className="py-1.5 text-right font-tabular">
                     {h.minScorePass1 !== null ? h.minScorePass1.toFixed(2) : '—'}
@@ -1969,7 +2067,7 @@ function TcasStatsSection({ data }: { data: DeepDiveTcasStats | null }) {
           </p>
           {/* Competition-rate legend */}
           <div className="mb-2 flex flex-wrap items-center gap-3 text-xs text-text-tertiary">
-            <span>Competition vs KKU ({latestRow.competitionRatio.toFixed(2)}×):</span>
+            <span>Competition vs {org.en} ({latestRow.competitionRatio.toFixed(2)}×):</span>
             <span className="flex items-center gap-1">
               <span className="inline-block h-2.5 w-2.5 rounded-sm bg-warning/70" />
               ≥ 1.5× higher (peer much more competitive)
@@ -1984,7 +2082,7 @@ function TcasStatsSection({ data }: { data: DeepDiveTcasStats | null }) {
             </span>
             <span className="flex items-center gap-1">
               <span className="inline-block h-2.5 w-2.5 rounded-sm bg-success/70" />
-              lower (KKU more competitive)
+              lower ({org.en} more competitive)
             </span>
           </div>
           <table className="w-full text-sm">
@@ -1995,7 +2093,7 @@ function TcasStatsSection({ data }: { data: DeepDiveTcasStats | null }) {
                 <th className="py-1.5 font-medium">Programme</th>
                 <th className="py-1.5 text-right font-medium">Quota</th>
                 <th className="py-1.5 text-right font-medium">Applicants</th>
-                <th className="py-1.5 text-right font-medium">Competition vs KKU</th>
+                <th className="py-1.5 text-right font-medium">Competition vs {org.en}</th>
                 <th className="py-1.5 text-right font-medium">Min score</th>
               </tr>
             </thead>
@@ -2004,7 +2102,7 @@ function TcasStatsSection({ data }: { data: DeepDiveTcasStats | null }) {
                 .sort((a, b) => b.competitionRatio - a.competitionRatio)
                 .slice(0, 25)
                 .map((p, i) => {
-                const verdict = competitionVerdict(p.competitionRatio, latestRow.competitionRatio);
+                const verdict = competitionVerdict(p.competitionRatio, latestRow.competitionRatio, org.en);
                 return (
                   <tr key={i} className="border-t border-border-subtle">
                     <td className="py-1.5 text-xs">
@@ -2099,7 +2197,7 @@ function DemographicOutlookSection({
             Catchment
           </div>
           <div className="mt-1 font-tabular text-lg font-semibold">
-            {data.catchmentRegion === 'Northeast' ? 'Northeast Thailand' : 'Thailand'}
+            {data.catchmentRegion === 'TH' ? 'Thailand' : data.catchmentRegion}
           </div>
           <div className="mt-1 text-xs text-text-tertiary">
             Cohort {data.ageCohort} · NESDC mid-variant
@@ -2134,7 +2232,7 @@ function DemographicOutlookSection({
             />
           </div>
           <div className="mt-1 text-xs text-text-tertiary">
-            {data.catchmentRegion === 'Northeast' ? 'NE' : 'TH'} {data.ageCohort} cohort
+            {data.catchmentRegion === 'TH' ? 'National' : data.catchmentRegion} {data.ageCohort} cohort
           </div>
         </Card>
         <Card className={`border-l-4 ${riskBgClass[data.riskLevel]}`}>
@@ -2166,7 +2264,7 @@ function DemographicOutlookSection({
       {/* ── Projection chart + table ──────────────────────────────── */}
       <Card>
         <h4 className="mb-2 text-sm font-semibold">
-          Cohort projection — {data.catchmentRegion === 'Northeast' ? 'Northeast' : 'Thailand'} {data.ageCohort}
+          Cohort projection — {data.catchmentRegion === 'TH' ? 'Thailand' : data.catchmentRegion} {data.ageCohort}
         </h4>
         <div className="space-y-2">
           {data.projections.map((p) => {
@@ -2209,7 +2307,9 @@ function DemographicOutlookSection({
             <tr>
               <th className="py-1.5 font-medium">Horizon</th>
               <th className="py-1.5 text-right font-medium">National {data.ageCohort} cohort</th>
-              <th className="py-1.5 text-right font-medium">NE catchment</th>
+              {data.comparatorRegion !== null && (
+                <th className="py-1.5 text-right font-medium">{data.comparatorRegion} catchment</th>
+              )}
               <th className="py-1.5 text-right font-medium">Decline vs today</th>
               <th className="py-1.5 text-right font-medium">Share to maintain intake</th>
             </tr>
@@ -2225,11 +2325,13 @@ function DemographicOutlookSection({
                 <td className="py-1.5 text-right font-tabular">
                   {p.cohortPopulation.toLocaleString('en-US')}
                 </td>
-                <td className="py-1.5 text-right font-tabular text-text-secondary">
-                  {p.cohortPopulationRegional !== null
-                    ? p.cohortPopulationRegional.toLocaleString('en-US')
-                    : '—'}
-                </td>
+                {data.comparatorRegion !== null && (
+                  <td className="py-1.5 text-right font-tabular text-text-secondary">
+                    {p.cohortPopulationRegional !== null
+                      ? p.cohortPopulationRegional.toLocaleString('en-US')
+                      : '—'}
+                  </td>
+                )}
                 <td className="py-1.5 text-right font-tabular text-text-secondary">
                   {formatCohortChangePct(p.cohortDeclinePct)}
                 </td>
@@ -2244,8 +2346,14 @@ function DemographicOutlookSection({
         </table>
 
         <p className="mt-3 border-t border-border-subtle pt-2 text-xs text-text-tertiary">
-          Source: {data.source} (NESDC mid-variant population projection). The projection is
-          national; the NE-catchment column is a comparator.
+          Source: {data.source} (mid-variant population projection). The projection is
+          national{data.comparatorRegion !== null
+            ? `; the ${data.comparatorRegion}-catchment column is a comparator${
+                data.comparatorSource && data.comparatorSource !== data.source
+                  ? ` taken from ${data.comparatorSource}`
+                  : ''
+              }`
+            : ''}.
           {fifteenYear && fifteenYear.cohortDeclinePct > 30 && (
             <span className="text-warning">
               {' '}A {fifteenYear.cohortDeclinePct.toFixed(0)}% national contraction by{' '}
@@ -2351,7 +2459,18 @@ function DemographicOutlookSection({
 function FinancialsSection({ data }: { data: DeepDiveFinancials | null }) {
   if (!data || data.waterfall.length === 0) {
     return (
-      <EmptyCard title="Financials" note="Financial metrics not available — run pnpm programs:link-financials, or financial role required." />
+      <EmptyCard
+        title="Financials"
+        note={
+          <>
+            Financial metrics not available — import the Finance dataset from{' '}
+            <Link href="/admin/data-setup" className="text-accent-default hover:underline">
+              Data setup
+            </Link>
+            , or a financial role is required.
+          </>
+        }
+      />
     );
   }
   // Use the trend row matching latestFiscalYear (the complete-year pick),
@@ -2418,7 +2537,7 @@ function FinancialsSection({ data }: { data: DeepDiveFinancials | null }) {
           <div className="text-xs text-text-tertiary">
             {data.salaryByFunding
               ? `THB/yr · weighted by enrolment share · ${data.salaryByFunding.contributingMembers} member${data.salaryByFunding.contributingMembers === 1 ? '' : 's'}`
-              : 'THB/yr · faculty payroll — NOT netted from tuition'}
+              : 'THB/yr · faculty payroll — NOT netted from tuition. Appears once the Staff Salary by Funding spreadsheet is uploaded, or the HR connector has run.'}
           </div>
         </Card>
         <Card>
@@ -2436,7 +2555,7 @@ function FinancialsSection({ data }: { data: DeepDiveFinancials | null }) {
           </h4>
           <p className="mb-3 text-xs text-text-tertiary">
             Funding-source split for this program&apos;s teaching staff,
-            sourced from the KKU-HR compensation cube (
+            sourced from the Compensation dataset (imported from a spreadsheet or the HR connector) (
             <Link href="/staff/compensation" className="text-accent-default hover:underline">
               /staff/compensation
             </Link>
@@ -2954,45 +3073,56 @@ function JobThaiDemandCards({ data }: { data: DeepDiveJobThaiSkills | undefined 
 }
 
 function OutcomesSection({ data }: { data: DeepDiveOutcomes | null }) {
-  if (!data || !data.latest) {
+  if (!data || (!data.latest && data.topEmployers.length === 0)) {
     return <EmptyCard title="Outcomes" note="No graduate outcome surveys yet." />;
   }
   const l = data.latest;
   return (
     <Section id="outcomes" title="Outcomes">
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      {l ? (
+        <>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <Card>
+              <div className="text-xs uppercase tracking-wide text-text-tertiary">
+                Employment rate
+              </div>
+              <div className="mt-1 font-tabular text-2xl font-semibold">
+                {(l.employmentRate * 100).toFixed(1)}%
+              </div>
+              <div className="text-xs text-text-tertiary">
+                ~1 year after graduation · {l.sampleSize.toLocaleString('en-US')} graduates surveyed
+              </div>
+            </Card>
+            <Card>
+              <div className="text-xs uppercase tracking-wide text-text-tertiary">
+                Average starting salary
+              </div>
+              <div className="mt-1 font-tabular text-2xl font-semibold">
+                {l.averageSalary.toLocaleString('en-US')} THB
+              </div>
+              <div className="text-xs text-text-tertiary">monthly, self-reported</div>
+            </Card>
+            <Card>
+              <div className="text-xs uppercase tracking-wide text-text-tertiary">
+                Job matches field of study
+              </div>
+              <div className="mt-1 font-tabular text-2xl font-semibold">
+                {(l.jobRelevanceScore * 100).toFixed(0)}%
+              </div>
+              <div className="text-xs text-text-tertiary">graduates working in their discipline</div>
+            </Card>
+          </div>
+        </>
+      ) : (
         <Card>
-          <div className="text-xs uppercase tracking-wide text-text-tertiary">
-            Employment rate
-          </div>
-          <div className="mt-1 font-tabular text-2xl font-semibold">
-            {(l.employmentRate * 100).toFixed(1)}%
-          </div>
-          <div className="text-xs text-text-tertiary">
-            ~1 year after graduation · {l.sampleSize.toLocaleString('en-US')} graduates surveyed
-          </div>
+          <p className="text-sm text-text-tertiary">No graduate outcome surveys yet.</p>
         </Card>
-        <Card>
-          <div className="text-xs uppercase tracking-wide text-text-tertiary">
-            Average starting salary
-          </div>
-          <div className="mt-1 font-tabular text-2xl font-semibold">
-            {l.averageSalary.toLocaleString('en-US')} THB
-          </div>
-          <div className="text-xs text-text-tertiary">monthly, self-reported</div>
-        </Card>
-        <Card>
-          <div className="text-xs uppercase tracking-wide text-text-tertiary">
-            Job matches field of study
-          </div>
-          <div className="mt-1 font-tabular text-2xl font-semibold">
-            {(l.jobRelevanceScore * 100).toFixed(0)}%
-          </div>
-          <div className="text-xs text-text-tertiary">graduates working in their discipline</div>
-        </Card>
-      </div>
+      )}
       <Card className="mt-3">
         <h4 className="mb-2 text-sm font-semibold">Where graduates work — top employers</h4>
+        {data.topEmployers.length === 0 && (
+          <p className="text-sm text-text-tertiary">No employer feedback has been recorded yet.</p>
+        )}
         <ul className="flex flex-col gap-1 text-sm">
           {data.topEmployers.slice(0, 10).map((e, i) => (
             <li key={i} className="flex justify-between">
@@ -3008,7 +3138,7 @@ function OutcomesSection({ data }: { data: DeepDiveOutcomes | null }) {
         <h4 className="mb-2 text-sm font-semibold">Where graduates settle — by province</h4>
         <p className="text-sm text-text-tertiary">
           A Thailand province map is planned, but per-graduate home province is not yet collected.
-          This view will populate once the KKU-Alumni connector adds province data.
+          This view will populate once per-graduate province is added to the Alumni Cohorts dataset in Data setup (/admin/data-setup).
         </p>
       </Card>
     </Section>
@@ -3090,12 +3220,12 @@ function DigitalCompetencySection({
             small size.
           </p>
           <p className="mt-2 text-xs text-text-tertiary">
-            If that looks wrong, re-run the <code className="font-mono">kku-dq</code> connector from{' '}
+            If that looks wrong, upload the Digital Competency — Cohorts and Digital Competency — Modules sheets in{' '}
             <Link
-              href="/admin/data-sources/kku-dq"
+              href="/admin/data-setup"
               className="text-accent-default underline-offset-2 hover:underline"
             >
-              /admin/data-sources/kku-dq
+              Data setup
             </Link>{' '}
             and check the programme match rate on{' '}
             <Link href="/education/student-dq" className="text-accent-default underline-offset-2 hover:underline">
@@ -3179,7 +3309,7 @@ function DigitalCompetencySection({
     <Section
       id="digital-competency"
       title={DQ_SECTION_TITLE}
-      description={`How this programme's students score on KKU's Digital Intelligence test. ${data.methodologyVersion}.`}
+      description={`How this programme's students score on the digital competency test. ${data.methodologyVersion}.`}
     >
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <Card>
@@ -3625,7 +3755,7 @@ function FacultySection({ data }: { data: DeepDiveFaculty | null }) {
               meta={{
                 freshnessDate: null,
                 sources: [
-                  { id: 'kku-research', name: 'KKU Publications mirror (Scopus + PubMed)' },
+                  { id: 'kku-research', name: 'Publication records (spreadsheet or OpenAlex)' },
                   { id: 'google-scholar', name: 'Google Scholar, imported on demand by staff' },
                 ],
                 ...scholarProvenance(data.researchSourceComposition, 'counts-scholar-rows'),
@@ -3735,7 +3865,7 @@ function ResearchExpertiseSection({
             meta={{
               freshnessDate: result.generatedAt,
               sources: [
-                { id: 'kku-research', name: 'KKU Publications mirror (Scopus + PubMed)' },
+                { id: 'kku-research', name: 'Publication records (spreadsheet or OpenAlex)' },
                 { id: 'program-faculty', name: 'Curated program faculty roster' },
               ],
               confidence: payload.confidence,
@@ -3910,7 +4040,7 @@ function CurriculumRevisionSection({
             meta={{
               freshnessDate: generatedAt,
               sources: [
-                { id: 'kku-research', name: 'KKU Publications mirror (kku-research)' },
+                { id: 'kku-research', name: 'Publication records (spreadsheet or OpenAlex)' },
                 { id: 'program-courses', name: 'Curriculum PDF course extraction' },
                 { id: 'program-faculty', name: 'Curated program faculty roster' },
               ],
@@ -4253,6 +4383,7 @@ function PeersSection({
   data: DeepDivePeers | null;
   aiPeers: DeepDiveAiPeers | null;
 }) {
+  const org = useOrgNames();
   const hasPicks =
     aiPeers !== null &&
     (aiPeers.tiers.WORLD.length > 0 ||
@@ -4265,7 +4396,7 @@ function PeersSection({
         <Card>
           <EmptyState
             title="No AI peer review yet"
-            description="Run `pnpm peers:select <program-code>` — the AI picks best-fit peer programs across QS/THE-ranked universities, then writes a frank comparative review of KKU's strengths + weaknesses + improvement recommendations."
+            description="Run the programme pipeline (peer benchmarking phase) — the AI picks best-fit peer programs across QS/THE-ranked universities, then writes a frank comparative review of this programme's strengths, weaknesses and improvement recommendations."
           />
         </Card>
       </Section>
@@ -4285,7 +4416,7 @@ function PeersSection({
         <Card>
           <EmptyState
             title="Picks landed; review not generated yet"
-            description="Run `pnpm peers:select <program-code> --review-only` to generate the AI's comparative review. Picks are visible below the empty state once a review exists."
+            description="Run the programme pipeline (peer benchmarking phase) to generate the AI's comparative review. Picks are visible below the empty state once a review exists."
           />
         </Card>
       </Section>
@@ -4333,7 +4464,7 @@ function PeersSection({
         <Card className="border-l-4 border-l-success">
           <div className="mb-2 flex items-baseline justify-between">
             <h4 className="text-sm font-semibold text-success">
-              Where KKU leads
+              Where {org.en} leads
             </h4>
             <span className="text-xs text-text-tertiary">
               {review.strengths.length} {review.strengths.length === 1 ? 'strength' : 'strengths'}
@@ -4355,7 +4486,7 @@ function PeersSection({
         <Card className="border-l-4 border-l-warning">
           <div className="mb-2 flex items-baseline justify-between">
             <h4 className="text-sm font-semibold text-warning">
-              Where KKU falls behind
+              Where {org.en} falls behind
             </h4>
             <span className="text-xs text-text-tertiary">
               {review.weaknesses.length} {review.weaknesses.length === 1 ? 'weakness' : 'weaknesses'}
@@ -4481,7 +4612,7 @@ function PeersSection({
                     </div>
                     <div className="mt-1.5 grid grid-cols-1 gap-2 text-xs md:grid-cols-2">
                       <div>
-                        <div className="uppercase tracking-wide text-text-tertiary">KKU today</div>
+                        <div className="uppercase tracking-wide text-text-tertiary">{org.en} today</div>
                         <p className="mt-0.5 text-text-secondary">{g.kkuStatus}</p>
                       </div>
                       <div>
@@ -4873,7 +5004,7 @@ function TrendsSection({ data }: { data: DeepDiveTrends | null }) {
 // Helpers
 // ──────────────────────────────────────────────────────────────────────────
 
-function EmptyCard({ title, note }: { title: string; note: string }) {
+function EmptyCard({ title, note }: { title: string; note: React.ReactNode }) {
   return (
     <Section id={title.toLowerCase().replace(/\s/g, '-')} title={title}>
       <Card>
@@ -4902,7 +5033,7 @@ const DRIVER_LABEL_LOOKUP: Record<string, string> = {
   tcas_competition_vs_peers: 'TCAS competition vs peers',
   tcas_fill_rate: 'TCAS fill rate',
   enrollment_trend_slope: 'Enrolment trend (3-yr slope)',
-  kku_intake_policy: 'KKU intake-floor policy',
+  kku_intake_policy: 'Intake-floor policy',
   // Financial
   net_contribution_per_student: 'Net contribution / student',
   tuition_revenue_trend: 'Tuition revenue trend',
@@ -5062,7 +5193,7 @@ function HealthScoreBreakdown({
 // falls through to the camelCase splitter.
 const RAW_KEY_LOOKUP: Record<string, string> = {
   // Outcomes
-  kkuMin: 'KKU min score',
+  kkuMin: 'Own min score',
   percentile: 'Percentile vs peers',
   employmentRate: 'Employment rate',
   jobRelevanceScore: 'Job relevance (ตรงสาขา)',
@@ -5197,9 +5328,11 @@ function RecruitmentSection({ data }: { data: DeepDiveRecruitment | null }) {
       <Section id="recruitment" title="Recruitment funnel (TCAS rounds 1–4)">
         <Card padding="md">
           <p className="text-sm text-text-tertiary">
-            No recruitment data — this program isn&apos;t listed in
-            POWERBI.ADMISSION_STAT_CURRID, or its CURR_ID couldn&apos;t be
-            mapped to a Program record.
+            No recruitment data — import the Admission Campaigns dataset from{' '}
+            <Link href="/admin/data-setup" className="text-accent-default hover:underline">
+              Data setup
+            </Link>
+            , or this program isn&apos;t listed in it.
           </p>
         </Card>
       </Section>

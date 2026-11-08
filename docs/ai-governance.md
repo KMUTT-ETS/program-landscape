@@ -44,7 +44,7 @@ Modules (api + ingestion)
    ┌────┴─────┬─────────────┬────────────────────────┐
    ▼          ▼             ▼                        ▼
  Google    Anthropic    OpenRouter                IntelSphere
-(Gemini)   (Claude)     (stub, prompt XX)        (stub, KKU gateway)
+(Gemini)   (Claude)     (any vendor/model)       (stub, KKU gateway)
    │          │
    │          └─ embed() falls back to Google
    │             (Claude has no embeddings API)
@@ -57,14 +57,30 @@ Config (env):
 | Var | Default | Notes |
 |---|---|---|
 | `AI_PROVIDER` | `google` | `google` / `anthropic` / `openrouter` / `intelsphere` |
-| `GOOGLE_AI_API_KEY` |  | Required for provider=google; also used for embeddings when provider=anthropic |
+| `GOOGLE_AI_API_KEY` |  | Required for provider=google; also used for embeddings when provider=anthropic (required) or provider=openrouter (optional) |
 | `ANTHROPIC_API_KEY` |  | Required for provider=anthropic |
-| `OPENROUTER_API_KEY` |  | Stubbed |
+| `OPENROUTER_API_KEY` |  | Required for provider=openrouter |
 | `KKU_INTELSPHERE_URL` / `KKU_INTELSPHERE_API_KEY` |  | Stubbed |
 | `AI_GOOGLE_COMPLETION_MODEL` | `gemini-2.0-flash-001` | Override per deployment |
-| `AI_GOOGLE_EMBEDDING_MODEL` | `text-embedding-004` | 1536 dims — matches pgvector column |
+| `AI_GOOGLE_EMBEDDING_MODEL` | `gemini-embedding-001` | Callers request 1536 dims to match the pgvector columns |
 | `AI_ANTHROPIC_COMPLETION_MODEL` | `claude-sonnet-4-6` | |
-| `AI_AUTO_APPROVE_THRESHOLD` | `0.85` | AiExtraction below this → PENDING_REVIEW |
+| `AI_OPENROUTER_COMPLETION_MODEL` | `google/gemini-2.5-flash` | OpenRouter `vendor/model` id. Bare `gemini-…` ids (method-catalog defaults, admin overrides) map to `google/<id>` |
+| `AI_OPENROUTER_EMBEDDING_MODEL` |  | Used only when there is no Google key: embeddings go to Google whenever `GOOGLE_AI_API_KEY` is set, because stored vectors must all come from one model. On an OpenRouter-only install, set a model that returns 1536 dimensions (e.g. `openai/text-embedding-3-small`). Switching an existing database to a different embedding model means re-embedding everything |
+| `AI_OPENROUTER_TIMEOUT_MS` | `120000` | Per-request limit in milliseconds. A curriculum digest of a long PDF (300+ pages, ~360k input tokens) needs several minutes and fails at the default; set `600000`. The Google fallback does not rescue it on a free-tier key, which allows 250k input tokens a minute |
+| `AI_AUTO_APPROVE_THRESHOLD` | `0` | AiExtraction below this → PENDING_REVIEW. Unset, the code default of 0 auto-approves everything; `.env.prod.example` ships `0.85` |
+
+### Running on OpenRouter
+
+A curriculum digest of a long PDF is the heaviest request the product makes, and on OpenRouter it meets four problems in this order. Each one hides the next until it is fixed.
+
+| What the operator sees | Cause | What to do |
+|---|---|---|
+| The digest fails after about 2 minutes | `AI_OPENROUTER_TIMEOUT_MS` defaults to 120000 | Set `AI_OPENROUTER_TIMEOUT_MS=600000` and recreate the `api` and `ingestion` containers (or restart `pnpm dev`) |
+| After the timeout: 429 `RESOURCE_EXHAUSTED` from Google | The timeout is transient, so the request falls back to Google. A whole curriculum is ~362k input tokens; a free-tier Google key allows 250k input tokens a minute, so the fallback fails every time | Fix the timeout so the fallback is never needed. A paid Google tier would also take it |
+| "no json found"; the response is empty | A reasoning model (e.g. `z-ai/glm-5.3`) spent the whole output budget (50,000 tokens for the digest) on reasoning | Structured extraction now sends `reasoning: { effort: 'minimal' }` unless the caller asks for `thinking`. Turning reasoning fully off is refused by some models ("Reasoning is mandatory"), so minimal is the nearest accepted setting. Measured: digest in 73 s for USD 0.08. If a model still returns nothing, choose a non-reasoning model |
+| HTTP 402 "You requested up to 50000 tokens, but can only afford N" | OpenRouter refuses in advance when the balance cannot cover the *requested* output cap. The digest and `skills:normalise` both request 50,000, although a normaliser batch uses about 2,000 | Top up the balance. A 402 is not transient, so there is no fallback. `skills:normalise` counts these batches under `Failed:` and still exits 0; re-run it after topping up and it retries only those |
+
+To see why a pipeline digest failed, run it on its own. The pipeline log prints only `digest✗ faculty✗ skills✗ pedagogy✗` for phase 1 and drops the error messages; `pnpm programs:digest <code>` prints the real one.
 
 ## Confidence thresholds
 
@@ -72,7 +88,7 @@ Two distinct thresholds with different meanings:
 
 | Threshold | Scope | Default | Effect |
 |---|---|---|---|
-| `AI_AUTO_APPROVE_THRESHOLD` | extraction output | 0.85 | AiExtraction `confidence >=` this → AUTO_APPROVED, else PENDING_REVIEW |
+| `AI_AUTO_APPROVE_THRESHOLD` | extraction output | 0 (code); 0.85 in `.env.prod.example` | AiExtraction `confidence >=` this → AUTO_APPROVED, else PENDING_REVIEW |
 | `PDF_INTAKE_CLASSIFIER_THRESHOLD` | PDF classification (prompt 03b) | 0.7 | PdfExtraction auto-approve requires classifier and extractor both cleared |
 | `PDF_INTAKE_EXTRACTOR_THRESHOLD` | PDF extractor output | 0.8 | See prompt 03b |
 
@@ -209,10 +225,10 @@ that's the signal to invest in the hand-labeled audit.
 | `AiService` interface | **Real** | In `@kku/shared/ai` |
 | Google / Gemini provider | **Real** | Requires `GOOGLE_AI_API_KEY` |
 | Anthropic / Claude provider | **Real** | Requires `ANTHROPIC_API_KEY`; embedding falls back to Google |
-| OpenRouter provider | **Stubbed** | Factory returns the class; methods throw |
+| OpenRouter provider | **Real** | Requires `OPENROUTER_API_KEY`. OpenAI-compatible chat API: complete, extractStructured (JSON mode), translate, vision, tool use. Cost recorded from OpenRouter's billed figure. Embeddings and transient-error fallback go to Google when its key is set; without one, embeddings use `AI_OPENROUTER_EMBEDDING_MODEL`. No File API: an extraction carrying `fileAttachment` is refused |
 | IntelSphere (KKU gateway) | **Stubbed** | Needs gateway API contract |
 | Prompt templates | **Real** | 3 templates versioned as code |
-| Skill taxonomy seed | **Real-ish** | ~60 skills; full ESCO / TPQI bootstrap deferred to a data-load chore |
+| Skill taxonomy | **Built per install** | A fresh install has none; `pnpm setup` does not seed. `pnpm skills:normalise --auto-promote` builds it from labour-market and curriculum skill names. KKU's ~60 curated skills come only with `pnpm db:seed`, which adopters should not run. See the [Adopter guide](guides/curriculum-pdfs-and-ai-digest.md#building-your-skill-taxonomy) |
 | `/skills` explorer | **Real** | Tree, search, scope-aware coverage |
 | `/admin/extraction-review` | **Real** | Queue, stats strip, approve / reject / edit |
 | `AiExtraction` table | **Real** | Mirror of `PdfExtraction` for non-PDF AI outputs |
@@ -242,8 +258,9 @@ Scope of fallback:
 - **Visible in audit.** The `AiInference` row records the actual model
   that served the call. Grep for rows where `model` differs from the
   configured primary to quantify fallback frequency.
-- **Embed path preserved.** Embeddings still route to Google regardless
-  of primary (Claude has no embeddings API).
+- **Embed path preserved.** Embeddings route to Google whenever a Google
+  key is set, regardless of primary (Claude has no embeddings API). Only an
+  OpenRouter install without a Google key embeds through OpenRouter.
 
 Implementation: `wrapWithTransientFallback()` in
 `packages/shared/src/ai/providers/factory.ts`.

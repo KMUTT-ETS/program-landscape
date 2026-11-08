@@ -10,7 +10,12 @@ import { normalisePath } from '../src/usage';
 const APP_DIR = path.join(__dirname, '..', '..', '..', 'apps', 'web', 'app');
 // Not recorded: API handlers, the pages a signed-out visitor sees, and
 // `brand` — the /brand/<asset> logo and favicon route, an asset, not a page.
-const IGNORED = new Set(['api', 'brand', 'signin', 'no-access', 'styleguide']);
+//
+// `setup` is the first-run wizard. There is no session to attribute a visit
+// to — that is the whole point of it — and it is reachable exactly once in
+// an installation's life, so it has no usage to report. The audit log
+// records the one thing that matters, which is that it was used at all.
+const IGNORED = new Set(['api', 'brand', 'signin', 'no-access', 'styleguide', 'setup']);
 
 // A route group — `(legal)` — is not a URL segment: its children ARE the
 // top-level routes. Recurse through it rather than skipping it, or the three

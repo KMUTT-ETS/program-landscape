@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { realDataSql, realDataWhere } from '@kku/db';
+import { campaignPlanKeySql, realDataSql, realDataWhere } from '@kku/db';
 import {
   prisma,
   RISK_INDICATOR_CATALOG,
@@ -544,7 +544,7 @@ export class RisksService {
     // admission_campaign_stats. Plan = Σ over sub-programs of MAX(plan).
     const ratioRows = await prisma.$queryRaw<Array<{ ratio: number }>>(Prisma.sql`
       WITH eligible AS (
-        SELECT c.program_id, c.recruitment_program_id, c.acad_year_be,
+        SELECT c.program_id, c.recruitment_program_id, c.round, c.campaign_name, c.acad_year_be,
                c.total_applicants, c.plan_per_year
         FROM admission_campaign_stats c
         JOIN programs p ON p.id = c.program_id
@@ -558,8 +558,8 @@ export class RisksService {
       scoped AS (SELECT e.* FROM eligible e JOIN latest l ON l.program_id = e.program_id AND e.acad_year_be = l.y),
       plan_by_prog AS (
         SELECT program_id, SUM(pp) AS plan FROM (
-          SELECT program_id, recruitment_program_id, MAX(plan_per_year) AS pp
-          FROM scoped GROUP BY program_id, recruitment_program_id
+          SELECT program_id, ${campaignPlanKeySql('scoped')} AS plan_key, MAX(plan_per_year) AS pp
+          FROM scoped GROUP BY program_id, plan_key
         ) s GROUP BY program_id
       ),
       apps_by_prog AS (

@@ -26,6 +26,26 @@ interface ChangelogEntry {
 
 const ENTRIES: ChangelogEntry[] = [
   {
+    date: '2026-10-18',
+    version: 'Unreleased · Import from spreadsheets',
+    title: 'An institution can now stand up its whole dataset — org chart, metrics, staff, budgets and timetable — by uploading spreadsheets, with no code changes',
+    audience: ['Admin'],
+    bullets: [
+      'Fourteen datasets: faculties, departments and programmes, then enrolment, finance, graduate outcomes, student and alumni cohorts, admission campaigns, staff, compensation, budgets, publications and class offerings. Load the backbone first and staff before publications; everything else can follow in any order. Uploaded figures appear on the Program Deep-Dive like any other source.',
+      'Class offerings behave differently from every other sheet and the guide says so: uploading a term REPLACES it, because a timetable export states what exists rather than what changed — a section cancelled since the last upload is absent from the new file, and merging would leave it in the system for ever. One file per term; a file mixing two is refused.',
+      'The staff sheet is the only one about people. It asks for names, your own employee code and a rank — and deliberately not for a date of birth, since the succession-risk view reads the retirement date, which answers the same question and reveals far less. No sheet offers a national-ID column in any form.',
+      'Compensation refuses a row covering fewer than five people, the same floor the HR connector applies in SQL: at that size an average is close enough to an individual salary to identify someone. The refusal names the row and never repeats the figures.',
+      'Each dataset has a Download template button on its page under Data setup. The template carries the exact columns the system accepts, plus a Guide sheet explaining every column with an example and its allowed values. The metric templates arrive pre-filled with a row per active programme per year, values blank, so nobody re-types programme codes.',
+      'Three conventions the templates state and the upload enforces: years are Common Era (2025, not 2568), the finance year is an academic year rather than a budget year, and rates are proportions between 0 and 1 — an employment rate of 87 is refused rather than shown as 8700%.',
+      'Cost figures are deliberately not importable. A programme’s cost is an allocation the institution has to be able to defend, so it stays with the cost-allocation methodology and an upload leaves it untouched.',
+      'In the metric datasets a blank cell leaves the stored value alone rather than zeroing it, so an institution holding only part of a figure set can upload what it has without erasing the rest. A whole row left blank is skipped, so a pre-filled template can be uploaded as it came; a file with no figures in it at all is refused rather than reported as a successful upload of nothing.',
+      'A file is checked while you wait. If anything is wrong you get the list of rows and columns to fix, and nothing is stored — so a bad upload never leaves the data half-changed.',
+      'Uploading the same dataset again updates the rows whose codes are already here, adds the new ones, and leaves everything else alone. Uploading a byte-for-byte identical file does nothing and says so.',
+      'Uploads are refused if a column is unexpected, if a cell holds a national ID number, or if the file has fewer than half the rows currently stored — the last with a button to proceed when you know it is right.',
+      'Each dataset has a Start over control that removes what your uploads created and leaves rows a connector created alone, even where an upload corrected one. A row with no recorded origin is the exception: correcting it is what makes it visible, so the upload takes ownership and start over removes it. Your uploaded files are kept so you can rebuild by uploading them again, and it refuses while other data still depends on the dataset, naming what would be destroyed.',
+    ],
+  },
+  {
     date: '2026-10-06',
     version: 'v2.1.4 · Deploy reliability',
     title: 'Deployments no longer fail when a service from an older release still points at that release’s files; nothing changes on screen',

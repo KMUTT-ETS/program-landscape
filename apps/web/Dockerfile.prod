@@ -10,7 +10,8 @@
 #   3. `runner`— minimal alpine layer that serves the standalone
 #                bundle as a non-root user, with `tini` as PID 1.
 
-ARG NODE_VERSION=20-alpine
+# Node 24.22.1+ is required (Node2Shell security release, Oct 2026).
+ARG NODE_VERSION=24.22.2-alpine
 
 # ── Stage 1: deps ────────────────────────────────────────────────────
 FROM node:${NODE_VERSION} AS deps

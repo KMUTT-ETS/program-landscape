@@ -1,3 +1,4 @@
+import { buildRosterLookup, matchRosterName, rosterDegradedNote } from './name-match';
 import { prisma, activeRevisionIdFor } from '@kku/db';
 import {
   buildProgramFacultyMessages,
@@ -9,6 +10,7 @@ import {
   type AiService,
   type S3Storage,
 } from '@kku/shared';
+import { pdfNoTextReason } from '../program-pdf-prep/load';
 import { extractNativeText } from '../pdf-intake/pipeline/native-text-extractor';
 import { loadProgramSystemContext } from '../program-system-context/load';
 
@@ -86,6 +88,10 @@ export type RunProgramFacultyOutcome =
       // that no longer rely on PDF text extraction.
       programFacultyRowsFromMhesi: number;
       unmatchedNames: string[];
+      /** True when staff were extracted but none matched the roster. */
+      degraded: boolean;
+      /** Operator-facing note, set when degraded. */
+      notes: string | null;
     }
   | { status: 'SKIPPED'; reason: string }
   | { status: 'FAILED'; reason: string };
@@ -101,7 +107,7 @@ function teachTypeToRole(teachTypeId: number): 'COORDINATOR' | 'CORE' | 'SUPPORT
   return 'CORE';
 }
 
-/** Normalise for name comparison: trim, collapse whitespace, lowercase. */
+/** Normalise for de-duplicating extracted names: trim, collapse whitespace, lowercase. */
 function normName(s: string): string {
   return s.trim().replace(/\s+/g, ' ').toLowerCase();
 }
@@ -211,6 +217,8 @@ export async function runProgramFacultyExtraction(
     const bytes = Buffer.from(await res.arrayBuffer());
     extracted = await extractNativeText(bytes);
   }
+  const noTextReason = pdfNoTextReason(extracted);
+  if (noTextReason) return { status: 'SKIPPED', reason: noTextReason };
 
   // Run the AI extraction.
   const messages = buildProgramFacultyMessages({
@@ -257,14 +265,9 @@ export async function runProgramFacultyExtraction(
   // can only realistically be taught by staff in its own Faculty).
   const facultyMembers = await prisma.facultyMember.findMany({
     where: { facultyId: program.faculty.id },
-    select: { id: true, nameTh: true, nameEn: true },
+    select: { id: true, nameTh: true, nameEn: true, isActive: true },
   });
-  const byNameTh = new Map<string, string>();
-  const byNameEn = new Map<string, string>();
-  for (const fm of facultyMembers) {
-    if (fm.nameTh) byNameTh.set(normName(fm.nameTh), fm.id);
-    if (fm.nameEn) byNameEn.set(normName(fm.nameEn), fm.id);
-  }
+  const rosterLookup = buildRosterLookup(facultyMembers);
 
   // Dedupe the AI's output by Thai name, picking the highest-priority role.
   const dedupedByName = new Map<string, ProgramFacultyMemberExtraction>();
@@ -281,9 +284,7 @@ export async function runProgramFacultyExtraction(
   let matched = 0;
 
   for (const [, s] of dedupedByName) {
-    const nameThKey = normName(s.nameTh);
-    const nameEnKey = normName(s.nameEn);
-    const facultyMemberId = byNameTh.get(nameThKey) ?? (s.nameEn ? byNameEn.get(nameEnKey) : undefined);
+    const facultyMemberId = matchRosterName(rosterLookup, { nameTh: s.nameTh, nameEn: s.nameEn });
 
     if (!facultyMemberId) {
       unmatchedNames.push(`${s.titlePrefix ?? ''}${s.nameTh}${s.nameEn ? ` / ${s.nameEn}` : ''} (${s.role})`);
@@ -357,6 +358,15 @@ export async function runProgramFacultyExtraction(
     select: { id: true },
   });
 
+  const existingLinkedStaff = await prisma.programFaculty.count({ where: { programId: program.id } });
+  const degradedNote = rosterDegradedNote(
+    dedupedByName.size,
+    matched,
+    programFacultyRowsFromMhesi,
+    existingLinkedStaff,
+  );
+  const degraded = degradedNote !== null;
+
   return {
     status: 'SUCCEEDED',
     aiExtractionId: created.id,
@@ -371,5 +381,7 @@ export async function runProgramFacultyExtraction(
     programFacultyRowsWritten,
     programFacultyRowsFromMhesi,
     unmatchedNames,
+    degraded,
+    notes: degradedNote,
   };
 }

@@ -3,6 +3,7 @@ import {
   buildStaffProfile,
   getStaffGrants,
   getStaffTeachingEvaluation,
+  grantsSourceCredits,
   recordApiRequest,
   resolveStaffForLookup,
 } from '@kku/db';
@@ -49,7 +50,6 @@ const BASE_SOURCES = [
   { id: 'google-scholar', name: 'Google Scholar (on-demand import)' },
 ];
 const EVALUATION_SOURCE = { id: 'kku-evaluations', name: 'KKU student course evaluations' };
-const GRANTS_SOURCE = { id: 'kku-research-services', name: 'KKU Research & Academic Services (external grants)' };
 
 /**
  * A cold build fans out to the publications mirror, Scopus, OpenAlex and the
@@ -171,7 +171,7 @@ export class StaffProfileService {
       const sources = [
         ...BASE_SOURCES,
         ...(evaluationReturned ? [EVALUATION_SOURCE] : []),
-        ...(grantsReturned ? [GRANTS_SOURCE] : []),
+        ...(grantsReturned ? await grantsSourceCredits() : []),
       ];
       const caveats = [
         ...CAVEATS,

@@ -73,6 +73,9 @@ export interface SourceCatalogEntry {
   // scheduling it. Removal happens after the replacement source has
   // 30 days of green history (per docs/readiness-checklist.md gate 11).
   deprecated?: boolean;
+  // True for connectors that only work against KKU's internal systems;
+  // they are examples for an adopting university, not defaults.
+  kkuExample?: boolean;
 }
 
 // ──────────────────────────────────────────────────────────────────────────

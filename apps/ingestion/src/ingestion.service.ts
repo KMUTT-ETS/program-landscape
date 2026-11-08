@@ -99,7 +99,7 @@ export class IngestionService implements OnModuleInit, OnModuleDestroy {
     this.connectorQueue = createIngestionQueue(connectorQueueConfig);
     this.connectorWorker = createIngestionWorker(connectorQueueConfig, runner);
     this.connectorEvents = createQueueEventsListener(connectorQueueConfig);
-    this.scheduler = new IngestionScheduler(this.connectorQueue);
+    this.scheduler = new IngestionScheduler(this.connectorQueue, registry);
     const { registered, skipped } = await this.scheduler.registerSchedules();
 
     // Build AI first — both the PDF-intake pipeline (for curriculum

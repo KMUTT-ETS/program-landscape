@@ -1,0 +1,7 @@
+{
+  "university": "มหาวิทยาลัยเทคโนโลยีพระจอมเกล้าธนบุรี",
+  "region": "Bangkok",
+  "programmes": [
+    { "name": "วิศวกรรมวัสดุ", "pdf": "curriculum-sample.pdf" }
+  ]
+}

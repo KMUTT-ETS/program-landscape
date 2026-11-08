@@ -41,6 +41,7 @@ const mocks = vi.hoisted(() => ({
   programJobThaiLinkFindMany: vi.fn(),
   jobThaiOccupationSkillFindMany: vi.fn(),
   jobThaiOccupationCount: vi.fn(),
+  campaignFindMany: vi.fn(),
 }));
 
 vi.mock('../src/index', () => {
@@ -60,7 +61,7 @@ vi.mock('../src/index', () => {
       researchOutput: { count: mocks.researchOutputCount },
       programDemandMatch: { findMany: mocks.programDemandMatchFindMany },
       tcasAdmissionStat: { findFirst: mocks.tcasFindFirst, findMany: mocks.tcasFindMany },
-      demographicProjection: { findFirst: mocks.demographicFindFirst },
+      demographicProjection: { findFirst: mocks.demographicFindFirst, findMany: async () => { const y = new Date().getUTCFullYear(); return ['TH', 'Northeast'].flatMap((region) => [y, y + 10].map((year) => ({ source: 'NESDC-PopProj-2010-2040', region, year }))); } },
       kmitlCareer: { findMany: mocks.kmitlCareerFindMany },
       graduateOutcome: { findFirst: mocks.graduateOutcomeFindFirst },
       programPedagogyAssessment: { findUnique: mocks.programPedagogyAssessmentFindUnique },
@@ -70,7 +71,7 @@ vi.mock('../src/index', () => {
       systemSetting: { findUnique: mocks.systemSettingFindUnique },
       $queryRaw: vi.fn().mockResolvedValue([]),
       $queryRawUnsafe: vi.fn().mockResolvedValue([]),
-      admissionCampaignStat: { findMany: vi.fn().mockResolvedValue([]) },
+      admissionCampaignStat: { findMany: mocks.campaignFindMany },
     },
   };
 });
@@ -136,6 +137,7 @@ beforeEach(() => {
   mocks.programJobThaiLinkFindMany.mockResolvedValue([]);
   mocks.jobThaiOccupationSkillFindMany.mockResolvedValue([]);
   mocks.jobThaiOccupationCount.mockResolvedValue(0);
+  mocks.campaignFindMany.mockResolvedValue([]);
   mocks.programFindMany.mockResolvedValue([]);
   mocks.programFindUnique.mockResolvedValue(null);
   mocks.queryMetricByScope.mockResolvedValue([]);
@@ -731,5 +733,132 @@ describe('relevance — labour-market demand weighting', () => {
       { label: 'student_faculty_ratio', value: 40, raw: null },
     ]);
     expect(r.score).toBe(60);
+  });
+});
+
+describe('TCAS funnel basis (v5.6)', () => {
+  const campaign = (over: Record<string, unknown> = {}) => ({
+    recruitmentProgramId: 'r1', campaignName: 'c', acadYearBE: 2560, round: '1',
+    enrollSeats: null, planPerYear: null, totalApplicants: 200, totalPassed: 20,
+    sendClearinghouse: null, confirmClearinghouse: null, sendRegReported: null, regReported: null,
+    ...over,
+  });
+  const stat = (code: string, quota: number, applicants: number, p1 = 0, p2 = 0) => ({
+    tcasCourseCode: code, quota, applicants, admittedPass1: p1, admittedPass2: p2,
+  });
+  async function drivers() {
+    mocks.facultyFindMany.mockResolvedValue([{ id: 'fac-1', nameEn: 'S', nameTh: 'ว' }]);
+    mocks.queryMetricByScope.mockResolvedValue([]);
+    mocks.programFindMany.mockResolvedValue([{ id: 'prog-1', nameEn: 'A', nameTh: 'ก', facultyId: 'fac-1' }]);
+    mocks.programFindUnique.mockResolvedValue({ id: 'prog-1', level: 'BACHELOR', nameTh: 'ก', kmitlCareerIds: [] });
+    const rows = await computeHealthScores('faculty', 'fac-1');
+    return rows[0]!.dimensions.attractiveness.drivers;
+  }
+
+  it('falls back to public round-3 figures when the campaign has no seats', async () => {
+    mocks.campaignFindMany.mockResolvedValue([campaign()]);
+    // 3.1/3.2 repeat the same course: counted once. quota 40, applicants 200.
+    mocks.tcasFindMany.mockResolvedValue([stat('A', 40, 200), stat('A', 40, 200, 20, 20)]);
+    const d = await drivers();
+    const ratio = d.find((x) => x.label === 'tcas_competition_ratio')!;
+    const fill = d.find((x) => x.label === 'tcas_fill_rate')!;
+    expect(ratio.value).toBe(70); // 200 / 40 = 5
+    expect(fill.value).toBe(100);
+    expect((ratio.raw as { basis?: string }).basis).toBe('public-tcas-round3');
+    expect((fill.raw as { basis?: string }).basis).toBe('public-tcas-round3');
+  });
+
+  it('keeps the campaign figures when the campaign has seats', async () => {
+    mocks.campaignFindMany.mockResolvedValue([campaign({ enrollSeats: 100, planPerYear: 100 })]);
+    mocks.tcasFindMany.mockResolvedValue([stat('A', 40, 200)]);
+    const d = await drivers();
+    const ratio = d.find((x) => x.label === 'tcas_competition_ratio')!;
+    expect((ratio.raw as { basis?: string }).basis).toBeUndefined();
+    expect(ratio.value).toBe(40); // 200 / 100 = 2 -> 40
+  });
+
+  it('stays null when there are no seats and no public rows', async () => {
+    mocks.campaignFindMany.mockResolvedValue([campaign()]);
+    const d = await drivers();
+    expect(d.find((x) => x.label === 'tcas_competition_ratio')!.value).toBeNull();
+  });
+
+  it('fill rate is null, not 0, when the public rows state no admitted counts; ratio still scores', async () => {
+    mocks.campaignFindMany.mockResolvedValue([campaign()]);
+    mocks.tcasFindMany.mockResolvedValue([stat('A', 40, 200)]);
+    const d = await drivers();
+    const fill = d.find((x) => x.label === 'tcas_fill_rate')!;
+    expect(fill.value).toBeNull();
+    expect((fill.raw as { reason?: string }).reason).toBe('admitted-not-published');
+    expect(d.find((x) => x.label === 'tcas_competition_ratio')!.value).toBe(70);
+  });
+
+  it('reads only round-3 rows, for the programme and for its peers', async () => {
+    mocks.campaignFindMany.mockResolvedValue([campaign()]);
+    mocks.tcasFindMany.mockResolvedValue([stat('A', 40, 200, 10)]);
+    await drivers();
+    const wheres = mocks.tcasFindMany.mock.calls.map((c) => (c[0] as { where: { round?: { in: string[] } } }).where);
+    expect(wheres.length).toBeGreaterThan(0);
+    for (const w of wheres) expect(w.round).toEqual({ in: ['3', '3.1', '3.2'] });
+  });
+
+  it('keeps campaign figures when any year of the campaign states seats', async () => {
+    mocks.campaignFindMany.mockResolvedValue([
+      campaign(),
+      campaign({ acadYearBE: 2555, enrollSeats: 80, planPerYear: 80 }),
+    ]);
+    mocks.tcasFindMany.mockResolvedValue([stat('A', 40, 200, 10)]);
+    const d = await drivers();
+    const ratio = d.find((x) => x.label === 'tcas_competition_ratio')!;
+    expect(ratio.value).toBeNull();
+    expect((ratio.raw as { basis?: string } | null)?.basis).toBeUndefined();
+    // Says why: other years state seats, the latest complete one does not.
+    expect((ratio.raw as { seatsStatedInOtherYears?: boolean }).seatsStatedInOtherYears).toBe(true);
+  });
+
+  it('scores a programme with NO campaign rows on the public round-3 basis', async () => {
+    mocks.campaignFindMany.mockResolvedValue([]);
+    mocks.tcasFindMany.mockResolvedValue([{ ...stat('A', 40, 200), entryYearBE: 2560 }]);
+    const d = await drivers();
+    const ratio = d.find((x) => x.label === 'tcas_competition_ratio')!;
+    expect(ratio.value).toBe(70);
+    expect((ratio.raw as { basis?: string }).basis).toBe('public-tcas-round3');
+    // No Confirmed / Reported anywhere: the yield is missing, not 0.
+    const y = d.find((x) => x.label === 'tcas_registration_yield')!;
+    expect(y.value).toBeNull();
+    // No Confirmed either: the existing no-confirmed reading, not reported-not-stated.
+    expect((y.raw as { reason?: string }).reason).toBeUndefined();
+  });
+
+  it('stays null with no campaign rows and no public rows', async () => {
+    mocks.campaignFindMany.mockResolvedValue([]);
+    const d = await drivers();
+    expect(d.find((x) => x.label === 'tcas_competition_ratio')!.value).toBeNull();
+  });
+
+  it('registration yield is null (reported-not-stated), never 0, when Confirmed is stated but Reported is not', async () => {
+    mocks.campaignFindMany.mockResolvedValue([
+      campaign({ enrollSeats: 100, planPerYear: 100, sendClearinghouse: 60, confirmClearinghouse: 60 }),
+    ]);
+    const d = await drivers();
+    const y = d.find((x) => x.label === 'tcas_registration_yield')!;
+    expect(y.value).toBeNull();
+    expect((y.raw as { reason?: string }).reason).toBe('reported-not-stated');
+  });
+
+  it('registration yield still scores when Reported is stated (KKU shape)', async () => {
+    mocks.campaignFindMany.mockResolvedValue([
+      campaign({ enrollSeats: 100, planPerYear: 100, sendClearinghouse: 60, confirmClearinghouse: 60, regReported: 54 }),
+    ]);
+    const d = await drivers();
+    expect(d.find((x) => x.label === 'tcas_registration_yield')!.value).toBe(100); // 0.9 >= 0.85
+  });
+
+  it('a stated Reported of 0 is a real zero yield', async () => {
+    mocks.campaignFindMany.mockResolvedValue([
+      campaign({ enrollSeats: 100, planPerYear: 100, sendClearinghouse: 60, regReported: 0 }),
+    ]);
+    const d = await drivers();
+    expect(d.find((x) => x.label === 'tcas_registration_yield')!.value).toBe(0);
   });
 });

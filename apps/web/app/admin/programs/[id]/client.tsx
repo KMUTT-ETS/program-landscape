@@ -28,6 +28,7 @@ import {
   Upload,
   XCircle,
 } from 'lucide-react';
+import { SetupChecklistView, type SetupChecklistData } from './setup-checklist';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Types — the /admin/programs/:id endpoint returns this shape (see
@@ -153,20 +154,21 @@ interface Props {
   program: ProgramDetail;
   faculties: Array<{ id: string; code: string; nameEn: string; nameTh: string }>;
   departments: Array<{ id: string; code: string; nameEn: string; nameTh: string; facultyId: string }>;
+  checklist?: SetupChecklistData | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
 // Main tabs shell
 // ─────────────────────────────────────────────────────────────────────────
 
-export function ProgramEditClient({ program, faculties, departments }: Props) {
+export function ProgramEditClient({ program, faculties, departments, checklist }: Props) {
   // Honour `?tab=...` so deep-links from the queues UI land on the right
   // tab. SSR-safe: defaults to 'overview' until the client hydrates.
   const [tab, setTab] = React.useState('overview');
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
     const t = new URLSearchParams(window.location.search).get('tab');
-    if (t && ['overview', 'approvals', 'careers', 'files', 'pipeline'].includes(t)) {
+    if (t && ['overview', 'approvals', 'careers', 'files', 'pipeline', 'checklist'].includes(t)) {
       setTab(t);
     }
   }, []);
@@ -190,6 +192,7 @@ export function ProgramEditClient({ program, faculties, departments }: Props) {
             Files ({program.documents.length})
           </SegmentedTrigger>
           <SegmentedTrigger value="pipeline">Pipeline history</SegmentedTrigger>
+          <SegmentedTrigger value="checklist">Setup checklist</SegmentedTrigger>
         </SegmentedList>
         <SegmentedContent value="overview">
           <OverviewTab program={program} faculties={faculties} departments={departments} />
@@ -205,6 +208,13 @@ export function ProgramEditClient({ program, faculties, departments }: Props) {
         </SegmentedContent>
         <SegmentedContent value="pipeline">
           <PipelineHistoryTab program={program} />
+        </SegmentedContent>
+        <SegmentedContent value="checklist">
+          {checklist ? (
+            <SetupChecklistView checklist={checklist} />
+          ) : (
+            <p className="text-sm text-text-secondary">The setup checklist could not be loaded.</p>
+          )}
         </SegmentedContent>
       </Segmented>
     </>

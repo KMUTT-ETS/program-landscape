@@ -73,6 +73,8 @@ export function GrantsClient({
     router.push(`/staff/grants?${qs}`, { scroll: false });
   };
   const { kpis } = data;
+  // Credit the connector's mark only when it actually supplied rows.
+  const fromConnector = meta.sources.some((s) => s.id === 'kku-research-services');
   const coverage = kpis.membersTotal
     ? `${Math.round((kpis.membersMatched / kpis.membersTotal) * 100)}%`
     : '—';
@@ -87,10 +89,12 @@ export function GrantsClient({
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-sm font-semibold text-text-primary">Key figures</h2>
           <ProvenanceButton title="Grants — key figures" meta={meta} size="xs" />
-          <DataSourceMark
-            source="kku-research-services"
-            href={acknowledgementHref('kku-research-services')}
-          />
+          {fromConnector && (
+            <DataSourceMark
+              source="kku-research-services"
+              href={acknowledgementHref('kku-research-services')}
+            />
+          )}
           <span className="ml-auto">
             <FreshnessBadge freshnessDate={meta.freshnessDate} label="grants data" />
           </span>
@@ -119,7 +123,7 @@ export function GrantsClient({
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold text-text-primary">By fiscal year</h2>
           <ProvenanceButton title="Grants — by fiscal year" meta={meta} size="xs" />
-          <DataSourceMark source="kku-research-services" />
+          {fromConnector && <DataSourceMark source="kku-research-services" />}
         </div>
         <TrendChart trend={data.trend} />
       </Card>
@@ -128,7 +132,7 @@ export function GrantsClient({
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold text-text-primary">By faculty</h2>
           <ProvenanceButton title="Grants — by faculty" meta={meta} size="xs" />
-          <DataSourceMark source="kku-research-services" />
+          {fromConnector && <DataSourceMark source="kku-research-services" />}
         </div>
         <p className="mt-1 text-xs text-text-tertiary">
           A project counts for every faculty with a team member on it, so these rows add up to more
@@ -168,7 +172,7 @@ export function GrantsClient({
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold text-text-primary">Top funders</h2>
           <ProvenanceButton title="Grants — top funders" meta={meta} size="xs" />
-          <DataSourceMark source="kku-research-services" />
+          {fromConnector && <DataSourceMark source="kku-research-services" />}
         </div>
         {data.topFunders.length === 0 ? (
           <p className="mt-3 text-sm text-text-tertiary">No funders match these filters.</p>
@@ -195,7 +199,7 @@ export function GrantsClient({
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold text-text-primary">Projects</h2>
           <ProvenanceButton title="Grants — projects" meta={meta} size="xs" />
-          <DataSourceMark source="kku-research-services" />
+          {fromConnector && <DataSourceMark source="kku-research-services" />}
         </div>
         <ProjectTable data={data} f={initialFilters} push={push} />
       </Card>

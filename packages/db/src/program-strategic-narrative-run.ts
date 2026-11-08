@@ -3,6 +3,8 @@ import {
   ProgramStrategicNarrativeSchema,
   PROGRAM_STRATEGIC_NARRATIVE_VERSION,
   countMissingNarrativeChannels,
+  narrativeCostBasis,
+  narrativeTcasFromHistory,
   narrativeConfidenceCeiling,
   lintBannedTells,
   type AiService,
@@ -123,7 +125,6 @@ export async function generateProgramStrategicNarrative(
   const health = healthRows[0] ?? null;
 
   // Compose the input snapshot for the prompt.
-  const tcasLatest = tcas.history.at(-1) ?? null;
 
   const peerReviewPayload = peerReviewRow?.payloadJson as
     | {
@@ -173,14 +174,7 @@ export async function generateProgramStrategicNarrative(
             aiReadiness.skillBreakdown.neutral,
         }
       : null,
-    tcas: tcasLatest
-      ? {
-          latestYearBE: tcasLatest.entryYearBE,
-          competitionRatio: tcasLatest.competitionRatio,
-          fillRate: tcasLatest.fillRate,
-          minScore: tcasLatest.minScorePass1,
-        }
-      : null,
+    tcas: narrativeTcasFromHistory(tcas.history),
     financial:
       financials.latestFiscalYear !== null
         ? {
@@ -191,6 +185,12 @@ export async function generateProgramStrategicNarrative(
             netContributionPerStudent:
               financials.costPerStudent === null ? null : -financials.costPerStudent,
             governmentFacultySubsidyThb: financials.governmentFacultySubsidy,
+            costBasis: narrativeCostBasis({
+              costPerStudent: financials.costPerStudent,
+              directCost: Math.abs(
+                financials.waterfall.find((w) => w.label === 'Direct program cost')?.value ?? 0,
+              ),
+            }),
           }
         : null,
     demand:
@@ -213,10 +213,7 @@ export async function generateProgramStrategicNarrative(
         : null,
     demographic: demographic
       ? {
-          regionLabel:
-            demographic.catchmentRegion === 'Northeast'
-              ? 'Northeast Thailand'
-              : 'Thailand',
+          regionLabel: 'Thailand', // the series is NATIONAL; the regional comparator is not shown here
           requiredShareAt10Y:
             demographic.projections.find(
               (p) => p.year === new Date().getUTCFullYear() + 10,

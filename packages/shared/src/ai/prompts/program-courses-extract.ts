@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { AiMessage } from '../types';
 import { getInstitution } from '../../institution';
+import { courseCodeRegex, isCourseCode } from '../../curriculum/course-code-pattern';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // program-courses-extract.v2  (2026-05-25)
@@ -38,7 +39,14 @@ import { getInstitution } from '../../institution';
 // empty class-offerings join and is corrected on the next pipeline run).
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PROGRAM_COURSES_EXTRACT_VERSION = 'program-courses-extract.v4';
+// v5 (2026-11-03, adopter plan 5): the prompt no longer names one
+// university ("ของ ม.ขก." now reads the organisation's short Thai name),
+// describes the three หมวด as the TYPICAL shape rather than a requirement
+// (other universities' มคอ.2 nest the list differently), and shows both
+// course-code shapes in the row format — KKU's six-digit codes and the
+// common three-letter + three-digit form ("ABC 101"). Category rules,
+// schema and output format unchanged.
+export const PROGRAM_COURSES_EXTRACT_VERSION = 'program-courses-extract.v5';
 
 // credits.max(60): inherited v1's max(20) but that rejected entire
 // extractions on prod for any program whose curriculum lists a
@@ -184,7 +192,7 @@ export function extractCourseListSection(text: string): {
   startIndex: number;
   endIndex: number;
 } {
-  const codeRe = /[A-Z]{2,4}\s?\d{3}\s?\d{3}/;
+  const codeRe = courseCodeRegex();
   const subsectionRe = /หมวดวิชา/;
 
   // Two anchors, tried in order. STRICT is the original and is tried FIRST,
@@ -251,9 +259,10 @@ export function extractCourseListSection(text: string): {
 
 /**
  * Deterministic pre-scan for course-code candidates in PDF text.
- * Matches KKU's two prefixed forms in one sweep:
- *   - With whitespace ("LW 011 116", "GE 179 114")
- *   - Without whitespace ("LW011116", "GE179114")
+ * Matches the shared course-code pattern (curriculum/course-code-pattern.ts):
+ *   - KKU 6-digit, with whitespace ("LW 011 116") or without ("LW011116")
+ *   - KMUTT-style 3-digit ("MEE 221", "MEE221"), not followed by more digits
+ * Results are whitespace-stripped and upper-cased.
  * The 2-4 letter prefix range covers every faculty we've seen (GE / LI /
  * EN / SC / MD / AG / BA / ED / HU / PH / SH / DE / TM / TS / LW / NU /
  * CE / ME / EE …). Numeric-only codes (no prefix) are not matched — rare
@@ -261,11 +270,11 @@ export function extractCourseListSection(text: string): {
  * load.
  */
 export function extractCandidateCourseCodes(text: string): string[] {
-  const re = /\b([A-Z]{2,4})\s?(\d{3})\s?(\d{3})\b/g;
+  const re = courseCodeRegex('g');
   const seen = new Set<string>();
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
-    seen.add((m[1]! + m[2]! + m[3]!).toUpperCase());
+    seen.add(m[0].replace(/\s+/g, '').toUpperCase());
   }
   return [...seen].sort();
 }
@@ -308,18 +317,20 @@ export function extractFallbackCourseFromContext(
   pdfText: string,
   code: string,
 ): FallbackCourseExtraction | null {
-  if (!/^[A-Z]{2,4}\d{6}$/.test(code)) return null;
+  if (!/^[A-Z]{2,4}(?:\d{6}|\d{3})$/.test(code) || !isCourseCode(code)) return null;
   const prefix = /^[A-Z]+/.exec(code)![0]!;
   const digits = code.slice(prefix.length);
-  const codePat = `${prefix}\\s?${digits.slice(0, 3)}\\s?${digits.slice(3)}`;
-  const re = new RegExp(`\\b${codePat}\\b`, 'g');
+  const digitPat =
+    digits.length === 6 ? `${digits.slice(0, 3)}\\s?${digits.slice(3)}` : `${digits}(?!\\d)(?!\\s?\\d{3})`;
+  const codePat = `${prefix}\\s?${digitPat}`;
+  const re = new RegExp(`\\b${codePat}(?!\\d)\\b`, 'g');
 
   // Credit pattern: "N (B - C - D)" with optional spaces.
   const creditRe = /(\d+)\s*\(\s*\d+\s*-\s*\d+\s*-\s*\d+\s*\)/;
   // English-name pattern: starts with a capital letter, runs until the
   // next course code or end-of-window. Tolerant to common punctuation.
   const enNameRe =
-    /^\s*([A-Z][A-Za-z0-9\s,.:;'\-/&()]{2,120}?)(?=\s+[A-Z]{2,4}\s?\d{3}\s?\d{3}|\s{2,}|$)/;
+    /^\s*([A-Z][A-Za-z0-9\s,.:;'\-/&()]{2,120}?)(?=\s+[A-Z]{2,4}\s?\d{3}(?:\s?\d{3})?(?!\d)|\s{2,}|$)/;
 
   let occurrenceCount = 0;
   let best:
@@ -374,7 +385,7 @@ export function buildProgramCoursesExtractMessages(
 
 ★ ขอบเขต (สำคัญ) ★
 ข้อความ user ที่จะให้คุณ คือ **เฉพาะส่วน "รายวิชา"** ของหลักสูตร (ตัดส่วนหน้าเอกสาร, คำอธิบายรายวิชา, และภาคผนวกทั้งหมดออกแล้ว)
-ส่วนนี้แบ่งเป็น 3 หมวด:
+ส่วนนี้มักแบ่งเป็น 3 หมวด (ตามปกติ — บางสถาบันจัดโครงสร้างต่างออกไปหรือใช้ชื่อหมวดต่างกัน ให้ยึดหัวข้อที่ปรากฏจริงในเอกสาร):
   1. หมวดวิชาศึกษาทั่วไป
   2. หมวดวิชาเฉพาะ (อาจมีกลุ่มย่อย เช่น กลุ่มวิชาแกน, กลุ่มวิชาเฉพาะด้าน)
   3. หมวดวิชาเลือกเสรี
@@ -383,12 +394,13 @@ export function buildProgramCoursesExtractMessages(
 - ห้ามใส่รหัสวิชาที่ไม่ปรากฏในข้อความที่ให้
 - ห้ามแก้รหัสวิชาให้ "ดูถูกต้องกว่า"
 
-หน้าที่: สกัดทุกรายวิชาในทั้ง 3 หมวด พร้อมรหัส ชื่อ TH/EN และจำนวนหน่วยกิต
+หน้าที่: สกัดทุกรายวิชาในทุกหมวดที่ปรากฏ พร้อมรหัส ชื่อ TH/EN และจำนวนหน่วยกิต
 
 รูปแบบของแต่ละรายวิชาในเอกสาร:
   <รหัสวิชา> <ชื่อภาษาไทย> <ชื่อภาษาอังกฤษ> <หน่วยกิต (B-C-D)>
+รหัสวิชามีได้ทั้งแบบตัวอักษร + ตัวเลข 6 หลัก (เช่น "LW 011 116") และแบบตัวอักษร 2-4 ตัว + ตัวเลข 3 หลัก (เช่น "ABC 101")
 
-ปกติ ${input.levelTh} ของ ม.ขก. มี ${target} ในส่วนรายวิชา
+ปกติ ${input.levelTh} ของ ${inst.shortNameTh} มี ${target} ในส่วนรายวิชา
 
 [หมายเหตุ — pattern matching ฝั่ง runner]
 runner ได้ทำ pattern matching ในส่วนเดียวกันและพบรหัส candidate ${candidateHint}
@@ -444,7 +456,7 @@ promoting an elective to required is built on this field.
 รูปแบบ JSON ผลลัพธ์ (ออก JSON เดี่ยวเท่านั้น ห้ามมี markdown ห้ามมีคำอธิบายล่วงหน้า):
 {
   "courses": [
-    { "code": "<รหัสวิชาในรูปแบบไม่มีเว้นวรรค เช่น LW011116 หรือ GE179114>",
+    { "code": "<รหัสวิชาในรูปแบบไม่มีเว้นวรรค เช่น LW011116 หรือ ABC101>",
       "nameTh": "<ชื่อวิชาภาษาไทย>",
       "nameEn": "<ชื่อวิชาภาษาอังกฤษ ถ้ามี>",
       "credits": <จำนวนหน่วยกิต | null>,

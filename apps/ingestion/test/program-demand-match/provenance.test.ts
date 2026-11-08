@@ -24,16 +24,41 @@ import {
 } from '../../src/program-demand-match/run';
 
 describe('resolveDemandProvenanceRunId', () => {
-  it('returns the run id of the demand source that supplied the skill set', async () => {
+  const at = (iso: string) => new Date(iso);
+  const finder = (runs: Record<string, { id: string; completedAt: Date | null }>) => (slug: string) =>
+    Promise.resolve(runs[slug] ?? null);
+
+  it('returns the run of the connector when only it has run', async () => {
     const runId = await resolveDemandProvenanceRunId({
-      findLatestSucceededRun: (slug) =>
-        Promise.resolve(slug === 'kmitl-skill-mapping' ? 'run-kmitl-1' : null),
+      findLatestSucceededRun: finder({ 'kmitl-skill-mapping': { id: 'run-kmitl-1', completedAt: at('2026-01-01') } }),
       demandSourceSlug: 'kmitl-skill-mapping',
     });
     expect(runId).toBe('run-kmitl-1');
   });
 
-  it('returns null rather than inventing a run when the source has none', async () => {
+  it('spreadsheet-only install: anchors to the spreadsheet import run', async () => {
+    const runId = await resolveDemandProvenanceRunId({
+      findLatestSucceededRun: finder({ 'xlsx-career-skill-demand': { id: 'run-xlsx-1', completedAt: at('2026-01-01') } }),
+      demandSourceSlug: 'kmitl-skill-mapping',
+    });
+    expect(runId).toBe('run-xlsx-1');
+  });
+
+  it('when both fed the family, the later run wins', async () => {
+    const runs = {
+      'kmitl-skill-mapping': { id: 'run-kmitl-1', completedAt: at('2026-01-01') },
+      'xlsx-career-skill-demand': { id: 'run-xlsx-1', completedAt: at('2026-02-01') },
+    };
+    expect(
+      await resolveDemandProvenanceRunId({ findLatestSucceededRun: finder(runs), demandSourceSlug: 'kmitl-skill-mapping' }),
+    ).toBe('run-xlsx-1');
+    runs['kmitl-skill-mapping'] = { id: 'run-kmitl-2', completedAt: at('2026-03-01') };
+    expect(
+      await resolveDemandProvenanceRunId({ findLatestSucceededRun: finder(runs), demandSourceSlug: 'kmitl-skill-mapping' }),
+    ).toBe('run-kmitl-2');
+  });
+
+  it('returns null rather than inventing a run when no feeder has one', async () => {
     // A wrong provenance is worse than an absent one: realDataWhere()
     // already treats null as "not real", whereas a fabricated FK would
     // make unreal rows count as real.
@@ -44,14 +69,10 @@ describe('resolveDemandProvenanceRunId', () => {
     expect(runId).toBeNull();
   });
 
-  it('asks for exactly the slug it was given', async () => {
-    const findLatestSucceededRun = vi.fn().mockResolvedValue('run-1');
-    await resolveDemandProvenanceRunId({
-      findLatestSucceededRun,
-      demandSourceSlug: 'jobthai',
-    });
-    // toHaveBeenCalledExactlyOnceWith is not available in this vitest
-    // version; the two assertions together say the same thing.
+  it('JobThai is unchanged: asks only for its own slug', async () => {
+    const findLatestSucceededRun = vi.fn().mockResolvedValue({ id: 'run-1', completedAt: at('2026-01-01') });
+    const runId = await resolveDemandProvenanceRunId({ findLatestSucceededRun, demandSourceSlug: 'jobthai' });
+    expect(runId).toBe('run-1');
     expect(findLatestSucceededRun).toHaveBeenCalledTimes(1);
     expect(findLatestSucceededRun).toHaveBeenCalledWith('jobthai');
   });

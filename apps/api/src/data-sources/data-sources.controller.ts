@@ -115,7 +115,7 @@ export class DataSourcesController {
 
   private async computeStats(
     dataSourceId: string,
-    source: { slug: string; name: string; status: string; lastSyncedAt: Date | null },
+    source: { id: string; slug: string; name: string; status: string; lastSyncedAt: Date | null },
   ) {
     const windowStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const [last7d, last30d, lastSuccess, lastFailure, recent, successPer7d] = await Promise.all([
@@ -177,6 +177,7 @@ export class DataSourcesController {
     const sparkline = bucketByDay(successPer7d);
 
     return {
+      id: source.id,
       slug: source.slug,
       name: source.name,
       status: source.status,

@@ -6,7 +6,7 @@ import type {
   IngestionRunTrigger,
   NormalizedRecord,
 } from '@kku/shared';
-import { OrganizationNotConfiguredError } from '@kku/shared';
+import { OrganizationNotConfiguredError, connectorModeEnvKey, mockRunsAllowed } from '@kku/shared';
 import { NonRetryableError } from './base';
 
 /** A fresh install with no organisation profile: retrying cannot help until an admin fills it in. */
@@ -67,8 +67,34 @@ export class ConnectorRunner {
     });
     if (!dataSource) {
       throw new Error(
-        `No DataSource row for slug "${opts.dataSourceSlug}". Run \`pnpm db:seed\` — the catalog in @kku/shared drives the seed.`,
+        `No DataSource row for slug "${opts.dataSourceSlug}". Run \`pnpm data-sources:sync --apply\` — the catalog in @kku/shared drives it.`,
       );
+    }
+
+    // A mock implementation writes invented rows. Refuse unless the operator
+    // explicitly allowed it; record one SKIPPED run and touch nothing else
+    // (no lastSyncedAt bump, no fetch).
+    if (connector.mocked && !mockRunsAllowed()) {
+      const now = new Date();
+      // Same FK guard as the normal path: an unknown trigger user is recorded as null.
+      const skipUser = opts.triggeredByUserId
+        ? await prisma.user.findUnique({ where: { id: opts.triggeredByUserId }, select: { id: true } })
+        : null;
+      const skipped = await prisma.ingestionRun.create({
+        data: {
+          dataSourceId: dataSource.id,
+          trigger: opts.trigger,
+          triggeredByUserId: skipUser?.id ?? null,
+          status: 'SKIPPED',
+          startedAt: now,
+          completedAt: now,
+          errorCode: 'MOCK_NOT_ALLOWED',
+          errorMessage:
+            `This source has no real connection configured. Set ${connectorModeEnvKey(opts.dataSourceSlug)}=real ` +
+            'and its connection settings, or load the matching spreadsheet dataset.',
+        },
+      });
+      return { runId: skipped.id, status: 'SKIPPED', recordsLoaded: 0, recordsFailed: 0 };
     }
 
     // ── Orphan reaper ───────────────────────────────────────────────────

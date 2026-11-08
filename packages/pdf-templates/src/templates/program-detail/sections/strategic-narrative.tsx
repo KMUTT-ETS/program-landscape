@@ -7,7 +7,7 @@ import type { ProgramDetailData } from '../schema';
 // chart leads this section. `contentMarkdown` is an AI-authored brief using
 // a small, known markdown subset (##/### headings, -/* bullets, 1./2.
 // numbered lists, **bold**, plain paragraphs) — see
-// `program-strategic-narrative.v1`'s prompt template
+// `program-strategic-narrative.v3`'s prompt template
 // (packages/shared/src/ai/prompts/). This package has no markdown-library
 // dependency (see package.json — `zod` is the only runtime dep), so this is
 // a small hand-rolled parser.
@@ -52,7 +52,7 @@ type BlockMode = 'none' | 'p' | 'ul' | 'ol';
 /**
  * Minimal markdown → HTML for the AI-authored strategic brief. Not a
  * general-purpose parser — matches exactly the subset
- * program-strategic-narrative.v1 is prompted to produce. Walks line by
+ * program-strategic-narrative.v3 is prompted to produce. Walks line by
  * line, accumulating consecutive paragraph/bullet/numbered lines into one
  * buffer and flushing it (a) on a blank line, (b) on a heading line — which
  * is emitted immediately, on its own, never absorbing subsequent lines —

@@ -40,7 +40,7 @@ import { getInstitution } from '../../institution';
 // `market_confusion_max` (market similarity), plus instruction 11 — cite the
 // sibling by code and name, every overlap measure is "for review", never
 // propose closure.
-export const RISK_ASSESSMENT_VERSION = 'risk-assessment.v4';
+export const RISK_ASSESSMENT_VERSION = 'risk-assessment.v5';
 
 const RiskMeasureKindSchema = z.enum([
   'CURRICULUM_MODERNIZE',
@@ -267,7 +267,7 @@ export function buildRiskAssessmentMessages(input: RiskAssessmentInput): AiMessa
 2. **มาตรการต้องเฉพาะเจาะจง** — ห้ามเขียน "ปรับปรุงหลักสูตรให้ทันสมัย" หรือ "เพิ่มการตลาด" คำว่า "ปรับ" "พัฒนา" "เสริมสร้าง" ใน title ห้ามใช้เพียงลอย ๆ
    - ถ้าเสนอเพิ่มวิชา → ระบุชื่อวิชา / หน่วยกิต / ชั้นปี
    - ถ้าเสนอตัด/ควบรวม → ระบุชื่อหลักสูตรหรือสาขาที่เกี่ยวข้อง
-   - ถ้าเสนอช่องทางตลาด → ระบุแพลตฟอร์มหรือกลุ่มเป้าหมายที่ชัดเจน เช่น "TikTok ads ในกลุ่ม ม.4-6 จังหวัดในภาคอีสาน 9 จังหวัด"
+   - ถ้าเสนอช่องทางตลาด → ระบุแพลตฟอร์มหรือกลุ่มเป้าหมายที่ชัดเจน เช่น "TikTok ads ในกลุ่ม ม.4-6 ในจังหวัดเป้าหมายที่ระบุชื่อและจำนวนจังหวัดชัดเจน"
    - ถ้าเสนอจ้างอาจารย์ → ระบุสาขาความเชี่ยวชาญที่ขาด
 
 3. **อ้างหลักฐานทุกข้อเสนอ** — rationaleTh ต้องอ้าง L1/L2/L3 หรือ KRI หรือ peer / white-space ที่เป็นเหตุของข้อเสนอนั้น ระบุตัวเลขให้เห็น เช่น "เพราะ TCAS ปี 67 ผู้สมัคร 0.8 ต่อที่นั่ง" หรือ "เพราะ 9 ใน 15 ทักษะของหลักสูตรอยู่ในกลุ่ม HIGH automation risk"
@@ -302,7 +302,7 @@ export function buildRiskAssessmentMessages(input: RiskAssessmentInput): AiMessa
    - แต่ละ candidate ตั้งต้นมาด้วย kind/title/rationale/horizon/costClass/priority ที่กำหนดไว้ก่อนแล้ว
    - **คุณต้องเก็บ candidate ทุกตัวไว้ในผลลัพธ์** (จะปรับเปลี่ยนได้ ไม่ใช่ลบทิ้ง) เพราะ Council มีหลักประกันว่า "KRI ที่ติดธงจะมีมาตรการตอบสนองเสมอ"
    - คุณสามารถ:
-     - **ปรับให้เฉพาะเจาะจงขึ้น** — เช่น เปลี่ยน "เปิดช่องทางตลาดเพิ่ม" เป็น "เปิด TikTok ads ในกลุ่ม ม.4-6 ภาคอีสาน" โดยอ้างหลักฐานเฉพาะของหลักสูตรนั้น
+     - **ปรับให้เฉพาะเจาะจงขึ้น** — เช่น เปลี่ยน "เปิดช่องทางตลาดเพิ่ม" เป็น "เปิด TikTok ads ในกลุ่ม ม.4-6 ในจังหวัดเป้าหมายของหลักสูตร" โดยอ้างหลักฐานเฉพาะของหลักสูตรนั้น
      - **เปลี่ยน priority หรือ horizon** ตามบริบทของหลักสูตรนั้น
      - **เปลี่ยน kind** ถ้ามีมาตรการอื่นที่เหมาะกว่าสำหรับ indicator นั้น (เช่น เปลี่ยน RECRUITMENT_CHANNEL เป็น CURRICULUM_DIFFERENTIATE ถ้าปัญหารากเหง้าคือหลักสูตรไม่น่าสนใจ)
    - **ต้อง echo back \`triggerIndicatorSlug\` และ \`triggerSeverity\`** บนทุกมาตรการที่มาจาก candidate (เพื่อ UI จะแสดง provenance badge)

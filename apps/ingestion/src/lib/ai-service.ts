@@ -37,6 +37,10 @@ export function createIngestionAiService(): AiService {
       anthropic: {
         completion: process.env.AI_ANTHROPIC_COMPLETION_MODEL,
       },
+      openrouter: {
+        completion: process.env.AI_OPENROUTER_COMPLETION_MODEL,
+        embedding: process.env.AI_OPENROUTER_EMBEDDING_MODEL,
+      },
     },
     modelOverrideResolver: getAiModelOverrideStore(),
   });

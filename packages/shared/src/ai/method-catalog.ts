@@ -65,7 +65,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   // ── Program pipeline (heaviest cost cluster) ─────────────────────────
   {
     methodPrefix: 'program-digest',
-    currentVersion: 'program-digest.v3',
+    currentVersion: 'program-digest.v4',
     label: 'Program digest (PDF → structured)',
     description: 'Single-shot extraction of program metadata, courses, skills, and recruitment summary from curriculum PDF.',
     module: 'pipeline',
@@ -74,7 +74,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'program-faculty',
-    currentVersion: 'program-faculty.v2',
+    currentVersion: 'program-faculty.v3',
     label: 'Program faculty extraction',
     description: 'Pulls academic staff roster from curriculum PDF (names, ranks, ORCID, areas).',
     module: 'pipeline',
@@ -83,7 +83,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'program-courses-extract',
-    currentVersion: 'program-courses-extract.v4',
+    currentVersion: 'program-courses-extract.v5',
     label: 'Program courses (exhaustive)',
     description: 'Regex-anchored course-code extractor scoped to the รายวิชา section (3 หมวด). Distinct from program-digest — focused, complete course list. Was locked to Pro under v2/v2.2 (Flash truncated on the full-PDF + embedded-candidate-list prompt); v2.3 narrowed the input to a ~20KB slice and Flash now returns the same result ~2× faster. v4 also captures each course\'s หมวด grouping (category) from the section headings.',
     module: 'pipeline',
@@ -92,7 +92,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'program-skills-detailed',
-    currentVersion: 'program-skills-detailed.v3',
+    currentVersion: 'program-skills-detailed.v4',
     label: 'Program skills (per-course)',
     description: 'Per-course skill extraction with weight + verbatim evidence quote per skill.',
     module: 'pipeline',
@@ -110,7 +110,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'program-peer-selection',
-    currentVersion: 'program-peer-selection.v2',
+    currentVersion: 'program-peer-selection.v3',
     label: 'Peer selection',
     description: 'Picks the 5 most-comparable peer programs from a candidate set.',
     module: 'pipeline',
@@ -181,7 +181,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'program-strategic-narrative',
-    currentVersion: 'program-strategic-narrative.v1',
+    currentVersion: 'program-strategic-narrative.v3',
     label: 'Program strategic narrative',
     description: 'Council-grade strategic brief — official Thai format with disciplined drafting.',
     module: 'pipeline',
@@ -217,7 +217,7 @@ export const AI_METHOD_CATALOG: AiMethodEntry[] = [
   },
   {
     methodPrefix: 'risk-assessment',
-    currentVersion: 'risk-assessment.v4',
+    currentVersion: 'risk-assessment.v5',
     label: 'Risk assessment',
     description: 'Per-program risk indicators + recommended mitigation measures.',
     module: 'pipeline',

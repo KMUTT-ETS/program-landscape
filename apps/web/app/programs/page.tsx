@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
+import { brandingForRequest } from '@/lib/branding';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { PageHeader } from '@kku/ui';
@@ -33,9 +34,10 @@ export default async function ProgramsDirectoryPage({
   if (!user?.userId) redirect('/signin');
 
   const sp = await searchParams;
+  const orgShortName = (await brandingForRequest())?.shortNameEn;
   const page = Math.max(1, parseInt(sp.page ?? '1', 10));
-  // Request a large page so we can get everything in one shot — KKU
-  // has 297 programs, so pageSize=500 covers the whole portfolio.
+  // Request a large page so we can get everything in one shot — pageSize=500
+  // covers a whole portfolio.
   const qs = new URLSearchParams({
     scope: 'university',
     pageSize: '500',
@@ -59,7 +61,7 @@ export default async function ProgramsDirectoryPage({
     <AuthedAppShell user={user}>
       <PageHeader
         title="Programs"
-        subtitle={`${rows.length} of the 297 canonical KKU programs — click through for the full deep-dive on any program. Legacy and non-canonical programs are excluded from this view but remain joinable from staff and education dashboards.`}
+        subtitle={`Showing ${rows.length} ${orgShortName ? `${orgShortName} ` : ''}programs — click through for the full deep-dive on any program. Legacy and non-canonical programs are excluded from this view but remain joinable from staff and education dashboards.`}
       />
       <ProgramsDirectory
         rows={rows}

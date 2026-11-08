@@ -1,4 +1,5 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { KKU_REFERENCE_ORGANIZATION, setOrganizationForTest } from '@kku/shared';
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest';
 
 // Mocks prisma + queryMetricByScope so the test runs without a DB.
 // Exercises the two rules we can't afford to regress on:
@@ -20,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   tcasFindFirst: vi.fn(),
   tcasFindMany: vi.fn(),
   demographicFindFirst: vi.fn(),
+  demographicFindMany: vi.fn(),
   kmitlCareerFindMany: vi.fn(),
   queryMetricByScope: vi.fn(),
   systemSettingFindUnique: vi.fn(),
@@ -71,7 +73,7 @@ vi.mock('../src/index', () => {
         findFirst: mocks.tcasFindFirst,
         findMany: mocks.tcasFindMany,
       },
-      demographicProjection: { findFirst: mocks.demographicFindFirst },
+      demographicProjection: { findFirst: mocks.demographicFindFirst, findMany: mocks.demographicFindMany },
       kmitlCareer: { findMany: mocks.kmitlCareerFindMany },
       graduateOutcome: { findFirst: mocks.graduateOutcomeFindFirst },
       programPedagogyAssessment: { findUnique: mocks.programPedagogyAssessmentFindUnique },
@@ -126,7 +128,7 @@ vi.mock('../src/scope', async () => {
   };
 });
 
-import { computeHealthScores, DIMENSION_DRIVERS, HEALTH_SCORE_VERSION } from '../src/health-score';
+import { computeHealthScores, computeRequiredShareAt10Y, DIMENSION_DRIVERS, HEALTH_SCORE_VERSION } from '../src/health-score';
 import {
   deriveAcademicYear,
   defaultNextStartDate,
@@ -150,6 +152,7 @@ beforeEach(() => {
   mocks.tcasFindFirst.mockResolvedValue(null);
   mocks.tcasFindMany.mockResolvedValue([]);
   mocks.demographicFindFirst.mockResolvedValue(null);
+  mocks.demographicFindMany.mockImplementation(projectionRows(['TH', 'Northeast']));
   mocks.kmitlCareerFindMany.mockResolvedValue([]);
   mocks.systemSettingFindUnique.mockResolvedValue(null);
   mocks.graduateOutcomeFindFirst.mockResolvedValue(null);
@@ -392,8 +395,8 @@ const programRow = {
 };
 
 describe('v5.4 — capability is back to four drivers', () => {
-  it('drops external_grant_engagement and stamps v5.4', () => {
-    expect(HEALTH_SCORE_VERSION).toBe('health-score.v5.4');
+  it('drops external_grant_engagement and stamps v5.6', () => {
+    expect(HEALTH_SCORE_VERSION).toBe('health-score.v5.6');
     expect(DIMENSION_DRIVERS.capability).toEqual([
       'senior_rank_share',
       'publications_per_faculty',
@@ -528,5 +531,80 @@ describe('financial — external-grant award', () => {
     for (const key of ['attractiveness', 'capability', 'outcomes', 'relevance'] as const) {
       expect(row.dimensions[key].award).toBeUndefined();
     }
+  });
+});
+
+// One mock serves the picker's eligibility query: every region has the
+// current year and +10 under one national source.
+const projectionRows = (regions: string[]) => async () => {
+  const y = new Date().getUTCFullYear();
+  return regions.flatMap((region) =>
+    [y, y + 10].map((year) => ({ source: 'NESDC-PopProj-2010-2040', region, year })),
+  );
+};
+
+describe('demographic region wiring (v5.5)', () => {
+  const REGIONS = [{ region: 'TH' }, { region: 'Northeast' }, { region: 'Central' }];
+  const withRegion = (regionEn: string | null) =>
+    setOrganizationForTest({ ...KKU_REFERENCE_ORGANIZATION, regionEn });
+  afterEach(() => setOrganizationForTest(KKU_REFERENCE_ORGANIZATION));
+
+  beforeEach(() => {
+    mocks.demographicFindMany.mockImplementation(projectionRows(REGIONS.map((r) => r.region)));
+    mocks.demographicFindFirst.mockResolvedValue({ population: 1_000_000 });
+    mocks.enrollmentMetricFindMany.mockResolvedValue([{ enrolled: 200 }]);
+  });
+
+  it('profile region Central -> projection queried for Central', async () => {
+    withRegion('Central');
+    const r = await computeRequiredShareAt10Y('p1', 'BACHELOR');
+    expect(mocks.demographicFindFirst.mock.calls[0]![0].where.region).toBe('Central');
+    expect(r).toEqual({ share: 200 / 1_000_000, region: 'Central', source: 'NESDC-PopProj-2010-2040', reason: null });
+  });
+
+  it('KKU profile -> Northeast', async () => {
+    const r = await computeRequiredShareAt10Y('p1', 'BACHELOR');
+    expect(mocks.demographicFindFirst.mock.calls[0]![0].where.region).toBe('Northeast');
+    expect(r.region).toBe('Northeast');
+  });
+
+  it('unset region -> null with a reason, no projection query', async () => {
+    withRegion(null);
+    const r = await computeRequiredShareAt10Y('p1', 'BACHELOR');
+    expect(r.share).toBeNull();
+    expect(r.reason).toMatch(/^region-not-set/);
+    expect(mocks.demographicFindFirst).not.toHaveBeenCalled();
+  });
+
+  it('unmatched region -> null with a reason', async () => {
+    withRegion('Bangkok');
+    expect((await computeRequiredShareAt10Y('p1', 'BACHELOR')).reason).toMatch(/^region-not-set/);
+  });
+});
+
+// ── tcas_min_score_percentile: subject key fallback ──────────────────────
+
+describe('tcas_min_score_percentile — peer subject key', () => {
+  it('falls back to the programme Thai-name signature when its TCAS name over-captures', async () => {
+    mocks.programFindUnique.mockResolvedValue({
+      ...programRow,
+      nameTh: 'หลักสูตรวิศวกรรมศาสตรบัณฑิต สาขาวิชาวิศวกรรมเครื่องกล',
+    });
+    mocks.queryMetricByScope.mockResolvedValue([]);
+    // The institution's own TCAS name carries trailing words, so its
+    // signature is "วิศวกรรมเครื่องกล ปริญญาตรี" and matches no peer.
+    mocks.tcasFindFirst.mockResolvedValue({
+      entryYearBE: 2568, round: '3.2', minScorePass1: 50,
+      programmeName: 'วศ.บ. สาขาวิชาวิศวกรรมเครื่องกล ปริญญาตรี 4 ปี',
+    });
+    const peers = [30, 40, 60, 70].map((minScorePass1) => ({
+      minScorePass1, programmeName: 'วศ.บ. สาขาวิชาวิศวกรรมเครื่องกล',
+    }));
+    mocks.tcasFindMany.mockImplementation(({ where }: { where: { programmeName?: { contains: string } } }) =>
+      Promise.resolve(where.programmeName?.contains === 'วิศวกรรมเครื่องกล' ? peers : []));
+
+    const outcomes = (await computeHealthScores('program', 'p1'))[0]!.dimensions.outcomes;
+    const driver = outcomes.drivers.find((d) => d.label === 'tcas_min_score_percentile');
+    expect(driver?.value).toBe(50);
   });
 });

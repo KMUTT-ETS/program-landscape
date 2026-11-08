@@ -3,15 +3,12 @@ import {
   getGrantProjectDetail,
   getGrantsDashboard,
   grantsFreshness,
+  grantsSourceCredits,
   type GrantsFilter,
 } from '@kku/db';
 import { ApiError, type ApiMeta } from '@kku/shared';
 import { CacheService } from '../common/cache.service';
 
-const SOURCE = {
-  id: 'kku-research-services',
-  name: 'KKU Research & Academic Services (external grants)',
-};
 const CAVEATS = [
   'Faculty figures count a project for every faculty with a team member on it, so they add up to more than the KKU total.',
   'Budget is the whole project budget. It is not split between team members or faculties.',
@@ -37,7 +34,7 @@ export class GrantsService {
   async dashboard(
     f: GrantsFilter,
   ): Promise<{ data: Awaited<ReturnType<typeof getGrantsDashboard>>; meta: ApiMeta }> {
-    const fresh = await grantsFreshness();
+    const [fresh, sources] = await Promise.all([grantsFreshness(), grantsSourceCredits()]);
     // The run id is in the key, so the next daily sync invalidates every entry.
     // keyOf sorts keys but not array contents, so sort the list filters here:
     // the same selection in a different order must hit the same entry.
@@ -55,7 +52,7 @@ export class GrantsService {
     const pct = membersTotal ? Math.round((membersMatched / membersTotal) * 100) : 0;
     const meta: ApiMeta = {
       freshnessDate: fresh?.completedAt.toISOString() ?? null,
-      sources: [SOURCE],
+      sources,
       caveats: CAVEATS,
       methodologyParameters: [
         {
@@ -68,14 +65,15 @@ export class GrantsService {
   }
 
   async detail(id: string, facultyNames: string[] | null) {
-    const [d, fresh] = await Promise.all([
+    const [d, fresh, sources] = await Promise.all([
       getGrantProjectDetail(id, facultyNames),
       grantsFreshness(),
+      grantsSourceCredits(),
     ]);
     if (!d) throw new ApiError('NOT_FOUND', 'Project not found');
     const meta: ApiMeta = {
       freshnessDate: fresh?.completedAt.toISOString() ?? null,
-      sources: [SOURCE],
+      sources,
       caveats: CAVEATS,
     };
     return { data: d, meta };

@@ -92,7 +92,7 @@ Read these four files before changing anything. They are short:
 The shape to keep: `fetch` runs both queries in one connection and validates every
 row; `transform` turns one (programme, cohort) group into records; `load` upserts
 and reports what it could not map. The contract behind this is in
-[the connector contract](../adopters/README.md#9-the-connector-contract-and-how-to-write-one).
+[the connector contract](../guides/write-a-connector.md).
 
 ## Step 3 — Set the connection
 
@@ -297,7 +297,7 @@ latest full-year intake from `enrollment_metrics`, so it should now render for a
 programme with a mapped intake. Rows written by this
 connector carry `methodology_version = 'kku-registry.v1'` and the run's id, and
 the run id is what lets them pass the provenance filter — see
-[the `realDataWhere` trap](../adopters/README.md#trap-2-realdatawhere--empty-sections-with-rows-in-the-database).
+[the `realDataWhere` trap](../adopters/traps.md#trap-2-realdatawhere--empty-sections-with-rows-in-the-database).
 
 ## Step 10 — Prove it and record it
 
@@ -310,7 +310,7 @@ dated line to its session log.
 Then check the catalogue flags. The `data_sources` row has independent `status`
 and `mocked` columns, and `prisma/seed.ts` rewrites both from the catalogue
 (`packages/shared/src/ingestion/catalog.ts`) on every seed, so the catalogue entry
-must say `mocked: false` or the next `pnpm db:seed` quietly re-mocks the
+must say `mocked: false` or the next `pnpm data-sources:sync --apply` quietly re-mocks the
 connector. In this repository the `kku-registry` entry already does. Confirm with:
 
 ```bash
@@ -351,3 +351,7 @@ against production.
 | Programmes you track appear in `unmappedSamples` | Missing mapping row (Step 7) |
 | Connection error | Credentials, network route, or the wrong client for your database (Step 3) |
 | Rows exist but a section is empty | The provenance filter — check the run id and the `data_sources` flags (Step 10) |
+
+## Next step
+
+Return to [Get Program Deep-Dive working](./program-deep-dive.md) and finish the Setup checklist with your registrar data. For the connector contract in general, read [Write a connector](../guides/write-a-connector.md).

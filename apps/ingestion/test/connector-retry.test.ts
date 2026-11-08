@@ -1,3 +1,4 @@
+vi.stubEnv('ALLOW_MOCK_CONNECTOR_RUNS', 'true');
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 // Verify the ConnectorRunner's retry contract:

@@ -2,7 +2,7 @@ import path from 'node:path';
 import type MarkdownIt from 'markdown-it';
 import type StateCore from 'markdown-it/lib/rules_core/state_core.mjs';
 import type Token from 'markdown-it/lib/token.mjs';
-import { GATHERED, GENERATED_DIR_NAME, isExcluded, toPosix } from './manifest';
+import { GATHERED, GENERATED_DIR_NAME, NEW_TAB_DOC_PREFIXES, isExcluded, toPosix } from './manifest';
 
 export interface LinkPluginOptions {
   repoRoot: string;
@@ -55,6 +55,24 @@ export function classifyLink(href: string, pagePath: string, repoRoot: string): 
   return { kind: 'repo-path', repoRel };
 }
 
+/** True when links on this page that lead to another page should open in a new tab. */
+export function opensLinksInNewTab(pagePath: string, repoRoot: string): boolean {
+  const docsRel = toPosix(path.relative(path.join(repoRoot, 'docs'), pagePath));
+  return NEW_TAB_DOC_PREFIXES.some((prefix) => docsRel.startsWith(prefix));
+}
+
+/**
+ * Marker set in the core rule and turned into target/rel at render time.
+ * Setting `target` directly is not enough: VitePress's link renderer skips any
+ * link that already has a target, so the .md → .html rewrite and the dead-link
+ * check would never run for it.
+ */
+const NEW_TAB_MARKER = 'data-new-tab';
+
+function markNewTab(tok: Token): void {
+  tok.attrSet(NEW_TAB_MARKER, '1');
+}
+
 /** Escape every tag that is not a lowercase SAFE_TAGS member; HTML comments pass through verbatim. */
 function escapeUnsafeHtml(token: Token, md: MarkdownIt): void {
   token.content = token.content
@@ -91,12 +109,16 @@ function rewriteInline(
     }
     const href = tok.attrGet('href');
     const target: LinkTarget = href === null ? { kind: 'leave' } : classifyLink(href, pagePath, opts.repoRoot);
+    // Same-page anchors stay put; external links already open in a new tab.
+    const newTab = href !== null && !href.startsWith('#') && opensLinksInNewTab(pagePath, opts.repoRoot);
     if (target.kind === 'leave') {
+      if (newTab) markNewTab(tok);
       out.push(tok);
       continue;
     }
     if (target.kind === 'href') {
       tok.attrSet('href', target.href);
+      if (newTab) markNewTab(tok);
       out.push(tok);
       continue;
     }
@@ -135,6 +157,21 @@ function rewriteInline(
 }
 
 export function repoLinkPlugin(md: MarkdownIt, opts: LinkPluginOptions): void {
+  // Wrap whatever link renderer is installed (VitePress's, when this plugin is
+  // registered from markdown.config, which runs after the built-in plugins).
+  // The original runs first, without a target, so it rewrites the href; then
+  // the marked link is rendered again with target/rel added.
+  const original = md.renderer.rules.link_open;
+  md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
+    const tok = tokens[idx];
+    const marked = tok !== undefined && tok.attrGet(NEW_TAB_MARKER) !== null;
+    if (marked) tok.attrs = (tok.attrs ?? []).filter(([name]) => name !== NEW_TAB_MARKER);
+    const html = original ? original(tokens, idx, options, env, self) : self.renderToken(tokens, idx, options);
+    if (!marked || tok === undefined || tok.attrGet('target') !== null) return html;
+    tok.attrSet('target', '_blank');
+    tok.attrSet('rel', 'noopener');
+    return self.renderToken(tokens, idx, options);
+  };
   md.core.ruler.push('repo_links', (state: StateCore) => {
     const pagePath = (state.env as { path?: unknown }).path;
     const page = typeof pagePath === 'string' ? pagePath : undefined;

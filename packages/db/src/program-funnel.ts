@@ -14,6 +14,7 @@
 // never summed across rounds.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { campaignPlanKey, campaignPlanKeySqlText } from './campaign-plan-key';
 import { prisma } from './index';
 import { realDataWhere, realDataSqlUnsafe } from './data-quality';
 import { getAcademicYearContext, entryYearComplete } from './academic-year';
@@ -50,11 +51,16 @@ export interface ProgramFunnelYear {
   confirmClearinghouse: number;
   sendRegReported: number;
   regReported: number;
+  /** True when at least one row of the year states a Reported figure. Absent
+   *  is not 0: an import that fills Confirmed but not Reported must not read
+   *  as "nobody registered". */
+  regReportedStated: boolean;
   rounds: number;
 }
 
 interface RawRow {
-  recruitmentProgramId: string;
+  recruitmentProgramId: string | null;
+  campaignName: string;
   acadYearBE: number;
   round: string;
   enrollSeats: number | null;
@@ -76,8 +82,9 @@ function planSum(rows: RawRow[]): number | null {
   for (const r of rows) {
     if (r.planPerYear === null) continue;
     any = true;
-    const cur = byPid.get(r.recruitmentProgramId);
-    byPid.set(r.recruitmentProgramId, cur == null ? r.planPerYear : Math.max(cur, r.planPerYear));
+    const key = campaignPlanKey(r);
+    const cur = byPid.get(key);
+    byPid.set(key, cur == null ? r.planPerYear : Math.max(cur, r.planPerYear));
   }
   if (!any) return null;
   let s = 0;
@@ -90,6 +97,7 @@ async function loadProgramRows(programId: string): Promise<RawRow[]> {
     where: { programId, ...realDataWhere() },
     select: {
       recruitmentProgramId: true,
+      campaignName: true,
       acadYearBE: true,
       round: true,
       enrollSeats: true,
@@ -124,6 +132,7 @@ export async function programFunnelYears(programId: string): Promise<ProgramFunn
       confirmClearinghouse: yr.reduce((s, r) => s + n(r.confirmClearinghouse), 0),
       sendRegReported: yr.reduce((s, r) => s + n(r.sendRegReported), 0),
       regReported: yr.reduce((s, r) => s + n(r.regReported), 0),
+      regReportedStated: yr.some((r) => r.regReported !== null),
       rounds: new Set(yr.map((r) => r.round)).size,
     }));
 }
@@ -230,7 +239,8 @@ export async function scopeFunnelLatestYear(
          ${scoped ? `AND ${scopeCol} = $2` : ''}
      ),
      plan_per_sub AS (
-       SELECT recruitment_program_id, MAX(plan_per_year) AS pp FROM scoped GROUP BY recruitment_program_id
+       SELECT ${campaignPlanKeySqlText('scoped')} AS plan_key, MAX(plan_per_year) AS pp
+       FROM scoped GROUP BY plan_key
      )
      SELECT
        COALESCE(SUM(enroll_seats), 0)::bigint AS seats,

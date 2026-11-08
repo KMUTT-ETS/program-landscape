@@ -24,8 +24,8 @@ describe('program-peer-selection v2 — fabrication hotfix', () => {
   });
   const system = messages.find((m) => m.role === 'system')?.content ?? '';
 
-  it('is version 2', () => {
-    expect(PROGRAM_PEER_SELECTION_VERSION).toBe('program-peer-selection.v2');
+  it('is version 3', () => {
+    expect(PROGRAM_PEER_SELECTION_VERSION).toBe('program-peer-selection.v3');
   });
 
   it('no longer instructs the model to fabricate a "defensible estimate" name', () => {
@@ -35,5 +35,10 @@ describe('program-peer-selection v2 — fabrication hotfix', () => {
   it('instructs a descriptive, non-official-sounding fallback name instead', () => {
     expect(system).toContain('descriptive');
     expect(system).toContain('non-official-sounding');
+  });
+
+  it('does not claim Thai candidates are ranked above the institution', () => {
+    expect(system).not.toMatch(/ranked at or above/);
+    expect(system).toContain('this institution is excluded');
   });
 });

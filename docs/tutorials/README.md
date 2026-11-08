@@ -1,13 +1,13 @@
 # Tutorials
 
-Step-by-step walkthroughs that take you from a working checkout to a specific
-outcome. Each one names the exact commands, what you should see after each step,
-and what it costs. They link to the reference pages for the *why*.
+> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [ฉบับภาษาไทย](../th/tutorials/README.md)
 
-| Tutorial | Outcome |
-|---|---|
-| [Get Program Deep-Dive working](./program-deep-dive.md) | `/programs/<id>` renders real content in every section it can, first for one programme, then for the whole portfolio |
-| [Adapt the registrar connector](./adapt-the-registrar-connector.md) | The registrar connector reads your student-records system, maps it to your programmes, and loads verified enrolment figures |
+Step-by-step walkthroughs for an adopting university. Each one names the exact
+pages, files and buttons, and what you should see after each step.
 
-Start with [Fresh checkout setup](../guides/fresh-checkout-setup.md) if you do not
-have a running local instance yet.
+| Order | Tutorial | Outcome |
+|---|---|---|
+| 1 | [Getting started](./getting-started.md) | A running app on your laptop and your first administrator signed in |
+| 2 | [Get Program Deep-Dive working](./program-deep-dive.md) | `/programs/<id>` shows real content for one programme, and its Setup checklist is green |
+| 3 | [Workshop: set up Program Deep-Dive](../workshop/README.md) | A 1.5-day hands-on workshop: pre-work, one page per session, troubleshooting and a facilitator guide |
+| Advanced, optional | [Adapt the registrar connector](./adapt-the-registrar-connector.md) | A KKU example: the registrar connector reads a student-records system directly |

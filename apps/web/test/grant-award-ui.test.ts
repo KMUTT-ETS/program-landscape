@@ -117,8 +117,8 @@ describe('external-grant award in the UI', () => {
     ).toContain('· base 97.0 → 100.0');
   });
 
-  it('carries the grants source mark under the award label', () => {
-    expect(DRIVER_SOURCE_MARK.external_grant_award).toBe('kku-research-services');
+  it('keeps the award chip neutral, not tied to one connector', () => {
+    expect(DRIVER_SOURCE_MARK.external_grant_award).toBeUndefined();
     expect(DRIVER_SOURCE_MARK.external_grant_engagement).toBeUndefined();
   });
 

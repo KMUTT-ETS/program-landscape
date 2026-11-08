@@ -18,6 +18,9 @@ export interface OrganizationProfileDto {
   regionEn: string | null;
   contactEmail: string | null;
   appUrl: string;
+  intakeFloorBachelor: number;
+  intakeFloorPostgrad: number;
+  openalexInstitutionId: string | null;
   version: number;
   updatedAt: string;
   updatedBy: string | null;
@@ -38,6 +41,8 @@ interface TcasMatch {
 type FormState = {
   nameTh: string; nameEn: string; shortNameTh: string; shortNameEn: string;
   regionTh: string; regionEn: string; contactEmail: string; appUrl: string;
+  intakeFloorBachelor: string; intakeFloorPostgrad: string;
+  openalexInstitutionId: string;
 };
 
 function toForm(p: OrganizationProfileDto | null): FormState {
@@ -45,6 +50,11 @@ function toForm(p: OrganizationProfileDto | null): FormState {
     nameTh: p?.nameTh ?? '', nameEn: p?.nameEn ?? '', shortNameTh: p?.shortNameTh ?? '',
     shortNameEn: p?.shortNameEn ?? '', regionTh: p?.regionTh ?? '', regionEn: p?.regionEn ?? '',
     contactEmail: p?.contactEmail ?? '', appUrl: p?.appUrl ?? '',
+    // Rendered as text so a cleared box stays cleared while typing; the
+    // schema coerces back to a number on save.
+    intakeFloorBachelor: String(p?.intakeFloorBachelor ?? 30),
+    intakeFloorPostgrad: String(p?.intakeFloorPostgrad ?? 8),
+    openalexInstitutionId: p?.openalexInstitutionId ?? '',
   };
 }
 
@@ -60,6 +70,12 @@ const FIELDS: { key: keyof FormState; label: string; hint?: string; required?: b
   { key: 'contactEmail', label: 'Contact email',
     hint: 'Sent in outbound User-Agents so site operators can reach you. Never shown publicly.' },
   { key: 'appUrl', label: 'Public app URL', required: true },
+  { key: 'intakeFloorBachelor', label: 'Minimum bachelor intake', required: true,
+    hint: 'Your council\u2019s policy. A bachelor programme recruiting fewer than this each year is treated as closure-track in the health score and the risk register.' },
+  { key: 'intakeFloorPostgrad', label: 'Minimum postgraduate intake', required: true,
+    hint: 'The same policy for master\u2019s and doctoral programmes, where a small cohort is normal \u2014 below it a programme goes on the watch list rather than closure-track.' },
+  { key: 'openalexInstitutionId', label: 'OpenAlex institution ID',
+    hint: 'Used by the OpenAlex publications pull. Find it at openalex.org by searching your university, e.g. KMUTT I60837268. Leave blank to skip that connector.' },
 ];
 
 export function OrganizationClient({
@@ -181,7 +197,16 @@ export function OrganizationClient({
             <input
               value={form[f.key]}
               required={f.required}
-              type={f.key === 'contactEmail' ? 'email' : f.key === 'appUrl' ? 'url' : 'text'}
+              type={
+                f.key === 'contactEmail'
+                  ? 'email'
+                  : f.key === 'appUrl'
+                    ? 'url'
+                    : f.key.startsWith('intakeFloor')
+                      ? 'number'
+                      : 'text'
+              }
+              min={f.key.startsWith('intakeFloor') ? 1 : undefined}
               onChange={(e) => {
                 setForm({ ...form, [f.key]: e.target.value });
                 // A TCAS badge describes the old Thai name; drop it until re-checked.

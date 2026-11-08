@@ -10,7 +10,7 @@ import { getInstitution } from '../../institution';
 //   - WORLD
 //   - ASIA
 //   - SOUTHEAST_ASIA
-//   - THAILAND_PEER (Thai universities ranked at or above KKU)
+//   - THAILAND_PEER (Thai universities in the candidate list)
 //
 // The AI weighs subject ranking first (where available in `subjectRanksJson`),
 // then world ranking. It picks 3-5 peers per tier and writes a 1-3 sentence
@@ -29,9 +29,16 @@ import { getInstitution } from '../../institution';
 // non-official-sounding name instead, with the confidence noted in
 // `rationale`. No schema change; existing v1-stamped rows are untouched —
 // peer regeneration + its cascade into peer-review is plan 2's job.
+//
+// v3 (2026-11-04) — adopter readiness. Instruction 4 told the model the
+// THAILAND_PEER candidates were "ranked at or above <institution>", a claim
+// that was only true of KKU's curated list; an adopter's list is whatever its
+// University Rankings sheet holds. Reworded to describe the list neutrally
+// (the candidate list; this institution is excluded). No schema change;
+// v2-stamped rows are untouched.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PROGRAM_PEER_SELECTION_VERSION = 'program-peer-selection.v2';
+export const PROGRAM_PEER_SELECTION_VERSION = 'program-peer-selection.v3';
 
 export const PeerSelectionTierSchema = z.enum([
   'WORLD',
@@ -130,7 +137,7 @@ Selection rules:
 1. Pick **3-5 peers per tier** (12-20 total). Use \`rankInTier\` 1=best, 2=second, etc.
 2. **Subject ranking takes precedence** over world rank when subject ranks are available in the candidate's subjectRanks blob. A university ranked top-50 in the program's subject is a better peer than one ranked top-10 globally but unknown in this subject.
 3. **Tier definitions are exclusive in this prompt** (a single university appears in only one tier in the input candidates). Do NOT cross-tier.
-4. **For THAILAND_PEER**: candidates are Thai universities ranked at or above ${inst.shortNameEn}. Pick the ones with the strongest match to this program's subject + level.
+4. **For THAILAND_PEER**: candidates are the Thai universities in the candidate list (this institution is excluded). Pick the ones with the strongest match to this program's subject + level.
 5. **For SOUTHEAST_ASIA**: pick Singapore / Malaysia / Indonesia / Vietnam / Philippines candidates with strong subject programs.
 6. **For ASIA + WORLD**: pick the highest-fit candidates considering subject + level. Prefer institutions known for this discipline.
 7. \`peerProgramName\` must be the institution's **actual programme title ONLY when you are confident it is real** (e.g. "Bachelor of Engineering in Mechanical Engineering" at NUS, "BSc in Mechanical Engineering" at MIT). When you are not confident, write a plainly descriptive, non-official-sounding name instead — e.g. "Undergraduate mechanical engineering programme" — never invent an official-sounding title you are not sure exists. State in \`rationale\` whether the name is verified or descriptive.

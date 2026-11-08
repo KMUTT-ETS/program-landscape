@@ -1,4 +1,4 @@
-import { prisma, activeRevisionIdFor, type ProgramLevel, type PeerTier } from '@kku/db';
+import { prisma, activeRevisionIdFor, peerCandidateWhere, type ProgramLevel, type PeerTier } from '@kku/db';
 import {
   buildProgramPeerSelectionMessages,
   getInstitution,
@@ -72,13 +72,13 @@ export async function selectProgramPeers(params: SelectPeersParams): Promise<Sel
       orderBy: { rankingYear: 'desc' },
       select: { rankingYear: true },
     });
-    if (!latest) return { status: 'SKIPPED', reason: 'no RankedUniversity rows seeded — run pnpm peers:seed-universities' };
+    if (!latest) return { status: 'SKIPPED', reason: 'no RankedUniversity rows seeded — run pnpm peers:seed-universities or upload the University Rankings sheet' };
     rankingYear = latest.rankingYear;
   }
 
-  // Pull candidates, exclude KKU itself.
+  // Pull candidates, excluding the institution itself.
   const allCandidates = await prisma.rankedUniversity.findMany({
-    where: { rankingYear, name: { not: getInstitution().nameEn } },
+    where: peerCandidateWhere(rankingYear, getInstitution().nameEn),
     orderBy: [{ region: 'asc' }, { qsWorldRank: 'asc' }],
   });
   if (allCandidates.length === 0) {

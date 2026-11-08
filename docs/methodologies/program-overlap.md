@@ -369,8 +369,8 @@ programme's level (§10), excluding language variants. `alarmDirection: high`.
   distributions, writing nothing. `--apply` writes one `ProgramOverlapRun` per
   level (pairs and the SUCCEEDED flip in one transaction), then the AI wording
   unless `--no-ai`. `--calibrate` is a read-only calibration report.
-- **Pipeline phase `phaseOV`** ("Programme overlap", after phase 7, before
-  phase 8): recomputes every same-level pair touching the selected
+- **Pipeline phase `phaseOV`** ("Programme overlap", after phase CR, before
+  phase 8; the strategic narrative, phase 7, now runs after phase 8): recomputes every same-level pair touching the selected
   programme(s) and writes a **scoped** run (`scopeProgramIds` non-empty). With
   more than one programme selected in one CLI invocation it writes one run
   over the selection.

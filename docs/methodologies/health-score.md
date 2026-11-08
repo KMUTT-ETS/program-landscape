@@ -1,8 +1,81 @@
 # Health score methodology
 
-**Version:** `health-score.v5.4`
-**Reviewed:** 2026-10-03
+**Version:** `health-score.v5.6`
+**Reviewed:** 2026-11-03
 **Owner:** KKU Data Office
+
+**v5.6 (2026-11-03): public TCAS round-3 fallback for the funnel drivers; the
+funnel drivers are unchanged where admission data states seats and Reported.** The fallback fires
+only when the programme's admission-campaign data states **no seat figure in any
+year** (`enroll_seats` and `plan_per_year` both absent) and the latest complete
+year therefore has no seats. An adopting university's sheet often has applicants
+and passed counts but no seats. `tcas_competition_ratio`, `tcas_fill_rate` and
+`tcas_competition_vs_peers` then use the programme's public TCAS figures (table
+`tcas_admission_stats`, linked by programme) for that year: ratio = applicants /
+quota, fill = admitted / quota. Rules:
+
+- Only **round-3** rows are read (stored round `3`, `3.1`, `3.2`), for the
+  programme and for the peers, so the basis label stays true when other rounds
+  are loaded.
+- Each `tcas_course_code` is counted once per entry year (2568 repeats the 3.1
+  and 3.2 rows) and the codes are summed. The admitted count of a row is the
+  **larger** of `admitted_pass1` and `admitted_pass2`, not their sum: the sum
+  exceeds the quota on 70% of the public rows that state admits, the larger
+  value on 6%, and a 3.1/3.2 pair repeats the same figures. The Deep-Dive TCAS
+  card uses the same rule.
+- When no public row states an admitted count (most years), `tcas_fill_rate` is
+  **null**, reason `admitted-not-published`, never 0; the competition ratio is
+  still scored.
+- Campaign seats, when present in any year, are never overridden.
+- A programme with **no campaign rows at all** is scored on the same basis for the
+  latest complete year that has public round-3 rows (on KKU's installation the impact was not measured).
+- `tcas_registration_yield` has no public equivalent and stays null: it needs the
+  `Confirmed` and `Reported` columns of the admission-campaigns sheet. When
+  Confirmed is stated but no row of the year states Reported, it is **null**
+  (reason `reported-not-stated`), never a 0 yield.
+- **`tcas_min_score_percentile` fallback (part of v5.6):** the min-score
+  percentile falls back to the programme's own name signature when its TCAS
+  subject key finds fewer than 3 peers. A KKU programme that read null for this
+  driver can therefore now score. The KKU impact was **not measured**: no KKU
+  dataset is available on this branch.
+- **Where the basis is shown:** the driver `raw` carries
+  `basis: 'public-tcas-round3'`, and the programme setup checklist (Admin,
+  programme Checklist tab) marks each such driver with the note "Computed from
+  public TCAS round-3 figures (admission campaigns have no seats)". The
+  Deep-Dive driver drawer does not show it.
+- Faculty and university roll-ups of the ratio and fill still use campaign seats
+  only, so a programme can score while its faculty reads null.
+
+**v5.5 (2026-11-03): demographic region and teaching-mode band read from
+organisation data; no change for KKU.** The demographic-resilience driver (`computeRequiredShareAt10Y`) no
+longer hard-codes the Northeast projection. It resolves the institution's region
+from the organisation profile (`regionEn`) against the regions the projection
+data carries (exact, then case-insensitive match; the NESDC data has Northeast,
+Central, North and South). Its curve is calibrated for a regional cohort, so the
+national `TH` series is never substituted: when the region is unset or matches
+none of those, the driver is **null** (reason `region-not-set`: set the
+organisation region to one of the projection regions) and completeness drops. The
+resolved region is recorded in the driver's `raw`. The Deep-Dive demographic
+outlook uses the same region as its comparator and has none when unresolved.
+KKU's profile resolves to `Northeast`, so every KKU value is unchanged.
+
+**Projection source for the demographic driver (2026-11-04; no version bump,
+formula unchanged).** The driver and the Deep-Dive outlook read the population
+projection from the best available edition: an uploaded Population Projections
+spreadsheet (`xlsx:<name>`), then UN WPP 2024 (`UN-WPP2024`), then the NESDC
+starter series. A source is eligible only with a national `TH` row for the
+cohort at the current year **and** at current year + 10, and, for the driver,
+the resolved region at both years too. The UN series is **national only**, so
+the regional driver needs a regional series from the spreadsheet or NESDC; when
+no eligible source carries the region the driver stays null
+(`region-not-set` / `no-projection`). The chosen source is recorded in the
+driver's `raw.source`. KKU data resolves to NESDC, so KKU values are unchanged.
+
+The student:staff-ratio band in Capability now comes from the faculty's
+**Teaching Mode** (`Faculty.sfrBand`: Clinical, Lab-based, Studio, Professional
+or Humanities), set in the Faculties spreadsheet, instead of a fixed map of KKU
+faculty codes. A faculty with no teaching mode uses Professional, the mid band.
+KKU's bands were backfilled by migration, so its scores are unchanged.
 
 **v5.4 (2026-10-03): external grants become an award on Financial.** The
 `external_grant_engagement` driver and its 30-day gate are removed, so
@@ -510,6 +583,15 @@ the Outcomes table below.
 | `tcas_competition_vs_peers` | `clamp((kku_ratio / peer_median_ratio) × 50)` — score 50 means parity, 100 means 2× peer median | `admission_campaign_stats` for KKU + `tcas_admission_stats` same-subject peer rows |
 | `tcas_fill_rate` | `clamp(((admittedPass1 + admittedPass2) / quota) × 100)` | `admission_campaign_stats` (latest complete year, summed across rounds) |
 | `enrollment_trend_slope` | Slope of `enrolled` per year over last 5 years; `clamp(50 + slope/maxSlope × 50)` | `enrollment_metrics` |
+| `kku_intake_policy` | Latest intake against this installation's floor. Bachelor is strict: at the floor 50, at twice the floor 100, below it falling linearly to 0 (`breach`). Postgraduate is a watch list: at the floor 60, below it 30 and up (`watch`). **Null when no floor is configured** — never a default | `enrollment_metrics` + the floors on `organization_profile` |
+
+The intake floors are **council policy, not a property of this software**:
+each installation sets them at `/admin/organization`, defaulting to 30 for
+bachelor and 8 for postgraduate. They were formerly two constants in
+`health-score.ts`, copied into `risk-scoring.ts`; both now read
+`@kku/shared`'s `intake-policy` module. The driver keeps its historic label
+because it is written into stored assessments — renaming it would be a
+versioned change, not a tidy-up.
 
 ### Financial
 

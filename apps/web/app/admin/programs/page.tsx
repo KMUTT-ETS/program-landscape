@@ -106,7 +106,7 @@ export default async function AdminProgramsPage({
       <PageHeader
         eyebrow="Admin · Programs"
         title="Program management"
-        subtitle="Curate every KKU program and run the analyse-the-landscape pipeline. Switch between the full list (CRUD + per-program detail) and the operational pipeline view (bulk digest + approve)."
+        subtitle="Curate every program and run the analyse-the-landscape pipeline. Switch between the full list (CRUD + per-program detail) and the operational pipeline view (bulk digest + approve)."
         actions={
           <EdgeGlow inline>
             <Button variant="primary" asChild>

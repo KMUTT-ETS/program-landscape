@@ -51,6 +51,7 @@ const TARGETS = [
   'link-program-alumni.ts',
   'link-program-financials.ts',
   'risks-assess.ts',
+  'curriculum-pdf-check.ts',
   // Operator-run (manual data hydration on prod) — class-offerings cube +
   // PROGRAM_DIGEST course materialisation + HCM email backfill (v1.2.0).
   'link-class-offerings.ts',
