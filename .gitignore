@@ -114,3 +114,6 @@ apps/*/shots/
 
 # Adopter institution data prepared for import (never commit)
 /kmutt-data/
+
+/workshop/pdfs
+/workshop/my-university.json
