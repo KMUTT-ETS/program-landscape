@@ -17,7 +17,7 @@ slow steps run while you do something else.
 ## Start the long steps first
 
 The pipeline takes about 20 to 25 minutes for one programme and costs about
-USD 0.40 to 0.80 of AI credit. The UN population download is about 68 MB. Do
+USD 0.40 to 0.80 of AI credit for a curriculum of about 126 courses (more for a longer one). The UN population download is about 68 MB. Do
 the short steps first, start both long ones, and work through the Setup
 checklist while they run:
 
@@ -243,11 +243,24 @@ lines above name it), 2 means a problem with the arguments or an unreadable file
 4. When all uploads are done, open `/admin/data-sources` and run `tcas` and
    `un-wpp`. `openalex-works` will not match, because the mock staff are
    tokens, not real people. `kmitl-skill-mapping` is optional.
-5. Attach each PDF on the programme's "Files" tab with the role
+5. From the repository root, link the uploaded Career Skill Demand names to
+   the skill taxonomy (about 13 seconds for the mock's names):
+
+   ```bash
+   pnpm skills:normalise --source=linkedin --auto-promote
+   ```
+
+   Without it, the Setup checklist items "Labour market alignment" and
+   "Demand match filled" stay missing and pipeline phase 3 skips the demand
+   match.
+6. Attach each PDF on the programme's "Files" tab with the role
    `CURRENT_CURRICULUM` and run the pipeline.
-6. Open the programme's "Setup checklist" tab. You should see green items
+7. Open the programme's "Setup checklist" tab. You should see green items
    except JobThai ("not applicable") and the labour-market items, unless you
    ran `kmitl-skill-mapping` and its skills command.
+
+The pipeline cost grows with the number of courses in the curriculum: USD 1.30
+was measured on a 166-course curriculum, against USD 0.40 to 0.80 on a 126-course one.
 
 **Remove it.** Use "Start over" on each dataset page, in the reverse of the
 upload order, then delete the output folder.
