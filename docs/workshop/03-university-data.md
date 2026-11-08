@@ -48,8 +48,9 @@ Click "Create organisation". You should see the names in the header.
 
 The files are in `workshop/sample-data/` in the repository. Every person and
 every number in them is invented. Upload them in the order of their numbers,
-each on its dataset's page under `/admin/data-setup`, with the "Upload filled
-template" control described in
+which is the order of the dataset tiles on `/admin/data-setup` from top to
+bottom. Upload each on its dataset's page with the "Upload filled template"
+control described in
 [Step 2](../tutorials/program-deep-dive.md#step-2-upload-the-organisation-and-the-programmes).
 
 | File | Dataset page |
@@ -57,11 +58,11 @@ template" control described in
 | `01-faculties.xlsx` | Faculties |
 | `02-departments.xlsx` | Departments |
 | `03-programmes.xlsx` | Programmes |
-| `04-faculty-members.xlsx` | Staff |
-| `05-program-faculty.xlsx` | Programme Teaching Staff |
-| `06-enrollment-metrics.xlsx` | Enrolment |
-| `07-financial-metrics.xlsx` | Finance |
-| `08-graduate-outcomes.xlsx` | Graduate Outcomes |
+| `04-enrollment-metrics.xlsx` | Enrolment |
+| `05-financial-metrics.xlsx` | Finance |
+| `06-graduate-outcomes.xlsx` | Graduate Outcomes |
+| `07-faculty-members.xlsx` | Staff |
+| `08-program-faculty.xlsx` | Programme Teaching Staff |
 | `09-student-cohorts.xlsx` | Student Cohorts |
 | `10-alumni-cohorts.xlsx` | Alumni Cohorts |
 | `11-admission-campaigns.xlsx` | Admission Campaigns |

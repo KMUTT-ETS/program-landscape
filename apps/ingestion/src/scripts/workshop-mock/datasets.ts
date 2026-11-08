@@ -3,20 +3,28 @@
 // Every figure of a programme-year comes from one plan (`computePlan`) that is derived from the
 // world alone, with string-seeded generators, so two sheets can never disagree and the result
 // does not depend on anything but the world (and its `seed`).
-import { getImportDataset, normaliseCourseCode } from '@kku/db';
+import { getImportDataset, listImportDatasets, normaliseCourseCode } from '@kku/db';
 import { FREE, GE, type Course } from './courses';
 import { makeRng, type Rng } from './rng';
 import type { Publication, RosterLink, Staff } from './people';
 import type { Programme, Slice } from './slice';
 
-export const UPLOAD_ORDER: readonly string[] = [
-  'faculties', 'departments', 'programmes', 'faculty-members', 'program-faculty',
-  'programme-courses', 'research-outputs', 'admission-campaigns', 'enrollment-metrics',
-  'student-cohorts', 'alumni-cohorts', 'financial-metrics', 'faculty-budgets',
-  'graduate-outcomes', 'employer-feedback', 'digital-competency-cohorts',
+/** The datasets the generator writes a sheet for. */
+const MOCK_DATASETS: ReadonlySet<string> = new Set([
+  'faculties', 'departments', 'programmes', 'enrollment-metrics', 'financial-metrics',
+  'graduate-outcomes', 'faculty-members', 'program-faculty', 'student-cohorts', 'alumni-cohorts',
+  'admission-campaigns', 'research-outputs', 'programme-courses', 'career-skill-demand',
+  'faculty-budgets', 'employer-feedback', 'digital-competency-cohorts',
   'digital-competency-modules', 'course-evaluations', 'population-projections',
-  'career-skill-demand',
-];
+]);
+
+/**
+ * The sheets in upload order. Taken from the import registry, so the file numbers run top to
+ * bottom on /admin/data-setup.
+ */
+export const UPLOAD_ORDER: readonly string[] = listImportDatasets()
+  .map((d) => d.slug)
+  .filter((slug) => MOCK_DATASETS.has(slug));
 
 /** Sheet name, title and header order, read from the app's own declaration. */
 export function sheetInfo(slug: string): { sheetName: string; title: string; headers: string[] } {

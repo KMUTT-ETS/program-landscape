@@ -45,7 +45,8 @@ pipeline ใช้เวลาประมาณ 20 ถึง 25 นาทีต
 ### อัปโหลดแฟ้มตัวอย่าง
 
 แฟ้มอยู่ใน `workshop/sample-data/` ใน repository ทุกบุคคลและทุกตัวเลขในแฟ้มเป็นข้อมูลสมมติ
-อัปโหลดตามลำดับหมายเลข แต่ละแฟ้มที่หน้าชุดข้อมูลของตนใต้ `/admin/data-setup`
+อัปโหลดตามลำดับหมายเลข ซึ่งตรงกับลำดับของชุดข้อมูลในหน้า `/admin/data-setup` จากบนลงล่าง
+แต่ละแฟ้มที่หน้าชุดข้อมูลของตน
 ด้วยปุ่ม "Upload filled template" ตามที่อธิบายใน
 [ขั้นตอนที่ 2](../tutorials/program-deep-dive.md#ขั้นตอนที่-2-อัปโหลดโครงสร้างองค์กรและหลักสูตร)
 
@@ -54,11 +55,11 @@ pipeline ใช้เวลาประมาณ 20 ถึง 25 นาทีต
 | `01-faculties.xlsx` | Faculties |
 | `02-departments.xlsx` | Departments |
 | `03-programmes.xlsx` | Programmes |
-| `04-faculty-members.xlsx` | Staff |
-| `05-program-faculty.xlsx` | Programme Teaching Staff |
-| `06-enrollment-metrics.xlsx` | Enrolment |
-| `07-financial-metrics.xlsx` | Finance |
-| `08-graduate-outcomes.xlsx` | Graduate Outcomes |
+| `04-enrollment-metrics.xlsx` | Enrolment |
+| `05-financial-metrics.xlsx` | Finance |
+| `06-graduate-outcomes.xlsx` | Graduate Outcomes |
+| `07-faculty-members.xlsx` | Staff |
+| `08-program-faculty.xlsx` | Programme Teaching Staff |
 | `09-student-cohorts.xlsx` | Student Cohorts |
 | `10-alumni-cohorts.xlsx` | Alumni Cohorts |
 | `11-admission-campaigns.xlsx` | Admission Campaigns |

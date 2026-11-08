@@ -58,6 +58,17 @@ describe('import registry', () => {
     }
   });
 
+  it('lists datasets in load order: tiers ascending, every reference before its user', () => {
+    IMPORT_DATASETS.forEach((d, index) => {
+      if (index > 0) expect(d.tier, `${d.slug} tier`).toBeGreaterThanOrEqual(IMPORT_DATASETS[index - 1]!.tier);
+      for (const c of d.columns) {
+        if (!c.references || c.references.dataset === d.slug) continue;
+        const refIndex = IMPORT_DATASETS.findIndex((x) => x.slug === c.references?.dataset);
+        expect(refIndex, `${d.slug}.${c.key} → ${c.references.dataset}`).toBeLessThan(index);
+      }
+    });
+  });
+
   it('gives every enum column its values', () => {
     for (const d of IMPORT_DATASETS) {
       for (const c of d.columns) {

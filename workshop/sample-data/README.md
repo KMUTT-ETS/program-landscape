@@ -20,18 +20,19 @@ yourself with the real pipeline and your own AI key.
 ## Upload order
 
 Upload the files in the order of their numbers, each on its dataset page under
-`/admin/data-setup`. A file that names a code from a later file is refused.
+`/admin/data-setup`. The numbers follow the order of the dataset tiles on that
+page, top to bottom. A file that names a code from a later file is refused.
 
 | File | Dataset |
 |---|---|
 | `01-faculties.xlsx` | Faculties |
 | `02-departments.xlsx` | Departments |
 | `03-programmes.xlsx` | Programmes |
-| `04-faculty-members.xlsx` | Staff |
-| `05-program-faculty.xlsx` | Programme Teaching Staff |
-| `06-enrollment-metrics.xlsx` | Enrolment |
-| `07-financial-metrics.xlsx` | Finance |
-| `08-graduate-outcomes.xlsx` | Graduate Outcomes |
+| `04-enrollment-metrics.xlsx` | Enrolment |
+| `05-financial-metrics.xlsx` | Finance |
+| `06-graduate-outcomes.xlsx` | Graduate Outcomes |
+| `07-faculty-members.xlsx` | Staff |
+| `08-program-faculty.xlsx` | Programme Teaching Staff |
 | `09-student-cohorts.xlsx` | Student Cohorts |
 | `10-alumni-cohorts.xlsx` | Alumni Cohorts |
 | `11-admission-campaigns.xlsx` | Admission Campaigns |

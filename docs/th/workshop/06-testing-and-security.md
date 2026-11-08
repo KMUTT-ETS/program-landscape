@@ -85,7 +85,7 @@ University user เปิดได้ทุกหลักสูตรแต่�
 node -e "const d=Array.from({length:12},(_,i)=>i?Math.floor(Math.random()*10):1+Math.floor(Math.random()*8));const s=d.reduce((t,x,i)=>t+x*(13-i),0);console.log(d.join('')+(11-s%11)%10)"
 ```
 
-2. คัดลอก `workshop/sample-data/04-faculty-members.xlsx` เปิดสำเนา แล้ววางตัวเลขลงในช่อง
+2. คัดลอก `workshop/sample-data/07-faculty-members.xlsx` เปิดสำเนา แล้ววางตัวเลขลงในช่อง
    "Specialization" ของแถวใดก็ได้
 3. อัปโหลดสำเนาที่หน้าชุดข้อมูล Staff แฟ้มจะถูกปฏิเสธด้วยข้อความ "This cell looks like a personal
    identifier (national ID)." ข้อความระบุแถวและคอลัมน์ แต่ไม่แสดงตัวเลข

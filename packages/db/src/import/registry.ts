@@ -34,36 +34,46 @@ import type { ImportDataset } from './types';
 
 /**
  * Every importable dataset, in the order the admin screens should show them
- * — which is also the order an adopter must load them in, since each tier
- * references the one above.
+ * — which is also the order an adopter must load them in: grouped by tier,
+ * and within a tier every dataset comes after the ones it references.
+ *
+ * The workshop's numbered files (`pnpm workshop:sample-data`,
+ * `pnpm workshop:mock`) take their numbers from this order, so the files run
+ * top to bottom on /admin/data-setup. Within tier 2 the datasets the Program
+ * Deep-Dive reads come first, in the order the workshop uploads them; the
+ * optional ones follow.
  */
 export const IMPORT_DATASETS: readonly ImportDataset[] = [
+  // Tier 0 — organisation backbone
   facultiesDataset,
   departmentsDataset,
   programmesDataset,
+  // Tier 1 — core programme metrics
   enrollmentDataset,
   financialsDataset,
   graduateOutcomesDataset,
-  employerFeedbackDataset,
-  populationProjectionsDataset,
-  rankedUniversitiesDataset,
+  // Tier 2 — the Deep-Dive inputs
+  staffDataset,
+  programFacultyDataset,
   studentCohortsDataset,
+  alumniCohortsDataset,
+  campaignsDataset,
+  researchDataset,
+  programmeCoursesDataset,
+  rankedUniversitiesDataset,
+  // Tier 2 — optional inputs
+  careerSkillDemandDataset,
+  budgetsDataset,
+  employerFeedbackDataset,
   digitalCompetencyCohortsDataset,
   digitalCompetencyModulesDataset,
-  alumniCohortsDataset,
-  staffDataset,
+  courseEvaluationsDataset,
+  populationProjectionsDataset,
+  classOfferingsDataset,
   compensationDataset,
   staffSalaryByFundingDataset,
-  budgetsDataset,
-  researchDataset,
-  campaignsDataset,
-  classOfferingsDataset,
-  programFacultyDataset,
   externalGrantsDataset,
   externalGrantTeamDataset,
-  programmeCoursesDataset,
-  careerSkillDemandDataset,
-  courseEvaluationsDataset,
 ];
 
 export function listImportDatasets(): readonly ImportDataset[] {

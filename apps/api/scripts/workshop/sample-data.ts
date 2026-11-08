@@ -14,27 +14,36 @@
 // tsconfig.build's src tree).
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { getImportDataset } from '@kku/db';
+import { getImportDataset, listImportDatasets } from '@kku/db';
 import * as XLSX from 'xlsx';
 
 export type SampleCell = string | number | null;
 export type SampleRow = Record<string, SampleCell>;
 
-export const SAMPLE_UPLOAD_ORDER: readonly string[] = [
+/** The datasets the sample track ships a file for. */
+const SAMPLE_DATASETS: ReadonlySet<string> = new Set([
   'faculties',
   'departments',
   'programmes',
-  'faculty-members',
-  'program-faculty',
   'enrollment-metrics',
   'financial-metrics',
   'graduate-outcomes',
+  'faculty-members',
+  'program-faculty',
   'student-cohorts',
   'alumni-cohorts',
   'admission-campaigns',
   'research-outputs',
   'programme-courses',
-];
+]);
+
+/**
+ * The sample files in upload order. Taken from the import registry, so the
+ * file numbers run top to bottom on /admin/data-setup.
+ */
+export const SAMPLE_UPLOAD_ORDER: readonly string[] = listImportDatasets()
+  .map((d) => d.slug)
+  .filter((slug) => SAMPLE_DATASETS.has(slug));
 
 /** The programme the workshop takes through the pipeline. */
 export const WORKSHOP_PROGRAMME_CODE = 'WDU-CPE-BE';

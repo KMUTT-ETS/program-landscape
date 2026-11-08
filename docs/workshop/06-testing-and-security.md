@@ -97,7 +97,7 @@ How the app handles personal data under the PDPA is in [PDPA](../pdpa.md).
 node -e "const d=Array.from({length:12},(_,i)=>i?Math.floor(Math.random()*10):1+Math.floor(Math.random()*8));const s=d.reduce((t,x,i)=>t+x*(13-i),0);console.log(d.join('')+(11-s%11)%10)"
 ```
 
-2. Copy `workshop/sample-data/04-faculty-members.xlsx`, open the copy, and
+2. Copy `workshop/sample-data/07-faculty-members.xlsx`, open the copy, and
    paste the number into the "Specialization" cell of any row.
 3. Upload the copy on the Staff dataset page. It is refused: "This cell looks
    like a personal identifier (national ID)." The message names the row and
