@@ -13,6 +13,20 @@ export const DEMAND_SOURCE_LINKEDIN = 'kmitl-skill-mapping';
 export const DEMAND_SOURCE_JOBTHAI = 'jobthai';
 export type DemandSourceSlug = typeof DEMAND_SOURCE_LINKEDIN | typeof DEMAND_SOURCE_JOBTHAI;
 
+/**
+ * Data-source slugs whose SUCCEEDED runs may anchor a demand family's rows.
+ * The LinkedIn/KMITL family has two feeders into `kmitl_career_skill_demands`:
+ * the connector and the spreadsheet import dataset `career-skill-demand`. An
+ * install with only the spreadsheet has no `kmitl-skill-mapping` run, and
+ * anchoring to that slug alone left every match row unattributed (hidden by
+ * `realDataWhere()`). NOT the same thing as the `demand_sources` tag, which
+ * keeps the canonical family name above.
+ */
+export const DEMAND_SOURCE_RUN_SLUGS: Readonly<Record<DemandSourceSlug, readonly string[]>> = {
+  [DEMAND_SOURCE_LINKEDIN]: [DEMAND_SOURCE_LINKEDIN, 'xlsx-career-skill-demand'],
+  [DEMAND_SOURCE_JOBTHAI]: [DEMAND_SOURCE_JOBTHAI],
+};
+
 /** Prisma `where` fragment restricting match rows to one demand source. */
 export function demandMatchSourceWhere(source: DemandSourceSlug): { demandSources: { has: string } } {
   return { demandSources: { has: source } };

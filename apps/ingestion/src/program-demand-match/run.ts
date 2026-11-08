@@ -4,6 +4,7 @@ import {
   demandMatchProvenanceSource,
   DEMAND_SOURCE_JOBTHAI,
   DEMAND_SOURCE_LINKEDIN,
+  DEMAND_SOURCE_RUN_SLUGS,
   type ProgramJobThaiDemand,
 } from '@kku/db';
 import {
@@ -108,13 +109,23 @@ export function resolveTaughtSkillId(
   return hit?.skillId ?? null;
 }
 
+/** A SUCCEEDED run that could anchor a demand family. */
+export interface DemandRunCandidate {
+  id: string;
+  completedAt: Date | null;
+}
+
 /** Injectable seam so the resolver is unit-testable without Prisma. */
 export interface DemandProvenanceDeps {
-  findLatestSucceededRun: (slug: string) => Promise<string | null>;
+  findLatestSucceededRun: (slug: string) => Promise<DemandRunCandidate | null>;
+  /** The demand family (DEMAND_SOURCE_LINKEDIN / DEMAND_SOURCE_JOBTHAI). */
   demandSourceSlug: string;
 }
 
 /**
+ * The most recent SUCCEEDED run among the data sources that feed the family
+ * (for LinkedIn: the KMITL connector OR the spreadsheet import).
+ *
  * Returns null rather than fabricating a run id. A wrong provenance is
  * worse than an absent one: realDataWhere() already treats null as "not
  * real", whereas a fabricated FK would make unreal rows count as real.
@@ -122,17 +133,26 @@ export interface DemandProvenanceDeps {
 export async function resolveDemandProvenanceRunId(
   deps: DemandProvenanceDeps,
 ): Promise<string | null> {
-  return deps.findLatestSucceededRun(deps.demandSourceSlug);
+  const slugs =
+    (DEMAND_SOURCE_RUN_SLUGS as Readonly<Record<string, readonly string[]>>)[deps.demandSourceSlug] ??
+    [deps.demandSourceSlug];
+  let best: DemandRunCandidate | null = null;
+  for (const slug of slugs) {
+    const run = await deps.findLatestSucceededRun(slug);
+    if (!run) continue;
+    if (!best || (run.completedAt?.getTime() ?? 0) > (best.completedAt?.getTime() ?? 0)) best = run;
+  }
+  return best?.id ?? null;
 }
 
 /** Prisma-backed lookup. NOTE: the column is `completed_at`, not `finished_at`. */
-export async function findLatestSucceededRunId(slug: string): Promise<string | null> {
+export async function findLatestSucceededRun(slug: string): Promise<DemandRunCandidate | null> {
   const run = await prisma.ingestionRun.findFirst({
     where: { status: 'SUCCEEDED', dataSource: { slug } },
     orderBy: { completedAt: 'desc' },
-    select: { id: true },
+    select: { id: true, completedAt: true },
   });
-  return run?.id ?? null;
+  return run ?? null;
 }
 
 export type MatchDemandOutcome =
@@ -377,7 +397,7 @@ export async function runDemandMatch(params: MatchDemandParams): Promise<MatchDe
   for (const slug of [DEMAND_SOURCE_LINKEDIN, DEMAND_SOURCE_JOBTHAI]) {
     runIdBySource.set(
       slug,
-      await resolveDemandProvenanceRunId({ findLatestSucceededRun: findLatestSucceededRunId, demandSourceSlug: slug }),
+      await resolveDemandProvenanceRunId({ findLatestSucceededRun, demandSourceSlug: slug }),
     );
   }
 

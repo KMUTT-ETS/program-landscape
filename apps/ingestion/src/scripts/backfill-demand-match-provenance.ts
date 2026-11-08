@@ -21,9 +21,11 @@
 //   pnpm demand:backfill-provenance --apply    # write
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { loadOrganization, prisma } from '@kku/db';
+import { DEMAND_SOURCE_LINKEDIN, DEMAND_SOURCE_RUN_SLUGS, loadOrganization, prisma } from '@kku/db';
 
-const DEMAND_SOURCE_SLUG = 'kmitl-skill-mapping';
+// Both feeders of the LinkedIn/KMITL family (connector and spreadsheet import).
+const DEMAND_SOURCE_SLUGS = DEMAND_SOURCE_RUN_SLUGS[DEMAND_SOURCE_LINKEDIN];
+const DEMAND_SOURCE_SLUG = DEMAND_SOURCE_SLUGS.join(' / ');
 
 async function main(): Promise<void> {
   await loadOrganization();
@@ -48,7 +50,7 @@ async function main(): Promise<void> {
 
   // NOTE: the column is completed_at, not finished_at.
   const run = await prisma.ingestionRun.findFirst({
-    where: { status: 'SUCCEEDED', dataSource: { slug: DEMAND_SOURCE_SLUG } },
+    where: { status: 'SUCCEEDED', dataSource: { slug: { in: [...DEMAND_SOURCE_SLUGS] } } },
     orderBy: { completedAt: 'desc' },
     select: { id: true, completedAt: true, recordsLoaded: true },
   });
