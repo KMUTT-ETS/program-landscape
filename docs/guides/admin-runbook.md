@@ -81,7 +81,7 @@ Total deploy time target: **< 10 minutes** for a zero-schema-change deploy, **< 
 ### "PDF generation fails"
 
 1. `/api/v1/ready` — is `gotenberg` ok?
-2. `docker exec -it gotenberg fc-list | grep -ci sarabun` — must return ≥ 4 (the four TH Sarabun weights). If 0, re-run `docker compose build gotenberg` with the font files dropped in `infra/gotenberg/fonts/`.
+2. `docker exec -it gotenberg fc-list | grep -ci sarabun` — must return ≥ 4 (the four TH Sarabun weights). If 0, check the four font files are present in `infra/gotenberg/fonts/` (they are committed) and re-run `docker compose build gotenberg`.
 3. Check `PdfGeneration` table for the most recent row's `errorDetail`.
 
 ### "AI call failures"

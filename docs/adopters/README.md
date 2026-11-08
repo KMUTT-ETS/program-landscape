@@ -75,7 +75,7 @@ The repository's `LICENSE` file is **Creative Commons Attribution-NonCommercial-
 **Three things the licence does NOT give you, each of which will catch someone on your team:**
 
 - **KKU's marks are not licensed.** "Khon Kaen University", "มหาวิทยาลัยขอนแก่น", "KKU", the crest, and the logo files in `apps/web/public/brand/` are expressly reserved. Copyright licences do not grant trademark rights, and CC's Section 2(b)(2) says so explicitly. You must remove or replace them in your deployment — [chapter 11](#11-branding-and-ui-adaptation) is the checklist, and roughly 101 files under `apps/web` mention KKU by name.
-- **The dependency tree is not licensed by KKU.** `node_modules`, container base images, and fonts carry their own terms. TH Sarabun New in particular is not in the repository and has its own conditions. Audit before you redistribute.
+- **The dependency tree is not licensed by KKU.** `node_modules`, container base images, and fonts carry their own terms. TH Sarabun New in particular is committed under `infra/gotenberg/fonts/` but carries its own licence (SIPA's), not this project's. Audit before you redistribute.
 - **No KKU data comes with the code.** The 297-programme catalogue, student and staff records, and every evaluation result derived from them are outside this release entirely. [Chapter 19](#19-what-you-are-not-getting) is the full list.
 
 **On "NonCommercial", read this before you assume.** The term is not defined precisely enough for a university context, and your institution does things that sit near the line: tuition-funded operations, contract research, executive education, paid short courses, spin-offs. KKU has not yet published its own interpretation of the term for this work. **If your intended use is anywhere near that line, get it in writing from KKU's licensing contact before you build on it** — the licensing contact is named at the end of `LICENSE`.
@@ -127,7 +127,7 @@ For architecture beyond this table, read `docs/architecture.md`. For how the sco
 
 ### Access
 
-The canonical repository is `https://github.com/khon-kaen-university/program-landscape`. Access is granted by KKU's Office of the Vice President for Education and Digital. You will receive the repository only — no credentials, no data, no fonts (see [chapter 19](#19-what-you-are-not-getting)).
+The canonical repository is `https://github.com/khon-kaen-university/program-landscape`. Access is granted by KKU's Office of the Vice President for Education and Digital. You will receive the repository only — no credentials and no data (see [chapter 19](#19-what-you-are-not-getting)).
 
 ### Fork, don't diverge
 
@@ -436,7 +436,7 @@ Nothing to write; things to supply.
 | Your programme curriculum PDFs | `pnpm pdf:bulk-load`, or the UI at `/admin/programs/[id]?tab=files` |
 | Course lists the PDF pipeline cannot read | Spreadsheet upload (*Programme course lists*). Takes precedence over PDF extraction for the programmes it names |
 | Your logos and colours | See [chapter 11](#11-branding-and-ui-adaptation) |
-| TH Sarabun New font files | `infra/gotenberg/fonts/` — deliberately not in git |
+| TH Sarabun New font files | `infra/gotenberg/fonts/` — committed; their own licence (SIPA) |
 | Your skill taxonomy | Built from your own data with `pnpm skills:normalise`. A fresh installation has none. See [Building your skill taxonomy](#building-your-skill-taxonomy). Do not use `pnpm db:seed:kku` for it: that loads KKU's data and 500 synthetic placeholder skills |
 
 ---
@@ -650,7 +650,7 @@ The manual route, in order:
 
 ### Thai PDF output requires TH Sarabun New
 
-All PDF *output* (Council Packs, briefs, decision records) renders through Gotenberg with TH Sarabun New embedded. The four `.ttf` files are **deliberately not in git** and must be placed at `infra/gotenberg/fonts/` before `docker compose build gotenberg`. Read `infra/gotenberg/README.md` for sourcing.
+All PDF *output* (Council Packs, briefs, decision records) renders through Gotenberg with TH Sarabun New embedded. The four `.ttf` files are committed at `infra/gotenberg/fonts/`, so `docker compose build gotenberg` works on a fresh clone. Do not rename or remove them: the build fails without them. Their source and licence are in `infra/gotenberg/README.md`.
 
 Two things that will catch you:
 
@@ -1188,7 +1188,6 @@ Be clear-eyed about this before you plan. You are receiving source code and docu
 | **Credentials** | No database passwords, API keys, SSO client secrets, or service accounts. The `.env.example` values are placeholders |
 | **The 297-programme master sheet** | KKU's curated programme list, with MHESI codes and sequence numbers. You must build your own equivalent |
 | **KKU's curriculum PDFs** | 228 documents. Yours to source |
-| **TH Sarabun New font files** | Deliberately excluded from git for licensing hygiene. See `infra/gotenberg/README.md` for where to get them. **The Docker build fails without them** |
 | **KMITL Skill Mapping credentials** | You must request your own client ID and secret key from KMITL |
 | **Scopus / Elsevier API keys** | Institutional subscription; via your library |
 | **Ranking subscriptions** | THE, QS, SCImago, IMD |

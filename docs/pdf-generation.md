@@ -85,7 +85,7 @@ Sourcing + install: see `infra/gotenberg/README.md`.
 
 The Dockerfile is intentionally strict: if any of the four `.ttf` files
 is missing from `infra/gotenberg/fonts/`, `docker compose build` fails.
-After drop-in of new font files or upstream image bump:
+After replacing a font file or bumping the upstream image:
 
 ```bash
 docker compose build gotenberg

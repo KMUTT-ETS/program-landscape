@@ -69,5 +69,4 @@ You are in the Program Landscape repository. Without changing any file:
 | `command not found: pnpm` | รัน `corepack enable` แล้วเปิด terminal ใหม่ |
 | `node --version` แสดงเวอร์ชันอื่น | รัน `nvm use` ในโฟลเดอร์โครงการ |
 | container อยู่ในสถานะ `unhealthy` หรือรีสตาร์ตซ้ำ | รัน `docker compose logs <name>` แล้วแสดงให้ผู้จัดดู |
-| สร้าง image ของ Gotenberg ไม่สำเร็จ | ไม่มีแฟ้มฟอนต์ TH Sarabun New ทั้งสี่แฟ้มใน `infra/gotenberg/fonts/` ดู [Getting started ขั้นที่ 4](../tutorials/getting-started.th.md#4-รันการตั้งค่าครั้งเดียว) |
 | assistant ตอบจากความรู้ทั่วไป ไม่ใช่จาก repository | เริ่ม assistant จากโฟลเดอร์โครงการ และอนุญาตให้อ่านแฟ้ม |

@@ -9,7 +9,6 @@ the left column. If it is not here, show the full message to the facilitator.
 
 | What you see | Cause | Fix |
 |---|---|---|
-| The Gotenberg image fails to build, or "expected at least 4 Sarabun font faces" | The four TH Sarabun New font files are not in `infra/gotenberg/fonts/`. | Put them there, named as in [Getting started, step 4](../tutorials/getting-started.md#4-run-the-one-time-setup), then run `pnpm setup` again. |
 | "Cannot connect to the Docker daemon" | Docker is not running. | Start Docker, then run the command again. On WSL2: `sudo systemctl start docker`. |
 | "permission denied while trying to connect to the Docker daemon socket" | Your user was added to the `docker` group but the terminal is older. | Close every Ubuntu window, run `wsl --shutdown` in PowerShell, open Ubuntu again. |
 | "port is already allocated" | Another program uses one of the ports 3000, 4000, 5432, 6379, 9000, 9001, 3001. | Stop that program, then start again. |

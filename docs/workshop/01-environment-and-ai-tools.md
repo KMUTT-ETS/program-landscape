@@ -74,5 +74,4 @@ fix that before session 2.
 | `command not found: pnpm` | Run `corepack enable`, then open a new terminal. |
 | `node --version` shows another version | Run `nvm use` in the project folder. |
 | A container is `unhealthy` or keeps restarting | Run `docker compose logs <name>` and show the facilitator. |
-| The Gotenberg image fails to build | The four TH Sarabun New font files are missing from `infra/gotenberg/fonts/`. See [Getting started, step 4](../tutorials/getting-started.md#4-run-the-one-time-setup). |
 | The assistant answers from general knowledge, not the repository | Start it from the project folder, and allow it to read files. |

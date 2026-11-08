@@ -18,7 +18,6 @@ You need all of these before you start.
 5. An AI key. A Google Gemini key or an OpenRouter key both work. Without a key
    the app starts, but the AI steps later in the workshop cannot run.
 6. These ports free: 3000, 4000, 5432, 6379, 9000, 9001, 3001.
-7. The four TH Sarabun New font files (step 4 says where they go).
 
 **On Windows**, work inside WSL2. Set it up first with
 [Windows setup with WSL2](../guides/windows-wsl2.md), which also installs Git,
@@ -77,23 +76,7 @@ You should now have a `.env` file that is not tracked by git. Never commit it.
 
 ## 4. Run the one-time setup
 
-1. Put the four TH Sarabun New font files into `infra/gotenberg/fonts/`, named
-   `THSarabunNew.ttf`, `THSarabunNew-Bold.ttf`, `THSarabunNew-Italic.ttf` and
-   `THSarabunNew-BoldItalic.ttf`. They are not in the repository. The PDF
-   service image will not build without them.
-   Download them from SIPA (the Software Industry Promotion Agency, which
-   released the font) or the f0nt.com mirror, and rename them to the names
-   above; the [Gotenberg font guide](../_generated/gotenberg-fonts.md) (also
-   `infra/gotenberg/README.md`) has the details. Google Fonts' "Sarabun" is a
-   different typeface and will not do. Check:
-
-```bash
-ls infra/gotenberg/fonts/
-```
-
-You should see the four files.
-
-2. Run the setup script.
+1. Run the setup script.
 
 ```bash
 pnpm setup
@@ -103,7 +86,7 @@ You should see it install packages, start the Docker containers, apply the
 database migrations, register every data source (all switched off) and load the
 generic reference data. It ends without errors.
 
-3. Check that nothing of another university is in your database.
+2. Check that nothing of another university is in your database.
 
 ```bash
 pnpm adopter:fresh-check

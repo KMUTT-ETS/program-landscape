@@ -54,8 +54,8 @@ dist/*.sha256
 
 # Gotenberg fonts — TH Sarabun New is sourced locally per dev
 # (see infra/gotenberg/README.md). Production images bake them in.
-infra/gotenberg/fonts/*.ttf
-infra/gotenberg/fonts/*.TTF
+# infra/gotenberg/fonts/*.ttf
+# infra/gotenberg/fonts/*.TTF
 
 # pdfjs-dist worker copied into apps/web/public at prebuild time; the
 # real source is node_modules/pdfjs-dist (see scripts/copy-pdf-worker.mjs).

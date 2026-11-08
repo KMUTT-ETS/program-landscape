@@ -9,7 +9,6 @@
 
 | สิ่งที่เห็น | สาเหตุ | วิธีแก้ |
 |---|---|---|
-| สร้าง image ของ Gotenberg ไม่สำเร็จ หรือมีข้อความ "expected at least 4 Sarabun font faces" | ไม่มีแฟ้มฟอนต์ TH Sarabun New ทั้งสี่แฟ้มใน `infra/gotenberg/fonts/` | วางแฟ้มไว้ที่นั่น ตั้งชื่อตาม [Getting started ขั้นที่ 4](../tutorials/getting-started.th.md#4-รันการตั้งค่าครั้งเดียว) แล้วรัน `pnpm setup` อีกครั้ง |
 | "Cannot connect to the Docker daemon" | Docker ไม่ทำงาน | เริ่ม Docker แล้วรันคำสั่งอีกครั้ง บน WSL2: `sudo systemctl start docker` |
 | "permission denied while trying to connect to the Docker daemon socket" | เพิ่มผู้ใช้เข้ากลุ่ม `docker` แล้ว แต่ terminal ยังเป็นหน้าต่างเก่า | ปิดหน้าต่าง Ubuntu ทุกหน้าต่าง รัน `wsl --shutdown` ใน PowerShell แล้วเปิด Ubuntu อีกครั้ง |
 | "port is already allocated" | โปรแกรมอื่นใช้พอร์ตใดพอร์ตหนึ่งใน 3000, 4000, 5432, 6379, 9000, 9001, 3001 | หยุดโปรแกรมนั้น แล้วเริ่มใหม่ |
