@@ -102,9 +102,12 @@ For the files you can get from your university (paths A and B):
    [Get Program Deep-Dive working, step 2](../tutorials/program-deep-dive.md#step-2-upload-the-organisation-and-the-programmes),
    at least faculties, departments, programmes, staff, programme teaching staff,
    enrolment, finance and graduate outcomes.
-2. Fill them into the templates. The columns of each dataset are in
-   [Importing from spreadsheets](../data-import.md). Each dataset's page on
-   `/admin/data-setup` offers its template to download.
+2. Fill them into the templates. The facilitator sends all 26 blank templates
+   as one bundle, numbered in upload order; you can also make the bundle
+   yourself with `pnpm workshop:templates --out <folder>`, or download one
+   template from its dataset's page on `/admin/data-setup`. Each template's
+   "Guide" sheet explains every column; the full reference is
+   [Importing from spreadsheets](../data-import.md).
 3. **Remove personal data before the files leave your office.** No national ID
    numbers, no birth dates, no addresses or phone numbers. The importer refuses
    a file that contains something that looks like a national ID, but do not rely
