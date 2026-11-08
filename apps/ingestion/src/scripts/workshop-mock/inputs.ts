@@ -1,6 +1,7 @@
 // Attendee input file (JSON) and resolution of programmes to TCAS rows.
 import fs from 'node:fs';
 import path from 'node:path';
+import { ORGANIZATION_REGIONS, toOrganizationRegion } from '@kku/shared';
 import { similarity, type TcasRow } from './tcas';
 
 export const LEVELS = ['BACHELOR', 'MASTER', 'DOCTORAL', 'HIGHER_GRAD_DIPLOMA'] as const;
@@ -75,7 +76,16 @@ export function loadInputs(jsonPath: string): Inputs {
   const rel = (v: string | null): string | null => (v === null ? null : path.isAbsolute(v) ? v : path.join(base, v));
 
   const university = str(data, 'university', name, true)!;
-  const region = str(data, 'region', name, true)!;
+  // The generated projection rows only drive the demographic driver when this
+  // matches a region the organisation profile can select, so refuse others.
+  const regionRaw = str(data, 'region', name, true)!;
+  const region = toOrganizationRegion(regionRaw);
+  if (!region) {
+    throw new InputError(
+      `${name}: region must be one of ${ORGANIZATION_REGIONS.join(', ')} (got ${regionRaw}); ` +
+        'a university in Bangkok, the East or the West uses Central',
+    );
+  }
   const blocks = data.programmes;
   if (!Array.isArray(blocks) || blocks.length === 0) {
     throw new InputError(`${name}: add at least one entry to "programmes"`);

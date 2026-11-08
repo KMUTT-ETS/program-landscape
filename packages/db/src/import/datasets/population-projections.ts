@@ -42,8 +42,9 @@ export const populationProjectionsDataset: ImportDataset = {
       guide:
         'The area the figure covers. Write TH for the national total ("Thailand" and "ประเทศไทย" are ' +
         'also accepted and stored as TH). A regional row only drives the ' +
-        'demographic health score when its text matches your organisation profile’s region exactly ' +
-        '(for example "Northeast"); the national figure is never substituted for it.',
+        'demographic health score when it names the region selected in your organisation profile: ' +
+        'Northeast, Central, North or South (Central includes Bangkok, the East and the West). ' +
+        'Other regions are stored but never used; the national figure is never substituted.',
       example: 'TH',
       identity: (value) => normaliseRegion(String(value ?? '')),
     },

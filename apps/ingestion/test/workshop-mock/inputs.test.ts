@@ -181,11 +181,16 @@ describe('loadInputs (JSON)', () => {
   });
 
   it('bad level, bad JSON, missing file, missing programmes', () => {
-    expect(() => loadInputs(write({ university: 'u', region: 'r', programmes: [{ name: 'n', level: 'x' }] }))).toThrow(InputError);
+    expect(() => loadInputs(write({ university: 'u', region: 'Central', programmes: [{ name: 'n', level: 'x' }] }))).toThrow(InputError);
     expect(() => loadInputs(write('{ nope'))).toThrow(/not valid JSON/);
     expect(() => loadInputs('/nonexistent/i.json')).toThrow(/not found/);
-    expect(() => loadInputs(write({ university: 'u', region: 'r', programmes: [] }))).toThrow(InputError);
+    expect(() => loadInputs(write({ university: 'u', region: 'Central', programmes: [] }))).toThrow(InputError);
     expect(() => loadInputs(write({ university: 'u', programmes: [{ name: 'n' }] }))).toThrow(/region/);
+    // East is inside Central in the four-region projection; the message says so.
+    expect(() => loadInputs(write({ university: 'u', region: 'East', programmes: [{ name: 'n' }] }))).toThrow(
+      /region must be one of Northeast, Central, North, South.*Central/,
+    );
+    expect(loadInputs(write({ university: 'u', region: ' central ', programmes: [{ name: 'n' }] })).region).toBe('Central');
   });
 
   it('a pdf or courses path that does not exist is refused, naming the resolved path', () => {
@@ -199,6 +204,6 @@ describe('loadInputs (JSON)', () => {
   });
 
   it('a postgraduate programme needs a faculty', () => {
-    expect(() => loadInputs(write({ university: 'u', region: 'r', programmes: [{ name: 'n', level: 'DOCTORAL' }] }))).toThrow(/faculty/);
+    expect(() => loadInputs(write({ university: 'u', region: 'Central', programmes: [{ name: 'n', level: 'DOCTORAL' }] }))).toThrow(/faculty/);
   });
 });

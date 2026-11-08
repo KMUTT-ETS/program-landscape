@@ -37,8 +37,7 @@ pipeline ใช้เวลาประมาณ 20 ถึง 25 นาทีต
 | English name | Workshop Demo University |
 | Thai short name | มสว. |
 | English short name | WDU |
-| Region (Thai) | ภาคตะวันออกเฉียงเหนือ |
-| Region (English) | Northeast |
+| Region | Northeast — ภาคตะวันออกเฉียงเหนือ |
 | OpenAlex institution ID | เว้นว่าง เพราะเป็นมหาวิทยาลัยสมมติ |
 
 คลิก "Create organisation" ท่านควรเห็นชื่อปรากฏที่ส่วนหัว
@@ -170,7 +169,7 @@ pnpm programs:pipeline WDU-CPE-BE
 | คีย์ | ความหมาย |
 |---|---|
 | `university` | ชื่อภาษาไทยของมหาวิทยาลัยท่าน ตรงกับตาราง TCAS ทุกตัวอักษร |
-| `region` | ภาคเป็นภาษาอังกฤษ ตรงกับที่ท่านจะพิมพ์ใน organisation profile (เช่น `Central`, `Northeast`) |
+| `region` | หนึ่งใน `Northeast`, `Central`, `North` หรือ `South` ซึ่งเป็นภาคที่ organisation profile มีให้เลือก Central รวมกรุงเทพมหานคร ภาคตะวันออก และภาคตะวันตกด้วย ค่าอื่นจะทำให้สคริปต์หยุด |
 | `programmes[].name` | ชื่อหลักสูตรตามที่เขียนใน PDF สะกดต่างเล็กน้อยได้ |
 | `programmes[].pdf` | พาธไปยัง PDF หลักสูตร พาธแบบสัมพัทธ์อิงโฟลเดอร์ของแฟ้ม JSON ไม่บังคับ แต่หากระบุ แฟ้มต้องมีอยู่จริง มิฉะนั้นสคริปต์จะหยุด |
 | `programmes[].level` | `BACHELOR` (ค่าเริ่มต้น), `MASTER`, `DOCTORAL` หรือ `HIGHER_GRAD_DIPLOMA` |
@@ -210,7 +209,7 @@ pnpm workshop:check-mock workshop-mock-out my-university.json
 
 **นำเข้า**
 
-1. เปิด `/admin/organization` แท็บ "Identity" พิมพ์ชื่อภาษาไทยและ Region (English)
+1. เปิด `/admin/organization` แท็บ "Identity" พิมพ์ชื่อภาษาไทยและเลือก Region
    ให้ตรงกับที่ `README.txt` ในโฟลเดอร์ผลลัพธ์ระบุไว้
 2. อัปโหลดแฟ้มที่มีหมายเลขตามลำดับที่ `/admin/data-setup` แต่ละแฟ้มที่หน้าชุดข้อมูลของตนด้วย "Upload filled template"
 3. จากนั้นอัปโหลด **University Rankings**: ดาวน์โหลดแม่แบบที่กรอกไว้ล่วงหน้าแล้วอัปโหลดกลับโดยไม่แก้ไข

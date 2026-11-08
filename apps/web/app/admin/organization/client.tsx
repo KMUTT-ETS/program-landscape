@@ -5,6 +5,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button, Badge } from '@kku/ui';
 import { Building2, AlertTriangle } from 'lucide-react';
+import {
+  ORGANIZATION_REGIONS,
+  ORGANIZATION_REGION_INFO,
+  toOrganizationRegion,
+} from '@kku/shared';
 import { readSaveResponse } from './save-response';
 import { BrandTab } from './brand-tab';
 
@@ -39,15 +44,24 @@ const TCAS_SITE_URL = 'https://course.mytcas.com/universities/';
 
 type FormState = {
   nameTh: string; nameEn: string; shortNameTh: string; shortNameEn: string;
-  regionTh: string; regionEn: string; contactEmail: string; appUrl: string;
+  regionEn: string; contactEmail: string; appUrl: string;
   intakeFloorBachelor: string; intakeFloorPostgrad: string;
   openalexInstitutionId: string;
 };
 
+/** A saved region the select cannot show (typed before it became a list). */
+function unrecognisedRegion(p: OrganizationProfileDto | null): string | null {
+  const saved = p?.regionEn?.trim();
+  return saved && !toOrganizationRegion(saved) ? saved : null;
+}
+
 function toForm(p: OrganizationProfileDto | null): FormState {
   return {
     nameTh: p?.nameTh ?? '', nameEn: p?.nameEn ?? '', shortNameTh: p?.shortNameTh ?? '',
-    shortNameEn: p?.shortNameEn ?? '', regionTh: p?.regionTh ?? '', regionEn: p?.regionEn ?? '',
+    shortNameEn: p?.shortNameEn ?? '',
+    // An unrecognised saved value loads as "not set"; unrecognisedRegion()
+    // warns about it so it is never dropped silently.
+    regionEn: toOrganizationRegion(p?.regionEn) ?? '',
     contactEmail: p?.contactEmail ?? '', appUrl: p?.appUrl ?? '',
     // Rendered as text so a cleared box stays cleared while typing; the
     // schema coerces back to a number on save.
@@ -64,8 +78,8 @@ const FIELDS: { key: keyof FormState; label: string; hint?: string; required?: b
     hint: 'As it appears in ranking tables and your Scopus affiliation.' },
   { key: 'shortNameTh', label: 'Thai short name', required: true },
   { key: 'shortNameEn', label: 'English short name', required: true, hint: 'Shown in the tagline and AI text.' },
-  { key: 'regionTh', label: 'Region (Thai)' },
-  { key: 'regionEn', label: 'Region (English)' },
+  { key: 'regionEn', label: 'Region',
+    hint: 'Picks the regional population projection behind the demographic health-score driver and the Deep-Dive comparison. Central covers the central plains, Bangkok, the East and the West. Not set: the driver stays empty rather than using national figures.' },
   { key: 'contactEmail', label: 'Contact email',
     hint: 'Sent in outbound User-Agents so site operators can reach you. Never shown publicly.' },
   { key: 'appUrl', label: 'Public app URL', required: true },
@@ -87,6 +101,7 @@ export function OrganizationClient({
   const [profile, setProfile] = useState<OrganizationProfileDto | null>(initial?.profile ?? null);
   const [form, setForm] = useState<FormState>(toForm(initial?.profile ?? null));
   const [saving, setSaving] = useState(false);
+  const staleRegion = unrecognisedRegion(profile);
   const router = useRouter();
   const searchParams = useSearchParams();
   const tab = searchParams?.get('tab') === 'brand' && profile ? 'brand' : 'identity';
@@ -182,6 +197,20 @@ export function OrganizationClient({
               {f.label}
               {f.required ? ' *' : ''}
             </span>
+            {f.key === 'regionEn' ? (
+              <select
+                value={form.regionEn}
+                onChange={(e) => setForm({ ...form, regionEn: e.target.value })}
+                className="rounded-md border border-default bg-surface-1 px-2 py-1"
+              >
+                <option value="">Not set</option>
+                {ORGANIZATION_REGIONS.map((r) => (
+                  <option key={r} value={r}>
+                    {ORGANIZATION_REGION_INFO[r].label} — {ORGANIZATION_REGION_INFO[r].th}
+                  </option>
+                ))}
+              </select>
+            ) : (
             <input
               value={form[f.key]}
               required={f.required}
@@ -198,6 +227,13 @@ export function OrganizationClient({
               onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
               className="rounded-md border border-default bg-surface-1 px-2 py-1"
             />
+            )}
+            {f.key === 'regionEn' && staleRegion && !form.regionEn && (
+              <span className="text-xs text-warning">
+                The saved region “{staleRegion}” is not one of the regions above, so no regional
+                projection is used. Choose one and save.
+              </span>
+            )}
             {f.hint && <span className="text-xs text-text-tertiary">{f.hint}</span>}
             {f.key === 'nameTh' && (
               <span className="text-xs text-text-tertiary">

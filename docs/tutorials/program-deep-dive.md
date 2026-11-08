@@ -24,9 +24,10 @@ an upload that names a code the system does not know yet is refused.
    - "Thai name": it must match the institution column of the TCAS sheets
      character for character. The TCAS connector finds your programmes by this name.
    - "English name", "Thai short name", "English short name".
-   - "Region (Thai)" and "Region (English)": use one of Northeast, Central,
-     North or South in English. This gives you the regional population
-     comparison. A university in Bangkok uses Central.
+   - "Region": pick Northeast, Central, North or South. This gives you the
+     regional population comparison. Central covers the central plains,
+     Bangkok, the East and the West, so a university in any of those picks
+     Central. The Thai region name is filled in for you.
    - "OpenAlex institution ID": the id of your university on openalex.org,
      for example a value that starts with `I`.
    - "Contact email" is optional. Set "Public app URL", "Minimum bachelor intake"

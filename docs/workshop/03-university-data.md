@@ -39,8 +39,7 @@ describes, with these values:
 | English name | Workshop Demo University |
 | Thai short name | มสว. |
 | English short name | WDU |
-| Region (Thai) | ภาคตะวันออกเฉียงเหนือ |
-| Region (English) | Northeast |
+| Region | Northeast — ภาคตะวันออกเฉียงเหนือ |
 | OpenAlex institution ID | Leave blank. The university is invented. |
 
 Click "Create organisation". You should see the names in the header.
@@ -187,7 +186,7 @@ pnpm.
 | Key | Meaning |
 |---|---|
 | `university` | Your university's Thai name, exactly as the TCAS tables spell it. |
-| `region` | The English region, exactly as you will type it on the organisation profile (for example `Central`, `Northeast`). |
+| `region` | One of `Northeast`, `Central`, `North` or `South`, the regions the organisation profile offers. Central covers Bangkok, the East and the West too. Any other value stops the run. |
 | `programmes[].name` | The programme name as written in the PDF. A small spelling difference is fine. |
 | `programmes[].pdf` | Path to the curriculum PDF. Relative paths resolve against the JSON file's folder. Optional, but if given the file must exist, or the run stops. |
 | `programmes[].level` | `BACHELOR` (default), `MASTER`, `DOCTORAL` or `HIGHER_GRAD_DIPLOMA`. |
@@ -234,8 +233,8 @@ lines above name it), 2 means a problem with the arguments or an unreadable file
 
 **Load it.**
 
-1. Open `/admin/organization`, "Identity" tab. Type the Thai name and the
-   Region (English) exactly as `README.txt` in the output folder gives them.
+1. Open `/admin/organization`, "Identity" tab. Type the Thai name and pick
+   the Region exactly as `README.txt` in the output folder gives them.
 2. Upload the numbered files in order at `/admin/data-setup`, each on its
    dataset's page with "Upload filled template".
 3. Then upload **University Rankings**: download its pre-filled template and

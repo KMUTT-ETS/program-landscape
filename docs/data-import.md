@@ -321,9 +321,11 @@ to supply **regional** figures. Columns: **Region**, **Year**, **Age Group**,
 **Population** and **Source Name**, all required.
 
 - **Region.** Write `TH` for the national total. A regional row only drives
-  the demographic health score when its text matches the region in your
-  organisation profile exactly (for example "Northeast"); the national figure
-  is never substituted, so an unmatched region leaves that driver empty
+  the demographic health score when it names the region selected in your
+  organisation profile, which is one of `Northeast`, `Central`, `North` or
+  `South` (case does not matter; Central includes Bangkok, the East and the
+  West). Rows for any other region are stored but never used. The national
+  figure is never substituted, so an unmatched region leaves that driver empty
   rather than scoring it on the wrong population.
 - **Year** is the Common Era calendar year, 2000 to 2100; a Buddhist-era year
   is refused.

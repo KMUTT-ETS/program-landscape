@@ -18,7 +18,7 @@
 2. กรอกข้อมูลในช่อง
    - "Thai name": ต้องตรงกับคอลัมน์ชื่อสถาบันในแผ่นงาน TCAS ทุกตัวอักษร connector ของ TCAS ใช้ชื่อนี้ค้นหาหลักสูตรของท่าน
    - "English name", "Thai short name", "English short name"
-   - "Region (Thai)" และ "Region (English)": ใช้อย่างใดอย่างหนึ่งจาก Northeast, Central, North หรือ South เป็นภาษาอังกฤษ ค่านี้ใช้เปรียบเทียบประชากรระดับภูมิภาค มหาวิทยาลัยในกรุงเทพมหานครใช้ Central
+   - "Region": เลือก Northeast, Central, North หรือ South ค่านี้ใช้เปรียบเทียบประชากรระดับภูมิภาค Central ครอบคลุมภาคกลาง กรุงเทพมหานคร ภาคตะวันออก และภาคตะวันตก มหาวิทยาลัยในพื้นที่เหล่านี้จึงเลือก Central ระบบเติมชื่อภาคภาษาไทยให้เอง
    - "OpenAlex institution ID": รหัสของมหาวิทยาลัยท่านบน openalex.org เช่น ค่าที่ขึ้นต้นด้วย `I`
    - "Contact email" ไม่บังคับ ตั้งค่า "Public app URL", "Minimum bachelor intake" และ "Minimum postgraduate intake" หากทราบค่า
 3. คลิก "Create organisation" เมื่อกลับมาครั้งต่อไป ปุ่มจะเขียนว่า "Save changes"

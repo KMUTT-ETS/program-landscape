@@ -104,7 +104,7 @@ describe('generate', () => {
     const out = path.join(tmp, 'out');
     await run([INPUT, '--tcas-file', TCAS_ARG, '--out', out]);
     const t = fs.readFileSync(path.join(out, 'README.txt'), 'utf-8');
-    for (const s of ['มหาวิทยาลัยเทคโนโลยีพระจอมเกล้าธนบุรี', 'Bangkok', 'University Rankings', 'un-wpp', 'openalex-works',
+    for (const s of ['มหาวิทยาลัยเทคโนโลยีพระจอมเกล้าธนบุรี', 'Region: Central', 'University Rankings', 'un-wpp', 'openalex-works',
       'Start over', sheetInfo('program-faculty').title, '/admin/data-setup', '/admin/organization', '/admin/data-sources', 'Upload filled template'])
       expect(t).toContain(s);
     expect(t).toContain('pnpm skills:normalise --source=linkedin --auto-promote');
@@ -117,7 +117,7 @@ const KMUTT = 'มหาวิทยาลัยเทคโนโลยีพ�
 let inputCount = 0;
 function inputFile(programmes: unknown[]): string {
   const f = path.join(tmp, `in-${++inputCount}.json`);
-  fs.writeFileSync(f, JSON.stringify({ university: KMUTT, region: 'Bangkok', programmes }));
+  fs.writeFileSync(f, JSON.stringify({ university: KMUTT, region: 'Central', programmes }));
   return f;
 }
 function validNationalId(): string {

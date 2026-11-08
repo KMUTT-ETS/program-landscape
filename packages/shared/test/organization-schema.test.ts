@@ -59,6 +59,24 @@ describe('OrganizationIdentityInputSchema', () => {
     expect(out.contactEmail).toBeNull();
   });
 
+  it('stores a region in canonical spelling and derives the Thai name from it', () => {
+    const out = OrganizationIdentityInputSchema.parse({ ...base, regionEn: '  northeast ' });
+    expect(out.regionEn).toBe('Northeast');
+    expect(out.regionTh).toBe('ภาคตะวันออกเฉียงเหนือ');
+  });
+
+  it('ignores a submitted Thai region that contradicts the English one', () => {
+    const out = OrganizationIdentityInputSchema.parse({ ...base, regionEn: 'Central', regionTh: 'ภาคใต้' });
+    expect(out.regionTh).toBe('ภาคกลาง');
+  });
+
+  it('rejects a region the projection does not carry', () => {
+    // East and West are inside Central in the four-region projection.
+    for (const regionEn of ['East', 'Northeastern (Isan)', 'Bangkok']) {
+      expect(OrganizationIdentityInputSchema.safeParse({ ...base, regionEn }).success).toBe(false);
+    }
+  });
+
   it('rejects a blank required name, a bad email and a non-http URL', () => {
     expect(OrganizationIdentityInputSchema.safeParse({ ...base, nameEn: '   ' }).success).toBe(false);
     expect(OrganizationIdentityInputSchema.safeParse({ ...base, contactEmail: 'nope' }).success).toBe(false);

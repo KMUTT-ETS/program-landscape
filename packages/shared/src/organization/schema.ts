@@ -1,20 +1,31 @@
 import { z } from 'zod';
+import { ORGANIZATION_REGIONS, ORGANIZATION_REGION_INFO, toOrganizationRegion } from './regions';
 
 const requiredText = z.string().trim().min(1, 'required').max(200);
-const optionalText = z
-  .string()
-  .trim()
-  .max(200)
-  .nullish()
-  .transform((v) => (v ? v : null));
 
 export const OrganizationIdentityInputSchema = z.object({
   nameTh: requiredText,
   nameEn: requiredText,
   shortNameTh: requiredText.pipe(z.string().max(30)),
   shortNameEn: requiredText.pipe(z.string().max(30)),
-  regionTh: optionalText,
-  regionEn: optionalText,
+  /**
+   * Ignored on input and always derived from `regionEn`, so the two names
+   * can never disagree. Accepted only so older clients that still send it
+   * are not refused.
+   */
+  regionTh: z.unknown().optional(),
+  /**
+   * One of the four projection regions (see ./regions.ts), matched case- and
+   * whitespace-insensitively and stored in canonical spelling. Blank = not set.
+   */
+  regionEn: z
+    .string()
+    .nullish()
+    .refine(
+      (v) => !v?.trim() || toOrganizationRegion(v) !== null,
+      `must be one of ${ORGANIZATION_REGIONS.join(', ')}`,
+    )
+    .transform((v) => toOrganizationRegion(v)),
   contactEmail: z
     .string()
     .trim()
@@ -49,7 +60,10 @@ export const OrganizationIdentityInputSchema = z.object({
     .pipe(z.string().regex(/^I\d+$/, 'expected an OpenAlex institution id like I60837268').nullable()),
   /** null when creating the first profile; otherwise the version the form was loaded at. */
   expectedVersion: z.number().int().positive().nullable(),
-});
+}).transform(({ regionTh: _ignored, ...rest }) => ({
+  ...rest,
+  regionTh: rest.regionEn ? ORGANIZATION_REGION_INFO[rest.regionEn].th : null,
+}));
 export type OrganizationIdentityInput = z.infer<typeof OrganizationIdentityInputSchema>;
 
 export const BRAND_ASSET_KINDS = ['logo-light', 'logo-dark', 'favicon'] as const;
