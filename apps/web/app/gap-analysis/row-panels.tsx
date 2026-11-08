@@ -17,7 +17,17 @@ import type { GapLinkedProgrammeT, GapOccupationT, GapRowT } from './types';
 const pct = (v: number) => `${(v * 100).toFixed(0)} %`;
 const int = (v: number) => Math.round(v).toLocaleString('en-US');
 
-export function RowPanels({ row, meta, basis }: { row: GapRowT; meta: ApiMeta; basis: DemandBasis }): React.JSX.Element {
+export function RowPanels({
+  row,
+  meta,
+  basis,
+  orgName,
+}: {
+  row: GapRowT;
+  meta: ApiMeta;
+  basis: DemandBasis;
+  orgName: string;
+}): React.JSX.Element {
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-[1fr_1fr]">
@@ -35,7 +45,7 @@ export function RowPanels({ row, meta, basis }: { row: GapRowT; meta: ApiMeta; b
               <li key={o.occupationId} className="mb-2">
                 <span className="font-medium">{o.subcategory}</span>
                 <span className="text-text-secondary"> — {int(o.postings)} adverts</span>
-                <LinkedProgrammes occupation={o} />
+                <LinkedProgrammes occupation={o} orgName={orgName} />
               </li>
             ))}
           </ul>
@@ -48,10 +58,10 @@ export function RowPanels({ row, meta, basis }: { row: GapRowT; meta: ApiMeta; b
       </section>
 
       <section>
-        <Header title="KKU programmes in this field" meta={meta} />
-        <SupplyCoverageNote row={row} />
+        <Header title={`${orgName} programmes in this field`} meta={meta} />
+        <SupplyCoverageNote row={row} orgName={orgName} />
         {row.programmes.length === 0 ? (
-          <p className="text-text-tertiary">No KKU programme is assigned to this field.</p>
+          <p className="text-text-tertiary">No {orgName} programme is assigned to this field.</p>
         ) : (
           <ul className="space-y-1">
             {row.programmes.map((p) => (
@@ -152,11 +162,17 @@ export function RowPanels({ row, meta, basis }: { row: GapRowT; meta: ApiMeta; b
  *  finding as one drawing on a single programme — so it is stated in words
  *  rather than dropped. Each group names up to three and then says how
  *  many more there are; neither ever truncates in silence. */
-function LinkedProgrammes({ occupation: o }: { occupation: GapOccupationT }): React.JSX.Element {
+function LinkedProgrammes({
+  occupation: o,
+  orgName,
+}: {
+  occupation: GapOccupationT;
+  orgName: string;
+}): React.JSX.Element {
   const inField = o.linkedProgrammes.filter((p) => p.inField);
   const outside = o.linkedProgrammes.filter((p) => !p.inField);
   if (o.linkedInField === 0 && o.linkedOutsideField === 0) {
-    return <div className="pl-6 text-text-tertiary">No KKU programme is linked to this occupation.</div>;
+    return <div className="pl-6 text-text-tertiary">No {orgName} programme is linked to this occupation.</div>;
   }
   return (
     <div className="pl-6">
@@ -225,7 +241,7 @@ function supplyBasis(p: GapRowT['programmes'][number]): string {
 /** How much of the field the KKU share is actually built from. A partial gap
  *  would otherwise fold silently into the total — the reader sees three
  *  programmes and one share, and cannot tell that only two were measured. */
-function SupplyCoverageNote({ row }: { row: GapRowT }): React.JSX.Element | null {
+function SupplyCoverageNote({ row, orgName }: { row: GapRowT; orgName: string }): React.JSX.Element | null {
   if (row.programmeCount === 0) {
     if (row.postgraduateProgrammes === 0) return null;
     // A white space that holds a Master's or a PhD. The verdict is still
@@ -233,7 +249,7 @@ function SupplyCoverageNote({ row }: { row: GapRowT }): React.JSX.Element | null
     // reader must not take it as "KKU does not teach this at all".
     return (
       <p className="mb-1 text-text-tertiary">
-        KKU has no bachelor programme in this field, which is what the white-space verdict measures.
+        {orgName} has no bachelor programme in this field, which is what the white-space verdict measures.
         It does run {row.postgraduateProgrammes} postgraduate{' '}
         {row.postgraduateProgrammes === 1 ? 'programme' : 'programmes'} here, listed below and never
         scored.
@@ -244,7 +260,7 @@ function SupplyCoverageNote({ row }: { row: GapRowT }): React.JSX.Element | null
     return (
       <p className="mb-1 text-text-tertiary">
         No graduate figure is recorded for any of the {row.programmeCount} scored{' '}
-        {row.programmeCount === 1 ? 'programme' : 'programmes'} here, so this field has no KKU share
+        {row.programmeCount === 1 ? 'programme' : 'programmes'} here, so this field has no {orgName} share
         — a missing measurement, not a shortfall.
       </p>
     );
@@ -253,7 +269,7 @@ function SupplyCoverageNote({ row }: { row: GapRowT }): React.JSX.Element | null
     return (
       <p className="mb-1 text-text-tertiary">
         Graduate figures for {row.programmesWithSupply} of {row.programmeCount} scored programmes; the
-        KKU share is built from those only.
+        {orgName} share is built from those only.
       </p>
     );
   }

@@ -109,7 +109,7 @@ export class ProgramsController {
   @Get()
   @Authorized('programs:read:all')
   @Provenance({
-    sources: [{ id: 'kku-reg', name: 'KKU Registration' }],
+    sources: [{ id: 'kku-reg', name: 'Registrar records' }],
     methodologyVersion: 'v1',
   })
   async list(
@@ -243,7 +243,7 @@ export class ProgramsController {
 
   @Get(':id')
   @Authorized('programs:read:all')
-  @Provenance({ sources: [{ id: 'kku-reg', name: 'KKU Registration' }] })
+  @Provenance({ sources: [{ id: 'kku-reg', name: 'Registrar records' }] })
   async getOne(@AuthSession() user: SessionUser, @Param('id') id: string) {
     const program = await prisma.program.findUnique({ where: { id } });
     if (!program) throw new NotFoundException();

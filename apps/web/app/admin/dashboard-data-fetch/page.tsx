@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { isUniversityWide, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
+import { orgShortNamesForRequest } from '@/lib/branding';
 import { apiFetch } from '@/lib/api-client';
 import { prisma } from '@kku/db';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
@@ -100,6 +101,8 @@ export default async function DashboardDataFetchPage() {
       ),
     ]);
 
+  const org = await orgShortNamesForRequest();
+
   return (
     <AuthedAppShell user={user}>
       <AdminBackNav current="Dashboard data fetch" />
@@ -149,7 +152,7 @@ export default async function DashboardDataFetchPage() {
 
       <Section
         title="Research output (publications)"
-        description="kku-publications mirror (Scopus + PubMed) — every KKU paper resolved to its authors, with journal quartile (Q1–Q4), the Top-10% / Tier-1 band and SJR from Scopus CiteScore. Powers /staff/research. Runs weekly; force a refresh after the Library curates a new batch or refreshes CiteScore metrics. Same connector as kku-research in Data sources."
+        description={`kku-publications mirror (Scopus + PubMed) — every ${org.en} paper resolved to its authors, with journal quartile (Q1–Q4), the Top-10% / Tier-1 band and SJR from Scopus CiteScore. Powers /staff/research. Runs weekly; force a refresh after the Library curates a new batch or refreshes CiteScore metrics. Same connector as kku-research in Data sources.`}
       >
         <ResearchRefreshBar initial={researchSource} />
       </Section>

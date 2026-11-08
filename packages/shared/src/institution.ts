@@ -123,6 +123,17 @@ export function getInstitution(): Institution {
 }
 
 /**
+ * Short names for display labels (chart axes, provenance, captions). Unlike
+ * getInstitution() it never throws: before the profile is loaded or set up it
+ * returns neutral words — never another institution's name.
+ */
+export function displayShortNames(): { en: string; th: string } {
+  const { cache } = cacheRecord();
+  if (cache.loaded && cache.inst) return { en: cache.inst.shortNameEn, th: cache.inst.shortNameTh };
+  return { en: 'University', th: 'มหาวิทยาลัย' };
+}
+
+/**
  * The honest identifying User-Agent for outbound fetches:
  * `Program-Landscape/1.0 (+<appUrl>; <contactEmail>)`, with an optional
  * purpose suffix on the product token. Sites that refuse bot User-Agents

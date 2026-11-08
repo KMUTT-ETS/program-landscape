@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { GRANT_AWARD_CAVEAT, HEALTH_SCORE_VERSION, LANDSCAPE_METHODOLOGY_BUNDLE } from '@kku/db';
 import { ForbiddenException } from '@nestjs/common';
 import { prisma } from '@kku/db';
-import { ScopeLevelSchema, type ScopeLevel, type SessionUser } from '@kku/shared';
+import { ScopeLevelSchema, type ScopeLevel, type SessionUser, displayShortNames } from '@kku/shared';
 import {
   AuditLog,
   AuthSession,
@@ -41,8 +41,8 @@ type BriefBody = z.infer<typeof BriefBodySchema>;
 const ExportBodySchema = z.object({
   scope: ScopeLevelSchema,
   scopeId: z.string().nullable().optional(),
-  titleTh: z.string().default('รายงานภาพรวมหลักสูตร มข.'),
-  titleEn: z.string().default('KKU Curriculum Portfolio Overview'),
+  titleTh: z.string().default(() => `รายงานภาพรวมหลักสูตร ${displayShortNames().th}`),
+  titleEn: z.string().default(() => `${displayShortNames().en} Curriculum Portfolio Overview`),
   includeBrief: z.boolean().default(true),
   briefStyle: z.enum(['thai-narrative', 'executive-summary', 'full-deep-dive']).default('executive-summary'),
 });
@@ -139,7 +139,7 @@ export class CockpitController {
   @Authorized('programs:read:all')
   @Provenance({
     sources: [
-      { id: 'kku-admission-campaigns', name: 'KKU Registry · POWERBI.ADMISSION_STAT' },
+      { id: 'kku-admission-campaigns', name: 'Registrar · POWERBI.ADMISSION_STAT' },
     ],
     methodologyVersion: 'recruitment-rollup.v2',
   })
@@ -319,7 +319,7 @@ export class CockpitController {
             {
               id: 'health-score',
               label: 'Health score methodology',
-              source: 'KKU Data Office',
+              source: `${displayShortNames().en} Data Office`,
               freshnessDate: formatThaiDate(new Date()),
               methodologyVersion: HEALTH_SCORE_VERSION,
               // The Council Pack provenance schema has no `caveats`; zod

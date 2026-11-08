@@ -5,6 +5,7 @@
 // arrive pre-aggregated from /staff-dashboard/grants; this file only renders.
 // Absent data is grey text, never a warning colour.
 
+import { useOrgNames } from '@/components/org-names-context';
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import type { ApiMeta } from '@kku/shared';
@@ -56,6 +57,7 @@ export function GrantsClient({
   options: FilterOptions;
   initialFilters: GrantsFilters;
 }) {
+  const org = useOrgNames();
   const router = useRouter();
   const push = (next: Partial<GrantsFilters>) => {
     const changesFilter = FILTER_KEYS.some((k) => k in next);
@@ -136,7 +138,7 @@ export function GrantsClient({
         </div>
         <p className="mt-1 text-xs text-text-tertiary">
           A project counts for every faculty with a team member on it, so these rows add up to more
-          than the KKU total.
+          than the {org.en} total.
         </p>
         {data.byFaculty.length === 0 ? (
           <p className="mt-3 text-sm text-text-tertiary">No faculties match these filters.</p>

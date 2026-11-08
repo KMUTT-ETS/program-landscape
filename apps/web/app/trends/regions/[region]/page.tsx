@@ -20,7 +20,7 @@ const REGION_PRESETS: Record<string, { label: string; keyword: string; note: str
   northeast: {
     label: 'Northeast Thailand',
     keyword: 'Northeast',
-    note: 'KKU\'s differentiator region — Isaan, Khon Kaen, Mekong-basin tilt',
+    note: 'Isaan region — Khon Kaen, Mekong-basin tilt',
   },
   mekong: {
     label: 'Greater Mekong Subregion',

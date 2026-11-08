@@ -1,5 +1,6 @@
 'use client';
 
+import { useOrgNames } from '@/components/org-names-context';
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -699,10 +700,11 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 }
 
 function EmptyState() {
+  const org = useOrgNames();
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
       <h3 className="text-sm font-semibold text-text-primary">
-        Ask about the KKU portfolio
+        Ask about the {org.en} portfolio
       </h3>
       <p className="max-w-md text-xs leading-relaxed text-text-secondary">
         The analyst only uses real data — it will say so when it doesn&apos;t

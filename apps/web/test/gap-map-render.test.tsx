@@ -314,7 +314,7 @@ const render = (params = resolveGapParams({})) =>
   renderToStaticMarkup(
     <TooltipProvider>
       <ProvenanceProvider>
-        <GapMapSections data={{ params, map, meta }} />
+        <GapMapSections data={{ params, map, meta }} orgName="KKU" />
       </ProvenanceProvider>
     </TooltipProvider>,
   );

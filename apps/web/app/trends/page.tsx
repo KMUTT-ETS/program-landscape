@@ -1,3 +1,4 @@
+import { orgShortNamesForRequest } from '@/lib/branding';
 import { redirect } from 'next/navigation';
 import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
@@ -24,6 +25,7 @@ export default async function TrendsPage({
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
+  const org = await orgShortNamesForRequest();
 
   const sp = await searchParams;
   const qs = new URLSearchParams();
@@ -39,7 +41,7 @@ export default async function TrendsPage({
     <AuthedAppShell user={user}>
       <PageHeader
         title="Future Trends Radar"
-        subtitle="Curated signals from policy, research, market, tech, and news — linked to KKU programs and skills."
+        subtitle={`Curated signals from policy, research, market, tech, and news — linked to ${org.en} programs and skills.`}
       />
       {feedRes.ok ? (
         <TrendsClient

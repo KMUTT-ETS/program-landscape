@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import localFont from 'next/font/local';
 import { Providers } from './providers';
 import { brandMetadata, brandingForRequest } from '@/lib/branding';
+import { DEFAULT_ORG_SHORT_NAMES } from '@/lib/org-names';
+import { OrgNamesProvider } from '@/components/org-names-context';
 import './globals.css';
 
 // 2026-05-02 redesign: typography pairing — Sarabun primary.
@@ -69,7 +71,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         ) : null}
       </head>
       <body>
-        <Providers>{children}</Providers>
+        <Providers>
+          <OrgNamesProvider
+            value={branding ? { en: branding.shortNameEn, th: branding.shortNameTh } : DEFAULT_ORG_SHORT_NAMES}
+          >
+            {children}
+          </OrgNamesProvider>
+        </Providers>
       </body>
     </html>
   );

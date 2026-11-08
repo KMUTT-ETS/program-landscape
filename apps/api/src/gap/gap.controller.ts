@@ -15,7 +15,7 @@ import {
   type GapMapResult,
   type GapThresholds,
 } from '@kku/db';
-import { ApiError, type ApiMeta, type DemandBasis, type SessionUser } from '@kku/shared';
+import { ApiError, type ApiMeta, type DemandBasis, type SessionUser, displayShortNames } from '@kku/shared';
 import {
   AiCall,
   AiQuota,
@@ -156,7 +156,7 @@ export function mapMeta(args: {
     ],
     caveats: [
       ...MAP_CAVEATS,
-      `Part of the KKU supply total rests on a single-year enrolment figure standing in for a multi-cohort mean: ${supplyFromProxy} of the ${scoredWithSupply} scored programmes carrying a graduate figure are counted that way. It is the largest single piece of softness in the supply side.`,
+      `Part of the ${displayShortNames().en} supply total rests on a single-year enrolment figure standing in for a multi-cohort mean: ${supplyFromProxy} of the ${scoredWithSupply} scored programmes carrying a graduate figure are counted that way. It is the largest single piece of softness in the supply side.`,
       `Government announcements inside the window report ${publicPositions} positions across ${publicAnnouncements} announcements, offering ${publicSeats} seats. Seats are shown but never weighted into a share — JobThai carries no headcount column, and weighting public seats against private adverts of unknown size would over-weight the public side by an unknowable factor.`,
       "The two sides are extracted differently. Private field-of-study strings come from a deterministic parser tuned to JobThai's corpus; public ones come from a model prompt, because that parser takes the first whitespace-delimited token and government announcements separate disciplines with spaces. Measured over the same 120 postings, the two agreed on 64%; the model recovered 69 discipline names the parser missed, while 17 strings only the parser produced were mostly not disciplines at all.",
       'Government rows feed the field-of-study layer only — they carry no occupation classification, so they create no occupation rows and no programme links, and do not move the JobThai demand-alignment health driver directly.',
@@ -298,7 +298,7 @@ export class GapController {
   @Authorized('programs:read:all')
   @Provenance({
     sources: [
-      { id: 'kku-dq', name: 'KKU Digital Intelligence (DQ) test · LTIC' },
+      { id: 'kku-dq', name: 'Digital Intelligence (DQ) test · LTIC' },
       {
         id: 'kmitl-skill-mapping',
         name: 'LinkedIn labour-market skill demand · subscribed by MHESI (API hosted by KMITL)',

@@ -1,3 +1,4 @@
+import { orgShortNamesForRequest } from '@/lib/branding';
 import { redirect } from 'next/navigation';
 import { canSeeProgramAwareDashboards, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
@@ -27,6 +28,7 @@ export default async function ResearchPage({
 }: {
   searchParams: Promise<SP>;
 }) {
+  const org = await orgShortNamesForRequest();
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
@@ -61,7 +63,7 @@ export default async function ResearchPage({
       <StaffBackLink />
       <PageHeader
         title="Research and publications"
-        subtitle="All KKU staff publications (incl. retired) from the internal kku-publications mirror — Scopus + PubMed authorships, drilled by faculty / author / year / type / venue. This is historical-output measurement; program-scoring views (health score, lifecycle) use only active staff and live elsewhere."
+        subtitle={`All ${org.en} staff publications (incl. retired) from the internal kku-publications mirror — Scopus + PubMed authorships, drilled by faculty / author / year / type / venue. This is historical-output measurement; program-scoring views (health score, lifecycle) use only active staff and live elsewhere.`}
       />
       {dataRes.ok && options ? (
         <ResearchClient

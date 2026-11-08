@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { isAdminGrade, type Role, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
+import { orgShortNamesForRequest } from '@/lib/branding';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { AdminBackNav } from '@/components/admin-back-nav';
 import { PageHeader } from '@kku/ui';
@@ -132,13 +133,15 @@ export default async function AdminUsersPage({
     }),
   ]);
 
+  const org = await orgShortNamesForRequest();
+
   return (
     <AuthedAppShell user={user}>
       <AdminBackNav current="Users & access" />
       <PageHeader
         eyebrow="Admin · Users"
         title="Users & access"
-        subtitle="Pre-provision KKU staff (search by email) and assign roles + scope. Linked to KKU SSO on first login."
+        subtitle={`Pre-provision ${org.en} staff (search by email) and assign roles + scope. Linked to ${org.en} SSO on first login.`}
       />
       <UsersClient
         users={users.map((u) => ({

@@ -1,5 +1,6 @@
 'use client';
 
+import { useOrgNames } from '@/components/org-names-context';
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@kku/ui';
@@ -304,6 +305,7 @@ function KpiTile({
 }
 
 function TrackPanel({ title, block }: { title: string; block: TrackBlock }) {
+  const org = useOrgNames();
   const maxPyramid = Math.max(...block.agePyramid.map((c) => c.total), 1);
   const maxTenure = Math.max(...Object.values(block.tenureBuckets), 1);
   return (
@@ -338,7 +340,7 @@ function TrackPanel({ title, block }: { title: string; block: TrackBlock }) {
         </ul>
       </div>
       <div className="mt-3">
-        <div className="text-[0.65rem] uppercase tracking-wide text-text-tertiary">Years at KKU</div>
+        <div className="text-[0.65rem] uppercase tracking-wide text-text-tertiary">Years at {org.en}</div>
         <ul className="mt-2 flex flex-col gap-1">
           {Object.entries(block.tenureBuckets).map(([bucket, n]) => {
             const widthPct = (n / maxTenure) * 100;
@@ -426,12 +428,13 @@ function TenureDistributionCard({
 }: {
   tenure: WorkforceResponse['tenure'];
 }) {
+  const org = useOrgNames();
   const max = Math.max(...tenure.buckets.map((b) => b.total), 1);
   return (
     <Card>
       <h3 className="text-sm font-semibold">Tenure distribution</h3>
       <p className="mt-1 text-xs text-text-tertiary">
-        Years at KKU since hire date · {tenure.withHireDate.toLocaleString('en-US')} staff with known hire date · mean {tenure.meanYears.toFixed(1)}y · median {tenure.medianYears.toFixed(1)}y · source: <span className="font-mono text-text-secondary">vw_history.putday</span>
+        Years at {org.en} since hire date · {tenure.withHireDate.toLocaleString('en-US')} staff with known hire date · mean {tenure.meanYears.toFixed(1)}y · median {tenure.medianYears.toFixed(1)}y · source: <span className="font-mono text-text-secondary">vw_history.putday</span>
       </p>
       <ul className="mt-3 flex flex-col gap-1.5">
         {tenure.buckets.map((b) => {

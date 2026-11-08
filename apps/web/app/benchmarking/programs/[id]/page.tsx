@@ -1,3 +1,4 @@
+import { orgShortNamesForRequest } from '@/lib/branding';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import type { SessionUser } from '@kku/shared';
@@ -170,9 +171,11 @@ function ModernityStamp({ verdict }: { verdict: Verdict }) {
 function ContentGapsPanel({
   gaps,
   programName,
+  orgName,
 }: {
   gaps: ContentGap[];
   programName: string;
+  orgName: string;
 }) {
   const sorted = [...gaps].sort(
     (a, b) => GAP_SEVERITY[a.severity].rank - GAP_SEVERITY[b.severity].rank,
@@ -244,7 +247,7 @@ function ContentGapsPanel({
               {g.kkuStatus && (
                 <p className="mb-2 text-xs leading-relaxed text-text-secondary">
                   <span className="mr-1.5 text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">
-                    KKU today
+                    {orgName} today
                   </span>
                   {g.kkuStatus}
                 </p>
@@ -297,6 +300,7 @@ export default async function ProgramBenchmarkingPage({
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
+  const org = await orgShortNamesForRequest();
 
   const { id } = await params;
 
@@ -506,7 +510,7 @@ export default async function ProgramBenchmarkingPage({
             {/* ── Strengths / weaknesses ───────────────────────────────── */}
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <Card padding="md" className="border-l-4 border-l-success">
-                <h3 className="mb-2 text-sm font-semibold text-success">Where KKU leads</h3>
+                <h3 className="mb-2 text-sm font-semibold text-success">Where {org.en} leads</h3>
                 {review.strengths.length === 0 ? (
                   <p className="text-xs text-text-tertiary">None noted.</p>
                 ) : (
@@ -523,7 +527,7 @@ export default async function ProgramBenchmarkingPage({
                 )}
               </Card>
               <Card padding="md" className="border-l-4 border-l-warning">
-                <h3 className="mb-2 text-sm font-semibold text-warning">Where KKU falls behind</h3>
+                <h3 className="mb-2 text-sm font-semibold text-warning">Where {org.en} falls behind</h3>
                 {review.weaknesses.length === 0 ? (
                   <p className="text-xs text-text-tertiary">None noted.</p>
                 ) : (
@@ -543,7 +547,7 @@ export default async function ProgramBenchmarkingPage({
 
             {/* ── Content gaps vs peer curricula ───────────────────────── */}
             {review.contentGaps && review.contentGaps.length > 0 && (
-              <ContentGapsPanel gaps={review.contentGaps} programName={program.nameEn} />
+              <ContentGapsPanel gaps={review.contentGaps} programName={program.nameEn} orgName={org.en} />
             )}
 
             {/* ── Skill distinctiveness (additional detail) ────────────── */}
@@ -567,7 +571,7 @@ export default async function ProgramBenchmarkingPage({
                   {peersResp.distinctiveness.distinctiveSkills.length > 0 && (
                     <div>
                       <h4 className="mb-1 text-xs uppercase tracking-wide text-text-tertiary">
-                        Unique to KKU
+                        Unique to {org.en}
                       </h4>
                       <ul className="space-y-1 text-sm">
                         {peersResp.distinctiveness.distinctiveSkills.slice(0, 8).map((s) => (

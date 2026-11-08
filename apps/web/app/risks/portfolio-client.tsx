@@ -1,5 +1,6 @@
 'use client';
 
+import { useOrgNames } from '@/components/org-names-context';
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -99,6 +100,7 @@ export function RisksPortfolioClient({
     cellI: number | null;
   };
 }) {
+  const org = useOrgNames();
   const router = useRouter();
   const sp = useSearchParams();
   const palette = useChartPalette();
@@ -520,8 +522,8 @@ export function RisksPortfolioClient({
                   <p>
                     <strong className="text-text-primary">Bar length</strong> ={' '}
                     <code className="font-mono">latest annual tuition revenue × 5</code>. This is the
-                    program's gross 5-year tuition exposure — what KKU stands to lose if enrolment
-                    collapsed completely. In the KKU ERM 5×5 framework this is the{' '}
+                    program's gross 5-year tuition exposure — what {org.en} stands to lose if enrolment
+                    collapsed completely. In the {org.en} ERM 5×5 framework this is the{' '}
                     <strong>Impact</strong> axis (potential loss <em>if</em> the risk event materialises).
                     Tuition is the only revenue line we use here — government salary subsidy is paid to
                     the staff regardless of cohort size, and per-program expense allocation is still

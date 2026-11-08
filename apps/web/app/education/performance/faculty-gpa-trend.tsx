@@ -1,5 +1,6 @@
 'use client';
 
+import { useOrgNames } from '@/components/org-names-context';
 import * as React from 'react';
 import { Card, Section, useChartPalette } from '@kku/ui';
 import type { FacultyGpaTrendResponse, FacultyGpaTrendCell } from '../types';
@@ -11,11 +12,12 @@ import type { FacultyGpaTrendResponse, FacultyGpaTrendCell } from '../types';
 const UNIVERSITY_KEY = '__university__';
 
 export function FacultyGpaTrendSection({ data }: { data: FacultyGpaTrendResponse }) {
+  const org = useOrgNames();
   return (
     <Section title="Average GPA by year — University vs faculty">
       <Card padding="md">
         <p className="mb-3 text-xs text-text-tertiary">
-          Credit-weighted class GPA (KKU 4.0 scale) per academic year, straight from the registrar&apos;s
+          Credit-weighted class GPA ({org.en} 4.0 scale) per academic year, straight from the registrar&apos;s
           graded class offerings — grouped by the faculty that teaches the course, with no course-to-program
           mapping. The bold dark line is the university overall; each coloured line is a faculty. Click a name
           in the legend to show or hide it. The current in-progress academic year is excluded until enough of

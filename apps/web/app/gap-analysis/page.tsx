@@ -1,3 +1,4 @@
+import { orgShortNamesForRequest } from '@/lib/branding';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import type { ApiSuccess, SessionUser } from '@kku/shared';
@@ -20,6 +21,7 @@ export default async function GapAnalysisPage({
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
+  const org = await orgShortNamesForRequest();
 
   const sp = await searchParams;
   // Programme scope is the Deep-Dive's job — a single programme is not a
@@ -41,7 +43,7 @@ export default async function GapAnalysisPage({
   let page: ReactNode;
   try {
     const env = (await apiFetchEnvelope<GapMapT>(`/gap/map?${qs}`)) as ApiSuccess<GapMapT>;
-    page = <GapMapSections data={{ params, map: env.data, meta: env.meta }} />;
+    page = <GapMapSections data={{ params, map: env.data, meta: env.meta }} orgName={org.en} />;
   } catch {
     const safe = await apiFetchSafe<GapMapT>(`/gap/map?${qs}`);
     page = <DiagnosticEmptyState surface="gap map" error={safe.ok ? null : safe.error} />;
@@ -50,8 +52,8 @@ export default async function GapAnalysisPage({
   return (
     <AuthedAppShell user={user}>
       <PageHeader
-        title="Gap Analyzer — which parts of the labour market does KKU serve?"
-        subtitle="One row per field of study that employers ask for. Demand share from JobThai adverts; KKU share from graduates per year; the verdict compares the two. Open a row for the occupations, the programmes and what is coming."
+        title={`Gap Analyzer — which parts of the labour market does ${org.en} serve?`}
+        subtitle={`One row per field of study that employers ask for. Demand share from JobThai adverts; ${org.en} share from graduates per year; the verdict compares the two. Open a row for the occupations, the programmes and what is coming.`}
       />
       {page}
     </AuthedAppShell>

@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
+import { useOrgNames } from '@/components/org-names-context';
 import { Card, PageHeader } from '@kku/ui';
 
 export type LegalLang = 'en' | 'th';
@@ -31,6 +32,7 @@ export function LegalPage({
   lastUpdatedEn,
   lastUpdatedTh,
 }: LegalPageProps) {
+  const org = useOrgNames();
   const [lang, setLang] = React.useState<LegalLang>('en');
   const t = lang === 'en' ? bodyEn : bodyTh;
   const title = lang === 'en' ? titleEn : titleTh;
@@ -42,8 +44,8 @@ export function LegalPage({
         title={title}
         subtitle={
           lang === 'en'
-            ? 'Program Landscape — KKU Curriculum Intelligence Platform'
-            : 'แพลตฟอร์ม Program Landscape มหาวิทยาลัยขอนแก่น'
+            ? `Program Landscape — ${org.en} Curriculum Intelligence Platform`
+            : `แพลตฟอร์ม Program Landscape ${org.th}`
         }
         actions={
           <button

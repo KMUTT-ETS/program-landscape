@@ -3,6 +3,7 @@ import { KeyRound } from 'lucide-react';
 import { can, type SessionUser } from '@kku/shared';
 import type { ApiClientSummary } from '@kku/db';
 import { auth } from '@/lib/auth';
+import { orgShortNamesForRequest } from '@/lib/branding';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { AdminBackNav } from '@/components/admin-back-nav';
@@ -30,6 +31,8 @@ export default async function AdminApiClientsPage() {
     loadError = (e as Error).message;
   }
 
+  const org = await orgShortNamesForRequest();
+
   return (
     <AuthedAppShell user={user}>
       <div className="flex flex-col gap-6">
@@ -42,7 +45,7 @@ export default async function AdminApiClientsPage() {
           <div>
             <h1 className="text-2xl font-medium tracking-tight">API clients</h1>
             <p className="mt-1 max-w-[720px] text-sm text-text-secondary">
-              Other KKU systems call{' '}
+              Other {org.en} systems call{' '}
               <code className="rounded-sm bg-surface-2 px-1">POST /api/v1/external/staff-profile</code> with a key
               issued here. Keys are shown once.
             </p>

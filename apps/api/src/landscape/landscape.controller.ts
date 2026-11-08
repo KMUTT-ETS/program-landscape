@@ -13,8 +13,8 @@ export const ScopeQuery = z.object({
 type ScopeQueryT = z.infer<typeof ScopeQuery>;
 
 const src = (id: string, name: string) => ({ id, name });
-const ENROLMENT = src('student_cohort_distributions', 'KKU Registry · currently active students');
-const HEALTH = src('health_score', `KKU health score (${HEALTH_SCORE_VERSION})`);
+const ENROLMENT = src('student_cohort_distributions', 'Registrar · currently active students');
+const HEALTH = src('health_score', `Health score (${HEALTH_SCORE_VERSION})`);
 
 const ATLAS_CAVEATS = [
   'Charts list what they cannot place, with the reason; a missing value is never drawn as 0.',
@@ -47,9 +47,9 @@ export class LandscapeController {
   @Provenance({
     sources: [
       src('tcas_admission_stats', 'TCAS admission statistics (applications and seats)'),
-      src('enrollment_metrics', 'KKU Registry · enrolment by year'),
-      src('financial_metrics', 'KKU Finance · net contribution'),
-      src('risk_assessments', 'Risk Management · KKU 5×5 matrix'),
+      src('enrollment_metrics', 'Registrar · enrolment by year'),
+      src('financial_metrics', 'Finance · net contribution'),
+      src('risk_assessments', 'Risk Management · 5×5 matrix'),
       ENROLMENT,
       HEALTH,
     ],
@@ -69,15 +69,15 @@ export class LandscapeController {
   @Authorized('programs:read:all')
   @Provenance({
     sources: [
-      src('research_outputs', 'KKU Publications mirror (Scopus, PubMed)'),
-      src('research_service_projects', 'KKU research & academic-service grants'),
-      src('faculty_members', 'KKU HR · active teaching staff'),
+      src('research_outputs', 'Publications mirror (Scopus, PubMed)'),
+      src('research_service_projects', 'Research & academic-service grants'),
+      src('faculty_members', 'HR · active teaching staff'),
     ],
     methodologyVersion: LANDSCAPE_ATLAS_VERSION,
     caveats: [
       ...ATLAS_CAVEATS,
       'Grants are a lower bound: about 30% of co-investigator ids match no HR record.',
-      'A project counts for every faculty with a member on it, so faculty figures sum to more than the KKU total.',
+      'A project counts for every faculty with a member on it, so faculty figures sum to more than the university total.',
     ],
   })
   async capability(@AuthSession() user: SessionUser, @Query(new ZodValidationPipe(ScopeQuery)) q: ScopeQueryT) {

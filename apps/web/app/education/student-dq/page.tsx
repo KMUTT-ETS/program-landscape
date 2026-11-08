@@ -1,3 +1,4 @@
+import { orgShortNamesForRequest } from '@/lib/branding';
 import { redirect } from 'next/navigation';
 import {
   canSeeProgramAwareDashboards,
@@ -40,6 +41,7 @@ function arr(v: string | string[] | undefined): string[] {
 }
 
 export default async function StudentDqPage({ searchParams }: { searchParams: Promise<SP> }) {
+  const org = await orgShortNamesForRequest();
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
@@ -126,7 +128,7 @@ export default async function StudentDqPage({ searchParams }: { searchParams: Pr
       <EducationBackLink />
       <PageHeader
         title="Student DQ"
-        subtitle={`How KKU undergraduates perform on the university's Digital Intelligence competency test. Drill from faculty down to a programme, with a column for every module. Scores are withheld on rows with fewer than ${DQ_MIN_CELL_STUDENTS} scored students.`}
+        subtitle={`How ${org.en} undergraduates perform on the university's Digital Intelligence competency test. Drill from faculty down to a programme, with a column for every module. Scores are withheld on rows with fewer than ${DQ_MIN_CELL_STUDENTS} scored students.`}
       />
       {loaded && !cubesEmpty ? (
         <StudentDqClient

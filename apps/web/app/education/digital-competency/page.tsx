@@ -1,3 +1,4 @@
+import { orgShortNamesForRequest } from '@/lib/branding';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import type { SessionUser } from '@kku/shared';
@@ -54,6 +55,7 @@ export default async function DigitalCompetencyPage({
 }: {
   searchParams: Promise<{ scope?: string; scopeId?: string }>;
 }) {
+  const org = await orgShortNamesForRequest();
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
@@ -77,7 +79,7 @@ export default async function DigitalCompetencyPage({
     <AuthedAppShell user={user}>
       <PageHeader
         title="Digital Competency Attainment"
-        subtitle="What KKU students measurably score on the digital competencies the labour market asks for — measured attainment, not taught coverage."
+        subtitle={`What ${org.en} students measurably score on the digital competencies the labour market asks for — measured attainment, not taught coverage.`}
       />
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3 text-xs text-text-tertiary">

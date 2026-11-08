@@ -153,7 +153,7 @@ function render(params = resolveGapParams({}), rows = [baseRow, noPublicRow]): s
   return renderToStaticMarkup(
     <TooltipProvider>
       <ProvenanceProvider>
-        <GapMapSections data={{ params, map: buildMap(rows), meta }} />
+        <GapMapSections data={{ params, map: buildMap(rows), meta }} orgName="KKU" />
       </ProvenanceProvider>
     </TooltipProvider>,
   );

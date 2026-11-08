@@ -71,7 +71,7 @@ export function GapBars({
           Demand (market)
         </text>
         <text x={centreX + centrePadding + halfBarSpace / 2} y={14} textAnchor="middle" fontSize={11} fill={palette.text}>
-          Supply (KKU)
+          Supply
         </text>
 
         {/* Zero axis */}

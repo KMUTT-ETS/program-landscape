@@ -1620,7 +1620,7 @@ export const RISK_INDICATOR_CATALOG = [
   {
     slug: 'bachelor_intake_floor',
     labelTh: 'จำนวนรับขั้นต่ำตามนโยบาย (ป.ตรี)',
-    labelEn: 'Bachelor intake floor (KKU policy)',
+    labelEn: 'Bachelor intake floor (council policy)',
     descriptionTh: 'นโยบายสภามหาวิทยาลัย: หลักสูตรปริญญาตรีต้องรับนักศึกษาใหม่อย่างน้อย 30 คน/ปี',
     descriptionEn: 'Council policy: bachelor programs must enroll ≥30 new students per year',
     formula: 'SUM(reg_reported) for latest entry_year_be',
@@ -1633,9 +1633,9 @@ export const RISK_INDICATOR_CATALOG = [
     labelTh: 'ความซ้ำซ้อนของหลักสูตรกับหลักสูตรอื่นระดับเดียวกัน',
     labelEn: 'Curriculum overlap with a sibling programme',
     descriptionTh:
-      'ดัชนีความซ้ำซ้อนของหลักสูตรสูงสุดเมื่อเทียบกับหลักสูตรอื่นของ มข. ในระดับเดียวกัน (คิดจากรายวิชาเท่านั้น: รายวิชาเอกร่วมและรายวิชาเอกที่เทียบเท่ากัน) ไม่รวมหลักสูตรคู่ภาษา',
+      'ดัชนีความซ้ำซ้อนของหลักสูตรสูงสุดเมื่อเทียบกับหลักสูตรอื่นของมหาวิทยาลัยในระดับเดียวกัน (คิดจากรายวิชาเท่านั้น: รายวิชาเอกร่วมและรายวิชาเอกที่เทียบเท่ากัน) ไม่รวมหลักสูตรคู่ภาษา',
     descriptionEn:
-      'Highest curriculum overlap index (courses only: shared and equivalent major courses) against any same-level KKU programme, excluding language variants',
+      'Highest curriculum overlap index (courses only: shared and equivalent major courses) against any other same-level programme of the university, excluding language variants',
     formula: 'MAX(overlap_index) over the programme\'s current same-level overlap pairs (program-overlap.v1), language_variant = false',
     warnThreshold: CURRICULUM_OVERLAP_WARN,
     criticalThreshold: CURRICULUM_OVERLAP_CRITICAL,
@@ -1646,9 +1646,9 @@ export const RISK_INDICATOR_CATALOG = [
     labelTh: 'ความสับสนทางการตลาดกับหลักสูตรอื่นระดับเดียวกัน',
     labelEn: 'Market confusion with a sibling programme',
     descriptionTh:
-      'ความคล้ายคลึงสูงสุดของข้อความประชาสัมพันธ์หลักสูตร (ชื่อปริญญา คำอธิบายรับสมัคร อาชีพ) เมื่อเทียบกับหลักสูตรอื่นของ มข. ในระดับเดียวกัน ไม่รวมหลักสูตรคู่ภาษา',
+      'ความคล้ายคลึงสูงสุดของข้อความประชาสัมพันธ์หลักสูตร (ชื่อปริญญา คำอธิบายรับสมัคร อาชีพ) เมื่อเทียบกับหลักสูตรอื่นของมหาวิทยาลัยในระดับเดียวกัน ไม่รวมหลักสูตรคู่ภาษา',
     descriptionEn:
-      'Highest market-facing similarity (degree names, recruitment summary, careers) against any same-level KKU programme, excluding language variants',
+      'Highest market-facing similarity (degree names, recruitment summary, careers) against any other same-level programme of the university, excluding language variants',
     formula: 'MAX(market_similarity) over the programme\'s current same-level overlap pairs (program-overlap.v1), language_variant = false',
     warnThreshold: MARKET_CONFUSION_WARN,
     criticalThreshold: MARKET_CONFUSION_CRITICAL,

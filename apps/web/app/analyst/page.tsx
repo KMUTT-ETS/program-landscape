@@ -1,3 +1,4 @@
+import { orgShortNamesForRequest } from '@/lib/branding';
 import { redirect } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
@@ -22,6 +23,7 @@ export default async function AnalystPage({
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
+  const org = await orgShortNamesForRequest();
 
   const sp = await searchParams;
 
@@ -40,7 +42,7 @@ export default async function AnalystPage({
     <AuthedAppShell user={user}>
       <PageHeader
         title="AI Analyst"
-        subtitle="Ask strategic questions in Thai or English — grounded in KKU data, cited, with confidence labels."
+        subtitle={`Ask strategic questions in Thai or English — grounded in ${org.en} data, cited, with confidence labels.`}
       />
       {!conversationsRes.ok ? (
         <DiagnosticEmptyState surface="AI analyst" error={conversationsRes.error} />

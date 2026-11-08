@@ -2,6 +2,7 @@ import { Controller, Get, NotFoundException, Param, Query } from '@nestjs/common
 import { z } from 'zod';
 import { PROGRAMME_COURSES_IMPORT_VERSION, prisma, type Prisma } from '@kku/db';
 import { Authorized, Provenance, ZodValidationPipe } from '../common';
+import { displayShortNames } from '@kku/shared';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Raw-data viewer for the Setup hub. One generic endpoint with a switch
@@ -53,7 +54,7 @@ interface RawDatasetResult {
 export class AdminDataSetupRawController {
   @Get(':dataset')
   @Authorized('programs:manage:all')
-  @Provenance({ sources: [{ id: 'kku-data', name: 'KKU Data' }] })
+  @Provenance({ sources: [{ id: 'kku-data', name: 'Institution data' }] })
   async getDataset(
     @Param('dataset') dataset: string,
     @Query(new ZodValidationPipe(RawDataQuerySchema)) q: RawDataQuery,
@@ -111,7 +112,7 @@ const DATASETS: Record<string, DatasetFetcher> = {
     return {
       title: 'Faculties',
       description:
-        'Faculties, colleges and institutes. Populated by the Faculties spreadsheet import, or by the seed on a KKU installation.',
+        'Faculties, colleges and institutes. Populated by the Faculties spreadsheet import, or by the reference seed.',
       columns: [
         { key: 'code', label: 'Code' },
         { key: 'nameTh', label: 'Name (TH)' },
@@ -1606,7 +1607,7 @@ const DATASETS: Record<string, DatasetFetcher> = {
         { key: 'year', label: 'Year', numeric: true },
         { key: 'title', label: 'Title', format: 'truncate' },
         { key: 'venue', label: 'Venue', format: 'truncate' },
-        { key: 'authorName', label: 'KKU author' },
+        { key: 'authorName', label: `${displayShortNames().en} author` },
         { key: 'facultyNameTh', label: 'Faculty' },
         { key: 'citations', label: 'Citations', numeric: true },
         { key: 'doi', label: 'DOI', format: 'truncate' },

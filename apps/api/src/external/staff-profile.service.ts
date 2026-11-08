@@ -38,18 +38,18 @@ const EVALUATION_CAVEATS = [
 /** Said only when the grants section is actually returned. */
 const GRANTS_CAVEATS = [
   'grants.projects[].budgetThb is the whole project budget, not this person\'s share.',
-  'grants covers externally funded projects recorded in the KKU Research and Academic Services system, synced daily.',
+  'grants covers externally funded projects recorded in the institution research and academic-services system, synced daily.',
   'grants.active counts projects whose start and end dates include today (Bangkok); projects missing either date are not counted.',
 ];
 
 const BASE_SOURCES = [
-  { id: 'kku-hr', name: 'KKU HR (staff record)' },
+  { id: 'kku-hr', name: 'HR (staff record)' },
   { id: 'unicon-ds2003', name: 'UNICON DS2003 (education history)' },
-  { id: 'kku-registry', name: 'KKU Registrar (class offerings)' },
-  { id: 'kku-publications', name: 'KKU Publications mirror (Scopus, PubMed)' },
+  { id: 'kku-registry', name: 'Registrar (class offerings)' },
+  { id: 'kku-publications', name: 'Publications mirror (Scopus, PubMed)' },
   { id: 'google-scholar', name: 'Google Scholar (on-demand import)' },
 ];
-const EVALUATION_SOURCE = { id: 'kku-evaluations', name: 'KKU student course evaluations' };
+const EVALUATION_SOURCE = { id: 'kku-evaluations', name: 'Student course evaluations' };
 
 /**
  * A cold build fans out to the publications mirror, Scopus, OpenAlex and the

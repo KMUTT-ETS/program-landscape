@@ -168,7 +168,7 @@ export class DeepDiveController {
   @Get('student-cohorts')
   @Authorized('programs:read:all')
   @Provenance({
-    sources: [{ id: 'kku-registry', name: 'KKU Registrar (Oracle)' }],
+    sources: [{ id: 'kku-registry', name: 'Registrar records' }],
   })
   async studentCohorts(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
     await assertProgramAccessible(programId, user);
@@ -192,7 +192,7 @@ export class DeepDiveController {
     sources: [
       {
         id: 'kku-admission-campaigns',
-        name: 'KKU Registry · POWERBI.ADMISSION_STAT',
+        name: 'Registrar · POWERBI.ADMISSION_STAT',
       },
     ],
     methodologyVersion: 'program-recruitment.v2',
@@ -227,7 +227,7 @@ export class DeepDiveController {
   @Authorized('programs:read:all')
   @Provenance({
     sources: [
-      { id: 'kku-research', name: 'KKU Publications mirror (kku-research)' },
+      { id: 'kku-research', name: 'Publications mirror (kku-research)' },
       { id: 'program-faculty', name: 'Curated program faculty roster' },
     ],
     methodologyVersion: PROGRAM_RESEARCH_EXPERTISE_VERSION,
@@ -251,7 +251,7 @@ export class DeepDiveController {
   @Authorized('programs:read:all')
   @Provenance({
     sources: [
-      { id: 'kku-research', name: 'KKU Publications mirror (kku-research)' },
+      { id: 'kku-research', name: 'Publications mirror (kku-research)' },
       { id: 'program-courses', name: 'Curriculum PDF course extraction' },
       { id: 'program-faculty', name: 'Curated program faculty roster' },
     ],
@@ -360,7 +360,7 @@ export class DeepDiveController {
 
   @Get('outcomes')
   @Authorized('outcomes:read:all')
-  @Provenance({ sources: [{ id: 'kku-alumni', name: 'KKU Alumni Outcomes' }] })
+  @Provenance({ sources: [{ id: 'kku-alumni', name: 'Alumni outcomes' }] })
   async outcomes(@AuthSession() user: SessionUser, @Param('programId') programId: string) {
     await assertProgramAccessible(programId, user);
     return programOutcomes(programId);
@@ -373,7 +373,7 @@ export class DeepDiveController {
   @Get('dq')
   @Authorized('programs:read:all')
   @Provenance({
-    sources: [{ id: 'kku-dq', name: 'KKU Digital Intelligence competency test' }],
+    sources: [{ id: 'kku-dq', name: 'Digital Intelligence competency test' }],
     methodologyVersion: STUDENT_DQ_METHODOLOGY_VERSION,
   })
   async digitalCompetency(
@@ -386,7 +386,7 @@ export class DeepDiveController {
 
   @Get('faculty')
   @Authorized('programs:read:all')
-  @Provenance({ sources: [{ id: 'kku-hr', name: 'KKU HR' }] })
+  @Provenance({ sources: [{ id: 'kku-hr', name: 'HR records' }] })
   async faculty(@Param('programId') programId: string, @AuthSession() user: SessionUser) {
     await assertProgramAccessible(programId, user);
     const visibility = await resolveFacultyVisibility(programId, user);
@@ -398,7 +398,7 @@ export class DeepDiveController {
   @Provenance({
     sources: [
       { id: 'program-courses-extract', name: 'Program courses extraction (program-courses-extract.v1)' },
-      { id: 'kku-tcas-funnel', name: 'KKU class offerings (POWERBI.VIEW_CLASS_OPEN_GROUP_OFFICER)' },
+      { id: 'kku-tcas-funnel', name: 'Class offerings (POWERBI.VIEW_CLASS_OPEN_GROUP_OFFICER)' },
     ],
   })
   async courses(

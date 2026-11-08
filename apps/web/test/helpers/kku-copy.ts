@@ -7,7 +7,7 @@ export interface KkuCopyHit {
 }
 
 const KKU_PATTERN = /KKU|มข\.|Khon Kaen|ขอนแก่น/;
-const ALLOWLIST = ['@kku/', 'kku-sso', 'KKU_', 'kkuExample', 'KKU-SEQ-'];
+const ALLOWLIST = ['@kku/', 'kku-sso', 'KKU_', 'kkuExample', 'KKU-SEQ-', 'KKUMAIL'];
 const COMMENT_START = /^\s*(\/\/|\*|\/\*|\{\/\*)/;
 
 /** True when a single source line carries KKU copy a user could see. */

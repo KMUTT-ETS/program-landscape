@@ -5,6 +5,7 @@ import type { GapMapRow } from '../gap-map';
 import { GAP_VERDICTS, type GapVerdict } from '../gap-map-rules';
 import { logPos, logTicks, pctLabel } from './scales';
 import { LANDSCAPE_ATLAS_VERSION, NO_ANSWER, type AtlasPoint, type ChapterAnswer, type PlotFrame, type Tone, type Unplotted } from './types';
+import { displayShortNames } from '@kku/shared';
 
 export type MarketRowInput = Pick<GapMapRow, 'slug' | 'nameTh' | 'nameEn' | 'postings' | 'demandShare' | 'supplyShare' | 'verdict'>;
 
@@ -36,7 +37,7 @@ export function buildMarket(rows: readonly MarketRowInput[]): MarketChapter {
   for (const row of rows) {
     counts[row.verdict]++;
     const u = (reason: string) => unplotted.push({ id: row.slug, label: row.nameTh, reason });
-    if (row.verdict === 'supply-unknown') u('KKU supply unknown (no graduate figure)');
+    if (row.verdict === 'supply-unknown') u(`${displayShortNames().en} supply unknown (no graduate figure)`);
     else if (row.verdict === 'too-few-postings') u('Too few job adverts');
     else if (!(row.demandShare > 0)) u('No job adverts');
     else if (isPlotted(row.verdict)) plot.push({ ...row, verdict: row.verdict });
@@ -61,7 +62,7 @@ export function buildMarket(rows: readonly MarketRowInput[]): MarketChapter {
       onRail,
       values: {
         'Job-advert share': pctLabel(p.demandShare),
-        'KKU graduate share': p.supplyShare > 0 ? pctLabel(p.supplyShare) : 'none',
+        [`${displayShortNames().en} graduate share`]: p.supplyShare > 0 ? pctLabel(p.supplyShare) : 'none',
         Adverts: p.postings,
         Verdict: p.verdict,
       },
@@ -90,6 +91,6 @@ function marketAnswer(total: number, c: Record<GapVerdict, number>): ChapterAnsw
   const attention = under + ws;
   return {
     figure: String(attention),
-    sentence: `${attention === 1 ? 'field needs' : 'fields need'} attention: ${under} under-served and ${ws} white space (no KKU programme); ${over} over-served.`,
+    sentence: `${attention === 1 ? 'field needs' : 'fields need'} attention: ${under} under-served and ${ws} white space (no ${displayShortNames().en} programme); ${over} over-served.`,
   };
 }

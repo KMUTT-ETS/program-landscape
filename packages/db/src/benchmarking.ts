@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ProgramLevel } from '@prisma/client';
-import { getInstitution } from '@kku/shared';
+import { getInstitution, displayShortNames } from '@kku/shared';
 import { prisma } from './index';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -175,7 +175,7 @@ export async function computePortfolioComparison(peerSetId: string): Promise<Por
     lowConfidenceReason:
       peers.length === 0
         ? 'Peer set has no members — add peer programs or use a system-seeded set.'
-        : 'Subject grouping uses free-text — peer subjectArea vs KKU department name is fuzzy. Apples-to-oranges caveats live on each peer via PeerSetMember.noteTh.',
+        : `Subject grouping uses free-text — peer subjectArea vs ${displayShortNames().en} department name is fuzzy. Apples-to-oranges caveats live on each peer via PeerSetMember.noteTh.`,
   };
 }
 
@@ -438,7 +438,7 @@ export async function computeWhiteSpaces(peerThreshold = 3, limit = 30): Promise
       peerCount: r.peer_count,
       peerInstitutions: r.peer_institutions ?? [],
       estimatedCohortSize: Math.round(r.total_weight * 20), // heuristic: weight × 20 ≈ annual capacity
-      fitNote: `ต้องสอนที่ ${r.peer_count} มหาวิทยาลัยพันธมิตร แต่ไม่มีหลักสูตร KKU ที่สอนทักษะนี้ปัจจุบัน`,
+      fitNote: `ต้องสอนที่ ${r.peer_count} มหาวิทยาลัยพันธมิตร แต่ไม่มีหลักสูตรของ ${displayShortNames().th} ที่สอนทักษะนี้ปัจจุบัน`,
     });
   }
   out.sort((a, b) => b.peerCount - a.peerCount);

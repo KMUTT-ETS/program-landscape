@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { isAdminGrade, type ApiMeta, type ApiSuccess, type SessionUser } from '@kku/shared';
 import { RAW_RETENTION_DAYS } from '@kku/db';
 import { auth } from '@/lib/auth';
+import { orgShortNamesForRequest } from '@/lib/branding';
 import { apiFetch, apiFetchEnvelope } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { Badge, Card, EdgeGlow, FreshnessBadge, ProvenanceButton, Sparkline } from '@kku/ui';
@@ -193,8 +194,9 @@ export default async function AdminConsolePage() {
     computedAt: new Date().toISOString(),
   };
 
-  const heroStats = buildHeroStats(dataStats, sysStatus, usage);
-  const groups = buildGroups({ dataStats, sysStatus, externalAi, role: user.role });
+  const org = await orgShortNamesForRequest();
+  const heroStats = buildHeroStats(dataStats, sysStatus, usage, org.en);
+  const groups = buildGroups({ dataStats, sysStatus, externalAi, role: user.role, orgName: org.en });
 
   return (
     <AuthedAppShell user={user}>
@@ -310,7 +312,7 @@ function Tile({ tile }: { tile: ConsoleTile }) {
         className="relative h-full overflow-hidden transition-all hover:border-border-strong hover:shadow-elevation-3"
       >
         {/* Warm gradient sweep on hover — super-tier tiles get the
-            KKU cardinal accent; the rest get the warm-neutral accent.
+            organisation brand accent; the rest get the warm-neutral accent.
             Adds the "this is a place you can go" warmth to each tile. */}
         <div
           aria-hidden
@@ -489,11 +491,12 @@ export function buildHeroStats(
   data: DataSetupStats | null,
   sys: SystemStatus | null,
   usage: UsageHero,
+  orgName = 'University',
 ): HeroStat[] {
   const stats: HeroStat[] = [];
   if (data) {
     stats.push({
-      label: 'KKU programs',
+      label: `${orgName} programs`,
       value: data.programs.total.toLocaleString(),
       hint: `${data.programs.withCurriculumPdf} with curriculum PDF`,
       icon: <Building2 className="size-icon-sm" />,
@@ -605,11 +608,13 @@ function buildGroups({
   sysStatus,
   externalAi,
   role,
+  orgName,
 }: {
   dataStats: DataSetupStats | null;
   sysStatus: SystemStatus | null;
   externalAi: ExternalAiSourceLite[] | null;
   role: SessionUser['role'];
+  orgName: string;
 }): ConsoleGroup[] {
   // ── 1) Programs ────────────────────────────────────────────────────
   // Curriculum-centric ops. Two tiles: the program list (browse / edit
@@ -627,7 +632,7 @@ function buildGroups({
       href: '/admin/programs',
       label: 'Program list',
       description:
-        'Full table of every KKU program — filter by metadata, edit status / faculty / level, run pipeline (per-row or batch).',
+        `Full table of every ${orgName} program — filter by metadata, edit status / faculty / level, run pipeline (per-row or batch).`,
       icon: <Building2 className="size-icon-xl" />,
       badge: dataStats
         ? { label: dataStats.programs.total.toLocaleString(), tone: 'neutral' }
@@ -677,7 +682,7 @@ function buildGroups({
       href: '/admin/data-sources',
       label: 'DB / API connectors',
       description:
-        'Structured-data sources — KKU Registrar, KKU HR, KKU Finance, KMITL skill mapping. Manage cron schedules and fire manual re-syncs.',
+        `Structured-data sources — ${orgName} Registrar, ${orgName} HR, ${orgName} Finance, KMITL skill mapping. Manage cron schedules and fire manual re-syncs.`,
       icon: <Database className="size-icon-xl" />,
       badge: dataStats
         ? {
@@ -733,7 +738,7 @@ function buildGroups({
       href: '/admin/trend-documents',
       label: 'Add signal from document',
       description:
-        'Upload a document — PDF, Word, Excel, PowerPoint or HTML (e.g. a manpower-demand / job-posting report) — or paste a URL. AI reads it, drafts a trend signal, and publishes it to the Trends Radar with the KKU programs/skills it affects + recommended actions.',
+        `Upload a document — PDF, Word, Excel, PowerPoint or HTML (e.g. a manpower-demand / job-posting report) — or paste a URL. AI reads it, drafts a trend signal, and publishes it to the Trends Radar with the ${orgName} programs/skills it affects + recommended actions.`,
       icon: <FileUp className="size-icon-xl" />,
     },
     {
@@ -754,7 +759,7 @@ function buildGroups({
       href: '/admin/pdf-review',
       label: 'PDF library',
       description:
-        'Non-curriculum PDFs — Thai government / MHESI / KKU / faculty policy documents and reports. Re-extract, archive, deprecate, delete.',
+        `Non-curriculum PDFs — Thai government / MHESI / ${orgName} / faculty policy documents and reports. Re-extract, archive, deprecate, delete.`,
       icon: <FileSearch className="size-icon-xl" />,
     },
     {
@@ -810,7 +815,7 @@ function buildGroups({
       href: '/admin/users',
       label: 'Users & access',
       description:
-        'Pre-provision KKU staff, assign roles, and bind faculty scope to user accounts.',
+        `Pre-provision ${orgName} staff, assign roles, and bind faculty scope to user accounts.`,
       icon: <Users className="size-icon-xl" />,
       roles: ADMIN_GRADE,
     },

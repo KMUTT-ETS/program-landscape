@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
+import { orgShortNamesForRequest } from '@/lib/branding';
 import { apiFetch, apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { AdminBackNav } from '@/components/admin-back-nav';
@@ -50,12 +51,14 @@ export default async function AdminDataSourcesPage() {
   const sourcesRes = await apiFetchSafe<DataSourceRow[]>('/data-sources');
   const overview = await apiFetch<OverviewStats>('/data-sources/admin/overview').catch(() => null);
 
+  const org = await orgShortNamesForRequest();
+
   return (
     <AuthedAppShell user={user}>
       <AdminBackNav current="Data sources" />
       <PageHeader
         title="Data sources"
-        subtitle="Every external feed powering this app — from KKU Registry to WEF Future of Jobs. Real wiring in prompt 14; mocked sources are marked."
+        subtitle={`Every external feed powering this app — from ${org.en} Registry to WEF Future of Jobs. Real wiring in prompt 14; mocked sources are marked.`}
       />
       {overview && <OverviewStrip overview={overview} />}
       <Section title="Connectors">

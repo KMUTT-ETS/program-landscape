@@ -40,7 +40,7 @@ export function visibleRows(
   );
 }
 
-export function GapMapSections({ data }: { data: GapPageData }): React.JSX.Element {
+export function GapMapSections({ data, orgName }: { data: GapPageData; orgName: string }): React.JSX.Element {
   const { params, map, meta } = data;
   const rows = visibleRows(map.rows, params.verdict, params.facultyId);
   const wide = map.scope.level !== 'university';
@@ -49,7 +49,7 @@ export function GapMapSections({ data }: { data: GapPageData }): React.JSX.Eleme
   const fieldsTotal = map.taxonomy.approved + map.taxonomy.proposed;
   const scopeNote =
     wide && map.scope.label
-      ? `Supply narrowed to ${map.scope.label}; the KKU-total column shows the same field over the whole university.`
+      ? `Supply narrowed to ${map.scope.label}; the ${orgName}-total column shows the same field over the whole university.`
       : null;
 
   return (
@@ -84,10 +84,10 @@ export function GapMapSections({ data }: { data: GapPageData }): React.JSX.Eleme
         Each row compares two percentages.{' '}
         <strong className="font-medium text-text-primary">Demand share</strong> is this field&apos;s share of
         all the job adverts that name a field of study.{' '}
-        <strong className="font-medium text-text-primary">KKU share</strong> is its share of all the
-        graduates KKU produces each year in the fields we can measure. The{' '}
+        <strong className="font-medium text-text-primary">{orgName} share</strong> is its share of all the
+        graduates {orgName} produces each year in the fields we can measure. The{' '}
         <strong className="font-medium text-text-primary">ratio</strong> is the second divided by the first:
-        below 1 means KKU produces proportionally fewer graduates in this field than employers ask for,
+        below 1 means {orgName} produces proportionally fewer graduates in this field than employers ask for,
         above 1 means proportionally more, and around 1 means the two are in step.
       </p>
 
@@ -102,21 +102,21 @@ export function GapMapSections({ data }: { data: GapPageData }): React.JSX.Eleme
                 title="Demand share: of all the job adverts that name any field of study, the percentage that name this one."
               />
               <NumHead
-                label="KKU share"
+                label={`${orgName} share`}
                 unit="% of graduates"
-                title="KKU share: of all the graduates KKU produces each year in fields we can measure, the percentage who hold this one."
+                title={`${orgName} share: of all the graduates ${orgName} produces each year in fields we can measure, the percentage who hold this one.`}
               />
               {wide && (
                 <NumHead
-                  label="KKU total"
-                  unit="% of graduates, all KKU"
-                  title="The same KKU share measured over the whole university rather than over the faculty or department in scope."
+                  label={`${orgName} total`}
+                  unit={`% of graduates, all ${orgName}`}
+                  title={`The same ${orgName} share measured over the whole university rather than over the faculty or department in scope.`}
                 />
               )}
               <NumHead
                 label="Ratio"
-                unit="KKU ÷ demand"
-                title="Ratio: KKU share divided by demand share. Below 1 means KKU produces proportionally fewer graduates in this field than employers ask for; above 1 means proportionally more."
+                unit={`${orgName} ÷ demand`}
+                title={`Ratio: ${orgName} share divided by demand share. Below 1 means ${orgName} produces proportionally fewer graduates in this field than employers ask for; above 1 means proportionally more.`}
               />
               <th className="px-3 py-2 text-right font-medium">Graduates / yr</th>
               <th className="px-3 py-2 text-right font-medium">Pipeline</th>
@@ -197,7 +197,7 @@ export function GapMapSections({ data }: { data: GapPageData }): React.JSX.Eleme
                     <td className="px-3 py-2 text-right font-tabular">
                       {r.programmeCount === 0 ? <span className="text-text-tertiary">—</span> : r.programmeCount}
                       {/* A white space holding a Master's or a PhD used to
-                          show the same bare dash as a field KKU teaches
+                          show the same bare dash as a field the university teaches
                           nothing in. The count sits on its own line rather
                           than beside the dash, so the two numbers can never
                           be read as one. */}
@@ -215,7 +215,7 @@ export function GapMapSections({ data }: { data: GapPageData }): React.JSX.Eleme
                   {open && (
                     <tr className="bg-surface-2">
                       <td colSpan={columns} className="px-3 pb-4 pt-1">
-                        <RowPanels row={r} meta={meta} basis={params.basis} />
+                        <RowPanels row={r} meta={meta} basis={params.basis} orgName={orgName} />
                       </td>
                     </tr>
                   )}
@@ -240,7 +240,7 @@ export function GapMapSections({ data }: { data: GapPageData }): React.JSX.Eleme
           as a defect on this page once already. */}
       <p className="text-xs text-text-secondary">
         Demand share is each field&apos;s share of all adverts naming a field of study, on the selected
-        basis. KKU share is that field&apos;s share of KKU&apos;s bachelor graduates per year.
+        basis. {orgName} share is that field&apos;s share of {orgName}&apos;s bachelor graduates per year.
       </p>
 
       <div className="space-y-1 text-xs text-text-tertiary">
@@ -265,7 +265,7 @@ export function GapMapSections({ data }: { data: GapPageData }): React.JSX.Eleme
           programmes are listed inside its row with their graduates, but never scored, because only{' '}
           {rec.postgraduatePostings.toLocaleString('en-US')} of the{' '}
           {rec.eligiblePostings.toLocaleString('en-US')} adverts state a postgraduate minimum — too few
-          to judge one against. So a white space means KKU has no bachelor programme in that field; it
+          to judge one against. So a white space means {orgName} has no bachelor programme in that field; it
           may still run a Master&apos;s or a PhD there, and the row says so where it does.
         </p>
         <p>
@@ -277,7 +277,7 @@ export function GapMapSections({ data }: { data: GapPageData }): React.JSX.Eleme
         <details>
           <summary className="cursor-pointer">Thresholds in force and the supply rule</summary>
           <p className="mt-1">
-            Under-served below {params.under}, over-served above {params.over} (ratio = KKU share ÷
+            Under-served below {params.under}, over-served above {params.over} (ratio = {orgName} share ÷
             demand share). Graduates per year = the mean of a programme&apos;s registrar entry cohorts
             that could already have graduated — an entry year counts only once it is at least the
             programme&apos;s length behind the current academic year — divided by however many such

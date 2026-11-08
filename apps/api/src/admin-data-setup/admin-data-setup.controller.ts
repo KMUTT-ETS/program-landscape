@@ -15,7 +15,7 @@ import { Authorized, Provenance } from '../common';
 export class AdminDataSetupController {
   @Get('stats')
   @Authorized('programs:manage:all')
-  @Provenance({ sources: [{ id: 'kku-data', name: 'KKU Data' }] })
+  @Provenance({ sources: [{ id: 'kku-data', name: 'Institution data' }] })
   async stats() {
     const [
       programsTotal,

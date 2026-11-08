@@ -1,5 +1,6 @@
 'use client';
 
+import { useOrgNames } from '@/components/org-names-context';
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -414,6 +415,7 @@ function SourceComposition({
   lastFetchedAt: string | null;
   run: ScholarStatus['lastRun'];
 }) {
+  const org = useOrgNames();
   const lastFetchedLabel = formatScholarDay(lastFetchedAt);
 
   // Scholar is primary once it has imported anything for this person — the
@@ -440,7 +442,7 @@ function SourceComposition({
   };
   const libraryRow = {
     key: 'library',
-    label: 'KKU library index',
+    label: `${org.en} library index`,
     qualifier: 'kept as failover',
     primary: sources !== null && !scholarIsPrimary,
     count: sources?.libraryIndex ?? 0,
@@ -455,7 +457,7 @@ function SourceComposition({
 
       {/* The `{' '}` between each label and its qualifier is load-bearing, not
           formatting noise: JSX drops the whitespace around a newline, so
-          without it the accessible name reads "KKU library indexprimary
+          without it the accessible name reads "<org> library indexprimary
           source" — one run-on token — even though a margin keeps them apart
           on screen. */}
       <dl className="mt-6 space-y-4 text-sm">
@@ -494,7 +496,7 @@ function SourceComposition({
           Why the two totals differ
         </summary>
         <p className="mt-3 max-w-[46rem] leading-relaxed">
-          The library index — Scopus by author ID, with the KKU publications mirror behind it
+          The library index — Scopus by author ID, with the {org.en} publications mirror behind it
           — is curated. Google Scholar also indexes preprints, theses, technical reports and
           venues the library index does not, so a Scholar total runs higher for the same
           person. Higher is not better here: a colleague who has never pressed this button is

@@ -28,6 +28,7 @@ import {
   type AiService,
   type GapBriefInput,
   type GapBriefOutput,
+  displayShortNames,
 } from '@kku/shared';
 import { GapService } from './gap.service';
 
@@ -209,7 +210,7 @@ export class GapBriefService implements OnModuleInit {
       : null;
     const input: GapBriefInput = {
       view: {
-        scopeLabel: map.scope.label ?? 'KKU (all faculties)',
+        scopeLabel: map.scope.label ?? `${displayShortNames().en} (all faculties)`,
         verdict: params.verdict,
         facultyLabel,
         thresholds: params.thresholds,

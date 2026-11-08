@@ -1,3 +1,4 @@
+import { orgShortNamesForRequest } from '@/lib/branding';
 import { redirect } from 'next/navigation';
 import { canSeeProgramAwareDashboards, type ApiMeta, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
@@ -51,6 +52,7 @@ function toFetchError(err: unknown): ApiFetchError {
 }
 
 export default async function GrantsPage({ searchParams }: { searchParams: Promise<SP> }) {
+  const org = await orgShortNamesForRequest();
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
@@ -106,7 +108,7 @@ export default async function GrantsPage({ searchParams }: { searchParams: Promi
       <StaffBackLink />
       <PageHeader
         title="Research and academic service grants"
-        subtitle="Externally funded research and academic-service projects recorded by KKU Research Administration, synced daily. A project counts for every faculty on its team; budgets are whole-project figures, never split between people."
+        subtitle={`Externally funded research and academic-service projects recorded by ${org.en} Research Administration, synced daily. A project counts for every faculty on its team; budgets are whole-project figures, never split between people.`}
       />
       {data && meta ? (
         <GrantsClient data={data} meta={meta} options={options} initialFilters={filters} />

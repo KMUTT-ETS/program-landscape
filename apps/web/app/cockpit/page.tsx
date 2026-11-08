@@ -1,3 +1,4 @@
+import { orgShortNamesForRequest } from '@/lib/branding';
 import { redirect } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
@@ -28,6 +29,7 @@ export default async function CockpitPage({
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
+  const org = await orgShortNamesForRequest();
 
   const sp = await searchParams;
   const scope = sp.scope ?? 'university';
@@ -65,7 +67,7 @@ export default async function CockpitPage({
   // themselves with names looked up from Prisma so the breadcrumb shows
   // Thai-primary labels with EN below.
   const breadcrumb: ScopeBreadcrumbCrumb[] = [
-    { scope: 'university', scopeId: null, labelTh: 'มข. (ภาพรวม)', labelEn: 'KKU University' },
+    { scope: 'university', scopeId: null, labelTh: `${org.th} (ภาพรวม)`, labelEn: `${org.en} University` },
   ];
   if (scope === 'faculty' && scopeId) {
     const fac = await prisma.faculty.findUnique({

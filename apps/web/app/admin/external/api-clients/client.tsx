@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { useOrgNames } from '@/components/org-names-context';
 import {
   Badge,
   Button,
@@ -44,8 +45,8 @@ import {
 // in the `reveal` state and is dropped the moment that dialog closes.
 // ─────────────────────────────────────────────────────────────────────────
 
-const IP_ALLOWLIST_OFF_NOTE =
-  'IP allowlists are off on this deployment until the KKU proxy address is pinned in nginx.';
+const ipAllowlistOffNote = (orgName: string) =>
+  `IP allowlists are off on this deployment until the ${orgName} proxy address is pinned in nginx.`;
 
 const USAGE_STATUSES = [200, 400, 403, 404, 429, 500] as const;
 
@@ -174,6 +175,7 @@ export function ApiClientsClient({
   loadError: string | null;
   ipAllowlistEnabled: boolean;
 }) {
+  const org = useOrgNames();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [createDraft, setCreateDraft] = useState<Draft | null>(null);
@@ -316,7 +318,7 @@ export function ApiClientsClient({
       </Card>
 
       <p className="text-xs text-text-tertiary">
-        A not-found rate above 20 % usually means the caller is sending identifiers for people who are not KKU staff
+        A not-found rate above 20 % usually means the caller is sending identifiers for people who are not {org.en} staff
         records, or is guessing.
       </p>
 
@@ -847,10 +849,10 @@ function ClientDetailPanel({
 
           <PanelSection title="How to call">
             <pre className="overflow-x-auto rounded-md border border-subtle bg-surface-2 p-3 font-mono text-xs leading-relaxed">
-              {`curl -sS --max-time 60 https://program-landscape.kku.ac.th/api/v1/external/staff-profile \\
+              {`curl -sS --max-time 60 https://<your-host>/api/v1/external/staff-profile \\
   -H "Authorization: Bearer <your key>" \\
   -H "Content-Type: application/json" \\
-  -d '{"email":"someone@kku.ac.th"}'`}
+  -d '{"email":"someone@example.ac.th"}'`}
             </pre>
             <p className="mt-2 text-xs text-text-tertiary">
               Full contract, error codes and field list:{' '}
@@ -874,6 +876,7 @@ function ClientFields({
   onChange: (d: Draft) => void;
   ipAllowlistEnabled: boolean;
 }) {
+  const org = useOrgNames();
   const toggleSection = (s: string) =>
     onChange({
       ...draft,
@@ -966,7 +969,7 @@ function ClientFields({
             placeholder={ipAllowlistEnabled ? '10.101.0.0/16' : ''}
             className={`${TEXTAREA} font-mono text-xs`}
           />
-          {!ipAllowlistEnabled ? <p className="mt-1 text-xs text-text-tertiary">{IP_ALLOWLIST_OFF_NOTE}</p> : null}
+          {!ipAllowlistEnabled ? <p className="mt-1 text-xs text-text-tertiary">{ipAllowlistOffNote(org.en)}</p> : null}
         </Field>
         <Field label="Rate limit" hint="requests per minute, 1–600">
           <Input

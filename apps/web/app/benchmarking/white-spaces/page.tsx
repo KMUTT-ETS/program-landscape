@@ -1,3 +1,4 @@
+import { orgShortNamesForRequest } from '@/lib/branding';
 import { redirect } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
@@ -18,6 +19,7 @@ export default async function WhiteSpacesPage({
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
+  const org = await orgShortNamesForRequest();
 
   const sp = await searchParams;
   const qs = new URLSearchParams({
@@ -33,7 +35,7 @@ export default async function WhiteSpacesPage({
     <AuthedAppShell user={user}>
       <PageHeader
         title="White-space Opportunities"
-        subtitle="Skills that ≥3 peer institutions teach, but KKU doesn't — ranked by peer consensus."
+        subtitle={`Skills that ≥3 peer institutions teach, but ${org.en} doesn't — ranked by peer consensus.`}
       />
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-3 text-xs text-text-tertiary">
@@ -100,7 +102,7 @@ export default async function WhiteSpacesPage({
           <Link href="/gap-analysis?verdict=white-space" className="underline">
             the Gap Analyzer&apos;s white spaces
           </Link>{' '}
-          are fields of study employers advertise for that no KKU programme is assigned to; this page shows skills with peer-institution consensus. The overlap is where a new track or program is most defensible to Council.
+          are fields of study employers advertise for that no {org.en} programme is assigned to; this page shows skills with peer-institution consensus. The overlap is where a new track or program is most defensible to Council.
         </p>
       </div>
     </AuthedAppShell>

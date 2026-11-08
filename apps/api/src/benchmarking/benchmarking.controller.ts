@@ -170,7 +170,7 @@ export class BenchmarkingController {
   @Provenance({
     sources: [
       { id: 'peer-program-skills', name: 'Peer program skills' },
-      { id: 'program-skills', name: 'KKU program skills' },
+      { id: 'program-skills', name: 'Program skills' },
     ],
   })
   async whiteSpaces(@Query(new ZodValidationPipe(WhiteSpacesQuerySchema)) q: WhiteSpacesQuery) {

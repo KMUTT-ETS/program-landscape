@@ -225,8 +225,8 @@ describe('ScholarPanel — unbound', () => {
 
   it('keeps the label and its qualifier from reading as one word', () => {
     // JSX eats the whitespace around a newline, so a margin alone leaves the
-    // accessible name as "KKU library indexprimary source".
-    expect(markup).toContain('KKU library index <span');
+    // accessible name as "University library indexprimary source".
+    expect(markup).toContain('University library index <span');
     expect(markup).toContain('Google Scholar <span');
   });
 });
@@ -246,7 +246,7 @@ describe('ScholarPanel — bound and ready', () => {
   });
 
   it('names the library index as primary, and Scholar as the top-up', () => {
-    expect(markup).toContain('KKU library index');
+    expect(markup).toContain('University library index');
     expect(markup).toContain('primary source');
     expect(markup).toContain('184 papers');
     expect(markup).toContain('12 papers');

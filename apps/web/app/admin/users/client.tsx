@@ -11,6 +11,7 @@ import {
   FilterSelect,
 } from '@/components/filter-rail';
 import { toast } from 'sonner';
+import { useOrgNames } from '@/components/org-names-context';
 import { type Role } from '@kku/shared';
 import {
   searchKkuEmployeeAction,
@@ -348,6 +349,7 @@ function PreProvisionPanel({
   programs: ProgramOption[];
   assignable: readonly Role[];
 }) {
+  const org = useOrgNames();
   const [email, setEmail] = React.useState('');
   const [searching, setSearching] = React.useState(false);
   const [result, setResult] = React.useState<
@@ -444,7 +446,7 @@ function PreProvisionPanel({
     });
     setSubmitting(false);
     if (r.ok) {
-      toast.success(`Provisioned ${email} — sign-in via KKU SSO`);
+      toast.success(`Provisioned ${email} — sign-in via ${org.en} SSO`);
       setEmail('');
       setName('');
       setOverrideName(false);
@@ -468,14 +470,14 @@ function PreProvisionPanel({
 
   return (
     <Card padding="md">
-      <h3 className="mb-2 text-sm font-semibold">Pre-provision a KKU staff member</h3>
+      <h3 className="mb-2 text-sm font-semibold">Pre-provision a {org.en} staff member</h3>
       <p className="mb-3 text-xs text-text-tertiary">
-        Search by KKU email → assign role + scope. The user becomes active on their first SSO login (the system links the SSO subject to this row by email match).
+        Search by {org.en} email → assign role + scope. The user becomes active on their first SSO login (the system links the SSO subject to this row by email match).
       </p>
 
       <div className="flex gap-2 items-end mb-3">
         <div className="flex-1">
-          <label className="mb-1 block text-xs text-text-tertiary">KKU email</label>
+          <label className="mb-1 block text-xs text-text-tertiary">{org.en} email</label>
           <Input
             type="email"
             value={email}
@@ -483,7 +485,7 @@ function PreProvisionPanel({
             onKeyDown={(e) => {
               if (e.key === 'Enter') onSearch();
             }}
-            placeholder="firstname.l@kku.ac.th"
+            placeholder="firstname.l@example.ac.th"
           />
         </div>
         <Button onClick={onSearch} disabled={searching || !email.trim()} size="sm" variant="outline">
@@ -508,7 +510,7 @@ function PreProvisionPanel({
             <section className="rounded-md border border-border-subtle bg-surface-1 p-3">
               <div className="mb-2 flex items-center gap-2 text-[11px] uppercase tracking-wide text-text-tertiary">
                 <Check className="size-icon-xs text-success" />
-                From KKU directory
+                From {org.en} directory
               </div>
               <DirectoryNamePair emp={result.employee.emp} />
               <DirectoryFacts emp={result.employee.emp} />
@@ -516,7 +518,7 @@ function PreProvisionPanel({
           )}
           {result.kind === 'not-found' && (
             <div className="rounded-md bg-warning-subtle p-2 text-xs text-warning">
-              No match in the KKU directory (or the KKU Employee API isn&apos;t
+              No match in the {org.en} directory (or the employee directory API isn&apos;t
               reachable from this environment). You can still pre-provision
               this user manually.
             </div>
@@ -528,7 +530,7 @@ function PreProvisionPanel({
               Provision in this app
             </div>
             <p className="mb-3 text-[11px] text-text-tertiary leading-relaxed">
-              Sign-in is via KKU SSO; the directory link binds on first SSO
+              Sign-in is via {org.en} SSO; the directory link binds on first SSO
               login by email. Pick the in-app role + scope below.
             </p>
 
@@ -868,7 +870,7 @@ function UserRowEditor({
               <Layers className="size-icon-xs" /> Scopes
             </Button>
             {/* Password reset only applies to local credentials. SSO-linked
-                users authenticate via KKU SSO and have no local passwordHash —
+                users authenticate via the organisation SSO and have no local passwordHash —
                 hide the affordance to avoid operator confusion. */}
             {!user.linkedToSso && (
               <Button size="xs" variant="ghost" onClick={setOrClearPassword} disabled={busy}>

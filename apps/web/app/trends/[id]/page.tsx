@@ -1,3 +1,4 @@
+import { orgShortNamesForRequest } from '@/lib/branding';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
@@ -129,6 +130,7 @@ export default async function TrendSignalPage({
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
+  const org = await orgShortNamesForRequest();
   const { id } = await params;
 
   const detailRes = await apiFetchSafe<TrendDetail | null>(`/trends/${id}`);
@@ -250,8 +252,8 @@ export default async function TrendSignalPage({
             count={detail.newInitiatives.length}
           >
             <p className="mb-3 text-xs leading-relaxed text-text-tertiary">
-              Roles the signal demands that no current KKU program supplies (a missing field, or a
-              vocational/sub-degree position) — candidate new offerings KKU could launch.
+              Roles the signal demands that no current {org.en} program supplies (a missing field, or a
+              vocational/sub-degree position) — candidate new offerings {org.en} could launch.
             </p>
             <ul className="flex flex-col gap-3">
               {detail.newInitiatives.map((n, i) => (

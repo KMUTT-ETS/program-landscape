@@ -43,6 +43,8 @@ export interface ScopeSelectorProps {
   access: ScopeAccess;
   /** Called after the URL has been updated. Useful for analytics. */
   onChange?: (level: ScopeLevel, id: string | null) => void;
+  /** The organisation's short name (from /admin/organization); roots the breadcrumb. */
+  orgShortName?: string;
 }
 
 const LEVEL_LABEL: Record<ScopeLevel, string> = {
@@ -52,7 +54,12 @@ const LEVEL_LABEL: Record<ScopeLevel, string> = {
   program: 'Program',
 };
 
-export function ScopeSelector({ entities, access, onChange }: ScopeSelectorProps) {
+export function ScopeSelector({
+  entities,
+  access,
+  onChange,
+  orgShortName = 'University',
+}: ScopeSelectorProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const level = (searchParams.get('scope') as ScopeLevel) ?? 'university';
@@ -61,26 +68,26 @@ export function ScopeSelector({ entities, access, onChange }: ScopeSelectorProps
 
   // Build breadcrumb for the current selection.
   const breadcrumb = React.useMemo(() => {
-    if (level === 'university') return ['KKU'];
+    if (level === 'university') return [orgShortName];
     if (level === 'faculty') {
       const f = entities.faculties.find((x) => x.id === scopeId);
-      return f ? ['KKU', f.nameEn] : ['KKU', scopeId ?? '—'];
+      return f ? [orgShortName, f.nameEn] : [orgShortName, scopeId ?? '—'];
     }
     if (level === 'department') {
       const d = entities.departments.find((x) => x.id === scopeId);
-      if (!d) return ['KKU', scopeId ?? '—'];
+      if (!d) return [orgShortName, scopeId ?? '—'];
       const f = entities.faculties.find(
         (x) => x.code === d.parentCode,
       );
-      return ['KKU', f?.nameEn ?? '—', d.nameEn];
+      return [orgShortName, f?.nameEn ?? '—', d.nameEn];
     }
     if (level === 'program') {
       const p = entities.programs.find((x) => x.id === scopeId);
-      if (!p) return ['KKU', scopeId ?? '—'];
-      return ['KKU', p.parentCode ?? '—', p.nameEn];
+      if (!p) return [orgShortName, scopeId ?? '—'];
+      return [orgShortName, p.parentCode ?? '—', p.nameEn];
     }
-    return ['KKU'];
-  }, [level, scopeId, entities]);
+    return [orgShortName];
+  }, [level, scopeId, entities, orgShortName]);
 
   const setScope = React.useCallback(
     (nextLevel: ScopeLevel, nextId: string | null) => {
@@ -174,7 +181,7 @@ export function ScopeSelector({ entities, access, onChange }: ScopeSelectorProps
             {access.universityRead && (
               <Command.Group heading={LEVEL_LABEL.university}>
                 <ScopeItem
-                  label="KKU — All programs"
+                  label={`${orgShortName} — All programs`}
                   sub="University-wide rollup"
                   active={level === 'university'}
                   onSelect={() => setScope('university', null)}

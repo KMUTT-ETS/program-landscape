@@ -18,6 +18,7 @@ import {
   staffTrack,
 } from './unicon-codes';
 import { compareThai, compareLevel } from '../education/sorting';
+import { displayShortNames } from '@kku/shared';
 
 // Filter shape shared across the 6 dashboards
 export interface StaffFilter {
@@ -1606,7 +1607,7 @@ export class StaffService {
       },
       caveats: [
         'This dashboard counts ALL staff (employed, retired, formerly-affiliated) — the framing is historical research-output measurement. Forward-looking program scoring (health score, lifecycle verdict) uses only active staff and runs in a separate code path.',
-        'Paper counts (totalPapers, byYear, byFaculty, topVenues, etc.) are distinct papers — a paper with N KKU co-authors counts once. Reconciles with KKU Library dashboard within 5-10% across both Scopus and PubMed.',
+        `Paper counts (totalPapers, byYear, byFaculty, topVenues, etc.) are distinct papers — a paper with N ${displayShortNames().en} co-authors counts once. Reconciles with KKU Library dashboard within 5-10% across both Scopus and PubMed.`,
         'Scopus author resolution path (per KKU Library IT 2026-05-07): scopus_documents → scopus_author_documents → scopus_authors → scopus_author_people → people. The denormalised scopus_author_documents.person_id column is a stale cache (~3y backlog) and is no longer used.',
         'kku-publications:pubmed citation count is 0 because pubmed_documents in the mirror does not carry counts; total citations reflects Scopus only.',
         'Journal quartile (Q1-Q4) is Scopus CiteScore-based, from kku-publications scopus_citescores — the best quartile across the journal’s subject areas for the paper’s year (nearest metric year ≤ publication year). PubMed papers and Scopus papers whose journal has no CiteScore record are "unrated"; the Q1 share is computed against rated papers only.',

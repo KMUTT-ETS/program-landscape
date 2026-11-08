@@ -33,7 +33,7 @@ import {
   sortActionsStrongestFirst,
 } from '@/components/overlap/labels';
 import type { OverlapSibling, ProgramOverlapSection } from './types';
-import { useOrgNames } from './org-context';
+import { useOrgNames } from '@/components/org-names-context';
 
 /** The section's lower bound; siblings below it are never returned (D6). */
 const SIBLING_FLOOR = 30;

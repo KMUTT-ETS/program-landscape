@@ -59,8 +59,8 @@ export class RisksController {
   @Authorized('risks:read:all')
   @Provenance({
     sources: [
-      { id: 'kku-tcas-funnel', name: 'KKU Registry · POWERBI.ADMISSION_STAT_CURRID' },
-      { id: 'kku-finance', name: 'KKU Finance · ERPPowerBI.BudgetData' },
+      { id: 'kku-tcas-funnel', name: 'Registrar · POWERBI.ADMISSION_STAT_CURRID' },
+      { id: 'kku-finance', name: 'Finance · ERPPowerBI.BudgetData' },
       { id: 'program-skills-detailed', name: 'AI-extracted Program ↔ Skill linkage' },
       { id: 'thailand-cohort', name: 'NESDC Population Projection 2010–2040' },
     ],
@@ -111,7 +111,7 @@ export class RisksController {
     sources: [
       { id: 'risk-scoring', name: `${RISK_SCORING_VERSION} KRI evaluator` },
       ...(PROGRAM_OVERLAP_PROVENANCE.sources ?? []),
-      { id: 'kku-tcas-funnel', name: 'KKU Registry · POWERBI.ADMISSION_STAT_CURRID' },
+      { id: 'kku-tcas-funnel', name: 'Registrar · POWERBI.ADMISSION_STAT_CURRID' },
     ],
     methodologyVersion: RISK_SCORING_VERSION,
     caveats: PROGRAM_OVERLAP_PROVENANCE.caveats,
@@ -161,8 +161,8 @@ export class RisksController {
   @Authorized('risks:read:all')
   @Provenance({
     sources: [
-      { id: 'kku-tcas-funnel', name: 'KKU Registry · POWERBI.ADMISSION_STAT_CURRID' },
-      { id: 'kku-policy', name: 'KKU Council intake-floor policy' },
+      { id: 'kku-tcas-funnel', name: 'Registrar · POWERBI.ADMISSION_STAT_CURRID' },
+      { id: 'kku-policy', name: 'Council intake-floor policy' },
     ],
     methodologyVersion: 'risk-scoring.v1',
   })

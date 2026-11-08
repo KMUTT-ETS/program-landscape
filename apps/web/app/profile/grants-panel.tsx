@@ -4,6 +4,7 @@
 // Summarised server-side by summariseStaffGrants(); this file only renders.
 // Budgets are whole-project figures: the source states no per-person share.
 
+import { useOrgNames } from '@/components/org-names-context';
 import * as React from 'react';
 import { HandCoins } from 'lucide-react';
 import type { StaffGrantsSummary } from '@kku/shared';
@@ -38,10 +39,10 @@ const L = {
     empty: 'No external grants on record.',
     unavailable: 'Grants are temporarily unavailable.',
     freshnessLabel: 'grants',
-    source: 'KKU Research & Academic Services (external grants)',
-    caveats: [
+    source: (org: { en: string; th: string }) => `${org.en} Research & Academic Services (external grants)`,
+    caveats: (org: { en: string; th: string }) => [
       'Budget is the whole project budget, not your share.',
-      'Externally funded projects only (ทุนภายนอก). Synced daily from KKU Research Administration.',
+      `Externally funded projects only (ทุนภายนอก). Synced daily from ${org.en} Research Administration.`,
       'Active now counts projects whose start and end dates include today; projects missing either date are not counted.',
     ],
   },
@@ -70,8 +71,8 @@ const L = {
     empty: 'ไม่มีข้อมูลทุนภายนอก',
     unavailable: 'ข้อมูลทุนไม่พร้อมใช้งานชั่วคราว',
     freshnessLabel: 'ข้อมูลทุน',
-    source: 'ระบบงานวิจัยและบริการวิชาการ มข. (ทุนภายนอก)',
-    caveats: [
+    source: (org: { en: string; th: string }) => `ระบบงานวิจัยและบริการวิชาการ ${org.th} (ทุนภายนอก)`,
+    caveats: () => [
       'งบประมาณเป็นงบรวมของโครงการ ไม่ใช่ส่วนของคุณ',
       'เฉพาะโครงการทุนภายนอก ซิงก์ทุกวันจากกองบริหารงานวิจัย',
       'กำลังดำเนินการ นับเฉพาะโครงการที่วันนี้อยู่ระหว่างวันเริ่มและวันสิ้นสุด โครงการที่ไม่มีวันใดวันหนึ่งจะไม่ถูกนับ',
@@ -179,6 +180,7 @@ function GrantsByYearChart({ years, t }: { years: StaffGrantsSummary['byYear']; 
 }
 
 export function GrantsPanel({ state, lang }: { state: GrantsPanelState; lang: Lang }) {
+  const org = useOrgNames();
   const t = L[lang];
   const title = (
     <span className="flex items-center gap-2">
@@ -209,8 +211,8 @@ export function GrantsPanel({ state, lang }: { state: GrantsPanelState; lang: La
             title={t.title}
             meta={{
               freshnessDate: state.freshnessDate,
-              sources: [{ id: 'kku-research-services', name: t.source }],
-              caveats: [...t.caveats],
+              sources: [{ id: 'kku-research-services', name: t.source(org) }],
+              caveats: [...t.caveats(org)],
             }}
           />
         </div>

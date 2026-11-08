@@ -1,3 +1,4 @@
+import { orgShortNamesForRequest } from '@/lib/branding';
 import * as React from 'react';
 import { redirect } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
@@ -25,6 +26,7 @@ export default async function DriversPage() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
+  const org = await orgShortNamesForRequest();
 
   const driversRes = await apiFetchSafe<DriversResponseV2>('/risks/drivers');
   const drivers = driversRes.ok ? driversRes.data : null;
@@ -158,7 +160,7 @@ export default async function DriversPage() {
               <span className="text-xs text-text-tertiary">L1 driver + L3 percentile</span>
             </header>
             <p className="mt-1 text-sm text-text-secondary">
-              Per-program TCAS funnel from KKU Registry (<code className="font-mono">POWERBI.ADMISSION_STAT_CURRID</code>).
+              Per-program TCAS funnel from {org.en} Registry (<code className="font-mono">POWERBI.ADMISSION_STAT_CURRID</code>).
               {' '}
               {drivers.competitiveness.programsRankedCount} undergraduate programs have funnel data and are
               ranked by competition ratio. The in-progress cycle is excluded.

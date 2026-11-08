@@ -1,3 +1,4 @@
+import { orgShortNamesForRequest } from '@/lib/branding';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
@@ -29,20 +30,20 @@ export const metadata = { title: 'Staff dashboard' };
 
 // `programAware` marks tiles a PROGRAM_USER can open. Others 403 at
 // the API guard, so the hub hides them to avoid dead-link UX.
-const TILES: Array<{
+const tiles = (org: { en: string }): Array<{
   href: string;
   icon: typeof Users;
   title: string;
   blurb: string;
   Thumb: typeof WorkforceThumb;
   programAware?: boolean;
-}> = [
+}> => [
   {
     href: '/staff/workforce',
     icon: Users,
     title: 'Who works here',
     blurb:
-      'How many people work at KKU and who they are — by age, years of service, and recent arrivals and departures. Includes a five-year heads-up on who is approaching retirement, with academic and support staff shown side by side.',
+      `How many people work at ${org.en} and who they are — by age, years of service, and recent arrivals and departures. Includes a five-year heads-up on who is approaching retirement, with academic and support staff shown side by side.`,
     Thumb: WorkforceThumb,
   },
   {
@@ -58,7 +59,7 @@ const TILES: Array<{
     icon: Microscope,
     title: 'Research and publications',
     blurb:
-      'Every paper KKU staff have published, including retired faculty. Leads with journal-quality tiers — Tier 1 and Q1, the signal behind QS and THE rankings — then shows how output has grown year by year and which faculties and individuals contribute most.',
+      `Every paper ${org.en} staff have published, including retired faculty. Leads with journal-quality tiers — Tier 1 and Q1, the signal behind QS and THE rankings — then shows how output has grown year by year and which faculties and individuals contribute most.`,
     Thumb: ResearchThumb,
   },
   {
@@ -66,7 +67,7 @@ const TILES: Array<{
     icon: HandCoins,
     title: 'Research and academic service grants',
     blurb:
-      'Externally funded research and academic-service projects won by KKU staff — how many, how much, from which funders, and which faculties take part. A project counts for every faculty on its team; its budget is never split between people.',
+      `Externally funded research and academic-service projects won by ${org.en} staff — how many, how much, from which funders, and which faculties take part. A project counts for every faculty on its team; its budget is never split between people.`,
     Thumb: GrantsThumb,
     // The API admits PROGRAM_USER, rolled up to their program's faculty.
     programAware: true,
@@ -109,6 +110,7 @@ const TILES: Array<{
 ];
 
 export default async function StaffHubPage() {
+  const org = await orgShortNamesForRequest();
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
@@ -127,7 +129,7 @@ export default async function StaffHubPage() {
         title="Staff dashboard"
         subtitle={
           canRefresh
-            ? "A live view of KKU's workforce — academic and support staff together. Refreshes automatically every morning; manual rebuilds live in /admin/dashboard-data-fetch."
+            ? `A live view of ${org.en}'s workforce — academic and support staff together. Refreshes automatically every morning; manual rebuilds live in /admin/dashboard-data-fetch.`
             : isProgramOnly
               ? "Workforce views. Teaching workload is clamped to your program's courses; the rest roll up to your program's faculty."
               : "Your faculty's workforce — academic and support staff together. Refreshed nightly across the whole university."
@@ -135,7 +137,7 @@ export default async function StaffHubPage() {
       />
 
       <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {TILES.map((t) => {
+        {tiles(org).map((t) => {
           const Icon = t.icon;
           const Thumb = t.Thumb;
           return (

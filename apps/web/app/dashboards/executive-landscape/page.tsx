@@ -1,3 +1,4 @@
+import { orgShortNamesForRequest } from '@/lib/branding';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { auth } from '@/lib/auth';
@@ -35,7 +36,10 @@ import { CapabilitySection } from './chapters/capability-section';
 import { FutureSection } from './chapters/future-section';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Executive Landscape · KKU' };
+export async function generateMetadata() {
+  const org = await orgShortNamesForRequest();
+  return { title: `Executive Landscape · ${org.en}` };
+}
 
 export default async function ExecutiveLandscapePage({ searchParams }: { searchParams: { basis?: string } }) {
   const session = await auth();
@@ -46,6 +50,7 @@ export default async function ExecutiveLandscapePage({ searchParams }: { searchP
   // Faculty/program-scoped overviews score TCAS peers against this
   // institution's name (health-score.ts). Self-heals a skipped boot load.
   await ensureOrganizationLoaded();
+  const org = await orgShortNamesForRequest();
 
   // Scope-aware home page. Admin-grade + UNIVERSITY_USER see the full
   // 297-program rollup; FACULTY_USER sees their faculty's slice;
@@ -169,7 +174,7 @@ export default async function ExecutiveLandscapePage({ searchParams }: { searchP
           title="Executive Landscape"
           subtitle={
             isUniversityWide
-              ? `Strategic snapshot of all ${k.programCount} KKU programs across ${k.facultyCount} faculties.`
+              ? `Strategic snapshot of all ${k.programCount} ${org.en} programs across ${k.facultyCount} faculties.`
               : user.role === 'PROGRAM_USER'
                 ? `Strategic snapshot of the program assigned to your account.`
                 : `Strategic snapshot of ${k.programCount} programs in your faculty.`
@@ -205,14 +210,14 @@ export default async function ExecutiveLandscapePage({ searchParams }: { searchP
           />
           <HeroStat
             tone="danger"
-            label="BACHELOR · below KKU floor"
+            label={`BACHELOR · below ${org.en} floor`}
             value={k.intakePolicy.bachelorBreach.toString()}
             sub={`< ${30} intake · closure-track per Council policy`}
           />
         </div>
         {(k.intakePolicy.bachelorBreach > 0 || k.intakePolicy.postgradWatch > 0) && (
           <div className="rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-[11px] text-text-secondary">
-            <strong className="text-warning">KKU intake-floor policy:</strong>{' '}
+            <strong className="text-warning">{org.en} intake-floor policy:</strong>{' '}
             {k.intakePolicy.bachelorBreach} BACHELOR programs in <strong>breach</strong> (intake &lt; 30 — closure-track),{' '}
             {k.intakePolicy.postgradWatch} postgrad programs on <strong>watch list</strong> (intake &lt; 8). {' '}
             {k.intakePolicy.bachelorCompliant + k.intakePolicy.postgradCompliant} compliant ·{' '}
@@ -253,9 +258,9 @@ export default async function ExecutiveLandscapePage({ searchParams }: { searchP
                       provenanceMeta={{
                         freshnessDate: generatedAtIso,
                         sources: [
-                          { id: 'enrollment_metrics', name: 'KKU Registry · enrolment metrics' },
-                          { id: 'financial_metrics', name: 'KKU Finance · revenue + cost' },
-                          { id: 'graduate_outcomes', name: 'KKU Alumni · outcomes' },
+                          { id: 'enrollment_metrics', name: `${org.en} Registry · enrolment metrics` },
+                          { id: 'financial_metrics', name: `${org.en} Finance · revenue + cost` },
+                          { id: 'graduate_outcomes', name: `${org.en} Alumni · outcomes` },
                           { id: 'kmitl_demand', name: 'LinkedIn labour-market skill demand · subscribed by MHESI (API hosted by KMITL)' },
                         ],
                         methodologyVersion: HEALTH_SCORE_VERSION,
@@ -293,7 +298,7 @@ export default async function ExecutiveLandscapePage({ searchParams }: { searchP
                       provenanceMeta={{
                         freshnessDate: overview.lifecycle.latestComputedAt?.toISOString() ?? generatedAtIso,
                         sources: [
-                          { id: 'health_score', name: 'KKU health score (5 dimensions)' },
+                          { id: 'health_score', name: `${org.en} health score (5 dimensions)` },
                           { id: 'ai_readiness', name: 'AI readiness assessment (per-program)' },
                           { id: 'peer_review', name: 'AI peer review · content modernity' },
                         ],
@@ -314,7 +319,7 @@ export default async function ExecutiveLandscapePage({ searchParams }: { searchP
                     {modernityCounts && (
                       <PanelFrame
                         title="Curriculum modernity verdict"
-                        description="Where KKU's AI-reviewed curricula sit on the old-school → frontier spectrum, judged against named peer programs."
+                        description={`Where ${org.en}'s AI-reviewed curricula sit on the old-school → frontier spectrum, judged against named peer programs.`}
                         freshnessDate={generatedAtIso}
                         provenanceMeta={{
                           freshnessDate: generatedAtIso,

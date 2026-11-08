@@ -11,7 +11,7 @@ export class DepartmentsController {
   // empty array via .catch, leaving the dropdown unpopulated.
   @Get()
   @Authorized('departments:read:all')
-  @Provenance({ sources: [{ id: 'kku-reg', name: 'KKU Registration' }] })
+  @Provenance({ sources: [{ id: 'kku-reg', name: 'Registrar records' }] })
   async list(@AuthSession() user: SessionUser) {
     // Scoped users see only their own faculty's departments; admins
     // see all. Same posture as the by-id endpoint below — listing
@@ -28,7 +28,7 @@ export class DepartmentsController {
 
   @Get(':id')
   @Authorized('departments:read:all')
-  @Provenance({ sources: [{ id: 'kku-reg', name: 'KKU Registration' }] })
+  @Provenance({ sources: [{ id: 'kku-reg', name: 'Registrar records' }] })
   async getOne(@AuthSession() user: SessionUser, @Param('id') id: string) {
     const department = await prisma.department.findUnique({ where: { id } });
     if (!department) throw new NotFoundException();
@@ -45,7 +45,7 @@ export class DepartmentsController {
 
   @Get(':id/programs')
   @Authorized('programs:read:all')
-  @Provenance({ sources: [{ id: 'kku-reg', name: 'KKU Registration' }] })
+  @Provenance({ sources: [{ id: 'kku-reg', name: 'Registrar records' }] })
   async programs(@AuthSession() user: SessionUser, @Param('id') id: string) {
     if (!seesAllScopes(user.role)) {
       const dept = await prisma.department.findUnique({

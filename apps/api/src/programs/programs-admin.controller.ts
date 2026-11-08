@@ -68,7 +68,7 @@ export class ProgramsAdminController {
 
   @Get()
   @Authorized('programs:manage:all')
-  @Provenance({ sources: [{ id: 'kku-reg', name: 'KKU Registration' }] })
+  @Provenance({ sources: [{ id: 'kku-reg', name: 'Registrar records' }] })
   async list(
     @Query(new ZodValidationPipe(AdminProgramListQuerySchema))
     q: AdminProgramListQuery,
@@ -92,7 +92,7 @@ export class ProgramsAdminController {
 
   @Get(':id')
   @Authorized('programs:manage:all')
-  @Provenance({ sources: [{ id: 'kku-reg', name: 'KKU Registration' }] })
+  @Provenance({ sources: [{ id: 'kku-reg', name: 'Registrar records' }] })
   async getOne(@Param('id') id: string) {
     return this.svc.getOne(id);
   }
@@ -206,14 +206,14 @@ export class ProgramsAdminController {
 
   @Get('pipeline/stats')
   @Authorized('programs:manage:all')
-  @Provenance({ sources: [{ id: 'kku-reg', name: 'KKU Registration' }] })
+  @Provenance({ sources: [{ id: 'kku-reg', name: 'Registrar records' }] })
   async pipelineStats() {
     return this.svc.getPipelineStats();
   }
 
   @Get('pipeline/bucket/:bucket')
   @Authorized('programs:manage:all')
-  @Provenance({ sources: [{ id: 'kku-reg', name: 'KKU Registration' }] })
+  @Provenance({ sources: [{ id: 'kku-reg', name: 'Registrar records' }] })
   async pipelineBucket(
     @Param('bucket') bucket: string,
     @Query('limit') limitRaw?: string,

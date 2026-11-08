@@ -24,6 +24,7 @@ import type { ApiMeta } from '@kku/shared';
 
 vi.mock('@kku/db', () => ({ RAW_RETENTION_DAYS: 120 }));
 vi.mock('@/lib/auth', () => ({ auth: async () => null }));
+vi.mock('@/lib/branding', () => ({ orgShortNamesForRequest: async () => ({ en: 'University', th: 'มหาวิทยาลัย' }) }));
 vi.mock('@/lib/api-client', () => ({
   apiFetch: async () => null,
   apiFetchEnvelope: async () => null,
@@ -277,7 +278,7 @@ describe('buildHeroStats — the tiles that were already there', () => {
     };
     const labels = buildHeroStats(dataStats, sys, usage).map((s) => s.label);
     expect(labels).toEqual([
-      'KKU programs',
+      'University programs',
       'Live data feeds',
       'Pending review',
       'AI spend · 24h',

@@ -1,3 +1,4 @@
+import { orgShortNamesForRequest } from '@/lib/branding';
 import { redirect } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
@@ -33,6 +34,7 @@ export default async function BenchmarkingPage({
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
+  const org = await orgShortNamesForRequest();
 
   const sp = await searchParams;
   const page = Math.max(1, parseInt(sp.page ?? '1', 10));
@@ -58,7 +60,7 @@ export default async function BenchmarkingPage({
       <PageHeader
         title="Competitive Benchmarking"
         subtitle={
-          `How KKU's curricula stack up against globally-ranked peer programs — content, relevance, ` +
+          `How ${org.en}'s curricula stack up against globally-ranked peer programs — content, relevance, ` +
           `modernization and AI readiness, judged by AI against the actual content of named peers. ` +
           `${hero.programsReviewed} of ${hero.totalActivePrograms} programs have a full peer review.`
         }
@@ -78,7 +80,7 @@ export default async function BenchmarkingPage({
           <header className="mb-3">
             <h3 className="text-sm font-semibold text-text-primary">Curriculum modernity verdict</h3>
             <p className="mt-0.5 text-xs leading-relaxed text-text-tertiary">
-              Where KKU&rsquo;s reviewed curricula sit on the{' '}
+              Where {org.en}&rsquo;s reviewed curricula sit on the{' '}
               <span className="font-medium text-warning">old-school</span> →{' '}
               <span className="font-medium text-success">frontier</span> spectrum — AI-judged against the
               actual content of named peer programs.

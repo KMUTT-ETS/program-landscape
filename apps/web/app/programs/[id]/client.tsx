@@ -32,7 +32,7 @@ import {
   regenerateNarrativeAction,
   submitDisagreementAction,
 } from '@/lib/actions/program-deep-dive';
-import { OrgNamesProvider, useOrgNames } from './org-context';
+import { OrgNamesProvider, useOrgNames } from '@/components/org-names-context';
 import { SectionBand, SectionRail, SpineItem, type RailItem } from '@/components/evidence';
 import { contractionMeterWidth, formatCohortChangePct } from '@/lib/format-cohort';
 // Client-safe SUBPATH, not the `@kku/shared` root barrel — see the note above

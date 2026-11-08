@@ -256,7 +256,7 @@ export async function grantsSourcesWithRows(): Promise<(typeof GRANTS_SOURCES)[n
 const GRANT_SOURCE_CREDITS: Record<(typeof GRANTS_SOURCES)[number], { id: string; name: string }> = {
   'kku-research-services': {
     id: 'kku-research-services',
-    name: 'KKU Research & Academic Services (external grants)',
+    name: 'Research & Academic Services (external grants)',
   },
   'xlsx-external-grants': {
     id: 'xlsx-external-grants',

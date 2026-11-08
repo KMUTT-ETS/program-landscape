@@ -10,7 +10,7 @@ import { ApiError, type ApiMeta } from '@kku/shared';
 import { CacheService } from '../common/cache.service';
 
 const CAVEATS = [
-  'Faculty figures count a project for every faculty with a team member on it, so they add up to more than the KKU total.',
+  'Faculty figures count a project for every faculty with a team member on it, so they add up to more than the university total.',
   'Budget is the whole project budget. It is not split between team members or faculties.',
   'Covers externally funded projects only (ทุนภายนอก). วิทยาลัยการปกครองท้องถิ่น holds about a third of all projects, mostly small academic-service projects — compare money as well as counts.',
   'Staff are matched to HR records by citizen-id hash or email (leads) and HR employee id (co-investigators); unmatched people still count in project totals.',

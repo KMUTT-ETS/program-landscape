@@ -39,7 +39,7 @@ type ListQuery = z.infer<typeof ListQuerySchema>;
 export class SkillsController {
   @Get()
   @Authorized('programs:read:all')
-  @Provenance({ sources: [{ id: 'skills', name: 'KKU Skill Taxonomy' }] })
+  @Provenance({ sources: [{ id: 'skills', name: 'Skill taxonomy' }] })
   async list(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(ListQuerySchema)) q: ListQuery,
@@ -83,7 +83,7 @@ export class SkillsController {
   // a coherent path down to each leaf.
   @Get('tree')
   @Authorized('programs:read:all')
-  @Provenance({ sources: [{ id: 'skills', name: 'KKU Skill Taxonomy' }] })
+  @Provenance({ sources: [{ id: 'skills', name: 'Skill taxonomy' }] })
   async tree(
     @AuthSession() user: SessionUser,
     @Query(new ZodValidationPipe(ListQuerySchema)) q: ListQuery,
@@ -136,7 +136,7 @@ export class SkillsController {
 
   @Get(':id')
   @Authorized('programs:read:all')
-  @Provenance({ sources: [{ id: 'skills', name: 'KKU Skill Taxonomy' }] })
+  @Provenance({ sources: [{ id: 'skills', name: 'Skill taxonomy' }] })
   async detail(
     @AuthSession() user: SessionUser,
     @Param('id') id: string,

@@ -557,7 +557,7 @@ function EditDraftForm({
             placeholder={
               draft.kind === 'URL_LIST'
                 ? 'https://www.weforum.org/agenda/...\nhttps://...'
-                : 'มหาวิทยาลัยขอนแก่น เปิดหลักสูตร\nThailand higher education policy 2026'
+                : 'มหาวิทยาลัย เปิดหลักสูตรใหม่\nThailand higher education policy 2026'
             }
             className="input font-mono text-xs"
           />

@@ -2,6 +2,7 @@ import { cache } from 'react';
 import { unstable_noStore as noStore } from 'next/cache';
 import { assetToken, getOrganizationProfile, organizationTagline } from '@kku/db';
 import { brandCss } from '@kku/shared/brand';
+import { DEFAULT_ORG_SHORT_NAMES, type OrgShortNames } from './org-names';
 
 type OrganizationProfile = NonNullable<Awaited<ReturnType<typeof getOrganizationProfile>>>;
 
@@ -56,6 +57,12 @@ export const brandingForRequest = cache(async (): Promise<Branding | null> => {
     return null;
   }
 });
+
+/** The organisation's short names for this request; neutral defaults before setup. */
+export async function orgShortNamesForRequest(): Promise<OrgShortNames> {
+  const b = await brandingForRequest();
+  return b ? { en: b.shortNameEn, th: b.shortNameTh } : DEFAULT_ORG_SHORT_NAMES;
+}
 
 export function brandMetadata(b: Branding | null): {
   title: { default: string; template: string };

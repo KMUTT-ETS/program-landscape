@@ -1,3 +1,4 @@
+import { orgShortNamesForRequest } from '@/lib/branding';
 import { redirect } from 'next/navigation';
 import { canSeeProgramAwareDashboards, isUniversityWide, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
@@ -22,6 +23,7 @@ export default async function RecruitmentCampaignsPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  const org = await orgShortNamesForRequest();
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
@@ -62,7 +64,7 @@ export default async function RecruitmentCampaignsPage({
       <EducationBackLink />
       <PageHeader
         title="Actual Recruitment Campaigns"
-        subtitle="The practical recruitment grain — one row per campaign track (competency / language / exam option / quota type / branch-campus intake) within a program × round × year. Source: KKU Registry POWERBI.ADMISSION_STAT. The current cycle stays informational; headline metrics use the latest completed cohort."
+        subtitle={`The practical recruitment grain — one row per campaign track (competency / language / exam option / quota type / branch-campus intake) within a program × round × year. Source: ${org.en} Registry POWERBI.ADMISSION_STAT. The current cycle stays informational; headline metrics use the latest completed cohort.`}
       />
       <CampaignsClient data={data} facultyFilterLocked={facultyFilterLocked} />
     </AuthedAppShell>

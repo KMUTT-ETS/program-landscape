@@ -24,7 +24,7 @@ export default function PublicProfileLayout({
               href="/"
               className="font-medium text-text-secondary hover:text-accent-default hover:underline"
             >
-              KKU Program Landscape
+              Program Landscape
             </a>
           </span>
           <CopyrightFooter />

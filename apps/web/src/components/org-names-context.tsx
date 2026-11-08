@@ -4,8 +4,8 @@ import * as React from 'react';
 
 import { DEFAULT_ORG_SHORT_NAMES, type OrgShortNames } from '@/lib/org-names';
 
-export { DEFAULT_ORG_SHORT_NAMES, type OrgShortNames };
-
+// Mounted once in the root layout from the organisation profile, so any
+// client component can name the institution without prop-drilling.
 const OrgNamesContext = React.createContext<OrgShortNames>(DEFAULT_ORG_SHORT_NAMES);
 
 export function OrgNamesProvider({

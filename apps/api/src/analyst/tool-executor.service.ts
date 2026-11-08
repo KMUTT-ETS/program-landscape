@@ -51,6 +51,7 @@ import {
   type BaselineProgram,
   type Intervention,
   type ToolCall,
+  displayShortNames,
 } from '@kku/shared';
 import { pickProjectionSource, listPortfolioRisk, scopeFunnelLatestYear, getAcademicYearContext, entryYearComplete, campaignPlanKey } from '@kku/db';
 
@@ -561,7 +562,7 @@ export class AnalystToolExecutor {
             name: 'gap-map',
             version: GAP_MAP_VERSION,
             summary:
-              "One row per canonical field of study. Demand share = eligible bachelor-level JobThai adverts naming any synonym of the field ÷ the sum of that count over all fields; supply share = graduates per year of the field's scored programmes ÷ the same sum over fields. Verdict is share vs share: below `under` (default 0.5) under-served, above `over` (default 2) over-served. No KKU programme at all → white-space. Programmes but no graduate figure → supply-unknown, which is a missing measurement and not a shortfall. Below the honest-signal posting floor → too-few-postings.",
+              "One row per canonical field of study. Demand share = eligible bachelor-level JobThai adverts naming any synonym of the field ÷ the sum of that count over all fields; supply share = graduates per year of the field's scored programmes ÷ the same sum over fields. Verdict is share vs share: below `under` (default 0.5) under-served, above `over` (default 2) over-served. No " + displayShortNames().en + " programme at all → white-space. Programmes but no graduate figure → supply-unknown, which is a missing measurement and not a shortfall. Below the honest-signal posting floor → too-few-postings.",
             docPath: 'docs/methodologies/gap-map.md',
           };
         case 'gap-analysis':

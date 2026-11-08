@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
+import { orgShortNamesForRequest } from '@/lib/branding';
 import { apiFetch } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { Badge, Button, EdgeGlow, PageHeader } from '@kku/ui';
@@ -45,6 +46,8 @@ export default async function AdminPdfLibraryPage({
 
   const isSuper = user.role === 'SUPER_ADMIN';
 
+  const org = await orgShortNamesForRequest();
+
   return (
     <AuthedAppShell user={user}>
       <div className="flex items-baseline gap-3 mb-2">
@@ -66,7 +69,7 @@ export default async function AdminPdfLibraryPage({
             <span>PDF library</span>
           </div>
         }
-        subtitle="Non-curriculum PDFs — government, MHESI, KKU, faculty policy + reports. Re-extract on failure, archive when stale, deprecate when superseded, delete when no longer relevant."
+        subtitle={`Non-curriculum PDFs — government, MHESI, ${org.en}, faculty policy + reports. Re-extract on failure, archive when stale, deprecate when superseded, delete when no longer relevant.`}
         actions={
           <div className="flex items-center gap-2">
             <Badge tone="neutral">{data.total.toLocaleString()} total</Badge>

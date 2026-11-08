@@ -1,3 +1,4 @@
+import { orgShortNamesForRequest } from '@/lib/branding';
 import * as React from 'react';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
@@ -64,6 +65,7 @@ export default async function ProgramRiskPage({ params }: { params: Promise<{ id
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
+  const org = await orgShortNamesForRequest();
   const { id } = await params;
 
   const profileRes = await apiFetchSafe<ProgramProfileResponse>(`/risks/programs/${id}`);
@@ -164,6 +166,7 @@ export default async function ProgramRiskPage({ params }: { params: Promise<{ id
                 likelihoodBin={a.likelihoodBin}
                 impactBin={a.impactBin}
                 matrixScore={a.kkuMatrixScore}
+                orgName={org.en}
               />
             )}
           </section>
@@ -618,12 +621,14 @@ function DivergenceExplainer({
   likelihoodBin,
   impactBin,
   matrixScore,
+  orgName,
 }: {
   tier: RiskTier;
   kkuRiskLevel: 'NEEDS_DATA' | 'LOW' | 'MODERATE' | 'HIGH' | 'VERY_HIGH';
   likelihoodBin: number;
   impactBin: number;
   matrixScore: number | null;
+  orgName: string;
 }) {
   const likelihoodWord =
     tier === 'CRITICAL'
@@ -662,7 +667,7 @@ function DivergenceExplainer({
       <span className="text-text-tertiary">→ ERM band</span>{' '}
       <span className="font-semibold capitalize">{ermWord}</span>
       <span className="ml-2 text-[10px] text-text-tertiary">
-        Risk = Likelihood × Impact (KKU criteria: 1–4 low · 5–9 moderate · 10–15 high · 16–25 very high)
+        Risk = Likelihood × Impact ({orgName} criteria: 1–4 low · 5–9 moderate · 10–15 high · 16–25 very high)
       </span>
     </div>
   );

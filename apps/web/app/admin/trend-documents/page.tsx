@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
+import { orgShortNamesForRequest } from '@/lib/branding';
 import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { AdminBackNav } from '@/components/admin-back-nav';
@@ -19,12 +20,14 @@ export default async function AdminTrendDocumentsPage() {
 
   const initial = await apiFetchSafe<TrendDocumentRow[]>('/admin/trend-documents?limit=100');
 
+  const org = await orgShortNamesForRequest();
+
   return (
     <AuthedAppShell user={user}>
       <AdminBackNav current="Add signal from document" />
       <PageHeader
         title="Add signal from document"
-        subtitle="Upload a PDF (e.g. a manpower-demand or job-posting report) or paste a URL. AI reads it, drafts a trend signal, and publishes it to the Trends Radar — then tags the KKU programs and skills it affects and the actions it implies."
+        subtitle={`Upload a PDF (e.g. a manpower-demand or job-posting report) or paste a URL. AI reads it, drafts a trend signal, and publishes it to the Trends Radar — then tags the ${org.en} programs and skills it affects and the actions it implies.`}
       />
       <TrendDocumentsClient initial={initial.ok ? initial.data : []} />
     </AuthedAppShell>

@@ -20,6 +20,7 @@ import {
   DashComputeInputSchema,
   CiteSourceInputSchema,
   type ToolCall,
+  displayShortNames,
 } from '@kku/shared';
 import { EducationService } from '../education/education.service';
 import { RecruitmentService } from '../education/recruitment.service';
@@ -130,7 +131,7 @@ export class DashboardToolExecutor {
           matchedCount: res.bySchool.length,
           note:
             res.bySchool.length === 0
-              ? 'No school in the active-student dataset matches that substring. The dataset only carries schools that have sent at least one student to KKU in the cohort window; if the school exists but appears empty, the bot should phrase: "we have no record of students from <name>".'
+              ? `No school in the active-student dataset matches that substring. The dataset only carries schools that have sent at least one student to ${displayShortNames().en} in the cohort window; if the school exists but appears empty, the bot should phrase: "we have no record of students from <name>".`
               : undefined,
         };
       }

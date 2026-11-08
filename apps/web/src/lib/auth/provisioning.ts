@@ -87,7 +87,7 @@ function looksThai(s: string | null | undefined): boolean {
 
 export async function provisionFromSsonext(claims: SsonextClaims): Promise<User> {
   if (!claims.email) {
-    throw new Error('KKU SSO did not return an email; cannot provision user.');
+    throw new Error('SSO did not return an email; cannot provision user.');
   }
 
   // Build the OR clause defensively — empty ssoSubject would match any

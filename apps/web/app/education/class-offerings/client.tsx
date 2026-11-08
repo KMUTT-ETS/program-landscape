@@ -1,5 +1,6 @@
 'use client';
 
+import { useOrgNames } from '@/components/org-names-context';
 import * as React from 'react';
 import { Card } from '@kku/ui';
 import { ChevronRight } from 'lucide-react';
@@ -75,6 +76,7 @@ export function ClassOfferingsClient({
   deepDive,
   scopeFaculties,
 }: Props) {
+  const org = useOrgNames();
   const snapLabel =
     summary && summary.acadYearBE && summary.semester
       ? `BE ${summary.acadYearBE} · ${SEMESTER_LABEL[summary.semester] ?? `Sem ${summary.semester}`}`
@@ -116,7 +118,7 @@ export function ClassOfferingsClient({
           <KpiTile
             label="Teachers in front of class"
             value={fmt(summary.distinctTeachers)}
-            tooltip="Distinct KKU emails appearing in the registrar's KKUMAIL field (de-duped per CLASSID)."
+            tooltip={`Distinct ${org.en} emails appearing in the registrar's KKUMAIL field (de-duped per CLASSID).`}
           />
           <KpiTile
             label="Credits delivered"
@@ -275,7 +277,7 @@ export function ClassOfferingsClient({
           <p className="text-xs text-fg-3 mb-3">
             Gen-ed = course codes starting with <code>00</code> or
             <code> GE</code>, plus the GE Institute and Language
-            Institute catalogues. Every KKU undergrad takes these — fill
+            Institute catalogues. Every {org.en} undergrad takes these — fill
             rates are usually very high, so the under-filled bars are
             the ones to chase.
           </p>

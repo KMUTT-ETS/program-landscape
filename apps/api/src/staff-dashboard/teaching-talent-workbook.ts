@@ -6,6 +6,7 @@ import {
   splitPersonName,
   type TeachingTalentResult,
 } from '@kku/db';
+import { displayShortNames } from '@kku/shared';
 
 // Thai rank labels. The staff-profile builder has its own map
 // (RANK_LABEL in packages/db/src/staff-profile/profile.ts), not exported,
@@ -172,7 +173,7 @@ export function buildTalentWorkbook(
   // ── Sheet 3: About ───────────────────────────────────────────────────
   const aboutSheet = XLSX.utils.aoa_to_sheet([
     ['Field', 'Value'],
-    ['Report', 'KKU Teaching and Learning Talent'],
+    ['Report', `${displayShortNames().en} Teaching and Learning Talent`],
     [
       // TALENT_WINDOW_YEARS, never years.length. The rule is always
       // three years; years.length is how many the DATA supports. On thin

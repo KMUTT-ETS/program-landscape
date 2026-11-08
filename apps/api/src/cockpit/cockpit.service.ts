@@ -18,6 +18,7 @@ import {
   type AiProviderId,
   type AiService,
   type ScopeLevel,
+  displayShortNames,
 } from '@kku/shared';
 import { PrismaAiInferenceRecorder, getAiModelOverrideStore } from '@kku/db';
 
@@ -152,7 +153,7 @@ export class CockpitService implements OnModuleInit {
     return {
       methodologyVersion: HEALTH_SCORE_VERSION,
       axisX: { label: 'Market demand (5-yr trend)', minLabel: 'Declining', maxLabel: 'Growing' },
-      axisY: { label: 'KKU competitive position', minLabel: 'Weak', maxLabel: 'Strong' },
+      axisY: { label: `${displayShortNames().en} competitive position`, minLabel: 'Weak', maxLabel: 'Strong' },
       sizeLabel: 'Annual revenue',
       colorLabel: 'Net contribution',
       bubbles,
@@ -242,7 +243,7 @@ export class CockpitService implements OnModuleInit {
         {
           role: 'system',
           content:
-            'You are writing a Council-facing brief for KKU senior leadership. Be precise, cite the specific programs + scores you reference, acknowledge data gaps explicitly. Never fabricate numbers. Output Thai primary.',
+            `You are writing a Council-facing brief for ${displayShortNames().en} senior leadership. Be precise, cite the specific programs + scores you reference, acknowledge data gaps explicitly. Never fabricate numbers. Output Thai primary.`,
         },
         {
           role: 'user',

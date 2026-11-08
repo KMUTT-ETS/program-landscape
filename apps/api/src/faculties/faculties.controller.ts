@@ -6,7 +6,7 @@ import { Authorized, Provenance } from '../common';
 export class FacultiesController {
   @Get()
   @Authorized('faculties:read:all')
-  @Provenance({ sources: [{ id: 'kku-reg', name: 'KKU Registration' }] })
+  @Provenance({ sources: [{ id: 'kku-reg', name: 'Registrar records' }] })
   async list(
     @Query('hasPrograms') hasProgramsRaw?: string,
   ): Promise<Prisma.FacultyGetPayload<Record<string, never>>[]> {
@@ -29,7 +29,7 @@ export class FacultiesController {
 
   @Get(':id')
   @Authorized('faculties:read:all')
-  @Provenance({ sources: [{ id: 'kku-reg', name: 'KKU Registration' }] })
+  @Provenance({ sources: [{ id: 'kku-reg', name: 'Registrar records' }] })
   async getOne(@Param('id') id: string) {
     const faculty = await prisma.faculty.findUnique({ where: { id } });
     if (!faculty) throw new NotFoundException();
@@ -38,7 +38,7 @@ export class FacultiesController {
 
   @Get(':id/departments')
   @Authorized('departments:read:all')
-  @Provenance({ sources: [{ id: 'kku-reg', name: 'KKU Registration' }] })
+  @Provenance({ sources: [{ id: 'kku-reg', name: 'Registrar records' }] })
   async departments(@Param('id') id: string) {
     return prisma.department.findMany({
       where: { facultyId: id },

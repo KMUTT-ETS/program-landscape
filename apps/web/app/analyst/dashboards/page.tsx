@@ -1,3 +1,4 @@
+import { orgShortNamesForRequest } from '@/lib/branding';
 import { redirect } from 'next/navigation';
 import type { SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
@@ -37,6 +38,7 @@ export default async function AnalystDashboardsPage({
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   if (!user?.userId) redirect('/signin');
+  const org = await orgShortNamesForRequest();
 
   const sp = await searchParams;
 
@@ -69,7 +71,7 @@ export default async function AnalystDashboardsPage({
           activeConversation={activeConversation}
           kind="DASHBOARD"
           basePath="/analyst/dashboards"
-          emptyState={<DashboardsEmptyState />}
+          emptyState={<DashboardsEmptyState org={org} />}
           placeholder="เช่น มีนักศึกษาที่กำลังศึกษาอยู่กี่คน · How many staff retire within 5 years? · What's the GPA in Faculty of Medicine?"
         />
       )}
@@ -77,7 +79,7 @@ export default async function AnalystDashboardsPage({
   );
 }
 
-function DashboardsEmptyState() {
+function DashboardsEmptyState({ org }: { org: { th: string } }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
       <h3 className="text-sm font-semibold text-text-primary">
@@ -92,12 +94,12 @@ function DashboardsEmptyState() {
         instead.
       </p>
       <div className="flex max-w-md flex-col gap-1 text-left text-xs text-text-tertiary">
-        <span>• KKU มีนักศึกษาที่กำลังศึกษาอยู่ทั้งหมดกี่คน แยกตามคณะ</span>
+        <span>• {org.th} มีนักศึกษาที่กำลังศึกษาอยู่ทั้งหมดกี่คน แยกตามคณะ</span>
         <span>• Which Thai region sends the most students to Engineering?</span>
         <span>• ค่า GPA เฉลี่ยของคณะแพทยศาสตร์ปีล่าสุดเป็นเท่าไหร่</span>
         <span>• How many academic staff retire within the next 5 years?</span>
         <span>• Which faculty has the heaviest teaching workload?</span>
-        <span>• แนวโน้มรายได้ค่าเล่าเรียนของ KKU ในช่วง 5 ปีที่ผ่านมา</span>
+        <span>• แนวโน้มรายได้ค่าเล่าเรียนของ {org.th} ในช่วง 5 ปีที่ผ่านมา</span>
       </div>
     </div>
   );

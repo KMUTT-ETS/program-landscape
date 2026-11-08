@@ -15,6 +15,7 @@ import {
   type Tone,
   type Unplotted,
 } from './types';
+import { displayShortNames } from '@kku/shared';
 
 // ── Growth–share ───────────────────────────────────────────────────────
 
@@ -180,7 +181,7 @@ export function buildHealthRisk(rows: readonly HealthRiskInput[]): QuadrantChart
       values: {
         Code: r.code,
         'Health score': round1(r.health),
-        'KKU risk score (1–25)': r.riskMatrixScore,
+        [`${displayShortNames().en} risk score (1–25)`]: r.riskMatrixScore,
         'Risk level': r.riskLevel,
         'Active students': r.activeStudents,
       },
@@ -233,7 +234,7 @@ function positionAnswer(gs: QuadrantChart<GrowthQuadrant>, hr: QuadrantChart<Act
   const dogText = `${dogs} ${dogs === 1 ? 'is a Dog' : 'are Dogs'} on the growth–share matrix.`;
   if (hr.points.length > 0) {
     const n = hr.counts['act-now'];
-    const head = `bachelor ${n === 1 ? 'programme sits' : 'programmes sit'} in "act now" (health below 65 and KKU risk score 10 or more)`;
+    const head = `bachelor ${n === 1 ? 'programme sits' : 'programmes sit'} in "act now" (health below 65 and ${displayShortNames().en} risk score 10 or more)`;
     return { figure: String(n), sentence: gs.points.length > 0 ? `${head}; ${dogText}` : `${head}.` };
   }
   if (gs.points.length > 0) {

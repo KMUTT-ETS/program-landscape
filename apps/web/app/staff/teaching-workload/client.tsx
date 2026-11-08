@@ -1,5 +1,6 @@
 'use client';
 
+import { useOrgNames } from '@/components/org-names-context';
 import * as React from 'react';
 import { Card } from '@kku/ui';
 import { ChevronRight } from 'lucide-react';
@@ -72,6 +73,7 @@ export function TeachingWorkloadClient({
   teachers,
   scopeFaculties,
 }: Props) {
+  const org = useOrgNames();
   const snapLabel =
     summary && summary.acadYearBE && summary.semester
       ? `BE ${summary.acadYearBE} · ${SEMESTER_LABEL[summary.semester] ?? `Sem ${summary.semester}`}`
@@ -96,13 +98,13 @@ export function TeachingWorkloadClient({
           <KpiTile
             label="Distinct teachers"
             value={fmt(summary.totalTeachers)}
-            tooltip="Distinct KKU emails appearing in the registrar's KKUMAIL field across every section in scope."
+            tooltip={`Distinct ${org.en} emails appearing in the registrar's KKUMAIL field across every section in scope.`}
           />
           <KpiTile
             label="Avg hrs / week"
             value={summary.avgContactHrsPerTeacher.toFixed(1)}
             hint="contact hours · per teacher · per week"
-            tooltip="Σ (lecture + lab hours per week) ÷ teacher count. KKU's expected full-time load is roughly 9–15 hours/week."
+            tooltip={`Σ (lecture + lab hours per week) ÷ teacher count. ${org.en}'s expected full-time load is roughly 9–15 hours/week.`}
           />
           <KpiTile
             label="Total contact hrs / wk"
@@ -125,14 +127,14 @@ export function TeachingWorkloadClient({
             label="Resolved teachers"
             value={fmt(summary.resolvedTeachers)}
             hint="matched to a staff record"
-            tooltip="Teachers whose KKU email matches a FacultyMember row from HCM."
+            tooltip={`Teachers whose ${org.en} email matches a FacultyMember row from HCM.`}
           />
           <KpiTile
             label="Unresolved teachers"
             value={fmt(summary.unresolvedTeachers)}
             hint="external lecturers / HCM gaps"
             tone={summary.unresolvedTeachers > 0 ? 'warning' : undefined}
-            tooltip="KKU emails on KKUMAIL with no matching staff record — usually external lecturers, retired staff, or HCM-not-yet-ingested."
+            tooltip={`${org.en} emails on KKUMAIL with no matching staff record — usually external lecturers, retired staff, or HCM-not-yet-ingested.`}
           />
           <KpiTile label="Sections" value={fmt(summary.totalSections)} tooltip="Distinct class sections opened in this snapshot." />
         </div>
@@ -146,7 +148,7 @@ export function TeachingWorkloadClient({
           </h2>
           <p className="text-xs text-fg-3 mb-3">
             Each bar is a teacher count, bucketed by total weekly contact
-            hours. KKU's expected full-time load is 9–15 hrs/week
+            hours. {org.en}'s expected full-time load is 9–15 hrs/week
             (green band). Bars in the red band are heavy delivery loads —
             worth checking whether team-teaching is mis-attributed.
           </p>

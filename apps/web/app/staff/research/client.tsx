@@ -8,6 +8,7 @@
 // kku-hr-sourced rows so rank=LECTURER placeholders on kkupub_-backfilled
 // rows don't skew the averages.
 
+import { useOrgNames } from '@/components/org-names-context';
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, useSortableTable, SortableTh } from '@kku/ui';
@@ -51,6 +52,7 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 
 export function ResearchClient({ data, options, initialFilters }: Props) {
+  const org = useOrgNames();
   const router = useRouter();
   const [faculty, setFaculty] = React.useState<string[]>(initialFilters.facultyName);
   const [sources, setSources] = React.useState<string[]>(initialFilters.sources);
@@ -237,7 +239,7 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
           <div>
             <h2 className="text-base font-semibold">Journal quartile · Scopus CiteScore</h2>
             <p className="mt-0.5 text-xs text-text-tertiary">
-              KKU&apos;s strategic quality signal for QS &amp; THE rankings. Best quartile
+              {org.en}&apos;s strategic quality signal for QS &amp; THE rankings. Best quartile
               across the journal&apos;s subject areas per paper-year (Tier 1 = top 10%, a
               subset of Q1 = top 25%). Distinct papers; shares are against rated papers.
             </p>
@@ -273,7 +275,7 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
       </Card>
 
       {/* Contributors — Faculty → Author, ranked by Tier 1 / Q1 output.
-          Who drives KKU's high-tier publication record. */}
+          Who drives the university's high-tier publication record. */}
       <Card>
         <h3 className="text-sm font-semibold">Contributors — faculty &amp; individual</h3>
         <p className="mt-1 text-xs text-text-tertiary">
@@ -320,7 +322,7 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
         <Card>
           <h3 className="text-sm font-semibold">Papers per year, by source</h3>
           <p className="mt-1 text-xs text-text-tertiary">
-            Window {data.yearFrom}–{data.yearTo}. {data.byYear.length} years observed. The Scopus line drops sharply after 2021 — that's a KKU Library curator backlog, not a publication-rate decline (see Caveats below).
+            Window {data.yearFrom}–{data.yearTo}. {data.byYear.length} years observed. The Scopus line drops sharply after 2021 — that's a {org.en} Library curator backlog, not a publication-rate decline (see Caveats below).
           </p>
           <YearTrend data={data.byYear} />
         </Card>
@@ -473,7 +475,7 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
       <Card>
         <h3 className="text-sm font-semibold">Top venues</h3>
         <p className="mt-1 text-xs text-text-tertiary">
-          Top 15 journals / conferences by KKU paper count. Bar length is proportional to the leader.
+          Top 15 journals / conferences by {org.en} paper count. Bar length is proportional to the leader.
         </p>
         <div className="mt-3 flex flex-col gap-1.5 text-xs">
           {data.topVenues.map((v) => {
@@ -536,10 +538,10 @@ export function ResearchClient({ data, options, initialFilters }: Props) {
       <Card>
         <div className="text-xs text-text-secondary space-y-1">
           <div>
-            <strong className="text-text-primary">Source:</strong> internal kku-publications mirror at 10.130.2.151 (<code>kku-research</code> connector v2). Curator-grade KKU author resolution via <code>{'<source>_authors.person_id'}</code> → <code>people.id</code> → <code>faculty_id</code>.
+            <strong className="text-text-primary">Source:</strong> internal kku-publications mirror at 10.130.2.151 (<code>kku-research</code> connector v2). Curator-grade {org.en} author resolution via <code>{'<source>_authors.person_id'}</code> → <code>people.id</code> → <code>faculty_id</code>.
           </div>
           <div>
-            <strong className="text-text-primary">Staff coverage:</strong> {data.activeFormerSplit.active.toLocaleString('en-US')} active + {data.activeFormerSplit.former.toLocaleString('en-US')} former staff. Of publishing authors: {data.activeFormerSplit.activePublishing.toLocaleString('en-US')} active, {data.activeFormerSplit.formerPublishing.toLocaleString('en-US')} former. "Former" means not currently employed at KKU per HR records (or no paper in last 2 years for publication-only entries).
+            <strong className="text-text-primary">Staff coverage:</strong> {data.activeFormerSplit.active.toLocaleString('en-US')} active + {data.activeFormerSplit.former.toLocaleString('en-US')} former staff. Of publishing authors: {data.activeFormerSplit.activePublishing.toLocaleString('en-US')} active, {data.activeFormerSplit.formerPublishing.toLocaleString('en-US')} former. "Former" means not currently employed at {org.en} per HR records (or no paper in last 2 years for publication-only entries).
           </div>
           {data.caveats.map((c, i) => (
             <div key={i}>

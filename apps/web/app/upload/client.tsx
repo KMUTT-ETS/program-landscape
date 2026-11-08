@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { useOrgNames } from '@/components/org-names-context';
 import {
   Badge,
   Button,
@@ -46,6 +47,7 @@ const CATEGORY_OPTIONS = [
 ];
 
 export function UploadClient() {
+  const org = useOrgNames();
   const router = useRouter();
   const [files, setFiles] = React.useState<FileEntry[]>([]);
   const [sourceCategory, setSourceCategory] = React.useState('');
@@ -191,7 +193,7 @@ export function UploadClient() {
           <Input
             value={sourceOrg}
             onChange={(e) => setSourceOrg(e.target.value)}
-            placeholder="MHESI / NESDC / NSO / KKU Engineering / …"
+            placeholder={`MHESI / NESDC / NSO / ${org.en} Engineering / …`}
           />
         </div>
         <div className="flex flex-col gap-1">

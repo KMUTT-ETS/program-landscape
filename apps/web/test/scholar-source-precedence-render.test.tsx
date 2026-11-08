@@ -120,18 +120,18 @@ describe('source composition — after a Scholar import', () => {
   });
 
   it('says what the library index is now for, rather than dropping it', () => {
-    expect(rows.map((r) => r.dt)).toContain('KKU library index — kept as failover');
+    expect(rows.map((r) => r.dt)).toContain('University library index — kept as failover');
   });
 
   it('leads with the primary source', () => {
     expect(rows[0]!.dt).toContain('Google Scholar');
-    expect(rows[1]!.dt).toContain('KKU library index');
+    expect(rows[1]!.dt).toContain('University library index');
   });
 
   it('keeps each count on its own source', () => {
     expect(rows).toEqual([
       { dt: 'Google Scholar primary source', dd: '22 papers' },
-      { dt: 'KKU library index — kept as failover', dd: '6 papers' },
+      { dt: 'University library index — kept as failover', dd: '6 papers' },
     ]);
   });
 
@@ -147,7 +147,7 @@ describe('source composition — no Scholar import yet', () => {
 
   it('leaves the library index as the primary source, leading', () => {
     expect(rows).toEqual([
-      { dt: 'KKU library index primary source', dd: '184 papers' },
+      { dt: 'University library index primary source', dd: '184 papers' },
       { dt: 'Google Scholar — not fetched yet', dd: '0 papers' },
     ]);
   });
@@ -167,7 +167,7 @@ describe('source composition — counts unavailable', () => {
 
   it('marks neither source primary and asserts nothing about either', () => {
     expect(rows).toEqual([
-      { dt: 'KKU library index', dd: 'count unavailable' },
+      { dt: 'University library index', dd: 'count unavailable' },
       { dt: 'Google Scholar', dd: 'count unavailable' },
     ]);
   });

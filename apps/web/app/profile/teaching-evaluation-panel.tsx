@@ -6,6 +6,7 @@
 // a value off a polygon. Data is summarised server-side by
 // summariseTeachingEvaluation(); this file only renders it.
 
+import { useOrgNames } from '@/components/org-names-context';
 import * as React from 'react';
 import { Card, FreshnessBadge, ProvenanceButton, RadarChartSmall, Section, type RadarPoint } from '@kku/ui';
 import { ClipboardCheck } from 'lucide-react';
@@ -38,7 +39,7 @@ export const TEACHING_EVALUATION_LABELS = {
     unavailable: 'Teaching evaluations are temporarily unavailable.',
     nd: 'n/d',
     freshnessLabel: 'student evaluations',
-    sourceName: 'KKU student course evaluations',
+    sourceName: (org: { en: string; th: string }) => `${org.en} student course evaluations`,
     caveats: [
       'Ratings are on a 1–5 scale; category scores are respondent-weighted means of their questions.',
       'Answers count each question answered, not students.',
@@ -63,7 +64,7 @@ export const TEACHING_EVALUATION_LABELS = {
     unavailable: 'ผลการประเมินการสอนไม่พร้อมใช้งานชั่วคราว',
     nd: 'n/d',
     freshnessLabel: 'ผลการประเมินจากนักศึกษา',
-    sourceName: 'ผลการประเมินรายวิชาโดยนักศึกษา มข.',
+    sourceName: (org: { en: string; th: string }) => `ผลการประเมินรายวิชาโดยนักศึกษา ${org.th}`,
     caveats: [
       'คะแนนอยู่ในช่วง 1–5 คะแนนรายหมวดเป็นค่าเฉลี่ยของข้อคำถามในหมวด ถ่วงน้ำหนักด้วยจำนวนผู้ตอบ',
       'จำนวนคำตอบนับต่อข้อที่ตอบ ไม่ใช่จำนวนนักศึกษา',
@@ -107,6 +108,7 @@ export function TeachingEvaluationPanel({
   summary: TeachingEvaluationSummary | null | 'unavailable';
   lang: Lang;
 }) {
+  const org = useOrgNames();
   const l = L[lang];
   const title = (
     <span className="flex items-center gap-2">
@@ -161,7 +163,7 @@ export function TeachingEvaluationPanel({
             title={l.title}
             meta={{
               freshnessDate: summary.freshnessDate,
-              sources: [{ id: 'kku-evaluations', name: l.sourceName }],
+              sources: [{ id: 'kku-evaluations', name: l.sourceName(org) }],
               methodologyVersion: summary.methodologyVersion,
               caveats: [...l.caveats],
             }}

@@ -3,6 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { useOrgNames } from '@/components/org-names-context';
 import { Button, Card } from '@kku/ui';
 import {
   Upload,
@@ -41,6 +42,7 @@ function unwrap<T>(json: unknown): T {
 }
 
 export function TrendDocumentsClient({ initial }: { initial: TrendDocumentRow[] }) {
+  const org = useOrgNames();
   const [mode, setMode] = React.useState<'file' | 'url'>('file');
   const [hint, setHint] = React.useState<Hint>('');
   const [url, setUrl] = React.useState('');
@@ -283,7 +285,7 @@ export function TrendDocumentsClient({ initial }: { initial: TrendDocumentRow[] 
           <Link href="/trends" className="text-accent-default hover:underline">
             Trends Radar
           </Link>{' '}
-          — then tags the KKU programs and skills it affects.
+          — then tags the {org.en} programs and skills it affects.
         </p>
       </Card>
 

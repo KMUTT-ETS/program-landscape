@@ -4,6 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { toast } from 'sonner';
+import { useOrgNames } from '@/components/org-names-context';
 import { MessageSquare, X, Send, ExternalLink, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type {
@@ -60,7 +61,7 @@ const SURFACE_LABELS: Record<string, string> = {
   '/staff/teaching-workload': 'Teaching workload',
 };
 
-function labelForPath(pathname: string): string {
+function labelForPath(pathname: string, orgName: string): string {
   // Exact match first, then prefix match (for cases like
   // /education/recruitment/something).
   const exact = SURFACE_LABELS[pathname];
@@ -72,10 +73,11 @@ function labelForPath(pathname: string): string {
       if (v) return v;
     }
   }
-  return 'KKU dashboards';
+  return `${orgName} dashboards`;
 }
 
 export function DashboardChatPanel() {
+  const org = useOrgNames();
   const pathname = usePathname() ?? '/education';
   const [open, setOpen] = React.useState(false);
   const [conversationId, setConversationId] = React.useState<string | null>(null);
@@ -119,7 +121,7 @@ export function DashboardChatPanel() {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages.length, streamingText]);
 
-  const surfaceLabel = labelForPath(pathname);
+  const surfaceLabel = labelForPath(pathname, org.en);
 
   // ── Send a turn ───────────────────────────────────────────────────
   const send = async (text: string) => {

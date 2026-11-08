@@ -1,3 +1,4 @@
+import { orgShortNamesForRequest } from '@/lib/branding';
 import { ChartFrame } from '@kku/ui';
 import type { PositionChapter } from '@kku/db';
 import { fetchChapter } from './fetch-chapter';
@@ -13,6 +14,7 @@ const HEAD = {
 };
 
 export async function PositionSection({ scopeQuery, children }: { scopeQuery: string; children: React.ReactNode }) {
+  const org = await orgShortNamesForRequest();
   const res = await fetchChapter<PositionChapter>(`/landscape/position?${scopeQuery}`);
   if (!res) {
     return (
@@ -58,7 +60,7 @@ export async function PositionSection({ scopeQuery, children }: { scopeQuery: st
         <div className="flex flex-col gap-2">
           <ChartFrame
             title="Health × risk action map"
-            description={`X = health score (split at 65, "healthy"). Y = KKU risk matrix score 1–25 (split at 10, start of HIGH). Size = active students. Act now ${hr.counts['act-now']} · Watch ${hr.counts.watch} · Fix quietly ${hr.counts['fix-quietly']} · Protect ${hr.counts.protect}. Colour = KKU risk level: green low, amber moderate, red high or very high.`}
+            description={`X = health score (split at 65, "healthy"). Y = ${org.en} risk matrix score 1–25 (split at 10, start of HIGH). Size = active students. Act now ${hr.counts['act-now']} · Watch ${hr.counts.watch} · Fix quietly ${hr.counts['fix-quietly']} · Protect ${hr.counts.protect}. Colour = ${org.en} risk level: green low, amber moderate, red high or very high.`}
             meta={meta}
             height={500}
             chart={
@@ -67,7 +69,7 @@ export async function PositionSection({ scopeQuery, children }: { scopeQuery: st
                 maxRadius={16}
                 frame={hr.frame}
                 axisXLabel="Health score"
-                axisYLabel="KKU risk score"
+                axisYLabel={`${org.en} risk score`}
                 quadrantLabels={{
                   topLeft: { label: 'ACT NOW', tone: 'negative' },
                   topRight: { label: 'WATCH', tone: 'neutral' },

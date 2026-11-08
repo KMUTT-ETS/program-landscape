@@ -1,5 +1,6 @@
 'use client';
 
+import { useOrgNames } from '@/components/org-names-context';
 import * as React from 'react';
 import { toast } from 'sonner';
 import {
@@ -1028,6 +1029,7 @@ function PeerContentModernityBody({ ev }: { ev: AunqaResolvedEvidence }) {
 }
 
 function PeerContentGapsBody({ ev }: { ev: AunqaResolvedEvidence }) {
+  const org = useOrgNames();
   const v = read<PeerContentGapsValue>(ev);
   if (!v) return null;
   if (v.gapCount === 0) {
@@ -1056,7 +1058,7 @@ function PeerContentGapsBody({ ev }: { ev: AunqaResolvedEvidence }) {
                 {g.severity}
               </Badge>
             </div>
-            <p className="mt-1 text-xs text-text-secondary">At KKU: {g.kkuStatus}</p>
+            <p className="mt-1 text-xs text-text-secondary">At {org.en}: {g.kkuStatus}</p>
             <p className="mt-1 text-xs text-text-tertiary">Peers: {g.peerExamples}</p>
           </li>
         ))}
@@ -1466,6 +1468,7 @@ export function AunqaProgramClient({
   dqModules: DqModule[];
   generateNarrative: GenerateNarrative;
 }) {
+  const org = useOrgNames();
   const [drafts, setDrafts] = React.useState<Record<string, AunqaNarrativeDraft>>({});
   const [busyCriterion, setBusyCriterion] = React.useState<string | null>(null);
 
@@ -1561,7 +1564,7 @@ export function AunqaProgramClient({
         </p>
         <p className="mt-2 text-xs text-text-tertiary">
           The criteria list has not been checked against the published AUN-QA v4 guide, and no
-          curriculum document sampled at KKU names AUN-QA as its framework. Organising this
+          curriculum document sampled at {org.en} names AUN-QA as its framework. Organising this
           evidence along these criteria is an analytical overlay, not a claim the programme makes.
         </p>
       </Card>
