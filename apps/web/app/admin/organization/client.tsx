@@ -9,7 +9,7 @@ import {
   ORGANIZATION_REGIONS,
   ORGANIZATION_REGION_INFO,
   toOrganizationRegion,
-} from '@kku/shared';
+} from '@kku/shared/organization/regions';
 import { readSaveResponse } from './save-response';
 import { BrandTab } from './brand-tab';
 
