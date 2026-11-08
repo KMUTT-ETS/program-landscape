@@ -4,19 +4,19 @@ import { describe, expect, it } from 'vitest';
 
 const repo = path.resolve(__dirname, '../../..');
 const REQUIRED_PAGES = [
-  ...['getting-started', 'program-deep-dive', 'workshop'].map((n) =>
+  ...['getting-started', 'program-deep-dive'].map((n) =>
     path.join(repo, 'docs', 'tutorials', `${n}.md`),
   ),
   path.join(repo, 'docs', 'workshop', 'README.md'),
 ];
 
-/** Every English workshop page, plus the WSL2 guide once it exists. */
+/** Every workshop page in both languages, plus the WSL2 guide once it exists. */
 function optionalPages(): string[] {
   const out: string[] = [];
-  const dir = path.join(repo, 'docs', 'workshop');
-  if (fs.existsSync(dir)) {
+  for (const dir of [path.join(repo, 'docs', 'workshop'), path.join(repo, 'docs', 'th', 'workshop')]) {
+    if (!fs.existsSync(dir)) continue;
     for (const f of fs.readdirSync(dir).sort()) {
-      if (f.endsWith('.md') && !f.endsWith('.th.md')) out.push(path.join(dir, f));
+      if (f.endsWith('.md')) out.push(path.join(dir, f));
     }
   }
   const wsl = path.join(repo, 'docs', 'guides', 'windows-wsl2.md');

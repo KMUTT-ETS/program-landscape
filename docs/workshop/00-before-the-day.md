@@ -1,6 +1,6 @@
 # Before the day
 
-> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [`00-before-the-day.th.md`](./00-before-the-day.th.md)
+> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [ฉบับภาษาไทย](../th/workshop/00-before-the-day.md)
 
 Do this at home. Start after the [early notice](./early-notice.md) and finish by
 the **readiness form deadline, 19 November, 18:00**. The pre-workshop online on
@@ -8,6 +8,8 @@ the **readiness form deadline, 19 November, 18:00**. The pre-workshop online on
 room network may be slow. It takes one to two hours, mostly waiting, plus about
 30 minutes for the rehearsal. Bring the laptop with the app already set up and
 the rehearsal done.
+
+**Outcome.** You arrive with a laptop that runs the app, a working AI key and an AI coding assistant, so the day starts with the work, not with installs.
 
 ## Your laptop
 
@@ -154,3 +156,7 @@ The instructor shares the readiness form link at the pre-workshop. It asks for:
 - anything still blocking you.
 
 Send it by **19 November, 18:00**. Never paste keys, the environment file or personal data into the form.
+
+## Next step
+
+Continue with [Session 1: environment and AI tools](./01-environment-and-ai-tools.md) on the day.

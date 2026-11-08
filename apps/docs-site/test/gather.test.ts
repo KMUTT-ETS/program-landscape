@@ -152,8 +152,6 @@ describe('runGather', () => {
     const { written } = runGather(root);
     expect(written).toEqual([
       '_generated/readme.md',
-      '_generated/deployment.md',
-      '_generated/project-contract.md',
       '_generated/security-policy.md',
       '_generated/connector-session-template.md',
       '_generated/gotenberg-fonts.md',
@@ -168,7 +166,7 @@ describe('runGather', () => {
   it('is byte-identical across runs', () => {
     const root = makeRepo();
     const read = () =>
-      ['scripts.md', 'env.md', 'project-contract.md'].map((f) =>
+      ['scripts.md', 'env.md', 'security-policy.md'].map((f) =>
         fs.readFileSync(path.join(root, 'docs', '_generated', f), 'utf8'),
       );
     runGather(root);
@@ -180,10 +178,10 @@ describe('runGather', () => {
   it('fails loudly, naming the file, and leaves the previous output intact', () => {
     const root = makeRepo();
     runGather(root);
-    fs.rmSync(path.join(root, 'DEPLOYMENT.md'));
+    fs.rmSync(path.join(root, 'SECURITY.md'));
     expect(() => runGather(root)).toThrow(GatherError);
-    expect(() => runGather(root)).toThrow('DEPLOYMENT.md');
-    expect(fs.existsSync(path.join(root, 'docs', '_generated', 'deployment.md'))).toBe(true);
+    expect(() => runGather(root)).toThrow('SECURITY.md');
+    expect(fs.existsSync(path.join(root, 'docs', '_generated', 'security-policy.md'))).toBe(true);
   });
 
   it('fails when package.json has no scripts', () => {

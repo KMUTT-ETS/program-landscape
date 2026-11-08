@@ -28,7 +28,7 @@ describe('classifyLink', () => {
 
   it('routes gathered-to-gathered links to the sibling copy', () => {
     const p = page('docs/_generated/readme.md').path;
-    expect(classifyLink('../../DEPLOYMENT.md', p, repoRoot)).toEqual({ kind: 'href', href: './deployment.md' });
+    expect(classifyLink('../../SECURITY.md', p, repoRoot)).toEqual({ kind: 'href', href: './security-policy.md' });
   });
 
   it('turns source files, excluded docs and folders into repo paths', () => {
@@ -41,6 +41,13 @@ describe('classifyLink', () => {
       kind: 'repo-path',
       repoRel: 'docs/data-sources/_template.md',
     });
+  });
+
+  it('turns links to pages taken off the site (KKU-only, CLAUDE.md, DEPLOYMENT.md) into repo paths', () => {
+    const p = page('docs/adopters/README.md').path;
+    expect(classifyLink('../auth/kku-sso.md', p, repoRoot)).toEqual({ kind: 'repo-path', repoRel: 'docs/auth/kku-sso.md' });
+    expect(classifyLink('../../CLAUDE.md', p, repoRoot)).toEqual({ kind: 'repo-path', repoRel: 'CLAUDE.md' });
+    expect(classifyLink('../../DEPLOYMENT.md', p, repoRoot)).toEqual({ kind: 'repo-path', repoRel: 'DEPLOYMENT.md' });
   });
 
   it('decodes percent-encoding before classifying', () => {
@@ -124,7 +131,7 @@ describe('workshop pages open other pages in a new tab', () => {
   });
 
   it('applies to a gathered page and to an absolute site link', () => {
-    expect(render('[c](../../CLAUDE.md)', 'docs/workshop/02.md')).toContain(NEW_TAB);
+    expect(render('[c](../../SECURITY.md)', 'docs/workshop/02.md')).toContain(NEW_TAB);
     expect(render('[r](/tutorials/README)', 'docs/workshop/02.md')).toContain(NEW_TAB);
   });
 

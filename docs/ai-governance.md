@@ -228,7 +228,7 @@ that's the signal to invest in the hand-labeled audit.
 | OpenRouter provider | **Real** | Requires `OPENROUTER_API_KEY`. OpenAI-compatible chat API: complete, extractStructured (JSON mode), translate, vision, tool use. Cost recorded from OpenRouter's billed figure. Embeddings and transient-error fallback go to Google when its key is set; without one, embeddings use `AI_OPENROUTER_EMBEDDING_MODEL`. No File API: an extraction carrying `fileAttachment` is refused |
 | IntelSphere (KKU gateway) | **Stubbed** | Needs gateway API contract |
 | Prompt templates | **Real** | 3 templates versioned as code |
-| Skill taxonomy | **Built per install** | A fresh install has none; `pnpm setup` does not seed. `pnpm skills:normalise --auto-promote` builds it from labour-market and curriculum skill names. KKU's ~60 curated skills come only with `pnpm db:seed`, which adopters should not run. See the [Adopter guide](adopters/README.md#building-your-skill-taxonomy) |
+| Skill taxonomy | **Built per install** | A fresh install has none; `pnpm setup` does not seed. `pnpm skills:normalise --auto-promote` builds it from labour-market and curriculum skill names. KKU's ~60 curated skills come only with `pnpm db:seed`, which adopters should not run. See the [Adopter guide](guides/curriculum-pdfs-and-ai-digest.md#building-your-skill-taxonomy) |
 | `/skills` explorer | **Real** | Tree, search, scope-aware coverage |
 | `/admin/extraction-review` | **Real** | Queue, stats strip, approve / reject / edit |
 | `AiExtraction` table | **Real** | Mirror of `PdfExtraction` for non-PDF AI outputs |

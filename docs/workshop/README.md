@@ -1,6 +1,6 @@
 # Workshop: set up Program Deep-Dive
 
-> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [`README.th.md`](./README.th.md)
+> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [ฉบับภาษาไทย](../th/workshop/README.md)
 
 A two-day hands-on workshop (23–24 November), with a pre-workshop online on
 16 November, for the IT staff of a university that adopts Program Landscape. You start from a clean laptop and finish with the Program
@@ -48,6 +48,9 @@ Remove personal data first: no national ID numbers, no birth dates.
 | Day 2 15:30–16:00 | Team sync and 90-day plan | Plan drafted with your executive |
 
 ## Pages
+
+Sessions 4 and 5 are still in preparation, so the pages go from session 3
+straight to session 6.
 
 | Page | When |
 |---|---|

@@ -1,6 +1,6 @@
 # Troubleshooting
 
-> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [`troubleshooting.th.md`](./troubleshooting.th.md)
+> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [ฉบับภาษาไทย](../th/workshop/troubleshooting.md)
 
 Every failure the workshop pages mention, in one place. Find what you see in
 the left column. If it is not here, show the full message to the facilitator.

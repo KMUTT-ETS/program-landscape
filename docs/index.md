@@ -19,8 +19,8 @@ features:
     details: The connector contract, the source catalogue and one spec per data source.
     link: /data-sources
   - title: Run it
-    details: Pack-and-ship deployment, network integration, backups and day-to-day operations.
-    link: /_generated/deployment
+    details: Pack-and-ship deployment, server sizing, backups and disaster recovery.
+    link: /guides/deploy
   - title: Reference
     details: Every pnpm script and environment variable, generated from the repository on each build.
     link: /_generated/scripts

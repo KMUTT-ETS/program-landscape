@@ -1,11 +1,13 @@
 # Early notice: start this week
 
-> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [`early-notice.th.md`](./early-notice.th.md)
+> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [ฉบับภาษาไทย](../th/workshop/early-notice.md)
 
 Your team is confirmed for the AIUI workshop on **23–24 November**. The IT staff
 attend both days; your executive joins on the second day. Before that there is a
 **pre-workshop online on 16 November**, and a **readiness form due 19 November,
 18:00**.
+
+**Outcome.** You have picked a programme, asked for its data and checked your laptop, so the installs and the data are ready in time.
 
 At the end of the workshop each team shows the Program Deep-Dive of **one of your
 own programmes** running on your laptop with data. If time allows, you also show
@@ -56,3 +58,7 @@ birth dates either: helpers will ask you to remove them.
 ## Questions
 
 Contact `[instructor contact]`.
+
+## Next step
+
+Start installing with [Before the day](./00-before-the-day.md).

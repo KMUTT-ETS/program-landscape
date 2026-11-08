@@ -1,12 +1,10 @@
 # Session 2: platform architecture and source code
 
-> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [`02-architecture-and-source.th.md`](./02-architecture-and-source.th.md)
+> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [ฉบับภาษาไทย](../th/workshop/02-architecture-and-source.md)
 
 **Time.** About 90 minutes.
 
-## Goal
-
-Know where things live in the repository, follow one Deep-Dive section from the
+**Outcome.** You know where things live in the repository, follow one Deep-Dive section from the
 browser to the database, learn the rules every change follows, and finish with
 the app running and you signed in as its administrator.
 
@@ -89,7 +87,7 @@ follows these rules:
 
 Also: TypeScript strict with no `any`, input checked with Zod, colours only
 from design tokens. The full list is in the
-[project contract](../_generated/project-contract.md).
+[project contract](../../CLAUDE.md).
 
 ## Start the app and sign in
 
@@ -107,3 +105,7 @@ once: the first person to open the setup page becomes the administrator.
 - `http://localhost:3000` shows the app, and you are signed in as administrator.
 - `http://localhost:4000/api/v1/ready` reports every dependency healthy.
 - You can name the three files on the Finance section's path.
+
+## Next step
+
+Continue with [Session 3: university data](./03-university-data.md).

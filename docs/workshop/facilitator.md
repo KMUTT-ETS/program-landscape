@@ -1,6 +1,6 @@
 # Facilitator guide
 
-> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [`facilitator.th.md`](./facilitator.th.md)
+> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [ฉบับภาษาไทย](../th/workshop/facilitator.md)
 
 For the people running the 1.5-day workshop. Participants follow the session
 pages on their own laptops; your job is to keep everyone moving and to rescue
@@ -42,7 +42,7 @@ goes to every team.
    (หากไม่ทัน ใช้ข้อมูลจำลองได้ครบทั้งเส้นทาง)
 3. ตรวจว่าแล็ปท็อปติดตั้ง WSL2 และ Docker ได้
 
-รายละเอียด: <link to docs/workshop/early-notice.th.md>
+รายละเอียด: <link to docs/th/workshop/early-notice.md>
 
 การประชุมเตรียมความพร้อมออนไลน์: 16 พ.ย.
 ส่งแบบฟอร์มความพร้อม: ภายใน 19 พ.ย. เวลา 18:00 น.

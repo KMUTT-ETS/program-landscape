@@ -1,6 +1,6 @@
 # Tutorial: get Program Deep-Dive working
 
-> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [`program-deep-dive.th.md`](./program-deep-dive.th.md)
+> **ภาษาไทย:** มีฉบับภาษาไทยของหน้านี้ที่ [ฉบับภาษาไทย](../th/tutorials/program-deep-dive.md)
 
 **Outcome.** `/programs/<id>` shows real content, not empty states, for a
 programme of your university. The "Setup checklist" tab for that programme is
@@ -271,7 +271,7 @@ pnpm programs:approve-pending --rematerialise --program-id=<id>
 The first command builds the taxonomy from the curriculum's skill names. The
 second applies the stored curriculum result again. It makes no AI call. Then run
 the pipeline for the programme once more. The full description is in
-[Building your skill taxonomy](../adopters/README.md#building-your-skill-taxonomy).
+[Building your skill taxonomy](../guides/curriculum-pdfs-and-ai-digest.md#building-your-skill-taxonomy).
 
 ## When a section is empty but the rows exist
 
@@ -280,10 +280,10 @@ rows it cannot trace. If an upload succeeded and nothing shows, run
 `pnpm data-sources:sync --apply` and upload again. See
 [If an upload does not appear](../data-import.md#if-an-upload-does-not-appear).
 
-## Where to go next
+## Next step
 
 - [Importing from spreadsheets](../data-import.md) for every dataset and rule.
-- [Workshop guide](./workshop.md) if you are running this for a group.
+- [Workshop](../workshop/README.md) if you are running this for a group.
 - [Adapt the registrar connector](./adapt-the-registrar-connector.md), advanced
   and optional, a KKU example of reading a student-records system directly.
 - [Evaluation pipeline](../evaluation-pipeline.md) for how the scores are built.
