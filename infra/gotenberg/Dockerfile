@@ -5,9 +5,8 @@
 # Build from repo root:
 #   docker compose build gotenberg
 #
-# The four .ttf files must be placed in ./fonts/ before building. They
-# are *not* committed to the repo even though their license permits it —
-# see ./README.md for sourcing instructions.
+# The four .ttf files are committed in ./fonts/ (their license permits
+# redistribution) — see ./README.md for their source.
 
 FROM gotenberg/gotenberg:8
 

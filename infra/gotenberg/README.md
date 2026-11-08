@@ -11,10 +11,10 @@ inside this container. Embedding the font system-wide is how we
 guarantee Thai text renders correctly (no tofu boxes) on PDFs that end up
 being opened anywhere, on any machine, without Sarabun pre-installed.
 
-## 1. Source the font files
+## 1. The font files
 
-The four `.ttf` files are **not committed to the repo**. You must place
-them locally before building the image:
+The four `.ttf` files are **committed to the repository** (since 2026-11-07),
+so a fresh clone builds this image with no extra step:
 
 ```
 infra/gotenberg/fonts/
@@ -26,28 +26,26 @@ infra/gotenberg/fonts/
 
 The filenames above are what `Dockerfile` expects — do not rename.
 
-### Where to get them
+### Where they come from
 
 - **SIPA / Software Industry Promotion Agency (Thailand)** — the
   authoritative source. TH Sarabun New was commissioned by SIPA and
-  released under a permissive open license for any use.
+  released under a permissive open license that allows redistribution.
 - **f0nt.com** — mirror frequently used in Thailand.
 - **Google Fonts "Sarabun"** is a *different* typeface (Cadson Demak's
   Sarabun). It is **not** TH Sarabun New and will not satisfy the
   Cabinet requirement for official documents. Do not substitute it.
 
-The filenames on the original distribution zip are usually
-`THSarabunNew.ttf`, `THSarabunNew Bold.ttf` (with a space),
-`THSarabunNew Italic.ttf`, `THSarabunNew BoldItalic.ttf`. Rename them to
-the dashed form above before copying into `fonts/`.
+To replace a file, download it from SIPA, rename it to the dashed form
+above (the original zip uses spaces: `THSarabunNew Bold.ttf`), and rebuild.
 
-### Why not commit the fonts
+### Why they are committed
 
-The license permits redistribution, but:
-- Keeping `.ttf` files out of the Git history keeps the repo light.
-- Forces each dev + the prod build pipeline to consciously source the
-  Cabinet-mandated font rather than trusting whatever binary a
-  contributor happened to drop in.
+They used to be kept out of git so that every developer sourced them
+deliberately. In practice that made `pnpm setup` fail on every clean clone
+(the `COPY` lines below abort the build), which is the first thing an
+adopting university meets. The license permits redistribution, and the
+files are about 1 MB.
 
 Production deployment (prompt 13b) bakes the fonts into the image that
 ships in the pack-and-ship tarball — they never need to be fetched from
