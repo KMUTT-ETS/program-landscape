@@ -89,13 +89,22 @@ export function loadInputs(jsonPath: string): Inputs {
     }
     const faculty = str(b, 'faculty', where);
     if (level !== 'BACHELOR' && !faculty) throw new InputError(`${where}: \`faculty\` is required for level ${level}`);
+    // a mistyped path must stop the run: otherwise the PDF's courses are silently replaced by an
+    // invented list (pdf) or the run ends in a stack trace (courses)
+    const existing = (key: 'pdf' | 'courses'): string | null => {
+      const file = rel(str(b, key, where));
+      if (file !== null && !(fs.existsSync(file) && fs.statSync(file).isFile())) {
+        throw new InputError(`${where}: ${key} not found: ${file} (relative paths resolve against the input file's folder)`);
+      }
+      return file;
+    };
     return {
       name: str(b, 'name', where, true)!,
-      pdf: rel(str(b, 'pdf', where)),
+      pdf: existing('pdf'),
       level,
       faculty,
       tcasCode: str(b, 'tcas_code', where),
-      courses: rel(str(b, 'courses', where)),
+      courses: existing('courses'),
       nameEn: str(b, 'name_en', where),
     };
   });
@@ -252,10 +261,13 @@ export function resolveAnchors(inputs: Inputs, own: readonly TcasRow[]): Anchor[
     const second = rivals.length ? rivals[0]![0] : 0;
     if (best < MIN_SCORE || best - second < MIN_MARGIN) {
       const why = best < MIN_SCORE ? 'no close match' : 'more than one close match';
+      // a tie between faculties (the same programme name in two faculties) is settled by the faculty
+      const otherFaculty = best >= MIN_SCORE && rivals.length > 0 && rivals[0]![1].faculty !== top[1].faculty;
       throw new InputError(
         `Cannot match programme '${inp.name}' to a TCAS programme (${why}). ` +
           `Closest candidates:\n${candidateLines(ranked)}\n` +
-          'Add `"tcas_code": "<course code>"` to that programme in the input file.',
+          'Add `"tcas_code": "<course code>"` to that programme in the input file' +
+          (otherFaculty ? ', or `"faculty": "<Thai faculty name>"` when the candidates are in different faculties.' : '.'),
       );
     }
     out.push(anchorOf(inp, top[1]));

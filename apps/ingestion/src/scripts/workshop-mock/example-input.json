@@ -9,7 +9,8 @@
     },
     {
       "name": "วิศวกรรมเครื่องกล",
-      "pdf": "pdfs/mechanical-engineering.pdf"
+      "pdf": "pdfs/mechanical-engineering.pdf",
+      "faculty": "คณะวิศวกรรมศาสตร์"
     }
   ]
 }

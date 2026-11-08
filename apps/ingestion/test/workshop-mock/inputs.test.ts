@@ -44,6 +44,8 @@ describe('resolveAnchors', () => {
   it('an ambiguous name across faculties needs a faculty', () => {
     const name = 'วิศวกรรมโยธา';
     expect(() => resolveAnchors(inputsOf(prog(name)), own)).toThrow(InputError);
+    // the message names both ways out: a course code, or the faculty when the candidates differ in it
+    expect(() => resolveAnchors(inputsOf(prog(name)), own)).toThrow(/"faculty"/);
     const a = resolveAnchors(inputsOf(prog(name, { faculty: ENG })), own)[0]!;
     expect(a.courseCodes).toEqual(['10140107302104A']);
   });
@@ -163,6 +165,9 @@ describe('loadInputs (JSON)', () => {
       { name: 'วิศวกรรมคอมพิวเตอร์', pdf: 'pdfs/ce.pdf' },
       { name: 'x', level: 'master', faculty: ENG, tcas_code: '123', courses: 'c.csv', name_en: 'X' },
     ] });
+    fs.mkdirSync(path.join(path.dirname(f), 'pdfs'));
+    fs.writeFileSync(path.join(path.dirname(f), 'pdfs', 'ce.pdf'), '%PDF-1.4\n');
+    fs.writeFileSync(path.join(path.dirname(f), 'c.csv'), 'code,name_th,name_en,credits,category\n');
     const i = loadInputs(f);
     expect(i.university).toBe(KMUTT);
     expect(i.programmes).toHaveLength(2);
@@ -181,6 +186,16 @@ describe('loadInputs (JSON)', () => {
     expect(() => loadInputs('/nonexistent/i.json')).toThrow(/not found/);
     expect(() => loadInputs(write({ university: 'u', region: 'r', programmes: [] }))).toThrow(InputError);
     expect(() => loadInputs(write({ university: 'u', programmes: [{ name: 'n' }] }))).toThrow(/region/);
+  });
+
+  it('a pdf or courses path that does not exist is refused, naming the resolved path', () => {
+    const f = write({ university: KMUTT, region: 'Central', programmes: [{ name: 'n', pdf: 'pdfs/missing.pdf' }] });
+    expect(() => loadInputs(f)).toThrow(InputError);
+    expect(() => loadInputs(f)).toThrow(`programmes #1: pdf not found: ${path.join(path.dirname(f), 'pdfs', 'missing.pdf')}`);
+    const g = write({ university: KMUTT, region: 'Central', programmes: [{ name: 'n', courses: 'missing.csv' }] });
+    expect(() => loadInputs(g)).toThrow(/programmes #1: courses not found: .*missing\.csv/);
+    const d = write({ university: KMUTT, region: 'Central', programmes: [{ name: 'n', pdf: '.' }] });
+    expect(() => loadInputs(d)).toThrow(/pdf not found/); // a folder is not a file
   });
 
   it('a postgraduate programme needs a faculty', () => {
