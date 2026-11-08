@@ -54,6 +54,14 @@ describe('workshop sample data', () => {
     }
   });
 
+  it('programme staff state no curriculum year, since no sample sheet creates a revision', () => {
+    // The importer resolves a stated year against the programme's revisions and refuses the
+    // row when none matches; the sample data has no revisions, so the cell must stay blank.
+    const years = buildSampleRows('program-faculty').map((r) => r['Curriculum Year']);
+    expect(years.length).toBeGreaterThan(0);
+    expect(new Set(years)).toEqual(new Set([null]));
+  });
+
   it('upload order puts every reference before its user', () => {
     SAMPLE_UPLOAD_ORDER.forEach((slug, index) => {
       for (const col of getImportDataset(slug).columns) {

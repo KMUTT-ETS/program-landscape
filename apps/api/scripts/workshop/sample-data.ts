@@ -275,7 +275,8 @@ const BUILDERS: Record<string, () => KeyedRow[]> = {
       programmeCode: s.programme.code,
       employeeCode: s.employeeCode,
       role: s.slot === 0 ? 'COORDINATOR' : s.slot < 5 ? 'CORE' : 'SUPPORT',
-      curriculumYear: 2023,
+      // Blank: no sample sheet creates curriculum revisions, so a stated year could not resolve.
+      curriculumYear: null,
     })),
 
   'enrollment-metrics': () =>
