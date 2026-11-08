@@ -17,7 +17,7 @@
 | `AI_PROVIDER` | `google` (default) / `anthropic` / `openrouter` / `stub`. Tool-use (AI Analyst) requires `anthropic` |
 | `GOOGLE_AI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY` | The key for your provider; `stub` works without any. Embeddings (programme overlap, skill matching) go to Google whenever `GOOGLE_AI_API_KEY` is set. With `anthropic` a Google key is required for them; with `openrouter` and no Google key, set `AI_OPENROUTER_EMBEDDING_MODEL` instead |
 | `CONNECTOR_MODE` | Global default connector mode. Leave at `mocked` initially |
-| *(none — moved)* | Institution identity is set in the app at **/admin/organization** (names, short names, region, contact email, public URL). The Thai name must match the TCAS สถาบัน column exactly; the form checks it for you. |
+| *(none — moved)* | Institution identity is set in the app at **/admin/organization** (names, short names, region, contact email, public URL). The Thai name must match the TCAS สถาบัน column exactly; the form links to the TCAS university list (course.mytcas.com/universities) so you can check the spelling. |
 | `MINIO_*`, `REDIS_*`, `GOTENBERG_URL` | Local defaults in `.env.example` work with `pnpm db:up` |
 
 Brand colours and logos are set on the **Brand** tab of the same page (`/admin/organization?tab=brand`). The app derives light and dark shades from your two colours and checks they stay readable.

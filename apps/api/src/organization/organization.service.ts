@@ -6,8 +6,6 @@ import {
   saveOrganizationBrand,
   saveOrganizationIdentity,
   setOrganizationAsset,
-  tcasInstitutionMatches,
-  type TcasNameMatch,
 } from '@kku/db';
 import {
   ApiError,
@@ -96,9 +94,5 @@ export class OrganizationService {
   async removeAsset(kind: BrandAssetKind, userId: string): Promise<AssetResult & { asset: { kind: BrandAssetKind } }> {
     const profile = await setOrganizationAsset(kind, null, userId);
     return { id: profile.id, profile, asset: { kind } };
-  }
-
-  async tcasMatch(name: string): Promise<TcasNameMatch> {
-    return tcasInstitutionMatches(name);
   }
 }

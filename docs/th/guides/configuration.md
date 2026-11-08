@@ -17,7 +17,7 @@
 | `AI_PROVIDER` | `google` (ค่าตั้งต้น) / `anthropic` / `stub` การใช้ tool-use (AI Analyst) ต้องเป็น `anthropic` |
 | `GOOGLE_AI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY` | คีย์ของ provider ที่เลือก ส่วน provider `stub` ทำงานได้โดยไม่ต้องมีคีย์เลย Embedding (overlap ของหลักสูตร การจับคู่ทักษะ) จะไปที่ Google ทุกครั้งที่ตั้ง `GOOGLE_AI_API_KEY` ถ้าใช้ `anthropic` ต้องมี Google key สำหรับงานนี้ ถ้าใช้ `openrouter` โดยไม่มี Google key ให้ตั้ง `AI_OPENROUTER_EMBEDDING_MODEL` แทน |
 | `CONNECTOR_MODE` | โหมดตั้งต้นของ connector ทุกตัว ช่วงแรกปล่อยไว้ที่ `mocked` |
-| *(ย้ายแล้ว)* | ตั้งค่าข้อมูลสถาบันในแอปที่ **/admin/organization** (ชื่อ ชื่อย่อ ภูมิภาค อีเมลติดต่อ URL สาธารณะ) ชื่อภาษาไทยต้องตรงกับคอลัมน์ สถาบัน ของ TCAS ทุกตัวอักษร ฟอร์มจะตรวจให้ |
+| *(ย้ายแล้ว)* | ตั้งค่าข้อมูลสถาบันในแอปที่ **/admin/organization** (ชื่อ ชื่อย่อ ภูมิภาค อีเมลติดต่อ URL สาธารณะ) ชื่อภาษาไทยต้องตรงกับคอลัมน์ สถาบัน ของ TCAS ทุกตัวอักษร ตรวจการสะกดได้จากรายชื่อมหาวิทยาลัยของ TCAS (course.mytcas.com/universities) ซึ่งฟอร์มมีลิงก์ไว้ให้ |
 | `MINIO_*`, `REDIS_*`, `GOTENBERG_URL` | ค่าตั้งต้นสำหรับเครื่อง local ใน `.env.example` ใช้ได้เลยกับ `pnpm db:up` |
 
 สีและโลโก้ของแบรนด์ตั้งได้ที่แท็บ **Brand** ของหน้าเดียวกัน (`/admin/organization?tab=brand`) แอปจะสร้างเฉดสีสำหรับโหมดสว่างและมืดจากสีทั้งสองให้ และตรวจว่ายังอ่านได้ชัด

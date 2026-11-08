@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request } from 'express';
 import { z } from 'zod';
@@ -16,7 +16,6 @@ import { MAX_ASSET_BYTES } from './asset-validation';
 import { OrganizationService } from './organization.service';
 
 const AssetKindParam = z.object({ kind: z.enum(BRAND_ASSET_KINDS) });
-const TcasMatchQuery = z.object({ name: z.string().trim().min(1).max(200) });
 
 @Controller('/organization')
 export class OrganizationPublicController {
@@ -91,12 +90,5 @@ export class OrganizationAdminController {
     const result = await this.service.removeAsset(p.kind, user.userId);
     req.body = { kind: p.kind };
     return result;
-  }
-
-  @Get('tcas-match')
-  @Authorized('settings:configure')
-  @Provenance({ sources: [{ id: 'tcas', name: 'TCAS admission statistics' }] })
-  async tcasMatch(@Query(new ZodValidationPipe(TcasMatchQuery)) q: z.infer<typeof TcasMatchQuery>) {
-    return this.service.tcasMatch(q.name);
   }
 }

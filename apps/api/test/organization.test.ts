@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   getOrganizationProfile: vi.fn(),
   saveOrganizationIdentity: vi.fn(),
-  tcasInstitutionMatches: vi.fn(),
   saveOrganizationBrand: vi.fn(),
   setOrganizationAsset: vi.fn(),
 }));
@@ -14,7 +13,6 @@ vi.mock('@kku/db', async (orig) => ({
   ...(await orig<typeof import('@kku/db')>()),
   getOrganizationProfile: mocks.getOrganizationProfile,
   saveOrganizationIdentity: mocks.saveOrganizationIdentity,
-  tcasInstitutionMatches: mocks.tcasInstitutionMatches,
   saveOrganizationBrand: mocks.saveOrganizationBrand,
   setOrganizationAsset: mocks.setOrganizationAsset,
 }));

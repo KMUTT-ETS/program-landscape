@@ -1,4 +1,3 @@
-import { z } from 'zod';
 import { Prisma, type OrganizationProfile, type PrismaClient } from '@prisma/client';
 import {
   OrganizationVersionConflictError,
@@ -159,30 +158,6 @@ export async function saveOrganizationIdentity(
   if (!row) throw new Error('organization_profile row vanished after save');
   applyRow(row);
   return row;
-}
-
-export interface TcasNameMatch {
-  exactRows: number;
-  suggestions: { name: string; rows: number; similarity: number }[];
-}
-
-const SuggestionRows = z.array(
-  z.object({ name: z.string(), rows: z.number().int(), similarity: z.number() }),
-);
-
-/** Backs the admin form's "does this match TCAS?" helper. Read-only. */
-export async function tcasInstitutionMatches(name: string, client: OrgClient = prisma): Promise<TcasNameMatch> {
-  const trimmed = name.trim();
-  const exactRows = await client.tcasAdmissionStat.count({ where: { institutionName: trimmed } });
-  const raw = await client.$queryRaw`
-    SELECT institution_name AS name,
-           COUNT(*)::int AS rows,
-           MAX(similarity(institution_name, ${trimmed}))::float8 AS similarity
-    FROM tcas_admission_stats
-    GROUP BY institution_name
-    ORDER BY similarity DESC
-    LIMIT 5`;
-  return { exactRows, suggestions: SuggestionRows.parse(raw) };
 }
 
 export const ASSET_COLUMN: Record<BrandAssetKind, 'logoLightKey' | 'logoDarkKey' | 'faviconKey'> = {

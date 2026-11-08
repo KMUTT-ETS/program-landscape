@@ -33,10 +33,9 @@ export interface OrganizationProfileDto {
 export interface AdminOrganizationResponse {
   profile: OrganizationProfileDto | null;
 }
-interface TcasMatch {
-  exactRows: number;
-  suggestions: { name: string; rows: number; similarity: number }[];
-}
+// Admins check their Thai name against TCAS's own site; the platform no longer
+// matches it, since a fresh install has no TCAS rows to compare against.
+const TCAS_SITE_URL = 'https://course.mytcas.com/universities/';
 
 type FormState = {
   nameTh: string; nameEn: string; shortNameTh: string; shortNameEn: string;
@@ -88,23 +87,12 @@ export function OrganizationClient({
   const [profile, setProfile] = useState<OrganizationProfileDto | null>(initial?.profile ?? null);
   const [form, setForm] = useState<FormState>(toForm(initial?.profile ?? null));
   const [saving, setSaving] = useState(false);
-  const [tcas, setTcas] = useState<TcasMatch | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const tab = searchParams?.get('tab') === 'brand' && profile ? 'brand' : 'identity';
 
   function selectTab(next: 'identity' | 'brand') {
     router.replace(next === 'brand' ? '?tab=brand' : '?tab=identity');
-  }
-
-  async function checkTcas() {
-    if (!form.nameTh.trim()) return;
-    try {
-      const res = await fetch(`/api/admin-organization/tcas-match?name=${encodeURIComponent(form.nameTh)}`);
-      if (res.ok) setTcas((await res.json()).data as TcasMatch);
-    } catch {
-      // The TCAS hint is advisory; a network error just leaves it blank.
-    }
   }
 
   async function save() {
@@ -207,29 +195,22 @@ export function OrganizationClient({
                       : 'text'
               }
               min={f.key.startsWith('intakeFloor') ? 1 : undefined}
-              onChange={(e) => {
-                setForm({ ...form, [f.key]: e.target.value });
-                // A TCAS badge describes the old Thai name; drop it until re-checked.
-                if (f.key === 'nameTh') setTcas(null);
-              }}
-              onBlur={f.key === 'nameTh' ? () => void checkTcas() : undefined}
+              onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
               className="rounded-md border border-default bg-surface-1 px-2 py-1"
             />
             {f.hint && <span className="text-xs text-text-tertiary">{f.hint}</span>}
-            {f.key === 'nameTh' && tcas && (
-              <span className="text-xs">
-                {tcas.exactRows > 0 ? (
-                  <Badge tone="success">Matches {tcas.exactRows} TCAS rows</Badge>
-                ) : (
-                  <>
-                    <Badge tone="warning">No TCAS rows match exactly</Badge>{' '}
-                    {tcas.suggestions.length > 0 && (
-                      <span className="text-text-secondary">
-                        Closest: {tcas.suggestions.slice(0, 3).map((s) => `${s.name} (${s.rows})`).join(' · ')}
-                      </span>
-                    )}
-                  </>
-                )}
+            {f.key === 'nameTh' && (
+              <span className="text-xs text-text-tertiary">
+                Check the spelling on{' '}
+                <a
+                  href={TCAS_SITE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-accent-default underline"
+                >
+                  the TCAS university list
+                </a>
+                .
               </span>
             )}
           </label>
