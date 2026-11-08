@@ -295,7 +295,7 @@ scripts/       Release build, deploy, backup, restore, rollback, smoke test,
 | `NEXTAUTH_URL`, `AUTH_TRUST_HOST` | ตั้งเป็น URL สาธารณะของคุณเมื่อขึ้น production |
 | `ENABLE_LOCAL_AUTH`, `DEV_AUTH_PASSWORD` | การล็อกอินสำหรับ dev จะ fail ทันทีถ้าเปิดใน production |
 | `AI_PROVIDER` | `google` (ค่าตั้งต้น) / `anthropic` / `stub` การใช้ tool-use (AI Analyst) ต้องเป็น `anthropic` |
-| `GOOGLE_AI_API_KEY` / `ANTHROPIC_API_KEY` | ต้องมีอย่างน้อยหนึ่งตัว ส่วน provider `stub` ทำงานได้โดยไม่ต้องมีคีย์เลย |
+| `GOOGLE_AI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY` | คีย์ของ provider ที่เลือก ส่วน provider `stub` ทำงานได้โดยไม่ต้องมีคีย์เลย Embedding (overlap ของหลักสูตร การจับคู่ทักษะ) จะไปที่ Google ทุกครั้งที่ตั้ง `GOOGLE_AI_API_KEY` ถ้าใช้ `anthropic` ต้องมี Google key สำหรับงานนี้ ถ้าใช้ `openrouter` โดยไม่มี Google key ให้ตั้ง `AI_OPENROUTER_EMBEDDING_MODEL` แทน |
 | `CONNECTOR_MODE` | โหมดตั้งต้นของ connector ทุกตัว ช่วงแรกปล่อยไว้ที่ `mocked` |
 | *(ย้ายแล้ว)* | ตั้งค่าข้อมูลสถาบันในแอปที่ **/admin/organization** (ชื่อ ชื่อย่อ ภูมิภาค อีเมลติดต่อ URL สาธารณะ) ชื่อภาษาไทยต้องตรงกับคอลัมน์ สถาบัน ของ TCAS ทุกตัวอักษร ฟอร์มจะตรวจให้ |
 | `MINIO_*`, `REDIS_*`, `GOTENBERG_URL` | ค่าตั้งต้นสำหรับเครื่อง local ใน `.env.example` ใช้ได้เลยกับ `pnpm db:up` |
@@ -701,10 +701,10 @@ design token เก็บเป็น **ค่าสามตัวแบบ OKL
 | `google` | Gemini — ค่าตั้งต้น และเป็นตัวที่ pipeline หลักสูตรถูกปรับจูนมาให้ใช้ |
 | `anthropic` | Claude — **จำเป็นสำหรับโมดูล AI Analyst** ที่ใช้ tool-use แบบเนทีฟ |
 | `stub` | ค่าตอบแบบกำหนดผลได้แน่นอน ทำงานได้โดยไม่ต้องมี API key มีประโยชน์ตอนพัฒนาบนเครื่องตัวเอง |
-| `openrouter` | โมเดลใดก็ได้ผ่าน API ของ OpenRouter ที่เข้ากันได้กับ OpenAI ส่วน embeddings และการถอยไปใช้ตัวสำรองเมื่อเกิดข้อผิดพลาดชั่วคราวจะไปที่ Google เมื่อตั้ง `GOOGLE_AI_API_KEY` อ่าน [การใช้งานผ่าน OpenRouter](#การใช้งานผ่าน-openrouter) ก่อนทำ digest กับ PDF ยาว |
+| `openrouter` | โมเดลใดก็ได้ผ่าน API ของ OpenRouter ที่เข้ากันได้กับ OpenAI ส่วน embeddings และการถอยไปใช้ตัวสำรองเมื่อเกิดข้อผิดพลาดชั่วคราวจะไปที่ Google เมื่อตั้ง `GOOGLE_AI_API_KEY` ถ้าไม่มี Google key ระบบจะทำ embedding ด้วย `AI_OPENROUTER_EMBEDDING_MODEL` (โมเดล 1536 มิติ เช่น `openai/text-embedding-3-small`) อ่าน [การใช้งานผ่าน OpenRouter](#การใช้งานผ่าน-openrouter) ก่อนทำ digest กับ PDF ยาว |
 | `intelsphere` | เป็น stub ที่ throw ตอนถูกเรียก จงใจให้ดัง ไม่ใช่ถอยไปใช้อย่างอื่นเงียบ ๆ |
 
-Gemini มี embeddings แต่ Claude ไม่มี ตอนตั้ง `AI_PROVIDER=anthropic` ตัว factory จึงส่งงาน `embed()` ต่อไปให้ Google เองโดยที่ผู้เรียกไม่ต้องรู้ ถ้าใช้ Claude ให้ตั้งคีย์ทั้งสองตัว
+Gemini มี embeddings แต่ Claude ไม่มี ตอนตั้ง `AI_PROVIDER=anthropic` ตัว factory จึงส่งงาน `embed()` ต่อไปให้ Google เองโดยที่ผู้เรียกไม่ต้องรู้ ถ้าใช้ Claude ให้ตั้งคีย์ทั้งสองตัว ส่วน `openrouter` ไม่จำเป็นต้องมี Google key ถ้าไม่มี งาน `embed()` จะไปที่โมเดล OpenRouter ที่ระบุใน `AI_OPENROUTER_EMBEDDING_MODEL` เลือกโมเดล embedding เพียงโมเดลเดียวต่อฐานข้อมูลแล้วใช้ต่อไป เพราะเวกเตอร์จากสองโมเดลเปรียบเทียบกันไม่ได้ การเปลี่ยนโมเดลต้องทำ embedding ใหม่ทั้งหมด
 
 ### การใช้งานผ่าน OpenRouter
 

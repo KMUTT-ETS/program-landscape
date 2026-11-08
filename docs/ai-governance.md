@@ -57,15 +57,15 @@ Config (env):
 | Var | Default | Notes |
 |---|---|---|
 | `AI_PROVIDER` | `google` | `google` / `anthropic` / `openrouter` / `intelsphere` |
-| `GOOGLE_AI_API_KEY` |  | Required for provider=google; also used for embeddings when provider=anthropic |
+| `GOOGLE_AI_API_KEY` |  | Required for provider=google; also used for embeddings when provider=anthropic (required) or provider=openrouter (optional) |
 | `ANTHROPIC_API_KEY` |  | Required for provider=anthropic |
 | `OPENROUTER_API_KEY` |  | Required for provider=openrouter |
 | `KKU_INTELSPHERE_URL` / `KKU_INTELSPHERE_API_KEY` |  | Stubbed |
 | `AI_GOOGLE_COMPLETION_MODEL` | `gemini-2.0-flash-001` | Override per deployment |
-| `AI_GOOGLE_EMBEDDING_MODEL` | `text-embedding-004` | 1536 dims — matches pgvector column |
+| `AI_GOOGLE_EMBEDDING_MODEL` | `gemini-embedding-001` | Callers request 1536 dims to match the pgvector columns |
 | `AI_ANTHROPIC_COMPLETION_MODEL` | `claude-sonnet-4-6` | |
 | `AI_OPENROUTER_COMPLETION_MODEL` | `google/gemini-2.5-flash` | OpenRouter `vendor/model` id. Bare `gemini-…` ids (method-catalog defaults, admin overrides) map to `google/<id>` |
-| `AI_OPENROUTER_EMBEDDING_MODEL` |  | Leave unset. Embeddings go to Google whenever `GOOGLE_AI_API_KEY` is set, because stored vectors must all come from one model; this is used only when there is no Google key, and then everything must be re-embedded |
+| `AI_OPENROUTER_EMBEDDING_MODEL` |  | Used only when there is no Google key: embeddings go to Google whenever `GOOGLE_AI_API_KEY` is set, because stored vectors must all come from one model. On an OpenRouter-only install, set a model that returns 1536 dimensions (e.g. `openai/text-embedding-3-small`). Switching an existing database to a different embedding model means re-embedding everything |
 | `AI_OPENROUTER_TIMEOUT_MS` | `120000` | Per-request limit in milliseconds. A curriculum digest of a long PDF (300+ pages, ~360k input tokens) needs several minutes and fails at the default; set `600000`. The Google fallback does not rescue it on a free-tier key, which allows 250k input tokens a minute |
 | `AI_AUTO_APPROVE_THRESHOLD` | `0` | AiExtraction below this → PENDING_REVIEW. Unset, the code default of 0 auto-approves everything; `.env.prod.example` ships `0.85` |
 
@@ -225,7 +225,7 @@ that's the signal to invest in the hand-labeled audit.
 | `AiService` interface | **Real** | In `@kku/shared/ai` |
 | Google / Gemini provider | **Real** | Requires `GOOGLE_AI_API_KEY` |
 | Anthropic / Claude provider | **Real** | Requires `ANTHROPIC_API_KEY`; embedding falls back to Google |
-| OpenRouter provider | **Real** | Requires `OPENROUTER_API_KEY`. OpenAI-compatible chat API: complete, extractStructured (JSON mode), translate, vision, tool use. Cost recorded from OpenRouter's billed figure. Embeddings and transient-error fallback go to Google when its key is set. No File API: an extraction carrying `fileAttachment` is refused |
+| OpenRouter provider | **Real** | Requires `OPENROUTER_API_KEY`. OpenAI-compatible chat API: complete, extractStructured (JSON mode), translate, vision, tool use. Cost recorded from OpenRouter's billed figure. Embeddings and transient-error fallback go to Google when its key is set; without one, embeddings use `AI_OPENROUTER_EMBEDDING_MODEL`. No File API: an extraction carrying `fileAttachment` is refused |
 | IntelSphere (KKU gateway) | **Stubbed** | Needs gateway API contract |
 | Prompt templates | **Real** | 3 templates versioned as code |
 | Skill taxonomy | **Built per install** | A fresh install has none; `pnpm setup` does not seed. `pnpm skills:normalise --auto-promote` builds it from labour-market and curriculum skill names. KKU's ~60 curated skills come only with `pnpm db:seed`, which adopters should not run. See the [Adopter guide](adopters/README.md#building-your-skill-taxonomy) |
@@ -258,8 +258,9 @@ Scope of fallback:
 - **Visible in audit.** The `AiInference` row records the actual model
   that served the call. Grep for rows where `model` differs from the
   configured primary to quantify fallback frequency.
-- **Embed path preserved.** Embeddings still route to Google regardless
-  of primary (Claude has no embeddings API).
+- **Embed path preserved.** Embeddings route to Google whenever a Google
+  key is set, regardless of primary (Claude has no embeddings API). Only an
+  OpenRouter install without a Google key embeds through OpenRouter.
 
 Implementation: `wrapWithTransientFallback()` in
 `packages/shared/src/ai/providers/factory.ts`.

@@ -293,7 +293,7 @@ If you are adding a surface and it does not have these, it is not finished. This
 | `NEXTAUTH_URL`, `AUTH_TRUST_HOST` | Set to your public URL in production |
 | `ENABLE_LOCAL_AUTH`, `DEV_AUTH_PASSWORD` | Dev sign-in. Hard-fails in production |
 | `AI_PROVIDER` | `google` (default) / `anthropic` / `openrouter` / `stub`. Tool-use (AI Analyst) requires `anthropic` |
-| `GOOGLE_AI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY` | The key for your provider; `stub` works without any. Keep a Google key alongside the others: embeddings always go to Google |
+| `GOOGLE_AI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY` | The key for your provider; `stub` works without any. Embeddings (programme overlap, skill matching) go to Google whenever `GOOGLE_AI_API_KEY` is set. With `anthropic` a Google key is required for them; with `openrouter` and no Google key, set `AI_OPENROUTER_EMBEDDING_MODEL` instead |
 | `CONNECTOR_MODE` | Global default connector mode. Leave at `mocked` initially |
 | *(none — moved)* | Institution identity is set in the app at **/admin/organization** (names, short names, region, contact email, public URL). The Thai name must match the TCAS สถาบัน column exactly; the form checks it for you. |
 | `MINIO_*`, `REDIS_*`, `GOTENBERG_URL` | Local defaults in `.env.example` work with `pnpm db:up` |
@@ -739,10 +739,10 @@ The safe adaptation pattern: add your weights as a new version alongside KKU's r
 | `google` | Gemini — the default, and what the programme pipeline is tuned for |
 | `anthropic` | Claude — **required for the AI Analyst module**, which uses native tool-use |
 | `stub` | Deterministic placeholders; works with no API key. Useful for local development |
-| `openrouter` | Any model through OpenRouter's OpenAI-compatible API. Embeddings and transient-error fallback go to Google when `GOOGLE_AI_API_KEY` is set. See [Running on OpenRouter](#running-on-openrouter) before digesting long PDFs |
+| `openrouter` | Any model through OpenRouter's OpenAI-compatible API. Embeddings and transient-error fallback go to Google when `GOOGLE_AI_API_KEY` is set; without a Google key, embeddings use `AI_OPENROUTER_EMBEDDING_MODEL` (a 1536-dimension model such as `openai/text-embedding-3-small`). See [Running on OpenRouter](#running-on-openrouter) before digesting long PDFs |
 | `intelsphere` | Stub that throws at call time — deliberately loud, not silent fallback |
 
-Gemini has embeddings and Claude does not, so when `AI_PROVIDER=anthropic` the factory transparently delegates `embed()` to Google. Set both keys if you use Claude.
+Gemini has embeddings and Claude does not, so when `AI_PROVIDER=anthropic` the factory transparently delegates `embed()` to Google. Set both keys if you use Claude. With `openrouter`, a Google key is optional: without one, `embed()` goes to the OpenRouter model named in `AI_OPENROUTER_EMBEDDING_MODEL`. Choose one embedding model per database and keep it; vectors from two models cannot be compared, so a switch means re-embedding everything.
 
 ### Running on OpenRouter
 

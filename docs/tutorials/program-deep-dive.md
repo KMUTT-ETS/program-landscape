@@ -178,9 +178,12 @@ extra setup is needed. The USD 0.80 was measured on one bachelor programme with
 a 126-course curriculum, with `AI_PROVIDER=openrouter` and without embeddings.
 Longer curricula cost more. Check `/admin/ai-cost` after the first programme.
 
-**Embeddings for the overlap section.** The overlap step always uses Google
-(`AI_GOOGLE_EMBEDDING_MODEL`), so a Google key is needed even when `AI_PROVIDER`
-is anthropic or openrouter. A free-tier key embedded about 1,000 course texts and
+**Embeddings for the overlap section.** The overlap step uses Google
+(`AI_GOOGLE_EMBEDDING_MODEL`) whenever a Google key is set, whatever
+`AI_PROVIDER` says. With `AI_PROVIDER=anthropic` a Google key is required. With
+`AI_PROVIDER=openrouter` and no Google key, set `AI_OPENROUTER_EMBEDDING_MODEL`
+to a 1536-dimension model such as `openai/text-embedding-3-small`. A free-tier
+Google key embedded about 1,000 course texts and
 then reached its daily limit. The step waits, retries, gives up, and picks up
 where it stopped on the next run. When it gives up, the overlap phase does not
 fail. It still scores overlap on shared course codes, so the Deep-Dive overlap

@@ -30,13 +30,19 @@ setup downloads about 2 GB of packages and builds about 4 GB of Docker images.
 **Getting an AI key.**
 
 - A Google Gemini key comes from Google AI Studio (`aistudio.google.com`, "Get
-  API key"). The app always uses Google for embeddings, even when OpenRouter is
-  your main provider, so get this key in any case. A free key works for one
-  programme but stops after about 1,000 course texts a day; add billing in
-  Google Cloud for more.
+  API key"). A free key works for one programme but stops after about 1,000
+  course texts a day; add billing in Google Cloud for more.
 - An OpenRouter key comes from `openrouter.ai` ("Keys"). Add credit before you
   start, about USD 5 for a workshop: a run that runs out of credit fails part
   way with "402".
+
+**Embeddings.** Only the programme-overlap step and skill-to-occupation
+matching use embeddings; the rest of the Deep-Dive does not. When a Google key
+is set, embeddings always go to Google, even if OpenRouter is your main
+provider. With only an OpenRouter key, set `AI_OPENROUTER_EMBEDDING_MODEL` to a
+model that returns 1536 dimensions, such as `openai/text-embedding-3-small`.
+Pick one embedding model and keep it: vectors from two models cannot be
+compared, so switching later means embedding everything again.
 
 ## 2. Get the code
 
