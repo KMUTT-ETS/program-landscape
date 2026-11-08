@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { isAdminGrade, type SessionUser } from '@kku/shared';
+import { isAdminGrade, ROLE_PERMISSIONS, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetchSafe } from '@/lib/api-client';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
@@ -30,6 +30,7 @@ import {
   UserSquare2,
 } from 'lucide-react';
 import { ProgramsPipelineLauncher } from './programs-pipeline-launcher';
+import { StartOverAllCard } from './start-over-all-card';
 
 // Admin landing page — the operational hub for "feed the AI everything
 // it needs to analyse the curriculum landscape". Every input category
@@ -136,6 +137,14 @@ export default async function AdminDataSetupPage() {
   const statsRes = await apiFetchSafe<DataSetupStats>('/admin/data-setup/stats');
   const stats = statsRes.ok ? statsRes.data : EMPTY_STATS;
   const importsRes = await apiFetchSafe<ImportDatasetSummary[]>('/admin/imports');
+  // Start over: all data — typed confirmation is the organization's short name,
+  // so the card needs the profile, and only imports:destroy holders see it.
+  const role = user.effectiveRole ?? user.role;
+  const canDestroyImports = ROLE_PERMISSIONS[role]?.has('imports:destroy') ?? false;
+  const orgRes = canDestroyImports
+    ? await apiFetchSafe<{ configured: boolean; shortNameEn?: string }>('/organization')
+    : null;
+  const confirmAs = orgRes?.ok && orgRes.data.configured ? orgRes.data.shortNameEn ?? null : null;
 
   return (
     <AuthedAppShell user={user}>
@@ -203,6 +212,15 @@ export default async function AdminDataSetupPage() {
         ) : (
           <DiagnosticEmptyState surface="spreadsheet imports" error={importsRes.error} />
         )}
+        {importsRes.ok && canDestroyImports && confirmAs ? (
+          <div className="mt-5">
+            <StartOverAllCard
+              confirmAs={confirmAs}
+              uploadCount={importsRes.data.reduce((sum, d) => sum + d.batchCount, 0)}
+              datasetCount={importsRes.data.filter((d) => d.batchCount > 0).length}
+            />
+          </div>
+        ) : null}
       </Section>
 
       {/* ── Curriculum docs ──────────────────────────────────────── */}

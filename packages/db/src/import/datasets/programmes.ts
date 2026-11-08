@@ -377,6 +377,16 @@ export const programmesDataset: ImportDataset = {
   },
 
   clear: async (tx, runIds): Promise<number> => {
+    // NON_FK_CHILDREN would dangle rather than cascade. A per-dataset
+    // start-over has already refused if any exist; the all-data reset
+    // reaches here with them present and must not leave orphans.
+    const programIds = (
+      await tx.program.findMany({ where: byRun(runIds), select: { id: true } })
+    ).map((p) => p.id);
+    if (programIds.length > 0) {
+      await tx.dqStudentCube.deleteMany({ where: { programId: { in: programIds } } });
+      await tx.dqModuleCube.deleteMany({ where: { programId: { in: programIds } } });
+    }
     const result = await tx.program.deleteMany({ where: { ingestionRunId: { in: [...runIds] } } });
     return result.count;
   },

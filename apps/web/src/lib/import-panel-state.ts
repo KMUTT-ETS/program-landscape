@@ -86,3 +86,23 @@ export function describeUploadOutcome(outcome: {
     `Loaded ${outcome.rowCount} rows — ${outcome.inserted} added, ${outcome.updated} updated.`
   );
 }
+
+export interface StartOverAllGateInput {
+  /** What the operator typed into the confirmation box. */
+  confirmName: string;
+  /** The organization's short English name, which they must reproduce exactly. */
+  confirmAs: string;
+  /** Upload-history rows across every dataset. Nothing uploaded, nothing to do. */
+  uploadCount: number;
+  busy: boolean;
+}
+
+/** Why "Delete all uploaded data" cannot be pressed, or null when it can. */
+export function startOverAllBlockedReason(input: StartOverAllGateInput): string | null {
+  if (input.busy) return 'Working…';
+  if (input.uploadCount === 0) return 'Nothing has been uploaded, so there is nothing to delete.';
+  if (input.confirmName.trim() !== input.confirmAs) {
+    return `Type "${input.confirmAs}" exactly to enable the button.`;
+  }
+  return null;
+}

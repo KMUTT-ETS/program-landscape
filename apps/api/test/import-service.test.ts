@@ -73,6 +73,14 @@ function harness(overrides: Partial<ImportServiceDeps> = {}): Harness {
     heldCountForScope: track('heldCountForScope', Promise.resolve(undefined)),
     runLoad: track('runLoad', Promise.resolve({ batchId: 'batch-1', result: { inserted: 1, updated: 0, deleted: 0 } })),
     startOver: track('startOver', Promise.resolve({ rowsDeleted: 3, batchesCleared: 1 })),
+    startOverAll: track('startOverAll', Promise.resolve({
+      datasets: [{ slug: 'faculties', title: 'Faculties', rowsDeleted: 2 }, { slug: 'programmes', title: 'Programmes', rowsDeleted: 5 }],
+      batchesDeleted: 3,
+      runsDeleted: 3,
+      storageKeys: ['imports/a.xlsx', 'imports/b.xlsx'],
+    })),
+    deleteObject: track('deleteObject', Promise.resolve(undefined)),
+    organizationNames: track('organizationNames', Promise.resolve(['Workshop Demo University', 'WDU'])),
     prefill: track('prefill', Promise.resolve([] as ImportRow[])),
     refreshViews: track('refreshViews', Promise.resolve(undefined)),
   };
@@ -232,6 +240,54 @@ describe('ImportService.startOver', () => {
     const h = harness();
     await h.service.startOver('research-outputs', 'Publications', 'user-1');
     expect(h.deps.refreshViews).not.toHaveBeenCalled();
+  });
+});
+
+describe('ImportService.startOverAll', () => {
+  it('refuses unless the organisation name is typed, and clears nothing', async () => {
+    const h = harness();
+    await expect(h.service.startOverAll('wdu', 'user-1')).rejects.toThrow(/WDU/);
+    expect(h.deps.startOverAll).not.toHaveBeenCalled();
+  });
+
+  it('accepts the full or the short name, ignoring surrounding spaces', async () => {
+    const h = harness();
+    await h.service.startOverAll('  WDU ', 'user-1');
+    await h.service.startOverAll('Workshop Demo University', 'user-1');
+    expect(h.deps.startOverAll).toHaveBeenCalledTimes(2);
+  });
+
+  it('refuses when no organisation profile exists yet', async () => {
+    const h = harness({ organizationNames: async () => [] });
+    await expect(h.service.startOverAll('anything', 'user-1')).rejects.toThrow(/organization/i);
+    expect(h.deps.startOverAll).not.toHaveBeenCalled();
+  });
+
+  it('deletes the stored files only after the rows are gone, and totals the result', async () => {
+    const h = harness();
+    const result = await h.service.startOverAll('WDU', 'user-1');
+    expect(h.calls.indexOf('startOverAll')).toBeLessThan(h.calls.indexOf('deleteObject'));
+    expect(h.deps.deleteObject).toHaveBeenCalledTimes(2);
+    expect(h.deps.deleteObject).toHaveBeenCalledWith('csv-uploads', 'imports/a.xlsx');
+    expect(result).toMatchObject({ rowsDeleted: 7, batchesDeleted: 3, filesDeleted: 2, filesFailed: 0 });
+  });
+
+  it('reports a file that could not be deleted without failing the reset', async () => {
+    let n = 0;
+    const h = harness({
+      deleteObject: async () => {
+        n += 1;
+        if (n === 1) throw new Error('minio down');
+      },
+    });
+    const result = await h.service.startOverAll('WDU', 'user-1');
+    expect(result).toMatchObject({ filesDeleted: 1, filesFailed: 1 });
+  });
+
+  it('refreshes the roll-up views', async () => {
+    const h = harness();
+    await h.service.startOverAll('WDU', 'user-1');
+    expect(h.deps.refreshViews).toHaveBeenCalledTimes(1);
   });
 });
 

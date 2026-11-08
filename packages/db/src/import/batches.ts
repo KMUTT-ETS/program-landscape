@@ -2,7 +2,8 @@ import { ApiError } from '@kku/shared';
 import type { ImportBatchStatus, Prisma } from '@prisma/client';
 
 import { prisma } from '../index';
-import { getImportDataset, importDataSourceSlug } from './registry';
+import { getImportDataset, importDataSourceSlug, listImportDatasets } from './registry';
+import type { ImportDataset } from './types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The batch ledger, the ingestion runs imports are attributed to, and
@@ -314,4 +315,95 @@ export async function startOverDataset(
 
     return { rowsDeleted, batchesCleared: cleared.count };
   });
+}
+
+export interface StartOverAllResult {
+  datasets: { slug: string; title: string; rowsDeleted: number }[];
+  batchesDeleted: number;
+  runsDeleted: number;
+  /** Object-storage keys of every upload removed; the caller deletes the files. */
+  storageKeys: string[];
+}
+
+/**
+ * Empties every spreadsheet import at once: the rows, the upload history and
+ * the runs. What the organisation profile, users, settings and connector data
+ * hold is untouched.
+ *
+ * Unlike startOverDataset this does NOT refuse for dependents or cascade
+ * blockers. Its job is "back to an empty installation", so everything built on
+ * an imported programme or faculty (curricula, AI analysis, risk assessments,
+ * mappings) goes with it — that is what the operator confirmed.
+ *
+ * Datasets are cleared in reverse registry order, which puts every dataset
+ * before the ones it references. One transaction: a failure part-way leaves
+ * everything as it was. Files are not touched here — the returned keys are
+ * deleted by the caller once this has committed.
+ */
+export async function startOverAllImports(opts?: {
+  datasets?: readonly ImportDataset[];
+}): Promise<StartOverAllResult> {
+  const datasets = opts?.datasets ?? listImportDatasets();
+  const slugs = datasets.map((d) => d.slug);
+
+  try {
+    return await prisma.$transaction(
+      async (tx) => {
+        const runs = await tx.ingestionRun.findMany({
+          where: { dataSource: { slug: { in: slugs.map(importDataSourceSlug) } } },
+          select: { id: true, dataSource: { select: { slug: true } } },
+        });
+        const runIdsBySource = new Map<string, string[]>();
+        for (const run of runs) {
+          const list = runIdsBySource.get(run.dataSource.slug) ?? [];
+          list.push(run.id);
+          runIdsBySource.set(run.dataSource.slug, list);
+        }
+
+        const cleared: StartOverAllResult['datasets'] = [];
+        for (const dataset of [...datasets].reverse()) {
+          const runIds = runIdsBySource.get(importDataSourceSlug(dataset.slug)) ?? [];
+          const rowsDeleted =
+            runIds.length === 0 ? 0 : await dataset.clear(tx as Prisma.TransactionClient, runIds);
+          cleared.unshift({ slug: dataset.slug, title: dataset.title, rowsDeleted });
+        }
+
+        const batches = await tx.importBatch.findMany({
+          where: { datasetSlug: { in: slugs } },
+          select: { storageKey: true },
+        });
+        const deletedBatches = await tx.importBatch.deleteMany({ where: { datasetSlug: { in: slugs } } });
+        const deletedRuns = await tx.ingestionRun.deleteMany({
+          where: { id: { in: runs.map((r) => r.id) } },
+        });
+
+        return {
+          datasets: cleared,
+          batchesDeleted: deletedBatches.count,
+          runsDeleted: deletedRuns.count,
+          storageKeys: [...new Set(batches.map((b) => b.storageKey).filter((k) => k.length > 0))],
+        };
+      },
+      // Programme deletes cascade through ~35 tables; the 5 s default is too
+      // short for a real installation.
+      { timeout: 120_000, maxWait: 10_000 },
+    );
+  } catch (e) {
+    if (isForeignKeyViolation(e)) {
+      throw new ApiError(
+        'VALIDATION_FAILED',
+        'Cannot start over: some data not loaded from a spreadsheet still refers to an ' +
+          'uploaded faculty, department or staff member (for example a programme or ' +
+          'department created by hand). Remove it first, then try again.',
+      );
+    }
+    throw e;
+  }
+}
+
+function isForeignKeyViolation(e: unknown): boolean {
+  if (typeof e !== 'object' || e === null) return false;
+  const code = (e as { code?: unknown }).code;
+  // P2003 from Prisma's query engine; 23503 when Postgres reports it directly.
+  return code === 'P2003' || code === '23503' || /foreign key constraint/i.test(String((e as Error).message));
 }

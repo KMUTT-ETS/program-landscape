@@ -621,6 +621,28 @@ A few things to understand before using it:
   that were loaded before this system recorded where data came from, start
   over will remove the whole row, not just your correction.
 
+### Starting over on everything
+
+When you have been testing uploads and want an empty installation again, use
+**Start over: all data** at the foot of the *Institution data* section on
+**Admin → Data setup**. You type your organization's short name to confirm. It
+is shown only to administrators who may clear datasets.
+
+- **Deleted:** every row loaded from a spreadsheet, in every dataset, and
+  everything built on those rows: curriculum PDFs attached to an uploaded
+  programme and the courses and learning outcomes extracted from them, AI
+  analysis, risk assessments, demand matches, overlap findings, peer
+  selections, and the mappings that tie TCAS or registry data to a programme.
+- **Also deleted:** the upload history and the stored workbooks. Every
+  dataset page goes back to "no uploads yet". Keep your own copies.
+- **Kept:** the organization profile, users and roles, system settings, and
+  data fetched by the public connectors (TCAS, population projections, skill
+  demand, publications).
+- **All or nothing.** The database part runs as one transaction. If anything
+  stops it — most often a programme or department you created by hand under
+  an uploaded faculty — nothing is deleted, and the message says so.
+- **Not undoable**, unlike the per-dataset start over: the files are gone too.
+
 ## If an upload does not appear
 
 Imported rows carry a record of which upload created them, and the application

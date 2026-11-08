@@ -17,6 +17,7 @@ import {
   recordImportBatch,
   refreshMetricViews,
   startImportRun,
+  startOverAllImports,
   startOverDataset,
   validateSheet,
   type ImportBatchView,
@@ -26,6 +27,7 @@ import {
   type ImportRow,
   type ImportValidationError,
   type PrefillOptions,
+  type StartOverAllResult,
 } from '@kku/db';
 import { ApiError, S3Storage } from '@kku/shared';
 
@@ -67,9 +69,22 @@ export interface ImportServiceDeps {
     term?: Readonly<Record<string, ImportCellValue>>,
   ) => Promise<{ batchId: string; result: ImportLoadResult }>;
   startOver: (slug: string) => Promise<{ rowsDeleted: number; batchesCleared: number }>;
+  /** Empties every import in one transaction; returns the stored-file keys to delete. */
+  startOverAll: () => Promise<StartOverAllResult>;
+  deleteObject: (bucket: string, key: string) => Promise<void>;
+  /** The organisation's full and short English names; empty before setup. */
+  organizationNames: () => Promise<string[]>;
   prefill: (dataset: ImportDataset, opts: PrefillOptions) => Promise<readonly ImportRow[]>;
   /** Refreshes the scope roll-up materialised views. */
   refreshViews: () => Promise<void>;
+}
+
+export interface StartOverAllSummary {
+  datasets: { slug: string; title: string; rowsDeleted: number }[];
+  rowsDeleted: number;
+  batchesDeleted: number;
+  filesDeleted: number;
+  filesFailed: number;
 }
 
 export interface ImportUploadResult {
@@ -172,6 +187,22 @@ export class ImportService implements OnModuleInit {
           dataset.countForScope ? dataset.countForScope(prisma, scopes) : Promise.resolve(undefined)),
       runLoad: deps?.runLoad ?? ((dataset, rows, userId, batch, term) => this.defaultRunLoad(dataset, rows, userId, batch, term)),
       startOver: deps?.startOver ?? startOverDataset,
+      startOverAll: deps?.startOverAll ?? (() => startOverAllImports()),
+      deleteObject:
+        deps?.deleteObject ??
+        ((bucket, key) => {
+          if (!this.storage) throw new Error('ImportService storage not initialised');
+          return this.storage.deleteObject(bucket, key);
+        }),
+      organizationNames:
+        deps?.organizationNames ??
+        (async () => {
+          const org = await prisma.organizationProfile.findUnique({
+            where: { id: 'default' },
+            select: { nameEn: true, shortNameEn: true },
+          });
+          return org ? [org.nameEn, org.shortNameEn].filter((n) => n.trim().length > 0) : [];
+        }),
       prefill: deps?.prefill ?? ((dataset, opts) => (dataset.prefill ? dataset.prefill(prisma, opts) : Promise.resolve([]))),
       refreshViews: deps?.refreshViews ?? (async () => { await refreshMetricViews({ trigger: 'on-import' }); }),
     };
@@ -510,5 +541,62 @@ export class ImportService implements OnModuleInit {
         `${result.rowsDeleted} rows deleted, ${result.batchesCleared} batches cleared`,
     );
     return result;
+  }
+  /**
+   * Empties every spreadsheet import: rows, upload history and stored files.
+   * Confirmed by typing the organisation's name, since there is no single
+   * dataset title to type. Files go only after the database has committed —
+   * a file without its row is harmless, a row without its file is not — and
+   * a file that will not delete is counted and logged, not fatal.
+   */
+  async startOverAll(confirmName: string, userId: string | null): Promise<StartOverAllSummary> {
+    const names = await this.deps.organizationNames();
+    if (names.length === 0) {
+      throw new ApiError(
+        'VALIDATION_FAILED',
+        'Set up the organization profile before starting over — its name is what you type to confirm.',
+      );
+    }
+    const typed = confirmName.trim();
+    if (!names.some((n) => n.trim() === typed)) {
+      const shortest = [...names].sort((a, b) => a.length - b.length)[0];
+      throw new ApiError(
+        'VALIDATION_FAILED',
+        `Type the organization's name exactly ("${shortest}") to confirm deleting all uploaded data.`,
+      );
+    }
+
+    const result = await this.deps.startOverAll();
+
+    let filesDeleted = 0;
+    let filesFailed = 0;
+    for (const key of result.storageKeys) {
+      try {
+        await this.deps.deleteObject(this.bucket, key);
+        filesDeleted += 1;
+      } catch (e) {
+        filesFailed += 1;
+        this.logger.warn(`import start-over-all: could not delete stored file ${key}: ${String(e)}`);
+      }
+    }
+
+    try {
+      await this.deps.refreshViews();
+    } catch (e) {
+      this.logger.warn(`import start-over-all: metric view refresh failed (run pnpm outcomes:refresh-derived): ${String(e)}`);
+    }
+
+    const rowsDeleted = result.datasets.reduce((sum, d) => sum + d.rowsDeleted, 0);
+    this.logger.warn(
+      `import start-over-all by ${userId ?? 'unknown'} — ${rowsDeleted} rows, ` +
+        `${result.batchesDeleted} uploads, ${filesDeleted} files deleted (${filesFailed} failed)`,
+    );
+    return {
+      datasets: result.datasets,
+      rowsDeleted,
+      batchesDeleted: result.batchesDeleted,
+      filesDeleted,
+      filesFailed,
+    };
   }
 }

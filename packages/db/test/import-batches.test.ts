@@ -9,6 +9,7 @@ import {
   markImportBatchSucceeded,
   recordImportBatch,
   startImportRun,
+  startOverAllImports,
   startOverDataset,
 } from '../src/import/batches';
 import { IMPORT_DATASETS } from '../src/import/registry';
@@ -283,6 +284,99 @@ describe('startOverDataset', () => {
       await expect(startOverDataset(SLUG)).rejects.toThrow(/Dependent fixture/);
     } finally {
       dependentRowCount = 0;
+    }
+  });
+});
+
+describe('startOverAllImports', () => {
+  const datasets = (): ImportDataset[] => [fixture, dependent];
+
+  it('deletes imported rows, every batch and every run, and returns the stored file keys', async () => {
+    const runId = await makeRun();
+    const mine = await makeFaculty(runId, 'ALL-MINE');
+    const seeded = await prisma.faculty.create({
+      data: { code: 'ALL-SEEDED', nameTh: 'seeded', nameEn: 'seeded' },
+      select: { id: true },
+    });
+    ownedFacultyIds.push(seeded.id);
+    const live = await recordImportBatch({
+      datasetSlug: SLUG, filename: 'live.xlsx', contentHash: 'all-hash-live',
+      storageKey: 'all-k-live', fileSize: 10, rowCount: 1, uploadedByUserId: null, ingestionRunId: runId,
+    });
+    // An upload already cleared by a per-dataset start-over: no run, still listed.
+    const cleared = await prisma.importBatch.create({
+      data: {
+        datasetSlug: SLUG, filename: 'old.xlsx', contentHash: 'all-hash-old', storageKey: 'all-k-old',
+        fileSize: 10, rowCount: 1, status: 'CLEARED', clearedAt: new Date(),
+      },
+      select: { id: true },
+    });
+
+    const result = await startOverAllImports({ datasets: datasets() });
+
+    expect(await prisma.faculty.findUnique({ where: { id: mine } })).toBeNull();
+    expect(await prisma.faculty.findUnique({ where: { id: seeded.id } })).not.toBeNull();
+    expect(await prisma.importBatch.count({ where: { id: { in: [live.id, cleared.id] } } })).toBe(0);
+    expect(await prisma.ingestionRun.count({ where: { id: runId } })).toBe(0);
+    expect(result.storageKeys).toEqual(expect.arrayContaining(['all-k-live', 'all-k-old']));
+    expect(result.batchesDeleted).toBeGreaterThanOrEqual(2);
+    expect(result.datasets.find((d) => d.slug === SLUG)?.rowsDeleted).toBe(1);
+  });
+
+  it('clears dependents before what they depend on, without the per-dataset refusal', async () => {
+    const order: string[] = [];
+    const record = (d: ImportDataset): ImportDataset => ({
+      ...d,
+      clear: async (tx, runIds) => {
+        order.push(d.slug);
+        return d.clear(tx, runIds);
+      },
+    });
+    dependentRowCount = 4;
+    try {
+      await startOverAllImports({ datasets: [record(fixture), record(dependent)] });
+    } finally {
+      dependentRowCount = 0;
+    }
+    expect(order).toEqual([DEPENDENT_SLUG, SLUG]);
+  });
+
+  it('changes nothing when any dataset fails to clear', async () => {
+    const runId = await makeRun();
+    const mine = await makeFaculty(runId, 'ALL-ROLLBACK');
+    const batch = await recordImportBatch({
+      datasetSlug: SLUG, filename: 'rb.xlsx', contentHash: 'all-hash-rb',
+      storageKey: 'all-k-rb', fileSize: 10, rowCount: 1, uploadedByUserId: null, ingestionRunId: runId,
+    });
+    const broken: ImportDataset = {
+      ...dependent,
+      clear: async () => {
+        throw new Error('boom');
+      },
+    };
+
+    // fixture is cleared AFTER broken (reverse order), so make broken run last.
+    await expect(startOverAllImports({ datasets: [broken, fixture] })).rejects.toThrow('boom');
+
+    expect(await prisma.faculty.findUnique({ where: { id: mine } })).not.toBeNull();
+    expect(await prisma.importBatch.findUnique({ where: { id: batch.id } })).not.toBeNull();
+    expect(await prisma.ingestionRun.count({ where: { id: runId } })).toBe(1);
+  });
+
+  it('refuses readably when data not loaded from a spreadsheet still points at an imported row', async () => {
+    const runId = await makeRun();
+    const faculty = await makeFaculty(runId, 'ALL-FK');
+    // A department created by hand under an imported faculty (onDelete: Restrict).
+    const dept = await prisma.department.create({
+      data: { code: 'ALL-FK-DEPT', nameTh: 'd', nameEn: 'd', facultyId: faculty },
+      select: { id: true },
+    });
+    try {
+      await expect(startOverAllImports({ datasets: datasets() })).rejects.toThrow(
+        /not loaded from a spreadsheet/,
+      );
+    } finally {
+      await prisma.department.delete({ where: { id: dept.id } });
     }
   });
 });

@@ -14,6 +14,7 @@ import { IMPORT_MAX_UPLOAD_BYTES, ImportService } from './import.service';
 // GET  /admin/imports/:dataset/template   generated .xlsx download
 // POST /admin/imports/:dataset            multipart .xlsx upload
 // POST /admin/imports/:dataset/start-over clears the dataset
+// POST /admin/imports/start-over-all      clears every dataset, history and files
 
 const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -31,7 +32,7 @@ const TemplateQuerySchema = z.object({
 });
 
 const StartOverBodySchema = z.object({
-  /** Must equal the dataset's title; the service checks it. */
+  /** The dataset's title, or for start-over-all the organization's name; the service checks it. */
   confirmName: z.string().min(1),
 });
 
@@ -76,6 +77,17 @@ export class ImportController {
     res.setHeader('Content-Type', XLSX_CONTENT_TYPE);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(bytes);
+  }
+
+  // Declared before `:dataset` so the upload route does not capture it.
+  @Post('start-over-all')
+  @Authorized('imports:destroy')
+  @AuditLog({ action: 'import.start_over_all', entityType: 'ImportBatch' })
+  async startOverAll(
+    @Body(new ZodValidationPipe(StartOverBodySchema)) body: { confirmName: string },
+    @AuthSession() user: SessionUser,
+  ) {
+    return this.service.startOverAll(body.confirmName, user.userId);
   }
 
   @Post(':dataset')

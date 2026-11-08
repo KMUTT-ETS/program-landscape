@@ -18,6 +18,7 @@ function stubService(overrides: Partial<Record<keyof ImportService, unknown>> = 
     listDatasets: vi.fn(async () => []),
     getDataset: vi.fn(async () => ({ slug: 'faculties' })),
     startOver: vi.fn(async () => ({ rowsDeleted: 2, batchesCleared: 1 })),
+    startOverAll: vi.fn(async () => ({ datasets: [], rowsDeleted: 0, batchesDeleted: 0, filesDeleted: 0, filesFailed: 0 })),
     ...overrides,
   } as unknown as ImportService & Record<string, ReturnType<typeof vi.fn>>;
 }
@@ -88,6 +89,20 @@ describe('ImportController — start over', () => {
     const controller = new ImportController(service);
     await controller.startOver('faculties', { confirmName: 'Faculties' }, user);
     expect(service.startOver).toHaveBeenCalledWith('faculties', 'Faculties', 'user-1');
+  });
+});
+
+describe('ImportController — start over all', () => {
+  it('forwards the confirmation name', async () => {
+    const service = stubService();
+    const controller = new ImportController(service);
+    await controller.startOverAll({ confirmName: 'WDU' }, user);
+    expect(service.startOverAll).toHaveBeenCalledWith('WDU', 'user-1');
+  });
+
+  it('is gated by the destroy permission and audit-logged', () => {
+    expect(permissionOf('startOverAll')).toBe('imports:destroy');
+    expect(auditOf('startOverAll')).toEqual({ action: 'import.start_over_all', entityType: 'ImportBatch' });
   });
 });
 
