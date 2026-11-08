@@ -109,9 +109,9 @@ a participant's pre-work failed, they also need `registry.npmjs.org`,
   hour and is needed only with KMITL credentials. If you have them, run it on
   your own machine beforehand to learn the time, and have participants start
   it first thing in session 3.
-- **Free Google keys** embed about 1,000 course texts a day. The sample
-  programme is well under that. A participant who also runs their own large
-  programme may hit the limit; the overlap section then uses shared course
+- **Free Google keys** embed about 1,000 course texts a day. One programme
+  of about 126 courses is well under that. A participant who runs a large
+  programme, or several, may hit the limit; the overlap section then uses shared course
   codes only, which is fine for the workshop.
 
 ## Recovery plans

@@ -53,6 +53,11 @@
 
 **Recent decisions worth knowing about:**
 
+*Workshop sample data and rehearsal track removed (2026-11-08; branch `feat/organization-region-select`):*
+- **Why.** Participants load their own data (path A), their own data with generated gaps (B), or a `pnpm workshop:mock` set for their own university (C). The committed *Workshop Demo University* files in `workshop/sample-data/` were no longer needed.
+- **Removed.** `workshop/sample-data/`, `apps/api/scripts/workshop/{sample-data,write-sample-data,write-curriculum-pdf}.ts`, `apps/api/test/workshop-sample-data.test.ts`, and the `workshop:sample-data` / `workshop:sample-pdf` scripts.
+- **Docs.** Session 3 (EN/TH) is rewritten around the participant's own files: "Get your files", then "Load your university". The generator section keeps its anchor, which `data-import.md` and the early notice link to. "Before the day" replaces the rehearsal with "Start the app once" (claim the administrator and run `un-wpp`). Session 6 exercises use the participant's own programmes and their Staff file.
+
 *Node 24.22.2 — Node2Shell security upgrade (2026-11-07; branch `feat/generic-adoptor`, NOT released):*
 - **Why.** Node announced Node2Shell; fixed releases are 24.22.1 and 26.12.1 (both flagged `security: true` in nodejs.org/dist/index.json). The repo was on Node 20 (EOL) everywhere.
 - **What changed.** `.nvmrc` → `24`; root `engines.node` → `>=24.22.1`; CI `setup-node` → `24.22.2`; api/web `NODE_VERSION=24.22.2-alpine`; ingestion builder `24.22.2-bookworm-slim`. Setup docs (WSL2 guide, getting-started, workshop, adopters README, KICKOFF/WINDOWS-DEV prompts) now say Node 24.22.1+.

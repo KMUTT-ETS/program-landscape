@@ -5,9 +5,8 @@
 Do this at home. Start after the [early notice](./early-notice.md) and finish by
 the **readiness form deadline, 19 November, 18:00**. The pre-workshop online on
 16 November walks through this page. It downloads several gigabytes, and the
-room network may be slow. It takes one to two hours, mostly waiting, plus about
-30 minutes for the rehearsal. Bring the laptop with the app already set up and
-the rehearsal done.
+room network may be slow. It takes one to two hours, mostly waiting. Bring the
+laptop with the app already set up and its administrator claimed.
 
 **Outcome.** You arrive with a laptop that runs the app, a working AI key and an AI coding assistant, so the day starts with the work, not with installs.
 
@@ -76,24 +75,21 @@ Sign in when asked. Then start `opencode` in the project folder, type
 often, so choose from the list you see on the day rather than a name from this
 page. You can also connect your Gemini or OpenRouter key to opencode instead.
 
-## Rehearse once with the sample university
+## Start the app once
 
-Run the **Sample track** of [Session 3](./03-university-data.md#sample-track) from
-start to end on your own laptop: start the app, claim the administrator, upload
-the 13 sample files, run `un-wpp`, attach the curriculum PDF, and run the
-pipeline for `WDU-CPE-BE`. It takes about 30 minutes, mostly the pipeline, and
-costs about USD 0.40 to 0.80 on your key.
+Start the app with `pnpm dev`, check it is healthy, and claim the administrator
+at `/setup`, as in [Getting started](../tutorials/getting-started.md) steps 5,
+6 and 7. The first person to open the setup page becomes the administrator, so
+do it at once.
 
-You are done when `/programs/<id>` for `WDU-CPE-BE` shows content in its
-Executive snapshot. This proves your key, Docker and the pipeline all work.
+Then open `/admin/data-sources`, click `un-wpp`, and click "Run now". It needs
+no key and downloads about 68 MB of UN population projections, so you will not
+download them again in the room.
 
 - **Keep this database.** On Day 1 you sign in with the administrator you
-  created here; you do not claim it again. The sample university stays
-  alongside your own data, which you load on Day 1.
-- **If the pipeline fails twice, or the key runs out of credit,** stop. Do not
-  keep retrying and spending: report it on the readiness form.
-- `un-wpp` is now in your database, so you will not download it again in the
-  room.
+  created here; you do not claim it again.
+- You load your own data and run the pipeline on Day 1, in Session 3. Your AI
+  key is already checked by the request above.
 
 ## Prepare your programme's data
 
@@ -107,8 +103,8 @@ For the files you can get from your university (paths A and B):
    at least faculties, departments, programmes, staff, programme teaching staff,
    enrolment, finance and graduate outcomes.
 2. Fill them into the templates. The columns of each dataset are in
-   [Importing from spreadsheets](../data-import.md). The sample files in
-   `workshop/sample-data/` show a filled example of each.
+   [Importing from spreadsheets](../data-import.md). Each dataset's page on
+   `/admin/data-setup` offers its template to download.
 3. **Remove personal data before the files leave your office.** No national ID
    numbers, no birth dates, no addresses or phone numbers. The importer refuses
    a file that contains something that looks like a national ID, but do not rely
@@ -148,7 +144,7 @@ The instructor shares the readiness form link at the pre-workshop. It asks for:
 
 - your operating system;
 - whether `pnpm adopter:fresh-check` passed;
-- whether the sample Deep-Dive of `WDU-CPE-BE` shows content;
+- whether you claimed the administrator and `un-wpp` finished;
 - your AI provider (Gemini or OpenRouter) and your coding assistant;
 - your data path: A, B or C;
 - for each dataset, whether it is real or mock;

@@ -93,10 +93,10 @@ from design tokens. The full list is in the
 
 Start the app with `pnpm dev` and check it is healthy, as in
 [Getting started](../tutorials/getting-started.md) steps 5 and 6. Then sign in
-with the administrator you claimed during the
-[rehearsal](./00-before-the-day.md#rehearse-once-with-the-sample-university).
+with the administrator you claimed
+[before the day](./00-before-the-day.md#start-the-app-once).
 
-If you skipped the rehearsal or reset your database, claim the administrator
+If you skipped that step or reset your database, claim the administrator
 now at `/setup` ([Getting started](../tutorials/getting-started.md) step 7), at
 once: the first person to open the setup page becomes the administrator.
 

@@ -36,12 +36,12 @@ the left column. If it is not here, show the full message to the facilitator.
 
 | What you see | Cause | Fix |
 |---|---|---|
-| "OPENALEX_API_KEY is not set..." and the run is skipped | The free OpenAlex key is not in `.env`. | Add it, restart `pnpm dev`, run `openalex-works` again. Not needed on the sample track. |
-| The TCAS run matches no programmes | The Thai name on `/admin/organization` does not match the TCAS spelling, or the programmes are not uploaded yet. On the sample track this is expected. | Correct the name, upload the programmes, run `tcas` again. |
+| "OPENALEX_API_KEY is not set..." and the run is skipped | The free OpenAlex key is not in `.env`. | Add it, restart `pnpm dev`, run `openalex-works` again. Not needed with a mock set: its staff are tokens. |
+| The TCAS run matches no programmes | The Thai name on `/admin/organization` does not match the TCAS spelling, or the programmes are not uploaded yet. | Correct the name, upload the programmes, run `tcas` again. |
 | The pipeline fails at its first AI step | No AI key, or `AI_PROVIDER` is `stub`. | Set the key and `AI_PROVIDER` in `.env`, restart `pnpm dev`. |
 | The pipeline stops with "402" | OpenRouter credit ran out. | Add credit, or switch to a Google key, and run the pipeline again. Finished phases are cheap to repeat. |
 | The pipeline was cut off part way | The worker restarted while it ran, for example after a code change. | Run it again. |
-| The course-list phase says the list comes from the upload | The programme has an uploaded course list, which always wins over the PDF. | Nothing. This is expected on the sample track. |
+| The course-list phase says the list comes from the upload | The programme has an uploaded course list, which always wins over the PDF. | Nothing. This is expected when you uploaded a course list, as a mock set does. |
 | The pipeline cannot read the course list from your own PDF | The PDF layout is not recognised. | Check it with `pnpm curriculum:check "<file.pdf>"`, or upload the course list instead. |
 | The skills do not appear after the pipeline | The skill names were not matched, or the AI provider was unreachable during phase 2. | Run the two commands below, then the pipeline again. |
 | The overlap section shows shared course codes only, or the log shows "429" while embedding | A free Google key reached its daily embedding limit. | Use a paid key, or run the pipeline again the next day. |

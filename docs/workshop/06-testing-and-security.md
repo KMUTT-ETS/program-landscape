@@ -5,8 +5,8 @@
 **Time.** About 90 minutes.
 
 **Outcome.** You run the tests that guard the calculations, see who is allowed to see what, and
-watch the app keep personal data out. Every exercise uses the sample
-university from session 3.
+watch the app keep personal data out. Every exercise uses the university you
+loaded in session 3.
 
 ## Run the tests
 
@@ -58,12 +58,15 @@ As the super administrator you can view the app as another role without
 signing out.
 
 1. Open your user menu at the top right and choose "Switch role".
-2. Pick "University user". Open the Deep-Dive of `WDU-CPE-BE` and scroll to
+You need two programmes: the one you ran the pipeline on in session 3 (call it
+programme A) and any other programme you uploaded (programme B).
+
+2. Pick "University user". Open the Deep-Dive of programme A and scroll to
    "Faculty capability". The staff are listed without names or codes.
-3. Switch role again, pick "Program user", and scope it to `WDU-ME-BE`. Open
-   the Deep-Dive of `WDU-CPE-BE` again. It does not open: the page explains
+3. Switch role again, pick "Program user", and scope it to programme B. Open
+   the Deep-Dive of programme A again. It does not open: the page explains
    that this user has no access, because the programme is outside the scope.
-4. Open the Deep-Dive of `WDU-ME-BE`. It opens, with names, because it is
+4. Open the Deep-Dive of programme B. It opens, with names, because it is
    this user's own programme.
 5. Click "Stop impersonating" in the banner at the top of the page.
 
@@ -97,8 +100,9 @@ How the app handles personal data under the PDPA is in [PDPA](../pdpa.md).
 node -e "const d=Array.from({length:12},(_,i)=>i?Math.floor(Math.random()*10):1+Math.floor(Math.random()*8));const s=d.reduce((t,x,i)=>t+x*(13-i),0);console.log(d.join('')+(11-s%11)%10)"
 ```
 
-2. Copy `workshop/sample-data/07-faculty-members.xlsx`, open the copy, and
-   paste the number into the "Specialization" cell of any row.
+2. Copy the Staff file you uploaded in session 3 (`07-faculty-members.xlsx`
+   in a `workshop:mock` output folder), open the copy, and paste the number
+   into the "Specialization" cell of any row.
 3. Upload the copy on the Staff dataset page. It is refused: "This cell looks
    like a personal identifier (national ID)." The message names the row and
    column but not the number.

@@ -37,9 +37,9 @@ import type { ImportDataset } from './types';
  * — which is also the order an adopter must load them in: grouped by tier,
  * and within a tier every dataset comes after the ones it references.
  *
- * The workshop's numbered files (`pnpm workshop:sample-data`,
- * `pnpm workshop:mock`) take their numbers from this order, so the files run
- * top to bottom on /admin/data-setup. Within tier 2 the datasets the Program
+ * The workshop's numbered mock files (`pnpm workshop:mock`) take their
+ * numbers from this order, so the files run top to bottom on
+ * /admin/data-setup. Within tier 2 the datasets the Program
  * Deep-Dive reads come first, in the order the workshop uploads them; the
  * optional ones follow.
  */

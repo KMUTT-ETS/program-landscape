@@ -4,13 +4,14 @@
 
 **Time.** One afternoon, about 3 hours.
 
-**Outcome.** You load a university into the app, run the pipeline on one programme with your own
-AI key, and see its Deep-Dive filled with content. Everyone does the sample
-track. If you brought your own files, you then repeat it with them.
+**Outcome.** You load your own university into the app, from real exports, a mix
+of real and generated files, or a mock set generated for it, run the pipeline
+on one programme with your own AI key, and see its Deep-Dive filled with
+content.
 
 The steps are those of [Get Program Deep-Dive working](../tutorials/program-deep-dive.md).
-This page tells you which values and files to use, and in what order, so the
-slow steps run while you do something else.
+This page tells you which files to use, and in what order, so the slow steps
+run while you do something else.
 
 ## Start the long steps first
 
@@ -20,132 +21,25 @@ the short steps first, start both long ones, and work through the Setup
 checklist while they run:
 
 1. Organisation profile (5 minutes).
-2. Upload the 13 sample files (about 20 minutes).
+2. Upload your files (about 20 minutes).
 3. Attach the curriculum PDF, then **start the pipeline**.
 4. **Start the `un-wpp` connector.**
 5. While both run: read the Setup checklist and the mock API section below.
 
-## Sample track
+## Get your files
 
-### Organisation profile
+Your data path from the [early notice](./early-notice.md#pick-your-data-path)
+decides which files you upload:
 
-Open `/admin/organization` and fill in the "Identity" tab as
-[Step 1](../tutorials/program-deep-dive.md#step-1-set-the-organisation-profile)
-describes, with these values:
+- **A. Real.** The templates you filled from your own exports before the day.
+  The columns of each are in [Importing from spreadsheets](../data-import.md).
+- **B. Mixed.** Generate a mock set as below, then use your own file in place
+  of the generated one for each dataset you have. Your files must use the same
+  faculty, department, programme and staff codes as the files they sit next to.
+- **C. Mock.** Generate a mock set as below and upload all of it.
 
-| Field | Value |
-|---|---|
-| Thai name | มหาวิทยาลัยสาธิตเวิร์กช็อป |
-| English name | Workshop Demo University |
-| Thai short name | มสว. |
-| English short name | WDU |
-| Region | Northeast — ภาคตะวันออกเฉียงเหนือ |
-| OpenAlex institution ID | Leave blank. The university is invented. |
-
-Click "Create organisation". You should see the names in the header.
-
-### Upload the sample files
-
-The files are in `workshop/sample-data/` in the repository. Every person and
-every number in them is invented. Upload them in the order of their numbers,
-which is the order of the dataset tiles on `/admin/data-setup` from top to
-bottom. Upload each on its dataset's page with the "Upload filled template"
-control described in
-[Step 2](../tutorials/program-deep-dive.md#step-2-upload-the-organisation-and-the-programmes).
-
-| File | Dataset page |
-|---|---|
-| `01-faculties.xlsx` | Faculties |
-| `02-departments.xlsx` | Departments |
-| `03-programmes.xlsx` | Programmes |
-| `04-enrollment-metrics.xlsx` | Enrolment |
-| `05-financial-metrics.xlsx` | Finance |
-| `06-graduate-outcomes.xlsx` | Graduate Outcomes |
-| `07-faculty-members.xlsx` | Staff |
-| `08-program-faculty.xlsx` | Programme Teaching Staff |
-| `09-student-cohorts.xlsx` | Student Cohorts |
-| `10-alumni-cohorts.xlsx` | Alumni Cohorts |
-| `11-admission-campaigns.xlsx` | Admission Campaigns |
-| `12-research-outputs.xlsx` | Publications |
-| `13-programme-courses.xlsx` | Programme course lists |
-
-Then upload **University Rankings** as it comes: open its page, download the
-template, and upload it unchanged.
-
-You should see each upload in its "Uploads" history with its row count. Open
-one file in a spreadsheet program to see what a filled template looks like:
-you will fill the same templates with your own data later.
-
-An upload counts as real data, the same as a connector run. The Setup
-checklist's rule "sample rows never turn an item green" is about the built-in
-mock connectors, not about these files.
-
-### Public connectors
-
-Open `/admin/data-sources`, click `un-wpp`, and click "Run now". It needs no
-key. It loads the UN population projections behind the Demographic outlook
-section.
-
-Skip the others on the sample track:
-
-- `tcas` matches programmes by the university's Thai name, and an invented
-  university is in no TCAS table.
-- `openalex-works` needs a real OpenAlex institution ID.
-- `kmitl-skill-mapping` needs KMITL credentials. If the facilitator gives you
-  some, run it, then run the command in
-  [Labour-market skills](../tutorials/program-deep-dive.md#labour-market-skills).
-  It takes about an hour, so start it before the pipeline.
-
-### Curriculum PDF and pipeline
-
-1. Open `/admin/programs` and click the programme `WDU-CPE-BE`, Bachelor of
-   Engineering in Computer Engineering.
-2. On its "Files" tab (shown as "Files (0)" until a file is attached), choose the role `CURRENT_CURRICULUM` and upload
-   `workshop/sample-data/curriculum/workshop-demo-curriculum.pdf`.
-3. On its "Pipeline history" tab, click "Run full pipeline". Or, from a terminal:
-
-```bash
-pnpm programs:pipeline WDU-CPE-BE
-```
-
-You should see the phases finish one by one. The course-list phase reports
-that the programme's course list comes from the upload: that is expected, the
-uploaded list always wins over the PDF. The rest of the pipeline reads the PDF
-for the programme description, learning outcomes and course descriptions.
-
-### Setup checklist
-
-Open the programme's "Setup checklist" tab, as in
-[Step 6](../tutorials/program-deep-dive.md#step-6-get-the-setup-checklist-green).
-Each red item names what is missing.
-
-Some items stay red or "not applicable" on the sample track, and that is
-correct:
-
-- Items that need **TCAS** figures: the invented university has none.
-- **Labour-market** items (demand match, labour-market alignment), unless you
-  ran `kmitl-skill-mapping` and the skills command.
-- **JobThai** shows "not applicable": it is a commercial feed.
-- **Research by OpenAlex**: the publications come from the upload instead.
-
-Everything else should be green once the pipeline has finished.
-
-## Real-data track
-
-If you brought your own files, do the same steps with them:
-
-1. Correct the organisation profile with your university's names. The Thai
-   name must match the TCAS tables character for character.
-2. Upload your files in the same order. When a file is refused, the message
-   names the rows and columns. The rules are in
-   [Importing from spreadsheets](../data-import.md).
-3. Run `tcas` and, with a free key, `openalex-works`.
-4. Attach the curriculum PDF of your programme, check it first with
-   `pnpm curriculum:check "<file.pdf>"`, and run the pipeline.
-
-Your data and the sample university live side by side in the same database.
-To remove the sample later, use "Start over" on each sample dataset's page,
-in reverse order of upload.
+Remove personal data before the files reach your laptop: no national ID
+numbers, no birth dates, no addresses or phone numbers.
 
 ### No exports? Generate a mock set for your university
 
@@ -232,38 +126,113 @@ files pass the app's importer and that the `tcas` connector will match the
 programmes. Exit code 0 means every check passed, 1 means a check failed (the
 lines above name it), 2 means a problem with the arguments or an unreadable file.
 
-**Load it.**
+## Load your university
 
-1. Open `/admin/organization`, "Identity" tab. Type the Thai name and pick
-   the Region exactly as `README.txt` in the output folder gives them.
-2. Upload the numbered files in order at `/admin/data-setup`, each on its
-   dataset's page with "Upload filled template".
-3. Then upload **University Rankings**: download its pre-filled template and
-   upload it unchanged.
-4. When all uploads are done, open `/admin/data-sources` and run `tcas` and
-   `un-wpp`. `openalex-works` will not match, because the mock staff are
-   tokens, not real people. `kmitl-skill-mapping` is optional.
-5. From the repository root, link the uploaded Career Skill Demand names to
-   the skill taxonomy (about 13 seconds for the mock's names):
+### Organisation profile
 
-   ```bash
-   pnpm skills:normalise --source=linkedin --auto-promote
-   ```
+Open `/admin/organization` and fill in the "Identity" tab as
+[Step 1](../tutorials/program-deep-dive.md#step-1-set-the-organisation-profile)
+describes, with your university's names. The Thai name must match the TCAS
+tables character for character, or the `tcas` connector matches nothing. With a
+mock set, type the Thai name and pick the Region exactly as `README.txt` in the
+output folder gives them. Leave the OpenAlex institution ID blank unless you
+know your university's.
 
-   Without it, the Setup checklist items "Labour market alignment" and
-   "Demand match filled" stay missing and pipeline phase 3 skips the demand
-   match.
-6. Attach each PDF on the programme's "Files" tab with the role
-   `CURRENT_CURRICULUM` and run the pipeline.
-7. Open the programme's "Setup checklist" tab. You should see green items
-   except JobThai ("not applicable") and the labour-market items, unless you
-   ran `kmitl-skill-mapping` and its skills command.
+Click "Create organisation". You should see the names in the header.
+
+### Upload the files
+
+Upload one file per dataset, in the order of the dataset tiles on
+`/admin/data-setup` from top to bottom. A mock set's files are numbered in that
+order. Upload each on its dataset's page with the "Upload filled template"
+control described in
+[Step 2](../tutorials/program-deep-dive.md#step-2-upload-the-organisation-and-the-programmes).
+
+Then upload **University Rankings** as it comes: open its page, download the
+pre-filled template, and upload it unchanged.
+
+You should see each upload in its "Uploads" history with its row count. When a
+file is refused, the message names the rows and columns. The rules are in
+[Importing from spreadsheets](../data-import.md).
+
+An upload counts as real data, the same as a connector run. The Setup
+checklist's rule "sample rows never turn an item green" is about the built-in
+mock connectors, not about uploaded files, generated or not.
+
+### Public connectors
+
+When all uploads are done, open `/admin/data-sources` and run:
+
+- `un-wpp`. It needs no key. It loads the UN population projections behind
+  the Demographic outlook section.
+- `tcas`. It matches your programmes by the university's Thai name.
+- `openalex-works`, with a free key, on path A or B. It does not match mock
+  staff, who are tokens, not real people.
+- `kmitl-skill-mapping`, only if the facilitator gives you KMITL credentials.
+  It takes about an hour, so start it before the pipeline, then run the
+  command in
+  [Labour-market skills](../tutorials/program-deep-dive.md#labour-market-skills).
+
+If you uploaded a Career Skill Demand file (a mock set has one), link its skill
+names to the skill taxonomy from the repository root. It takes about 13 seconds
+for a mock set's names:
+
+```bash
+pnpm skills:normalise --source=linkedin --auto-promote
+```
+
+Without it, the Setup checklist items "Labour market alignment" and "Demand
+match filled" stay missing and pipeline phase 3 skips the demand match.
+
+### Curriculum PDF and pipeline
+
+1. Check the PDF first:
+
+```bash
+pnpm curriculum:check "<file.pdf>"
+```
+
+2. Open `/admin/programs` and click your programme.
+3. On its "Files" tab (shown as "Files (0)" until a file is attached), choose
+   the role `CURRENT_CURRICULUM` and upload the PDF.
+4. On its "Pipeline history" tab, click "Run full pipeline". Or, from a
+   terminal, with the programme's code:
+
+```bash
+pnpm programs:pipeline <programme-code>
+```
+
+You should see the phases finish one by one. If you uploaded a course list for
+the programme (a mock set has one), the course-list phase reports that the
+list comes from the upload: that is expected, the uploaded list always wins
+over the PDF. The rest of the pipeline reads the PDF for the programme
+description, learning outcomes and course descriptions.
 
 The pipeline cost grows with the number of courses in the curriculum: USD 1.30
 was measured on a 166-course curriculum, against USD 0.40 to 0.80 on a 126-course one.
 
-**Remove it.** Use "Start over" on each dataset page, in the reverse of the
-upload order, then delete the output folder.
+### Setup checklist
+
+Open the programme's "Setup checklist" tab, as in
+[Step 6](../tutorials/program-deep-dive.md#step-6-get-the-setup-checklist-green).
+Each red item names what is missing.
+
+Some items stay red or "not applicable", and that is correct:
+
+- **JobThai** shows "not applicable": it is a commercial feed.
+- **Labour-market** items (demand match, labour-market alignment), unless you
+  uploaded a Career Skill Demand file and ran the skills command, or ran
+  `kmitl-skill-mapping` and its command.
+- **Research by OpenAlex** on a mock set: the publications come from the
+  upload instead.
+
+Everything else should be green once the pipeline has finished. Any other red
+item names a file or a connector run that is still missing.
+
+### Start over
+
+To remove what you loaded, use "Start over" on each dataset's page, in the
+reverse of the upload order. Delete a mock set's output folder too.
 
 ## The mock API server
 
@@ -273,10 +242,10 @@ reads it with an AI assistant. Its instructions arrive with those sessions.
 
 ## You are done when
 
-- The 13 sample files show in their "Uploads" histories.
-- The pipeline for `WDU-CPE-BE` has finished.
+- Each of your files shows in its dataset's "Uploads" history.
+- The pipeline for your programme has finished.
 - The Setup checklist is green except for the items listed above.
-- `/programs/<id>` for `WDU-CPE-BE` shows content in its Executive snapshot,
+- `/programs/<id>` for your programme shows content in its Executive snapshot,
   Admissions, Students, Outcomes, Curriculum & Faculty and Financials
   sections.
 

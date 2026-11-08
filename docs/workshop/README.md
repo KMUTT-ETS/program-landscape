@@ -20,16 +20,11 @@ seen this codebase before. You need no knowledge of the app itself.
 - A connector and a new Deep-Dive analysis that you wrote with an AI coding
   assistant.
 
-## The two tracks
+## Your data
 
-**Sample rehearsal (everyone, before the day).** You load the files of an
-invented university, Workshop Demo University, from `workshop/sample-data/` in
-the repository, and run the real pipeline once. Every person and every number
-in them is made up. This proves your laptop and AI key work.
-
-**Your own programme (everyone, in the room).** On Day 1 you load one of your
-own programmes from real exports (path A), real exports with generated gaps
-(path B), or a mock set generated for your university (path C). See the
+On Day 1 you load one of your own programmes from real exports (path A), real
+exports with generated gaps (path B), or a mock set generated for your
+university with `pnpm workshop:mock` (path C). See the
 [early notice](./early-notice.md#pick-your-data-path).
 Remove personal data first: no national ID numbers, no birth dates.
 
@@ -37,7 +32,7 @@ Remove personal data first: no national ID numbers, no birth dates.
 
 | Block | Session | Exit check |
 |---|---|---|
-| Before (by 19 Nov) | Before the day: install, rehearsal, your data | Readiness form sent |
+| Before (by 19 Nov) | Before the day: install, first start, your data | Readiness form sent |
 | Day 1 09:00–10:30 | 1–2. Environment, architecture and source | App running, signed in as administrator |
 | Day 1 10:45–12:00 | 3. University data (your own A/B/C data) | Pipeline running before lunch |
 | Day 1 13:00–14:30 | 4. Hands-on integration with AI | Deep-Dive shows your programme; connector run lands rows (page coming soon) |
