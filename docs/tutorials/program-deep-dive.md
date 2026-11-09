@@ -90,7 +90,7 @@ Rules that decide whether a file is accepted are in
 - A row that names a programme, faculty, department or employee code that is not
   in an earlier upload refuses the whole file and lists each row. Add the
   missing rows to the earlier sheet, or delete those rows.
-- One upload holds at most 5000 rows. Split a bigger file into parts.
+- One upload holds at most 10000 rows. Split a bigger file into parts.
 
 ## Step 3: Run the public connectors
 

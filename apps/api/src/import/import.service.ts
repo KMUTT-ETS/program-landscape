@@ -129,14 +129,16 @@ export const IMPORT_MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
  * A hard ceiling, not a fallback to async. A file above this is a sign the
  * dataset wants splitting — by term, for the term-scoped ones.
  *
- * 5,000 is set by what the loaders can actually finish, not by taste: each
- * does a sequential findUnique + update/create per row inside one
+ * 10,000 is set by what the loaders can actually finish, not by taste: each
+ * does a sequential find + update/create per row (two round-trips) inside one
  * transaction with a 120 s timeout. At a realistic 1-2 ms per round-trip,
- * 50,000 rows would need 100-300 s — past that timeout and past most reverse
- * proxies' read timeout, leaving the operator with a hung request and a
- * failed batch. Raise this only together with batched loaders.
+ * 10,000 rows take 20-40 s, leaving headroom. 50,000 rows would need
+ * 100-300 s — past that timeout and past most reverse proxies' read timeout,
+ * leaving the operator with a hung request and a failed batch. Raised from
+ * 5,000 so a typical institution's publications or course list fits one
+ * file. Raise further only together with batched loaders.
  */
-export const IMPORT_MAX_ROWS = 5_000;
+export const IMPORT_MAX_ROWS = 10_000;
 
 /** Datasets whose rows feed the scope roll-up views. */
 const METRIC_VIEW_DATASETS: ReadonlySet<string> = new Set([

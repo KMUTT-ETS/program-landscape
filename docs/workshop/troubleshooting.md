@@ -24,7 +24,7 @@ the left column. If it is not here, show the full message to the facilitator.
 | What you see | Cause | Fix |
 |---|---|---|
 | "... is not a known programmes code. Upload that dataset first, or correct the value." | A file names a programme, faculty, department or employee that an earlier upload does not have. | Upload the files in their numbered order, or add the missing rows to the earlier sheet. |
-| "This file has 8002 rows; the limit is 5000. Split it into smaller files." | One upload holds at most 5000 rows. | Split the file and upload each part. |
+| "This file has 12000 rows; the limit is 10000. Split it into smaller files." | One upload holds at most 10000 rows. | Split the file and upload each part. |
 | "This file has N rows but M are already stored..." | Only class offerings and programme course lists ask this, when a file is much smaller than what is stored. | If the small file is right, confirm the upload. |
 | A required column is missing | Required columns may not be left out. | Add the column. |
 | "Unexpected column(s): ..." | Only the template's columns are allowed. | Delete the column. |

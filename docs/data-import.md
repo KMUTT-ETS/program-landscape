@@ -563,8 +563,8 @@ Upload that dataset first, or correct the value." Add the missing rows to the
 earlier sheet, or delete the rows that name them. Older exports often name
 retired programmes, so expect this once.
 
-**One upload holds at most 5000 rows.** A larger file is refused with "This file
-has 8002 rows; the limit is 5000. Split it into smaller files." Split big files
+**One upload holds at most 10000 rows.** A larger file is refused with "This file
+has 12000 rows; the limit is 10000. Split it into smaller files." Split big files
 (publications are the usual case) into parts and upload each one.
 
 **No personal identifiers.** A cell containing a national ID number fails the
