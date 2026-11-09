@@ -6,10 +6,13 @@ sustainability, and labor market demand.
 
 Canonical name: **Program Landscape — KKU Curriculum Intelligence Platform**.
 
-**Status:** hardened + production-shippable. 8 modules functional; security
-+ observability + AI governance pass complete (prompt 13); pack-and-ship
-deployment pipeline ready (prompt 13b). Real-data connectors land with
-prompt 14. See `CLAUDE.md` → *Current status* for the full checklist.
+**Status:** production runs **v2.1.4** at KKU. All 8 modules are built and
+hardened (build prompts 00–13b). Real-data integration (prompt 14) is in
+progress: the KKU registry, HR, finance, research and research-services
+connectors are live, as is KMITL skill mapping. Work to let other universities
+adopt the platform (XLSX import, first-run `/setup` wizard, adopter docs and
+workshop) is in progress on feature branches. See `CLAUDE.md` → *Current
+status* for the full checklist.
 
 <p align="left">
   <a href="https://github.com/khon-kaen-university/program-landscape/actions/workflows/pr.yml"><img alt="CI" src="https://github.com/khon-kaen-university/program-landscape/actions/workflows/pr.yml/badge.svg" /></a>
@@ -25,7 +28,7 @@ pnpm setup          # install deps, start infra, generate client, migrate, regis
 pnpm dev            # run web + api + ingestion in parallel
 ```
 
-Full walkthrough, including what to do after a fresh `git clone`:
+Requires Node ≥ 24.22.1, pnpm and Docker. Full walkthrough, including what to do after a fresh `git clone`:
 **[`docs/tutorials/getting-started.md`](docs/tutorials/getting-started.md)**.
 
 Then open:
@@ -34,6 +37,9 @@ Then open:
 - `http://localhost:4000/api/v1/healthz` — api (NestJS)
 - `http://localhost:9001` — MinIO console
 - `http://localhost:3001` — Gotenberg (PDF generation)
+
+On a brand-new installation with no admin yet, the first visitor to `/setup`
+claims the `SUPER_ADMIN` account.
 
 ## Scripts (all `pnpm`, no Makefile — primary dev machine is Windows)
 
@@ -46,9 +52,17 @@ Then open:
 | `pnpm db:reset` | drop volumes + generate + migrate + generic seed (dev only) |
 | `pnpm db:generate` | regenerate the Prisma Client after schema changes |
 | `pnpm db:migrate` | apply pending Prisma migrations |
+| `pnpm db:migrate:safe` | take a pre-deploy snapshot, then apply migrations |
+| `pnpm db:backup` | take a database snapshot only |
+| `pnpm data-sources:sync --apply` | register / update the data-source catalogue in the DB (fixes "missing `xlsx-*` source" errors) |
+| `pnpm connector:run` | run one ingestion connector by hand |
+| `pnpm link-env` | link the root env file into each app |
 | `pnpm db:seed` | load the generic reference data (policy sectors, neutral cost methodology, external AI sources); same as `pnpm db:seed:reference` |
 | `pnpm db:seed:kku` | load KKU's demo faculties, users and reference data (KKU developers only) |
 | `pnpm adopter:fresh-check` | read-only check that an installation holds no KKU sample data and schedules nothing |
+| `pnpm workshop:templates [--out DIR]` | write every XLSX import template to a folder, no app or DB needed |
+| `pnpm workshop:mock <input.json>` | generate mock import spreadsheets for a workshop participant's university |
+| `pnpm secrets:scan` | gitleaks scan of the working tree |
 | `pnpm test` | run unit + integration tests across workspaces |
 | `pnpm e2e` | Playwright end-to-end |
 | `pnpm lint` | ESLint across workspaces |
@@ -57,8 +71,13 @@ Then open:
 | `pnpm check` | lint + typecheck + test — run before committing |
 | `pnpm docs:dev` | developer manual site (adopter docs) at `http://localhost:5173` |
 | `pnpm docs:build` | build the manual to `apps/docs-site/dist/` and run its checks |
-| `pnpm storybook` | shadcn/ui component Storybook |
+| `pnpm docs:preview` | serve the built manual |
+| `pnpm storybook` | component Storybook (deferred — `packages/ui` has no Storybook config yet) |
 | `pnpm clean` | remove `node_modules` / `dist` / `.next` / `coverage` |
+
+This table covers the everyday commands. `package.json` holds about 130 more
+for data capture, the program pipeline (`programs:*`), AI evals and connector
+maintenance; those are documented on the page for the area they belong to.
 
 The manual site renders `docs/` in place. A new doc must be added to `apps/docs-site/.vitepress/sidebar.ts` (or to `EXCLUDED` in `apps/docs-site/src/manifest.ts`), or `pnpm docs:build` fails; per-source specs under `docs/data-sources/` are picked up automatically.
 
@@ -66,21 +85,27 @@ The manual site renders `docs/` in place. A new doc must be added to `apps/docs-
 
 ```
 apps/
-  web/         Next.js 14 (App Router)
-  api/         NestJS
-  ingestion/   NestJS standalone workers
+  web/            Next.js 14 (App Router)
+  api/            NestJS
+  ingestion/      NestJS standalone workers + connectors
+  docs-site/      VitePress manual that renders docs/ in place
 
 packages/
-  shared/      Zod schemas, types, AI service, RBAC, decorators
-  db/          Prisma schema, migrations, seed
-  ui/          shadcn-extended component library
-  design/      Tokens (light + dark) + Tailwind preset
+  shared/         Zod schemas, types, AI service, RBAC, decorators
+  db/             Prisma schema, migrations, seed, XLSX import datasets
+  ui/             shadcn-extended component library
+  design/         Tokens (light + dark) + Tailwind preset
+  pdf-templates/  Council Pack / brief templates rendered via Gotenberg
 
 infra/
-  postgres/    Custom Postgres image (postgis + pgvector + pg_trgm)
+  postgres/       Custom Postgres image (postgis + pgvector + pg_trgm)
+  gotenberg/      Gotenberg image with TH Sarabun New
+  markitdown/     Document-to-Markdown sidecar for ingestion
+  nginx/          Internal TLS + path routing (prod)
+  systemd/        Backup, retention and scheduled-job timers (prod)
 
-docs/          Architecture, data sources, methodologies, design system
-prompts/       Session-by-session build manual
+docs/           Architecture, data sources, methodologies, adopter + workshop docs (Thai in docs/th/)
+prompts/        Session-by-session build manual
 ```
 
 ## Documentation
@@ -91,6 +116,11 @@ prompts/       Session-by-session build manual
 - [`docs/backup-dr.md`](./docs/backup-dr.md) — backup classes + restore drill
 - [`docs/migration-policy.md`](./docs/migration-policy.md) — forward-only schema policy
 - [`docs/security-review.md`](./docs/security-review.md) — endpoint authz + dep audit snapshot
+
+**Adopting the platform (other universities)**
+- [`docs/adopters/README.md`](./docs/adopters/README.md) — adopter guide hub
+- [`docs/data-import.md`](./docs/data-import.md) — XLSX data import
+- [`docs/workshop/README.md`](./docs/workshop/README.md) — adopter workshop
 
 **Guides**
 - [`docs/guides/council-th.md`](./docs/guides/council-th.md) — Council (Thai)
@@ -110,12 +140,14 @@ prompts/       Session-by-session build manual
 - [`prompts/`](./prompts) — session-by-session build manual (GLOBAL-UPDATES, SKILLS, per-prompt)
 
 **Build + release**
-- `pnpm build:release 1.0.0` — pack the release into `dist/program-landscape-1.0.0.tar.gz`
-- `ssh kku-prod ./deploy.sh` — deploy on the prod server
+- `pnpm build:release 2.1.4` — pack the release into `dist/program-landscape-2.1.4.tar.zst` (+ `.sha256`); needs `zstd`
+- `./deploy.sh` (on the prod server, from the unpacked bundle) — deploy; see [`DEPLOYMENT.md`](./DEPLOYMENT.md)
 
 ## Platform
 
 - **Dev:** Windows via WSL2 (Ubuntu 24.04); also works on macOS / Linux.
-- **Prod:** on-prem Ubuntu on KKU's internal network, Docker Compose v2.
+- **Prod:** on-prem Ubuntu on KKU's internal network, Docker Compose v2,
+  `linux/amd64` images loaded from the bundle (no registry pulls).
+- **Node:** ≥ 24.22.1 on every machine; `zstd` on both build and prod machines.
 - Public URL: `https://program-landscape.kku.ac.th` (KKU reverse proxy +
-  internal nginx; end-to-end TLS). Pack-and-ship deploy — see prompt 13b.
+  internal nginx; end-to-end TLS). Pack-and-ship deploy — see `DEPLOYMENT.md`.
