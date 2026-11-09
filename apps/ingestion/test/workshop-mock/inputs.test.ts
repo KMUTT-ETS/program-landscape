@@ -16,7 +16,7 @@ const KMUTT = 'มหาวิทยาลัยเทคโนโลยีพ�
 const ENG = 'คณะวิศวกรรมศาสตร์';
 
 function prog(name: string, extra: Partial<ProgrammeInput> = {}): ProgrammeInput {
-  return { name, pdf: null, level: 'BACHELOR', faculty: null, tcasCode: null, courses: null, nameEn: null, ...extra };
+  return { name, pdf: null, level: 'BACHELOR', faculty: ENG, tcasCode: null, courses: null, nameEn: null, ...extra };
 }
 function inputsOf(...programmes: ProgrammeInput[]): Inputs {
   return { university: KMUTT, region: 'Central', programmes };
@@ -41,13 +41,20 @@ describe('resolveAnchors', () => {
     expect(a.rows).toHaveLength(1);
   });
 
-  it('an ambiguous name across faculties needs a faculty', () => {
-    const name = 'วิศวกรรมโยธา';
-    expect(() => resolveAnchors(inputsOf(prog(name)), own)).toThrow(InputError);
-    // the message names both ways out: a course code, or the faculty when the candidates differ in it
-    expect(() => resolveAnchors(inputsOf(prog(name)), own)).toThrow(/"faculty"/);
-    const a = resolveAnchors(inputsOf(prog(name, { faculty: ENG })), own)[0]!;
+  it('the faculty settles a name taught in two faculties', () => {
+    const a = resolveAnchors(inputsOf(prog('วิศวกรรมโยธา', { faculty: ENG })), own)[0]!;
     expect(a.courseCodes).toEqual(['10140107302104A']);
+  });
+
+  it('a bachelor faculty that TCAS does not spell that way is refused, listing the faculties', () => {
+    let msg = '';
+    try { resolveAnchors(inputsOf(prog('วิศวกรรมโยธา', { faculty: 'Faculty of Engineering' })), own); } catch (e) { msg = (e as Error).message; }
+    expect(msg).toContain("faculty 'Faculty of Engineering'");
+    expect(msg).toContain(`  ${ENG}`);
+  });
+
+  it('a missing faculty is refused', () => {
+    expect(() => resolveAnchors(inputsOf(prog('วิศวกรรมโยธา', { faculty: '' })), own)).toThrow(/faculty/);
   });
 
   it('nonsense lists five candidates', () => {
@@ -74,7 +81,7 @@ describe('resolveAnchors', () => {
   });
 
   it('a master needs a faculty', () => {
-    expect(() => resolveAnchors(inputsOf(prog('x', { level: 'MASTER' })), own)).toThrow(InputError);
+    expect(() => resolveAnchors(inputsOf(prog('x', { level: 'MASTER', faculty: '' })), own)).toThrow(InputError);
   });
 
   it('postgraduate faculty spelling', () => {
@@ -91,7 +98,7 @@ describe('resolveAnchors', () => {
       tr('C2', 'วศ.บ.สาขาวิศวกรรมสมมุติใหม่-วศ.บ.4ปี', 2567),
       tr('C3', 'วศ.บ.สาขาวิศวกรรมอื่นโดยสิ้นเชิง-วศ.บ.4ปี', 2567),
     ];
-    const a = resolveAnchors(inputsOf(prog('วิศวกรรมสมมุติ')), o)[0]!;
+    const a = resolveAnchors(inputsOf(prog('วิศวกรรมสมมุติ', { faculty: 'f' })), o)[0]!;
     expect(a.programmeTh).toBe('วศ.บ.สาขาวิศวกรรมสมมุติใหม่-วศ.บ.4ปี');
     expect(a.courseCodes).toEqual(['C1', 'C2']);
     expect(new Set(a.rows.map((r) => r.entryYearBE))).toEqual(new Set([2567]));
@@ -100,7 +107,7 @@ describe('resolveAnchors', () => {
   it('a tcas_code of an older year is rejected with the closest programme', () => {
     const o = [tr('OLD1', 'วศ.บ.สาขาวิศวกรรมสมมุติ-วศ.บ.4ปี', 2566), tr('C1', 'วศ.บ.สาขาวิศวกรรมสมมุติ-วศ.บ.4ปี', 2567)];
     let msg = '';
-    try { resolveAnchors(inputsOf(prog('x', { tcasCode: 'OLD1' })), o); } catch (e) { msg = (e as Error).message; }
+    try { resolveAnchors(inputsOf(prog('x', { tcasCode: 'OLD1', faculty: 'f' })), o); } catch (e) { msg = (e as Error).message; }
     expect(msg).toContain('latest TCAS year (2567)');
     expect(msg).toContain('C1');
   });
@@ -109,7 +116,7 @@ describe('resolveAnchors', () => {
     expect(() => resolveAnchors(inputsOf(prog('x', { level: 'NOPE' })), own)).toThrow(InputError);
   });
 
-  it('prefers the narrowing faculty only when it matches', () => {
+  it('the faculty narrows the candidates, and an unknown one stops the run', () => {
     const o = [
       tr('A1', 'วศ.บ.สาขาวิศวกรรมโยธา-วศ.บ.4ปี', 2567, 'คณะหนึ่ง'),
       tr('B1', 'วศ.บ.สาขาวิศวกรรมโยธา-วศ.บ.4ปี', 2567, 'คณะสอง'),
@@ -132,12 +139,11 @@ const KMUTT_ROWS: TcasRow[] = [
   D('10140107300507A', 'วิศวกรรมศาสตรบัณฑิต สาขาวิชาวิศวกรรมคอมพิวเตอร์ ปริญญาตรี 4 ปี', KMUTT),
   D('10140107300502E', 'วิศวกรรมศาสตรบัณฑิต สาขาวิชาวิศวกรรมคอมพิวเตอร์ ปริญญาตรี 4 ปี  (หลักสูตรนานาชาติ)', KMUTT),
 ];
-const codesOf = (rows: TcasRow[], name: string, faculty: string | null = null): string[] =>
+const codesOf = (rows: TcasRow[], name: string, faculty: string = ENG): string[] =>
   resolveAnchors({ university: 'U', region: 'x', programmes: [prog(name, { faculty })] }, rows)[0]!.courseCodes;
 
 describe('name views (real header shapes)', () => {
   it('computer engineering, not semiconductor', () => {
-    expect(codesOf(KKU_ROWS, 'วิศวกรรมคอมพิวเตอร์', ENG)).toEqual(['10030104300501A']);
     expect(codesOf(KKU_ROWS, 'วิศวกรรมคอมพิวเตอร์')).toEqual(['10030104300501A']);
   });
   it('semiconductor', () => {
@@ -162,7 +168,7 @@ describe('loadInputs (JSON)', () => {
 
   it('round trip, relative paths resolve against the file', () => {
     const f = write({ university: KMUTT, region: 'Central', programmes: [
-      { name: 'วิศวกรรมคอมพิวเตอร์', pdf: 'pdfs/ce.pdf' },
+      { name: 'วิศวกรรมคอมพิวเตอร์', faculty: ENG, pdf: 'pdfs/ce.pdf' },
       { name: 'x', level: 'master', faculty: ENG, tcas_code: '123', courses: 'c.csv', name_en: 'X' },
     ] });
     fs.mkdirSync(path.join(path.dirname(f), 'pdfs'));
@@ -181,29 +187,32 @@ describe('loadInputs (JSON)', () => {
   });
 
   it('bad level, bad JSON, missing file, missing programmes', () => {
-    expect(() => loadInputs(write({ university: 'u', region: 'Central', programmes: [{ name: 'n', level: 'x' }] }))).toThrow(InputError);
+    expect(() => loadInputs(write({ university: 'u', region: 'Central', programmes: [{ name: 'n', faculty: 'f', level: 'x' }] }))).toThrow(InputError);
     expect(() => loadInputs(write('{ nope'))).toThrow(/not valid JSON/);
     expect(() => loadInputs('/nonexistent/i.json')).toThrow(/not found/);
     expect(() => loadInputs(write({ university: 'u', region: 'Central', programmes: [] }))).toThrow(InputError);
-    expect(() => loadInputs(write({ university: 'u', programmes: [{ name: 'n' }] }))).toThrow(/region/);
+    expect(() => loadInputs(write({ university: 'u', programmes: [{ name: 'n', faculty: 'f' }] }))).toThrow(/region/);
     // East is inside Central in the four-region projection; the message says so.
-    expect(() => loadInputs(write({ university: 'u', region: 'East', programmes: [{ name: 'n' }] }))).toThrow(
+    expect(() => loadInputs(write({ university: 'u', region: 'East', programmes: [{ name: 'n', faculty: 'f' }] }))).toThrow(
       /region must be one of Northeast, Central, North, South.*Central/,
     );
-    expect(loadInputs(write({ university: 'u', region: ' central ', programmes: [{ name: 'n' }] })).region).toBe('Central');
+    expect(loadInputs(write({ university: 'u', region: ' central ', programmes: [{ name: 'n', faculty: 'f' }] })).region).toBe('Central');
   });
 
   it('a pdf or courses path that does not exist is refused, naming the resolved path', () => {
-    const f = write({ university: KMUTT, region: 'Central', programmes: [{ name: 'n', pdf: 'pdfs/missing.pdf' }] });
+    const f = write({ university: KMUTT, region: 'Central', programmes: [{ name: 'n', faculty: 'f', pdf: 'pdfs/missing.pdf' }] });
     expect(() => loadInputs(f)).toThrow(InputError);
     expect(() => loadInputs(f)).toThrow(`programmes #1: pdf not found: ${path.join(path.dirname(f), 'pdfs', 'missing.pdf')}`);
-    const g = write({ university: KMUTT, region: 'Central', programmes: [{ name: 'n', courses: 'missing.csv' }] });
+    const g = write({ university: KMUTT, region: 'Central', programmes: [{ name: 'n', faculty: 'f', courses: 'missing.csv' }] });
     expect(() => loadInputs(g)).toThrow(/programmes #1: courses not found: .*missing\.csv/);
-    const d = write({ university: KMUTT, region: 'Central', programmes: [{ name: 'n', pdf: '.' }] });
+    const d = write({ university: KMUTT, region: 'Central', programmes: [{ name: 'n', faculty: 'f', pdf: '.' }] });
     expect(() => loadInputs(d)).toThrow(/pdf not found/); // a folder is not a file
   });
 
-  it('a postgraduate programme needs a faculty', () => {
+  it('every programme needs a faculty, bachelor included', () => {
     expect(() => loadInputs(write({ university: 'u', region: 'Central', programmes: [{ name: 'n', level: 'DOCTORAL' }] }))).toThrow(/faculty/);
+    expect(() => loadInputs(write({ university: 'u', region: 'Central', programmes: [{ name: 'n' }] }))).toThrow(
+      /programmes #1: add `"faculty"/,
+    );
   });
 });

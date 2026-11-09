@@ -2,6 +2,6 @@
   "university": "มหาวิทยาลัยเทคโนโลยีพระจอมเกล้าธนบุรี",
   "region": "Central",
   "programmes": [
-    { "name": "วิศวกรรมวัสดุ", "pdf": "curriculum-sample.pdf" }
+    { "name": "วิศวกรรมวัสดุ", "faculty": "คณะวิศวกรรมศาสตร์", "pdf": "curriculum-sample.pdf" }
   ]
 }

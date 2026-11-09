@@ -11,7 +11,7 @@ const KMUTT = 'มหาวิทยาลัยเทคโนโลยีพ�
 const THAI = /[฀-๿]/;
 
 function prog(name: string, extra: Partial<ProgrammeInput> = {}): ProgrammeInput {
-  return { name, pdf: null, level: 'BACHELOR', faculty: null, tcasCode: null, courses: null, nameEn: null, ...extra };
+  return { name, pdf: null, level: 'BACHELOR', faculty: 'คณะวิศวกรรมศาสตร์', tcasCode: null, courses: null, nameEn: null, ...extra };
 }
 const inputs = (...p: ProgrammeInput[]): Inputs => ({ university: KMUTT, region: 'x', programmes: p });
 
@@ -94,7 +94,7 @@ describe('chooseSlice', () => {
       mk('A', 'วท.บ.เคมี', 2567), mk('A-old', 'วท.บ.เคมี', 2566),
       mk('B', 'วท.บ.ฟิสิกส์', 2567),
     ];
-    const a = resolveAnchors({ university: 'U', region: 'x', programmes: [prog('เคมี')] }, o);
+    const a = resolveAnchors({ university: 'U', region: 'x', programmes: [prog('เคมี', { faculty: f })] }, o);
     const s = chooseSlice(a, o, 'small', makeRng(1));
     const chem = s.programmes.find((p) => p.isAnchor)!;
     expect([...chem.tcas.keys()]).toEqual([2023, 2024]); // CE years, sorted

@@ -129,7 +129,7 @@ function validNationalId(): string {
 describe('failure handling', () => {
   it('a failing early sheet is reported as exit 2 with every cause, writing nothing', async () => {
     const out = path.join(tmp, 'o');
-    const input = inputFile([{ name: 'วิศวกรรมวัสดุ', name_en: validNationalId() }]);
+    const input = inputFile([{ name: 'วิศวกรรมวัสดุ', faculty: 'คณะวิศวกรรมศาสตร์', name_en: validNationalId() }]);
     const r = await run([input, '--tcas-file', TCAS_ARG, '--out', out]);
     expect(r.code, r.text).toBe(2);
     expect(r.text).toContain('Nothing was written');
@@ -140,7 +140,7 @@ describe('failure handling', () => {
 
   it('two entries resolving to the same TCAS programme are refused, naming both', async () => {
     const out = path.join(tmp, 'o');
-    const r = await run([inputFile([{ name: 'วิศวกรรมวัสดุ' }, { name: 'วิศวกรรมวัสดุ' }]), '--tcas-file', TCAS_ARG, '--out', out]);
+    const r = await run([inputFile([{ name: 'วิศวกรรมวัสดุ', faculty: 'คณะวิศวกรรมศาสตร์' }, { name: 'วิศวกรรมวัสดุ', faculty: 'คณะวิศวกรรมศาสตร์' }]), '--tcas-file', TCAS_ARG, '--out', out]);
     expect(r.code).toBe(2);
     expect(r.text).toMatch(/#1.*#2.*same TCAS programme/s);
     expect(fs.existsSync(out)).toBe(false);

@@ -5,7 +5,8 @@
     {
       "name": "วิศวกรรมคอมพิวเตอร์",
       "pdf": "pdfs/computer-engineering.pdf",
-      "level": "BACHELOR"
+      "level": "BACHELOR",
+      "faculty": "คณะวิศวกรรมศาสตร์"
     },
     {
       "name": "วิศวกรรมเครื่องกล",

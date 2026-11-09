@@ -15,7 +15,7 @@ const TODAY = new Date(Date.UTC(2026, 10, 7));
 type Row = Record<string, string | number | boolean | null>;
 
 function prog(name: string, extra: Partial<ProgrammeInput> = {}): ProgrammeInput {
-  return { name, pdf: null, level: 'BACHELOR', faculty: null, tcasCode: null, courses: null, nameEn: null, ...extra };
+  return { name, pdf: null, level: 'BACHELOR', faculty: '', tcasCode: null, courses: null, nameEn: null, ...extra };
 }
 
 async function makeWorld(seed = 7, runSeed = 0, size: SliceSize = 'medium'): Promise<World> {

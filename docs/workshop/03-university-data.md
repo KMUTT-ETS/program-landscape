@@ -86,7 +86,7 @@ pnpm.
 | `programmes[].name` | The programme name as written in the PDF. A small spelling difference is fine. |
 | `programmes[].pdf` | Path to the curriculum PDF. Relative paths resolve against the JSON file's folder. At least one programme needs a PDF, or the Program Deep-Dive cannot run in full; for the others it is optional. If given, the file must exist, or the run stops. |
 | `programmes[].level` | `BACHELOR` (default), `MASTER`, `DOCTORAL` or `HIGHER_GRAD_DIPLOMA`. |
-| `programmes[].faculty` | The faculty's Thai name. Required unless the level is `BACHELOR`. For a bachelor programme it settles a name that exists in two faculties: in the example, KMUTT teaches วิศวกรรมเครื่องกล in both the Faculty of Engineering and the Faculty of Industrial Education and Technology. |
+| `programmes[].faculty` | Required for every programme. The faculty's Thai name, spelled as the TCAS tables spell it (spaces are ignored). For a bachelor programme a faculty TCAS does not list, such as an English name, stops the run and lists the faculties it knows. It also settles a name that exists in two faculties: in the example, KMUTT teaches วิศวกรรมเครื่องกล in both the Faculty of Engineering and the Faculty of Industrial Education and Technology. A postgraduate programme in a faculty with no TCAS rows, such as a graduate school, keeps the name as typed. |
 | `programmes[].tcas_code` | Optional, bachelor programmes only (postgraduate programmes have no TCAS rows). A TCAS course code. Use it when the name cannot be matched automatically. It always wins. |
 | `programmes[].courses` | Optional. A CSV file (not a spreadsheet) to use instead of the PDF's courses. Its header row is `code,name_th,name_en,credits,category`. `category` is one of General education, Core, Major required, Major elective, Free elective, Thesis / project; leave it blank for unknown. |
 | `programmes[].name_en` | Optional. The English name used as-is in the mock files. |
@@ -108,8 +108,8 @@ You should see `TCAS matches:` followed by one line per programme you listed, fo
 example `วิศวกรรมคอมพิวเตอร์ -> programme MOCK-P004: TCAS course code
 10140107300507A, faculty '...', programme '...'`, then `note:` lines. Check that
 each match is the programme you meant. If a match is wrong, or the script stops
-and lists candidates, set `tcas_code` for that programme (or `faculty`, when the
-candidates are in different faculties) and run again.
+and lists candidates, check that programme's `faculty` or set its `tcas_code`,
+and run again.
 
 Exit code 0 means the files were written. Exit code 2 means nothing was written:
 read the message above it. Thai course names read from a PDF may lose the spaces

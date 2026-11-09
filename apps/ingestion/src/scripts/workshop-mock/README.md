@@ -44,17 +44,18 @@ To prove the files with the app's importer and the `tcas` connector's matcher:
 field is explained here.
 
 - `university` (required): the Thai name exactly as the TCAS files spell it.
-- `region` (required): an English region as used by the platform's demographics, for
-  example `Central`.
+- `region` (required): one of `Northeast`, `Central`, `North` or `South`. Central covers
+  Bangkok, the East and the West; any other value stops the run.
 - `programmes` (required): one entry per curriculum PDF.
   - `name` (required): the programme name as written in the PDF (a small spelling
     difference is fine).
   - `pdf`: path to the curriculum PDF. Relative paths resolve against the JSON file's folder.
     If given, the file must exist, or the run stops.
-  - `level`: `BACHELOR` (default), `MASTER`, `DOCTORAL` or `HIGHER_GRAD_DIPLOMA`. Anything
-    other than `BACHELOR` also needs `faculty`.
-  - `faculty`: the faculty's Thai name. Optional for bachelor programmes, where it settles a
-    name taught in two faculties (KMUTT has วิศวกรรมเครื่องกล in two, hence the example).
+  - `level`: `BACHELOR` (default), `MASTER`, `DOCTORAL` or `HIGHER_GRAD_DIPLOMA`.
+  - `faculty` (required): the faculty's Thai name as the TCAS files spell it. For a bachelor
+    programme it must match a TCAS faculty, or the run stops and lists them; it also settles
+    a name taught in two faculties (KMUTT has วิศวกรรมเครื่องกล in two). A postgraduate
+    programme in a faculty with no TCAS rows keeps the name as typed.
   - `tcas_code`: a TCAS course code. Use it when the name cannot be matched
     automatically; it always wins over name matching.
   - `name_en`: the English name, used as-is in the mock files. Without it the generator
@@ -67,8 +68,9 @@ field is explained here.
 - `University '...' is not in the TCAS files`: copy the Thai name from one of the
   closest names it lists.
 - `Cannot match programme`: add `"tcas_code": "<course code>"` to that entry, using a
-  code from the candidate list. When the candidates are the same programme in different
-  faculties, `"faculty": "<Thai faculty name>"` also settles it.
+  code from the candidate list, or check that the entry's `faculty` is right.
+- `faculty '...' has no programmes in the latest TCAS year`: copy the faculty's Thai name
+  from the list it prints.
 - `pdf not found` / `courses not found`: the path is wrong. It resolves against the input
   file's folder, and the message shows the full path it tried.
 - `tcas_code ... is not in the latest TCAS year`: course codes change every year; use the

@@ -22,7 +22,7 @@ export interface ProgrammeInput {
   pdf: string | null;
   /** Normally a Level; resolveAnchors rejects anything else. */
   level: string;
-  faculty: string | null;
+  faculty: string;
   tcasCode: string | null;
   courses: string | null;
   nameEn: string | null;
@@ -97,8 +97,10 @@ export function loadInputs(jsonPath: string): Inputs {
     if (!(LEVELS as readonly string[]).includes(level)) {
       throw new InputError(`${where}: level must be one of ${LEVELS.join(', ')} (got ${level})`);
     }
+    // every programme names its faculty in Thai, as TCAS spells it: it places postgraduate
+    // programmes and settles bachelor names taught in more than one faculty
     const faculty = str(b, 'faculty', where);
-    if (level !== 'BACHELOR' && !faculty) throw new InputError(`${where}: \`faculty\` is required for level ${level}`);
+    if (!faculty) throw new InputError(`${where}: add \`"faculty": "<Thai faculty name, as TCAS spells it>"\``);
     // a mistyped path must stop the run: otherwise the PDF's courses are silently replaced by an
     // invented list (pdf) or the run ends in a stack trace (courses)
     const existing = (key: 'pdf' | 'courses'): string | null => {
@@ -211,10 +213,11 @@ export function resolveAnchors(inputs: Inputs, own: readonly TcasRow[]): Anchor[
     if (!(LEVELS as readonly string[]).includes(inp.level)) {
       throw new InputError(`${inp.name}: level must be one of ${LEVELS.join(', ')} (got ${inp.level})`);
     }
+    if (!inp.faculty) throw new InputError(`${inp.name}: \`faculty\` is required`);
     if (inp.level !== 'BACHELOR') {
-      if (!inp.faculty) throw new InputError(`${inp.name}: \`faculty\` is required for level ${inp.level}`);
-      const typed = squash(inp.faculty);
       const known = [...new Set(own.map((r) => r.faculty))].sort();
+      // a graduate-only faculty has no TCAS rows, so an unmatched name is kept as typed
+      const typed = squash(inp.faculty);
       const facultyTh = known.find((f) => squash(f) === typed) ?? inp.faculty;
       out.push({ input: inp, facultyTh, programmeTh: inp.name, courseCodes: [], rows: [] });
       continue;
@@ -244,12 +247,15 @@ export function resolveAnchors(inputs: Inputs, own: readonly TcasRow[]): Anchor[
           `${near.faculty} | ${near.programme}, codes: ${[...near.codes].sort().join(', ')}`,
       );
     }
-    let pool = pairs;
-    if (inp.faculty) {
-      // an optional faculty narrows the candidates when it matches any
-      const typedF = squash(inp.faculty);
-      const narrowed = pairs.filter((p) => squash(p.faculty) === typedF);
-      if (narrowed.length) pool = narrowed;
+    // the faculty narrows the candidates; one that matches no TCAS faculty is a typo or an
+    // English name, and ignoring it would let a same-named programme in another faculty win
+    const typedF = squash(inp.faculty);
+    const pool = pairs.filter((p) => squash(p.faculty) === typedF);
+    if (pool.length === 0) {
+      throw new InputError(
+        `${inp.name}: faculty '${inp.faculty}' has no programmes in the latest TCAS year (${year}) for ${inputs.university}. ` +
+          `Use the Thai name exactly as TCAS spells it, one of:\n${[...new Set(pairs.map((p) => p.faculty))].map((f) => `  ${f}`).join('\n')}`,
+      );
     }
     const typedIntl = isIntl(inp.name);
     const ranked: Array<[number, Pair]> = pool
@@ -271,13 +277,10 @@ export function resolveAnchors(inputs: Inputs, own: readonly TcasRow[]): Anchor[
     const second = rivals.length ? rivals[0]![0] : 0;
     if (best < MIN_SCORE || best - second < MIN_MARGIN) {
       const why = best < MIN_SCORE ? 'no close match' : 'more than one close match';
-      // a tie between faculties (the same programme name in two faculties) is settled by the faculty
-      const otherFaculty = best >= MIN_SCORE && rivals.length > 0 && rivals[0]![1].faculty !== top[1].faculty;
       throw new InputError(
-        `Cannot match programme '${inp.name}' to a TCAS programme (${why}). ` +
+        `Cannot match programme '${inp.name}' to a TCAS programme in ${inp.faculty} (${why}). ` +
           `Closest candidates:\n${candidateLines(ranked)}\n` +
-          'Add `"tcas_code": "<course code>"` to that programme in the input file' +
-          (otherFaculty ? ', or `"faculty": "<Thai faculty name>"` when the candidates are in different faculties.' : '.'),
+          'Add `"tcas_code": "<course code>"` to that programme in the input file.',
       );
     }
     out.push(anchorOf(inp, top[1]));
