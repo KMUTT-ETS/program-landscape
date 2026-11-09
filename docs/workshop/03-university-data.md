@@ -49,7 +49,8 @@ programme names and round-3 admission figures come from the public TCAS files
 (downloaded from mytcas.com on first run and cached). Staff are numbered
 tokens such as "Lecturer 001". Every other figure is invented and labelled
 mock. The programmes you brought curriculum PDFs for are always included, and
-their course codes are read from the PDF. It is for practice only: never show
+their course codes are read from the PDF. List at least one programme with a
+curriculum PDF: without one, the Program Deep-Dive cannot run in full. It is for practice only: never show
 these figures as real results. There is nothing to install beyond Node and
 pnpm.
 
@@ -83,7 +84,7 @@ pnpm.
 | `university` | Your university's Thai name, exactly as the TCAS tables spell it. |
 | `region` | One of `Northeast`, `Central`, `North` or `South`, the regions the organisation profile offers. Central covers Bangkok, the East and the West too. Any other value stops the run. |
 | `programmes[].name` | The programme name as written in the PDF. A small spelling difference is fine. |
-| `programmes[].pdf` | Path to the curriculum PDF. Relative paths resolve against the JSON file's folder. Optional, but if given the file must exist, or the run stops. |
+| `programmes[].pdf` | Path to the curriculum PDF. Relative paths resolve against the JSON file's folder. At least one programme needs a PDF, or the Program Deep-Dive cannot run in full; for the others it is optional. If given, the file must exist, or the run stops. |
 | `programmes[].level` | `BACHELOR` (default), `MASTER`, `DOCTORAL` or `HIGHER_GRAD_DIPLOMA`. |
 | `programmes[].faculty` | The faculty's Thai name. Required unless the level is `BACHELOR`. For a bachelor programme it settles a name that exists in two faculties: in the example, KMUTT teaches วิศวกรรมเครื่องกล in both the Faculty of Engineering and the Faculty of Industrial Education and Technology. |
 | `programmes[].tcas_code` | Optional, bachelor programmes only (postgraduate programmes have no TCAS rows). A TCAS course code. Use it when the name cannot be matched automatically. It always wins. |

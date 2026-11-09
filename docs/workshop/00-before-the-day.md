@@ -112,7 +112,8 @@ For the files you can get from your university (paths A and B):
    numbers, no birth dates, no addresses or phone numbers. The importer refuses
    a file that contains something that looks like a national ID, but do not rely
    on it.
-4. Bring the curriculum PDF of one programme.
+4. Bring the curriculum PDF of at least one programme. It is required: without
+   it the Program Deep-Dive cannot run in full.
 5. Know your university's exact Thai name as it is written in the TCAS
    admission tables.
 
