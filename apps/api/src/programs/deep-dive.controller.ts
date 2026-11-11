@@ -324,7 +324,7 @@ export class DeepDiveController {
   @Authorized('programs:read:all')
   @Provenance({
     sources: [
-      { id: 'xlsx-population-projections', name: 'Population projections (spreadsheet import)' },
+      { id: 'xlsx-population-projections', name: 'Population projections (institution import)' },
       { id: 'un-wpp', name: 'UN World Population Prospects 2024 (national)' },
       { id: 'nesdc-reports', name: 'NESDC population projections (bundled starter series)' },
     ],

@@ -9,6 +9,7 @@ import {
   recordImportBatch,
   startImportRun,
 } from './batches';
+import { loadWarnings, readSourceMix } from './source-mix';
 import type { ImportCellValue, ImportDataset, ImportLoadResult, ImportRow } from './types';
 
 /**
@@ -85,7 +86,7 @@ export async function runImportLoad(
   source: ImportRunSource,
   term?: Readonly<Record<string, ImportCellValue>>,
   scopes?: readonly Readonly<Record<string, ImportCellValue>>[],
-): Promise<{ batchId: string; runId: string; result: ImportLoadResult }> {
+): Promise<{ batchId: string; runId: string; result: ImportLoadResult; warnings: string[] }> {
   const metadata: Record<string, Prisma.InputJsonValue> = { via: source.via };
   if (term) metadata.term = jsonRecord(term);
   if (scopes) metadata.scopes = scopes.map(jsonRecord);
@@ -104,6 +105,15 @@ export async function runImportLoad(
     });
     if (parent?.trigger === 'SCHEDULED') trigger = 'SCHEDULED';
   }
+
+  // Before the load: the load itself rewrites who last wrote each term.
+  const warnings = loadWarnings(
+    dataset,
+    await readSourceMix(dataset.slug),
+    source.via === 'api' ? { via: 'api', connectorName: source.connectorName } : { via: 'upload' },
+    term,
+    scopes,
+  );
 
   const { runId } = await startImportRun(dataset.slug, userId, { trigger, metadata });
 
@@ -146,7 +156,7 @@ export async function runImportLoad(
     // dedupe — only once the rows are committed.
     await markImportBatchSucceeded(created.id);
     await finishImportRun(runId, { loaded: rows.length, failed: 0, status: 'SUCCEEDED' });
-    return { batchId: created.id, runId, result };
+    return { batchId: created.id, runId, result, warnings };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     // Mark the batch FIRST. If finishImportRun throws (a concurrent

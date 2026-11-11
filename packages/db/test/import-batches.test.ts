@@ -63,7 +63,7 @@ beforeAll(async () => {
     update: { mocked: false },
     create: {
       slug: SOURCE_SLUG,
-      name: 'Batch fixture (spreadsheet import)',
+      name: 'Batch fixture (institution import)',
       kind: 'CSV',
       inputFormat: 'XLSX',
       mocked: false,

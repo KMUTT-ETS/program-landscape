@@ -6,6 +6,7 @@ import {
   findLiveBatchByHash,
   getImportDataset,
   importDatasetStatus,
+  importSourceMix,
   listImportBatches,
   IMPORT_MAX_ROWS,
   listImportDatasets,
@@ -24,6 +25,7 @@ import {
   type ImportLoadResult,
   type ImportRow,
   type ImportValidationError,
+  type SourceMix,
   type PrefillOptions,
   type StartOverAllResult,
 } from '@kku/db';
@@ -67,7 +69,7 @@ export interface ImportServiceDeps {
     term?: Readonly<Record<string, ImportCellValue>>,
     /** The programmes a programme-scoped file covers; recorded on the run. */
     scopes?: readonly Readonly<Record<string, ImportCellValue>>[],
-  ) => Promise<{ batchId: string; result: ImportLoadResult }>;
+  ) => Promise<{ batchId: string; result: ImportLoadResult; warnings: string[] }>;
   startOver: (slug: string) => Promise<{ rowsDeleted: number; batchesCleared: number }>;
   /** Empties every import in one transaction; returns the stored-file keys to delete. */
   startOverAll: () => Promise<StartOverAllResult>;
@@ -95,6 +97,8 @@ export interface ImportUploadResult {
   updated: number;
   deleted: number;
   unresolved?: number;
+  /** Notes the operator should read, e.g. that this load replaced another source's term. */
+  warnings: string[];
 }
 
 export interface ImportDatasetSummary {
@@ -120,6 +124,7 @@ export interface ImportDatasetDetail extends ImportDatasetSummary {
   keyColumns: string[];
   dependents: readonly string[];
   batches: ImportBatchView[];
+  sourceMix: SourceMix;
 }
 
 /** Matches JOBTHAI_MAX_UPLOAD_BYTES: generous without inviting a year's dump. */
@@ -166,8 +171,8 @@ export class ImportService implements OnModuleInit {
       runLoad:
         deps?.runLoad ??
         (async (dataset, rows, userId, batch, term, scopes) => {
-          const { batchId, result } = await runImportLoad(dataset, rows, { via: 'upload', userId, batch }, term, scopes);
-          return { batchId, result };
+          const { batchId, result, warnings } = await runImportLoad(dataset, rows, { via: 'upload', userId, batch }, term, scopes);
+          return { batchId, result, warnings };
         }),
       startOver: deps?.startOver ?? startOverDataset,
       startOverAll: deps?.startOverAll ?? (() => startOverAllImports()),
@@ -286,6 +291,7 @@ export class ImportService implements OnModuleInit {
         inserted: 0,
         updated: 0,
         deleted: 0,
+        warnings: [],
       };
     }
 
@@ -297,7 +303,7 @@ export class ImportService implements OnModuleInit {
       contentType: XLSX_CONTENT_TYPE,
     });
 
-    const { batchId, result } = await this.deps.runLoad(dataset, validated.rows, args.uploadedByUserId, {
+    const { batchId, result, warnings } = await this.deps.runLoad(dataset, validated.rows, args.uploadedByUserId, {
       filename: args.originalFilename,
       contentHash,
       storageKey,
@@ -318,6 +324,7 @@ export class ImportService implements OnModuleInit {
       inserted: result.inserted,
       updated: result.updated,
       deleted: result.deleted,
+      warnings,
       ...(result.unresolved !== undefined ? { unresolved: result.unresolved } : {}),
     };
   }
@@ -361,9 +368,10 @@ export class ImportService implements OnModuleInit {
   async getDataset(datasetSlug: string): Promise<ImportDatasetDetail> {
     const dataset = getImportDataset(datasetSlug);
     const byKey = new Map(dataset.columns.map((c) => [c.key, c.header]));
-    const [status, batches] = await Promise.all([
+    const [status, batches, sourceMix] = await Promise.all([
       importDatasetStatus(dataset.slug),
       listImportBatches(dataset.slug),
+      importSourceMix(dataset.slug),
     ]);
 
     return {
@@ -386,6 +394,7 @@ export class ImportService implements OnModuleInit {
       keyColumns: dataset.strategy.match.columns.map((k) => byKey.get(k) ?? k),
       dependents: dataset.dependents ?? [],
       batches,
+      sourceMix,
     };
   }
 

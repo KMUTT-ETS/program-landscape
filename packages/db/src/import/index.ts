@@ -5,3 +5,4 @@ export * from './batches';
 export * from './references';
 export * from './prepare';
 export * from './run';
+export * from './source-mix';

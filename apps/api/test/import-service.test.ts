@@ -71,7 +71,7 @@ function harness(overrides: Partial<ImportServiceDeps> = {}): Harness {
     heldCount: track('heldCount', Promise.resolve(0)),
     heldCountForTerm: track('heldCountForTerm', Promise.resolve(undefined)),
     heldCountForScope: track('heldCountForScope', Promise.resolve(undefined)),
-    runLoad: track('runLoad', Promise.resolve({ batchId: 'batch-1', result: { inserted: 1, updated: 0, deleted: 0 } })),
+    runLoad: track('runLoad', Promise.resolve({ batchId: 'batch-1', result: { inserted: 1, updated: 0, deleted: 0 }, warnings: [] as string[] })),
     startOver: track('startOver', Promise.resolve({ rowsDeleted: 3, batchesCleared: 1 })),
     startOverAll: track('startOverAll', Promise.resolve({
       datasets: [{ slug: 'faculties', title: 'Faculties', rowsDeleted: 2 }, { slug: 'programmes', title: 'Programmes', rowsDeleted: 5 }],
@@ -164,6 +164,14 @@ describe('ImportService.uploadFile — success path', () => {
     expect(result.rowCount).toBe(1);
     expect(result.inserted).toBe(1);
     expect(h.calls.indexOf('putObject')).toBeLessThan(h.calls.indexOf('runLoad'));
+  });
+
+  it('uploadFile returns warnings from runImportLoad', async () => {
+    const h = harness({
+      runLoad: () => Promise.resolve({ batchId: 'b', result: { inserted: 1, updated: 0, deleted: 0 }, warnings: ['x'] }),
+    });
+    const result = await upload(h, workbook(VALID_ROWS));
+    expect(result.warnings).toEqual(['x']);
   });
 
   it('keys the stored object by dataset and content hash', async () => {

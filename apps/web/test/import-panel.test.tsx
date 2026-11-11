@@ -53,6 +53,55 @@ const clearedBatch = {
   uploadedBy: 'Admin', errorMessage: null,
 };
 
+
+const apiBatch = {
+  id: 'b3', filename: 'API: Registry classes', rowCount: 9, fileSize: 0, status: 'SUCCEEDED',
+  createdAt: '2026-11-08T00:00:00.000Z', clearedAt: null, uploadedBy: null, errorMessage: null,
+  via: 'api' as const, connector: 'Registry classes',
+};
+
+describe('ImportPanel — mixed sources', () => {
+  it('shows the two-sources banner when sourceMix has two sources', () => {
+    const html = markup(
+      dataset({
+        batches: [liveBatch, apiBatch],
+        sourceMix: {
+          sources: ['upload', 'api'],
+          lastBy: { via: 'api', connector: 'Registry classes', at: '2026-11-08T00:00:00.000Z' },
+          perScope: [
+            { label: 'Semester 1/2025', via: 'api', connector: 'Registry classes', at: '2026-11-08T00:00:00.000Z' },
+          ],
+        },
+      }),
+    );
+    expect(html).toContain('Two sources feed this dataset');
+    expect(html).toContain('Uploads and the API connector &quot;Registry classes&quot; both load this dataset.');
+    expect(html).toContain('Semester 1/2025');
+    expect(html).toContain('Last loaded by');
+  });
+
+  it('shows no banner for a single source', () => {
+    const html = markup(
+      dataset({ batches: [liveBatch], sourceMix: { sources: ['upload'], lastBy: null, perScope: [] } }),
+    );
+    expect(html).not.toContain('Two sources feed this dataset');
+  });
+
+  it('labels API batches with the connector name in a Source column', () => {
+    const html = markup(dataset({ batches: [liveBatch, apiBatch] }));
+    expect(html).toContain('>Source<');
+    expect(html).toContain('API: Registry classes');
+    expect(html).toContain('>Upload<');
+    // An API batch has no file, so no size.
+    const row = html.slice(html.indexOf('API: Registry classes'));
+    expect(row.slice(0, row.indexOf('</tr>'))).toContain('—');
+  });
+
+  it('start-over copy names API connector runs', () => {
+    expect(markup(dataset())).toContain('Deletes the rows these uploads and API connector runs created.');
+  });
+});
+
 describe('ImportPanel — what the operator sees', () => {
   it('links the template download at the dataset endpoint', () => {
     expect(markup(dataset())).toContain('/api/admin-imports/faculties/template');
