@@ -21,6 +21,15 @@ const SLUG = 'tapi-test-connector';
 
 // The registry spreads INSTITUTION_CONNECTORS at import time, so the entry
 // has to exist before it loads. The factory is filled in once the class does.
+// The real refresh is a no-op for these datasets; mocking it lets a test force a failure.
+const refresh = vi.hoisted(() => ({
+  fn: vi.fn(async (_slug: string): Promise<void> => undefined),
+}));
+vi.mock('@kku/db', async () => {
+  const actual = await vi.importActual<typeof import('@kku/db')>('@kku/db');
+  return { ...actual, refreshMetricViewsIfNeeded: (slug: string) => refresh.fn(slug) };
+});
+
 const institution = vi.hoisted(() => {
   const make: { current: () => unknown } = { current: () => undefined };
   const entry = {
@@ -157,7 +166,10 @@ beforeAll(async () => {
   });
 });
 
-beforeEach(() => warn.mockReset());
+beforeEach(() => {
+  warn.mockReset();
+  refresh.fn.mockClear();
+});
 
 afterAll(async () => {
   const children = await prisma.ingestionRun.findMany({
@@ -360,7 +372,8 @@ describe('DatasetApiConnector', () => {
     expect((err as NonRetryableError).code).toBe('CONFIG');
   });
 
-  it('logs refresh failures without failing and never logs fetched records', async () => {
+  it('logs a failed metric refresh as a warning and still succeeds, never logging records', async () => {
+    refresh.fn.mockRejectedValueOnce(new Error('refresh exploded'));
     const connector = new TestConnector(
       ['class-offerings'],
       () => ({
@@ -369,10 +382,67 @@ describe('DatasetApiConnector', () => {
       [{ secret: NAME_TH }],
     );
     const ctx = await newContext();
-    await runConnector(connector, ctx);
+    const { loaded } = await runConnector(connector, ctx);
+
+    expect(refresh.fn).toHaveBeenCalledWith('class-offerings');
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]?.[0])).toContain('refresh exploded');
+    expect((loaded.metadata as Meta).datasets['class-offerings']?.status).toBe('LOADED');
+    expect(await prisma.classOffering.count({ where: { courseCode: 'TAPI-501' } })).toBe(1);
     expect(
       JSON.stringify([warn.mock.calls, (ctx.log.info as ReturnType<typeof vi.fn>).mock.calls]),
     ).not.toContain(NAME_TH);
+  });
+
+  it('keeps an earlier dataset loaded when a later one is refused, and marks the rest NOT_RUN', async () => {
+    // IMPORT_DATASETS order: faculty-members, class-offerings, compensation.
+    const connector = new TestConnector(
+      ['faculty-members', 'class-offerings', 'faculty-compensation'],
+      () => ({
+        'faculty-members': [
+          {
+            'Employee Code': 'TAPI-E5',
+            'Name (Thai)': 'ทดสอบ ห้า',
+            'Name (English)': 'Test Five',
+            'Faculty Code': FACULTY,
+            Rank: 'LECTURER',
+          },
+        ],
+        'class-offerings': [classRow('TAPI-701', { 'Academic Year': 2542 })],
+        'faculty-compensation': [],
+      }),
+    );
+    const err = (await runConnector(connector, await newContext()).catch(
+      (e: unknown) => e,
+    )) as NonRetryableError;
+
+    expect(err).toBeInstanceOf(NonRetryableError);
+    expect(err.code).toBe('VALIDATION');
+    expect(err.message).toContain('Class Offerings');
+    const meta = err.details as unknown as Meta;
+    expect(Object.keys(meta.datasets)).toEqual([
+      'faculty-members',
+      'class-offerings',
+      'faculty-compensation',
+    ]);
+    expect(meta.datasets['faculty-members']).toMatchObject({
+      status: 'LOADED',
+      rows: 1,
+      inserted: 1,
+    });
+    expect(meta.datasets['faculty-members']?.importRunId).toEqual(expect.any(String));
+    expect(meta.datasets['class-offerings']?.status).toBe('REFUSED');
+    expect(meta.datasets['class-offerings']?.importRunId).toBeUndefined();
+    expect(meta.datasets['faculty-compensation']?.status).toBe('NOT_RUN');
+    expect(meta.errors.every((e) => e.dataset === 'class-offerings')).toBe(true);
+
+    // The committed dataset stays committed; nothing from the refused one exists.
+    const member = await prisma.facultyMember.findUnique({
+      where: { employeeCode: 'TAPI-E5' },
+      select: { ingestionRunId: true },
+    });
+    expect(member?.ingestionRunId).toBe(meta.datasets['faculty-members']?.importRunId);
+    expect(await prisma.classOffering.count({ where: { courseCode: 'TAPI-701' } })).toBe(0);
   });
 
   describe('limits', () => {
