@@ -15,7 +15,7 @@ import { buildSkillLookup, resolveSkillId } from '../../skill-lookup';
 //
 // Unit of `Share of Postings (%)`: the same 0–100 percentage the KMITL API
 // returns (transforms.ts keeps it unconverted) and the readers compare with a
-// threshold of 5 (health-score.ts KMITL_DEMAND_THRESHOLD_PCT).
+// threshold of 5 (health-score/tuning.ts linkedInSkillDemandThresholdPct).
 
 const SLUG = 'xlsx-career-skill-demand';
 const NO_SUB_GROUP = 'General';

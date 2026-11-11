@@ -3,7 +3,7 @@
  *
  * The plain-language text is written by hand. The structure is not free: a test in
  * packages/db/test/deep-dive-data-map-doc.test.ts checks it against the code it describes.
- *   - Every driver in DIMENSION_DRIVERS (packages/db/src/health-score.ts) appears here under
+ *   - Every driver in DIMENSION_DRIVERS (packages/db/src/health-score/drivers.ts) appears here under
  *     the same dimension, and nothing else does (the grant award is marked `award`).
  *   - A driver's or section's `in` list is exactly what CHECKLIST_SOURCES
  *     (packages/db/src/program-setup-checklist.ts) names for it, mapped through each input's

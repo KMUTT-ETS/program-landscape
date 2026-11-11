@@ -400,7 +400,7 @@ export async function buildProgramDetailData(
   // already stringifies, not re-derived from `healthDimensions`. `score`
   // stays null when the methodology had no non-null dimension to average
   // (never coerced to 0); `dataCompletenessPct` is non-nullable upstream
-  // (`HealthScoreSchema` in packages/db/src/health-score.ts) but this
+  // (`HealthScoreSchema` in packages/db/src/health-score/schema.ts) but this
   // still guards on `overview.health` being present at all.
   const healthOverallScore: ProgramDetailData['healthOverallScore'] =
     overview.health && overview.health.overall.score !== null
