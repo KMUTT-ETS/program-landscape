@@ -80,6 +80,52 @@ describe('ImportPanel — mixed sources', () => {
     expect(html).toContain('Last loaded by');
   });
 
+  it('shows the banner when two API connectors feed the dataset and no upload does', () => {
+    const at = '2026-11-08T00:00:00.000Z';
+    const html = markup(
+      dataset({
+        batches: [apiBatch],
+        sourceMix: {
+          sources: ['api'],
+          feeders: [
+            { via: 'api', connector: 'Campus A', at },
+            { via: 'api', connector: 'Campus B', at },
+          ],
+          lastBy: { via: 'api', connector: 'Campus B', at },
+          perScope: [],
+        },
+      }),
+    );
+    expect(html).toContain('Two sources feed this dataset');
+    expect(html).toContain(
+      'The API connector &quot;Campus A&quot; and the API connector &quot;Campus B&quot; both load this dataset.',
+    );
+  });
+
+  it('counts and names three sources', () => {
+    const at = '2026-11-08T00:00:00.000Z';
+    const html = markup(
+      dataset({
+        batches: [liveBatch, apiBatch],
+        sourceMix: {
+          sources: ['upload', 'api'],
+          feeders: [
+            { via: 'upload', connector: null, at },
+            { via: 'api', connector: 'Campus A', at },
+            { via: 'api', connector: 'Campus B', at },
+          ],
+          lastBy: { via: 'api', connector: 'Campus B', at },
+          perScope: [],
+        },
+      }),
+    );
+    expect(html).toContain('3 sources feed this dataset');
+    expect(html).toContain(
+      'Uploads, the API connector &quot;Campus A&quot; and the API connector &quot;Campus B&quot; all load this dataset.',
+    );
+    expect(html).toContain('replaces what the others loaded');
+  });
+
   it('shows no banner for a single source', () => {
     const html = markup(
       dataset({ batches: [liveBatch], sourceMix: { sources: ['upload'], lastBy: null, perScope: [] } }),

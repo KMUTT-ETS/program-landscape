@@ -142,7 +142,9 @@ A dataset can be filled by both uploads and an API. Nothing is refused, but the 
 - Programme-scoped datasets: the same, per programme.
 - Datasets that upsert: a row can end up holding values from both sources.
 
-The dataset page shows a banner when both sources have loaded, with a table of the terms or programmes affected, and the same warnings appear in the upload result and are stored with the connector run. "Start over" removes the rows from uploads and from API runs alike.
+The same holds for two API connectors on one dataset, for example one per campus: each connector counts as a source of its own, and `pnpm connector:new` prints a note when the dataset you name is already filled by another connector. Whichever loads last wins, so give connectors that share a dataset separate terms or programmes, or accept that the later run replaces the earlier one.
+
+The dataset page shows a banner whenever two or more sources have loaded, naming each one, with a table of the terms or programmes affected, and the same warnings appear in the upload result and are stored with the connector run. "Start over" removes the rows from uploads and from API runs alike.
 
 ### Personal data
 

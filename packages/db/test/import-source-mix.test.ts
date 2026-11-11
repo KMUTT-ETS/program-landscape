@@ -27,15 +27,31 @@ function fixture(slug: string, strategy: ImportDataset['strategy']): ImportDatas
     tier: 0,
     sheetName: 'Data',
     columns: [
-      { header: 'Academic year', key: 'academicYear', type: 'integer', required: true, guide: 'y', example: '1999' },
-      { header: 'Semester', key: 'semester', type: 'text', required: true, guide: 's', example: '1' },
+      {
+        header: 'Academic year',
+        key: 'academicYear',
+        type: 'integer',
+        required: true,
+        guide: 'y',
+        example: '1999',
+      },
+      {
+        header: 'Semester',
+        key: 'semester',
+        type: 'text',
+        required: true,
+        guide: 's',
+        example: '1',
+      },
       { header: 'Code', key: 'code', type: 'text', required: true, guide: 'c', example: 'A' },
     ],
     strategy,
     load: async ({ tx, ingestionRunId }, rows) => {
       let deleted = 0;
       if (strategy.kind === 'term-scoped') {
-        const del = await tx.faculty.deleteMany({ where: { code: { startsWith: `SMX-${slug}-1999-` } } });
+        const del = await tx.faculty.deleteMany({
+          where: { code: { startsWith: `SMX-${slug}-1999-` } },
+        });
         deleted = del.count;
       }
       for (const r of rows) {
@@ -50,7 +66,11 @@ function fixture(slug: string, strategy: ImportDataset['strategy']): ImportDatas
     },
     count: async (p) => p.faculty.count({ where: { code: { startsWith: `SMX-${slug}-` } } }),
     clear: async (tx, runIds) =>
-      (await tx.faculty.deleteMany({ where: { code: { startsWith: `SMX-${slug}-` }, ingestionRunId: { in: [...runIds] } } })).count,
+      (
+        await tx.faculty.deleteMany({
+          where: { code: { startsWith: `SMX-${slug}-` }, ingestionRunId: { in: [...runIds] } },
+        })
+      ).count,
   };
 }
 
@@ -77,17 +97,42 @@ beforeAll(async () => {
     await prisma.dataSource.upsert({
       where: { slug: `xlsx-${slug}` },
       update: { mocked: false },
-      create: { slug: `xlsx-${slug}`, name: `${slug} (institution import)`, kind: 'CSV', inputFormat: 'XLSX', mocked: false, scheduleEnabled: false, status: 'real' },
+      create: {
+        slug: `xlsx-${slug}`,
+        name: `${slug} (institution import)`,
+        kind: 'CSV',
+        inputFormat: 'XLSX',
+        mocked: false,
+        scheduleEnabled: false,
+        status: 'real',
+      },
     });
   }
   await prisma.dataSource.upsert({
     where: { slug: PARENT_SLUG },
     update: {},
-    create: { slug: PARENT_SLUG, name: 'Source mix test connector', kind: 'API', inputFormat: 'JSON', mocked: false, scheduleEnabled: false, status: 'real' },
+    create: {
+      slug: PARENT_SLUG,
+      name: 'Source mix test connector',
+      kind: 'API',
+      inputFormat: 'JSON',
+      mocked: false,
+      scheduleEnabled: false,
+      status: 'real',
+    },
   });
-  const ds = await prisma.dataSource.findUniqueOrThrow({ where: { slug: PARENT_SLUG }, select: { id: true } });
+  const ds = await prisma.dataSource.findUniqueOrThrow({
+    where: { slug: PARENT_SLUG },
+    select: { id: true },
+  });
   const parent = await prisma.ingestionRun.create({
-    data: { dataSourceId: ds.id, trigger: 'MANUAL', status: 'RUNNING', startedAt: new Date(), attempt: 1 },
+    data: {
+      dataSourceId: ds.id,
+      trigger: 'MANUAL',
+      status: 'RUNNING',
+      startedAt: new Date(),
+      attempt: 1,
+    },
     select: { id: true },
   });
   parentRunId = parent.id;
@@ -115,6 +160,12 @@ const api = (): ImportRunSource => ({
   connectorName: 'Test connector',
   parentRunId,
 });
+const apiB = (): ImportRunSource => ({
+  via: 'api',
+  connectorSlug: 'api-test-b',
+  connectorName: 'Other connector',
+  parentRunId,
+});
 const T = { academicYear: 1999, semester: '1' };
 const rowsOf = (n: number) =>
   Array.from({ length: n }, (_, i) => ({ academicYear: 1999, semester: '1', code: String(i) }));
@@ -127,11 +178,15 @@ describe('runImportLoad warnings and source mix', () => {
     const second = await runImportLoad(term, rowsOf(2), api(), T);
     runIds.push(second.runId);
     expect(await term.count(prisma)).toBe(2);
-    expect(second.warnings[0]).toMatch(/^Semester 1\/1999 was last loaded by an upload on \d{2} [A-Z][a-z]{2} \d{4}\. This load replaced it\.$/);
+    expect(second.warnings[0]).toMatch(
+      /^Semester 1\/1999 was last loaded by an upload on \d{2} [A-Z][a-z]{2} \d{4}\. This load replaced it\.$/,
+    );
     // And back: the upload replaces the API term.
     const third = await runImportLoad(term, rowsOf(1), upload(), T);
     runIds.push(third.runId);
-    expect(third.warnings[0]).toContain('Semester 1/1999 was last loaded by the API connector "Test connector" on ');
+    expect(third.warnings[0]).toContain(
+      'Semester 1/1999 was last loaded by the API connector "Test connector" on ',
+    );
   });
 
   it('importSourceMix lists both sources and the newest writer per term', async () => {
@@ -139,7 +194,11 @@ describe('runImportLoad warnings and source mix', () => {
     expect([...mix.sources].sort()).toEqual(['api', 'upload']);
     expect(mix.lastBy?.via).toBe('upload');
     expect(mix.perScope).toHaveLength(1);
-    expect(mix.perScope[0]).toMatchObject({ label: 'Semester 1/1999', via: 'upload', connector: null });
+    expect(mix.perScope[0]).toMatchObject({
+      label: 'Semester 1/1999',
+      via: 'upload',
+      connector: null,
+    });
     expect(mix.perScope[0]?.at).toBeInstanceOf(Date);
     expect((await importSourceMix(FLAT)).perScope).toEqual([]);
   });
@@ -150,7 +209,9 @@ describe('runImportLoad warnings and source mix', () => {
     const b = await runImportLoad(prog, rowsOf(1), api(), undefined, [{ semester: '1' }]);
     runIds.push(b.runId);
     expect(b.warnings[0]).toMatch(/^1 was last loaded by an upload on /);
-    expect((await importSourceMix(PROG)).perScope).toMatchObject([{ label: '1', via: 'api', connector: 'Test connector' }]);
+    expect((await importSourceMix(PROG)).perScope).toMatchObject([
+      { label: '1', via: 'api', connector: 'Test connector' },
+    ]);
   });
 
   it('start-over clears rows written by API import runs', async () => {
@@ -175,5 +236,38 @@ describe('runImportLoad warnings and source mix', () => {
     const c = await runImportLoad(flat, rowsOf(1), api());
     runIds.push(c.runId);
     expect(c.warnings).toHaveLength(1);
+  });
+
+  it("a second API connector replacing the first connector's term is reported", async () => {
+    const T2 = { academicYear: 1999, semester: '2' };
+    const rows2 = (n: number) => rowsOf(n).map((r) => ({ ...r, semester: '2' }));
+    const a = await runImportLoad(term, rows2(2), api(), T2);
+    runIds.push(a.runId);
+    const b = await runImportLoad(term, rows2(1), apiB(), T2);
+    runIds.push(b.runId);
+    expect(b.warnings[0]).toMatch(
+      /^Semester 2\/1999 was last loaded by the API connector "Test connector" on \d{2} [A-Z][a-z]{2} \d{4}\. This load replaced it\.$/,
+    );
+    const again = await runImportLoad(term, rows2(1), apiB(), T2);
+    runIds.push(again.runId);
+    expect(again.warnings).toEqual([]);
+  });
+
+  it('importSourceMix lists each connector as its own feeder', async () => {
+    const mix = await importSourceMix(TERM);
+    expect(mix.feeders.map((f) => f.connector ?? 'upload')).toEqual([
+      'upload',
+      'Test connector',
+      'Other connector',
+    ]);
+    expect(mix.feeders.every((f) => f.at instanceof Date)).toBe(true);
+  });
+
+  it('upsert dataset fed by an upload and two connectors names all three', async () => {
+    const d = await runImportLoad(flat, rowsOf(1), apiB());
+    runIds.push(d.runId);
+    expect(d.warnings).toEqual([
+      'Rows in this dataset come from uploads, the API connector "Test connector" and the API connector "Other connector". A row may hold values from any of them.',
+    ]);
   });
 });

@@ -50,6 +50,8 @@ export interface SourceMixRow {
 
 export interface ImportSourceMix {
   sources: ('upload' | 'api')[];
+  /** Each distinct source (uploads as one, each API connector as its own). Absent from older responses. */
+  feeders?: { via: 'upload' | 'api'; connector: string | null; at: string }[];
   lastBy: { via: 'upload' | 'api'; connector: string | null; at: string } | null;
   perScope: SourceMixRow[];
 }
@@ -93,6 +95,27 @@ function apiConnectorName(dataset: ImportPanelDataset): string {
     (mix?.lastBy?.via === 'api' ? mix.lastBy.connector : null);
   const fromBatch = dataset.batches.find((b) => b.via === 'api')?.connector;
   return fromMix ?? fromBatch ?? 'connector';
+}
+
+/** The banner's title and opening sentence, naming every source that feeds the dataset. */
+function feederSummary(dataset: ImportPanelDataset): { count: number; subject: string } {
+  const mix = dataset.sourceMix;
+  const feeders = mix?.feeders;
+  if (!feeders || feeders.length === 0) {
+    // Older response: only the kinds are known, so name the one connector we can find.
+    return {
+      count: mix?.sources.length ?? 0,
+      subject: `Uploads and the API connector "${apiConnectorName(dataset)}"`,
+    };
+  }
+  const names = feeders.map((f) =>
+    f.via === 'upload' ? 'uploads' : `the API connector "${f.connector ?? 'connector'}"`,
+  );
+  const list =
+    names.length <= 1
+      ? names.join('')
+      : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  return { count: feeders.length, subject: list.charAt(0).toUpperCase() + list.slice(1) };
 }
 
 export function ImportPanel({ dataset }: { dataset: ImportPanelDataset }): React.JSX.Element {
@@ -200,7 +223,8 @@ export function ImportPanel({ dataset }: { dataset: ImportPanelDataset }): React
   }
 
   const mix = dataset.sourceMix;
-  const twoSources = (mix?.sources.length ?? 0) > 1;
+  const feeders = feederSummary(dataset);
+  const twoSources = feeders.count > 1;
 
   return (
     <div className="flex flex-col gap-4">
@@ -209,11 +233,13 @@ export function ImportPanel({ dataset }: { dataset: ImportPanelDataset }): React
           role="status"
           className="rounded-md border border-[oklch(var(--color-warning-default)/0.4)] bg-warning/10 p-3"
         >
-          <p className="text-sm font-medium text-text-primary">Two sources feed this dataset</p>
+          <p className="text-sm font-medium text-text-primary">
+            {feeders.count === 2 ? 'Two' : feeders.count} sources feed this dataset
+          </p>
           <p className="mt-1 max-w-2xl text-xs text-text-secondary">
-            Uploads and the API connector &quot;{apiConnectorName(dataset)}&quot; both load this
-            dataset. Whichever loads a term (or programme) last replaces what the other loaded.
-            Uploads history shows which source loaded what.
+            {feeders.subject} {feeders.count === 2 ? 'both' : 'all'} load this dataset. Whichever
+            loads a term (or programme) last replaces what the {feeders.count === 2 ? 'other' : 'others'}{' '}
+            loaded. Uploads history shows which source loaded what.
           </p>
           {mix.perScope.length > 0 ? (
             <table className="mt-2 w-full text-left text-xs">

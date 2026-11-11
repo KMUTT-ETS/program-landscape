@@ -23,7 +23,15 @@ export interface SourceMixEntry {
 }
 
 export interface SourceMix {
+  /** The kinds of source present: uploads, API connectors, or both. */
   sources: ImportVia[];
+  /**
+   * Every distinct source that has loaded this dataset, with its newest load:
+   * uploads count as one source, and each API connector as its own. Ordered by
+   * first appearance. Two connectors filling one dataset show up here even
+   * though `sources` would only say "api".
+   */
+  feeders: SourceMixEntry[];
   lastBy: SourceMixEntry | null;
   /** One entry per term (term-scoped) or programme (programme-scoped), newest writer only. */
   perScope: (SourceMixEntry & { label: string })[];
@@ -34,12 +42,35 @@ const API_FILENAME_PREFIX = 'API: ';
 /** The connector display name an API batch carries in its filename. */
 export function connectorFromBatch(via: ImportVia, filename: string): string | null {
   if (via !== 'api') return null;
-  return filename.startsWith(API_FILENAME_PREFIX) ? filename.slice(API_FILENAME_PREFIX.length) : filename;
+  return filename.startsWith(API_FILENAME_PREFIX)
+    ? filename.slice(API_FILENAME_PREFIX.length)
+    : filename;
+}
+
+/** What makes two loads "the same source": all uploads are one, each connector is its own. */
+export function sourceKey(entry: { via: ImportVia; connector: string | null }): string {
+  return entry.via === 'upload' ? 'upload' : `api:${entry.connector ?? ''}`;
+}
+
+/** How a source is named inside a sentence. */
+function sourcePhrase(
+  entry: { via: ImportVia; connector: string | null },
+  plural: boolean,
+): string {
+  if (entry.via === 'upload') return plural ? 'uploads' : 'an upload';
+  return `the API connector "${entry.connector ?? ''}"`;
+}
+
+/** `a and b`, or `a, b and c`. */
+function joinList(items: readonly string[]): string {
+  if (items.length <= 1) return items.join('');
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 }
 
 /** `via` as recorded in run metadata; an absent or unknown value means an upload. */
 export function viaFromMetadata(metadata: unknown): ImportVia {
-  if (metadata && typeof metadata === 'object' && (metadata as { via?: unknown }).via === 'api') return 'api';
+  if (metadata && typeof metadata === 'object' && (metadata as { via?: unknown }).via === 'api')
+    return 'api';
   return 'upload';
 }
 
@@ -54,8 +85,13 @@ export function formatTermLabel(
 ): string {
   const year = term.academicYear;
   const semester = term.semester;
-  if (termColumns.length === 2 && termColumns.includes('academicYear') && termColumns.includes('semester')
-    && year !== undefined && semester !== undefined) {
+  if (
+    termColumns.length === 2 &&
+    termColumns.includes('academicYear') &&
+    termColumns.includes('semester') &&
+    year !== undefined &&
+    semester !== undefined
+  ) {
     return `Semester ${cellText(semester)}/${cellText(year)}`;
   }
   return termColumns.map((c) => cellText(term[c])).join('/');
@@ -71,12 +107,27 @@ export function formatScopeLabel(
 
 /** `dd Mon yyyy` in UTC, e.g. `08 Nov 2026`. */
 export function formatWarningDate(d: Date): string {
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
   return `${String(d.getUTCDate()).padStart(2, '0')} ${months[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 
 function asRecord(v: unknown): Record<string, ImportCellValue> | null {
-  return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, ImportCellValue>) : null;
+  return v && typeof v === 'object' && !Array.isArray(v)
+    ? (v as Record<string, ImportCellValue>)
+    : null;
 }
 
 /** The scope label(s) one run's metadata names for this dataset. */
@@ -114,12 +165,8 @@ export function labelsForLoad(
   return [];
 }
 
-/**
- * The mix as the loader needs it: the public SourceMix plus the most recent
- * API connector's name, which the upsert warning quotes even when the
- * current load is itself an upload.
- */
-export async function readSourceMix(datasetSlug: string): Promise<SourceMix & { apiConnector: string | null }> {
+/** Which sources have loaded a dataset, read from its live (SUCCEEDED) batches. */
+export async function readSourceMix(datasetSlug: string): Promise<SourceMix> {
   const dataset = getImportDataset(datasetSlug);
   // SUCCEEDED only: a FAILED or LOADING batch has not put rows in the table.
   const batches = await prisma.importBatch.findMany({
@@ -129,9 +176,9 @@ export async function readSourceMix(datasetSlug: string): Promise<SourceMix & { 
   });
 
   const sources = new Set<ImportVia>();
+  const feeders = new Map<string, SourceMixEntry>();
   const newest = new Map<string, SourceMixEntry & { label: string }>();
   let lastBy: SourceMixEntry | null = null;
-  let apiConnector: string | null = null;
 
   for (const b of batches) {
     // A batch whose run is gone has no metadata: it can only be an upload.
@@ -139,22 +186,22 @@ export async function readSourceMix(datasetSlug: string): Promise<SourceMix & { 
     const connector = connectorFromBatch(via, b.filename);
     const entry: SourceMixEntry = { via, connector, at: b.createdAt };
     sources.add(via);
+    feeders.set(sourceKey(entry), entry); // Map keeps first-appearance order; the value becomes the newest load
     lastBy = entry;
-    if (via === 'api') apiConnector = connector;
-    for (const label of labelsFor(dataset, b.ingestionRun?.metadata)) newest.set(label, { ...entry, label });
+    for (const label of labelsFor(dataset, b.ingestionRun?.metadata))
+      newest.set(label, { ...entry, label });
   }
 
   return {
     sources: [...sources],
+    feeders: [...feeders.values()],
     lastBy,
     perScope: [...newest.values()],
-    apiConnector,
   };
 }
 
 export async function importSourceMix(datasetSlug: string): Promise<SourceMix> {
-  const { sources, lastBy, perScope } = await readSourceMix(datasetSlug);
-  return { sources, lastBy, perScope };
+  return readSourceMix(datasetSlug);
 }
 
 /**
@@ -163,27 +210,37 @@ export async function importSourceMix(datasetSlug: string): Promise<SourceMix> {
  */
 export function loadWarnings(
   dataset: ImportDataset,
-  mix: SourceMix & { apiConnector: string | null },
+  mix: SourceMix,
   source: { via: ImportVia; connectorName?: string },
   term?: Readonly<Record<string, ImportCellValue>>,
   scopes?: readonly Readonly<Record<string, ImportCellValue>>[],
 ): string[] {
   const warnings: string[] = [];
+  const current = {
+    via: source.via,
+    connector: source.via === 'api' ? (source.connectorName ?? null) : null,
+  };
   if (dataset.strategy.kind === 'upsert') {
-    const other: ImportVia = source.via === 'api' ? 'upload' : 'api';
-    if (mix.sources.includes(other)) {
-      const connector = source.via === 'api' ? source.connectorName : mix.apiConnector;
+    // Every source that will have written rows once this load is in, in first-appearance order.
+    const all = [...mix.feeders];
+    if (!all.some((f) => sourceKey(f) === sourceKey(current)))
+      all.push({ ...current, at: new Date() });
+    if (all.length > 1) {
+      const names = joinList(all.map((f) => sourcePhrase(f, true)));
       warnings.push(
-        `Rows in this dataset come from both uploads and the API connector "${connector ?? ''}". A row may hold values from both.`,
+        all.length === 2
+          ? `Rows in this dataset come from both ${names}. A row may hold values from both.`
+          : `Rows in this dataset come from ${names}. A row may hold values from any of them.`,
       );
     }
     return warnings;
   }
   for (const label of labelsForLoad(dataset, term, scopes)) {
     const prior = mix.perScope.find((p) => p.label === label);
-    if (!prior || prior.via === source.via) continue;
-    const who = prior.via === 'upload' ? 'an upload' : `the API connector "${prior.connector ?? ''}"`;
-    warnings.push(`${label} was last loaded by ${who} on ${formatWarningDate(prior.at)}. This load replaced it.`);
+    if (!prior || sourceKey(prior) === sourceKey(current)) continue;
+    warnings.push(
+      `${label} was last loaded by ${sourcePhrase(prior, false)} on ${formatWarningDate(prior.at)}. This load replaced it.`,
+    );
   }
   return warnings;
 }

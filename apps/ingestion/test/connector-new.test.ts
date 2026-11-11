@@ -126,6 +126,26 @@ describe('runScaffolder', () => {
     expect(out.join('\n')).toContain('pnpm connector:new --list');
   });
 
+  it('notes, without refusing, when another connector already fills the dataset', () => {
+    expect(
+      runScaffolder(['--name', 'campus-a', '--dataset', 'class-offerings'], { root, log }).exitCode,
+    ).toBe(0);
+    out.length = 0;
+    const second = runScaffolder(
+      ['--name', 'campus-b', '--dataset', 'class-offerings,faculties', '--dry-run'],
+      { root, log },
+    );
+    expect(second.exitCode).toBe(0);
+    expect(out.join('\n')).toContain('Note: api-campus-a already fills class-offerings.');
+    expect(out.join('\n')).not.toContain('already fills faculties');
+    out.length = 0;
+    runScaffolder(['--name', 'campus-c', '--dataset', 'enrollment-metrics', '--dry-run'], {
+      root,
+      log,
+    });
+    expect(out.join('\n')).not.toContain('Note:');
+  });
+
   it('rejects a bad name', () => {
     expect(
       runScaffolder(['--name', 'Bad_Name', '--dataset', 'class-offerings'], { root, log }).exitCode,

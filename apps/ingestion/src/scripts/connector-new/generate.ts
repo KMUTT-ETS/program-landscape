@@ -1,5 +1,5 @@
 // pnpm connector:new --name <kebab-name> --dataset <slug>[,<slug>...] [--display-name "<text>"] [--dry-run]
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 
@@ -72,6 +72,31 @@ function insertAbove(file: string, lines: string, importLine?: string): void {
     text = `${text.slice(0, at)}${last ? '\n' : ''}${importLine}${last ? '' : '\n'}${text.slice(at)}`;
   }
   writeFileSync(file, text);
+}
+
+/**
+ * Institution connectors that already fill any of `datasets`, read from their
+ * source: `readonly slug = '…'` and `readonly datasets = [ … ]`, which is the
+ * shape the scaffolder writes.
+ */
+function existingFillers(
+  institutionDir: string,
+  datasets: readonly string[],
+): { slug: string; dataset: string }[] {
+  if (!existsSync(institutionDir)) return [];
+  const found: { slug: string; dataset: string }[] = [];
+  for (const entry of readdirSync(institutionDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const file = path.join(institutionDir, entry.name, 'connector.ts');
+    if (!existsSync(file)) continue;
+    const text = readFileSync(file, 'utf8');
+    const slug = /readonly slug = '([^']+)'/.exec(text)?.[1];
+    const list = /readonly datasets = \[([^\]]*)\]/.exec(text)?.[1] ?? '';
+    if (!slug) continue;
+    const filled = [...list.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+    for (const d of datasets) if (filled.includes(d)) found.push({ slug, dataset: d });
+  }
+  return found;
 }
 
 /** Runs the CLI against `env.root`. Never throws for user errors. */
@@ -177,6 +202,17 @@ export function runScaffolder(argv: readonly string[], env: ScaffolderEnv): { ex
       `Refusing to overwrite: ${taken.map((f) => f.path).join(', ')} already exist. Nothing was written.`,
     );
   }
+
+  // Allowed, but worth saying: two connectors on one dataset overwrite each other.
+  const fillers = existingFillers(path.dirname(connectorDir), requested);
+  for (const f of fillers) {
+    log(
+      `Note: ${f.slug} already fills ${f.dataset}. Both can run; whichever loads last wins ` +
+        '(a whole term or programme for term- and programme-scoped datasets, a row otherwise), ' +
+        'and the dataset page warns when one replaces the other.',
+    );
+  }
+  if (fillers.length > 0) log('');
 
   if (values['dry-run']) {
     log('Dry run: would create');
