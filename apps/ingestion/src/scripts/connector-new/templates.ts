@@ -13,7 +13,8 @@ export function envSegment(slug: string): string {
   return slug.toUpperCase().replace(/-/g, '_');
 }
 
-const quote = (s: string): string => `'${s.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+const quote = (s: string): string =>
+  `'${s.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, '\\n')}'`;
 
 /** A guide sentence made safe inside a block comment. */
 function commentSafe(text: string): string {
@@ -67,11 +68,12 @@ export function connectorSource(opts: {
   return `import type { ConnectorContext } from '@kku/shared';
 
 import type { ApiClient } from '../../../base/api-client';
+import { NonRetryableError } from '../../../base/base-connector';
 import { DatasetApiConnector, type DatasetRows } from '../../../base/dataset-api-connector';
 
 ${types}
 /**
- * Fills ${opts.datasets.map((d) => d.slug).join(', ')} from ${opts.displayName}.
+ * Fills ${commentSafe(opts.datasets.map((d) => d.slug).join(', '))} from ${commentSafe(opts.displayName)}.
  * Set CONNECTOR_${envSegment(`api-${opts.name}`)}_BASE_URL and _TOKEN in .env.
  * Row types in use: ${rowTypes}.
  */
@@ -83,14 +85,14 @@ export class ${cls} extends DatasetApiConnector {
   protected async fetchAll(_ctx: ConnectorContext, _api: ApiClient): Promise<readonly unknown[]> {
     // Hints: page with api.paginate(...) or call api.getJson(path, ZodSchema);
     // validate every response with Zod; never log the records you fetch.
-    throw new Error('TODO: fetch the records from the institution API with the ApiClient');
+    throw new NonRetryableError('NOT_IMPLEMENTED', 'TODO: fetch the records from the institution API with the ApiClient');
   }
 
   protected toRows(_records: readonly unknown[]): DatasetRows {
     // Hints: build one object per row keyed by the template header text;
     // convert Buddhist Era years to Common Era; if the API returns one record
     // per student, aggregate to the dataset's grain here; never log records.
-    throw new Error('TODO: map the fetched records onto the dataset rows');
+    throw new NonRetryableError('NOT_IMPLEMENTED', 'TODO: map the fetched records onto the dataset rows');
   }
 }
 `;

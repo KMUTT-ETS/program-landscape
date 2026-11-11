@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { existsSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { getImportDataset } from '@kku/db';
@@ -35,7 +36,8 @@ describe('generateConnectorFiles', () => {
     expect(src).toContain('type ClassOfferingsRow');
     expect(src).toContain('extends DatasetApiConnector');
     expect(src).toContain("slug = 'api-demo'");
-    expect(src).toContain("throw new Error('TODO");
+    expect(src).toContain("throw new NonRetryableError('NOT_IMPLEMENTED', 'TODO");
+    expect(src).toContain("import { NonRetryableError } from '../../../base/base-connector';");
     const enumCol = cols.find((c) => c.type === 'enum');
     if (enumCol?.enumValues) {
       expect(src).toContain(enumCol.enumValues.map((v) => `'${v}'`).join(' | '));
@@ -145,5 +147,79 @@ describe('runScaffolder', () => {
     expect(r.exitCode).toBe(0);
     const index = readFileSync(path.join(root, INDEX_REL, 'index.ts'), 'utf8');
     expect(index).not.toContain('api-demo');
+  });
+
+  it('rejects a name that starts with a digit', () => {
+    expect(
+      runScaffolder(['--name', '2nd-term', '--dataset', 'class-offerings'], { root, log }).exitCode,
+    ).toBe(2);
+  });
+
+  it('writes nothing when a marker is missing', () => {
+    const indexPath = path.join(root, INDEX_REL, 'index.ts');
+    writeFileSync(
+      indexPath,
+      readFileSync(indexPath, 'utf8').replace('// connector:new entries', ''),
+    );
+    const r = runScaffolder(['--name', 'demo', '--dataset', 'class-offerings'], { root, log });
+    expect(r.exitCode).toBe(2);
+    expect(out.join('\n')).toContain('Marker');
+    expect(existsSync(path.join(root, INDEX_REL, 'demo'))).toBe(false);
+    expect(
+      existsSync(path.join(root, 'apps', 'ingestion', 'test', 'institution', 'demo.test.ts')),
+    ).toBe(false);
+    const catalog = readFileSync(path.join(root, CATALOG_REL, 'institution-catalog.ts'), 'utf8');
+    expect(catalog).not.toContain('api-demo');
+  });
+
+  it('refuses, writing nothing, when the test file already exists (also in --dry-run)', () => {
+    const testDir = path.join(root, 'apps', 'ingestion', 'test', 'institution');
+    mkdirSync(testDir, { recursive: true });
+    writeFileSync(path.join(testDir, 'demo.test.ts'), '// mine\n');
+    for (const extra of [[], ['--dry-run']]) {
+      out.length = 0;
+      const r = runScaffolder(['--name', 'demo', '--dataset', 'class-offerings', ...extra], {
+        root,
+        log,
+      });
+      expect(r.exitCode).toBe(2);
+      expect(out.join('\n')).toContain('demo.test.ts');
+    }
+    expect(readFileSync(path.join(testDir, 'demo.test.ts'), 'utf8')).toBe('// mine\n');
+    expect(existsSync(path.join(root, INDEX_REL, 'demo'))).toBe(false);
+    expect(readFileSync(path.join(root, INDEX_REL, 'index.ts'), 'utf8')).not.toContain('api-demo');
+  });
+
+  it('a second connector adds one helper import and two entries above the marker', () => {
+    expect(
+      runScaffolder(['--name', 'one', '--dataset', 'class-offerings'], { root, log }).exitCode,
+    ).toBe(0);
+    expect(
+      runScaffolder(['--name', 'two', '--dataset', 'class-offerings'], { root, log }).exitCode,
+    ).toBe(0);
+    const index = readFileSync(path.join(root, INDEX_REL, 'index.ts'), 'utf8');
+    expect(index.match(/import \{ datasetApiEntry \}/g)).toHaveLength(1);
+    const marker = index.indexOf('// connector:new entries');
+    for (const n of ['one', 'two']) {
+      expect(index.indexOf(`datasetApiEntry('api-${n}'`)).toBeGreaterThan(0);
+      expect(index.indexOf(`datasetApiEntry('api-${n}'`)).toBeLessThan(marker);
+    }
+  });
+
+  it('escapes */ and quotes in a display name', () => {
+    const src = fileAt(
+      generateConnectorFiles({
+        name: 'demo',
+        datasets: ['class-offerings'],
+        displayName: "Bob's */ API",
+      }),
+      'demo/connector.ts',
+    );
+    expect(src).toContain("readonly displayName = 'Bob\\'s */ API';");
+    const opens = (src.match(/\/\*/g) ?? []).length;
+    const closes = (src.match(/\*\//g) ?? []).length;
+    // The only extra "*/" is inside the string literal.
+    expect(closes).toBe(opens + 1);
+    expect(src).toContain("Bob's *\\/ API");
   });
 });

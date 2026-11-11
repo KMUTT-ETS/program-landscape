@@ -28,6 +28,9 @@ const DEFAULT_MAX_PAGES = 1_000;
  * Small JSON-over-HTTP helper for dataset API connectors. Error messages never
  * contain the response body or the token.
  */
+/** Consecutive empty pages that still name a next cursor before pagination is refused. */
+const MAX_EMPTY_PAGES = 3;
+
 export class ApiClient {
   private readonly baseUrl: string;
   private readonly token: string | undefined;
@@ -151,11 +154,22 @@ export class ApiClient {
     const maxPages = opts.maxPages ?? DEFAULT_MAX_PAGES;
     const out: T[] = [];
     let query: Query = { ...opts.query };
+    let emptyInARow = 0;
     for (let page = 1; ; page++) {
       const data = await this.getJson(path, pageSchema, query);
-      out.push(...opts.items(data));
+      const items = opts.items(data);
+      out.push(...items);
       const next = opts.next(data);
       if (next === null) return out;
+      // A filtered API may return an empty page with a cursor; a run of them
+      // is a cursor that never advances.
+      emptyInARow = items.length === 0 ? emptyInARow + 1 : 0;
+      if (emptyInARow >= MAX_EMPTY_PAGES) {
+        throw new NonRetryableError(
+          'PAGINATION',
+          `GET ${path} returned ${MAX_EMPTY_PAGES} empty pages in a row with a next cursor`,
+        );
+      }
       if (page >= maxPages) {
         throw new Error(`GET ${path}: still more data after maxPages (${maxPages} pages)`);
       }

@@ -65,6 +65,39 @@ describe('ApiClient', () => {
     expect(requests[2]!.url).toBe('https://x.test/rows?year=2025&cursor=c');
   });
 
+  it('paginate tolerates one empty page that still has a next cursor', async () => {
+    const Page = z.object({ rows: z.array(z.number()), cursor: z.string().nullable() });
+    const { fetchImpl } = recorder((req) => {
+      const c = new URL(req.url).searchParams.get('cursor');
+      if (c === null) return json({ rows: [], cursor: 'b' });
+      return json({ rows: [7], cursor: null });
+    });
+    const client = new ApiClient({ baseUrl: 'https://x.test', fetchImpl });
+    const out = await client.paginate('/rows', Page, {
+      items: (p) => p.rows,
+      next: (p) => (p.cursor ? { cursor: p.cursor } : null),
+    });
+    expect(out).toEqual([7]);
+  });
+
+  it('paginate refuses 3 empty pages in a row with a next cursor', async () => {
+    const Page = z.object({ rows: z.array(z.number()), cursor: z.string().nullable() });
+    const { requests, fetchImpl } = recorder(() => json({ rows: [], cursor: 'same' }));
+    const client = new ApiClient({ baseUrl: 'https://x.test', fetchImpl });
+    const err = await client
+      .paginate('/rows', Page, {
+        items: (p) => p.rows,
+        next: (p) => (p.cursor ? { cursor: p.cursor } : null),
+      })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(NonRetryableError);
+    expect((err as NonRetryableError).code).toBe('PAGINATION');
+    expect((err as Error).message).toBe(
+      'GET /rows returned 3 empty pages in a row with a next cursor',
+    );
+    expect(requests).toHaveLength(3);
+  });
+
   it('401 throws NonRetryableError HTTP_401 without retry', async () => {
     const { requests, fetchImpl } = recorder(() => new Response('secret', { status: 401 }));
     const client = new ApiClient({ baseUrl: 'https://x.test', token: 'tok', fetchImpl });

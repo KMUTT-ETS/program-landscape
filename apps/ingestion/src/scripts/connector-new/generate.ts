@@ -15,7 +15,9 @@ import {
 } from './templates';
 
 const MARKER = '// connector:new entries';
-const NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+// A leading letter: the name becomes a class name (PascalCase), and a class
+// cannot start with a digit.
+const NAME_PATTERN = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 
 export interface ConnectorOptions {
   name: string;
@@ -135,12 +137,30 @@ export function runScaffolder(argv: readonly string[], env: ScaffolderEnv): { ex
     toNative('packages/shared/src/ingestion/institution-catalog.ts'),
   );
   const slug = `api-${name}`;
+
+  // Everything that could stop the run is checked before anything is written
+  // (dry run included), so a refusal never leaves a half-made connector.
+  for (const file of [indexFile, catalogFile]) {
+    if (!existsSync(file))
+      return fail(`Cannot find ${path.relative(root, file)}; run from the repository root.`);
+    if (!readFileSync(file, 'utf8').includes(MARKER)) {
+      return fail(
+        `Marker "${MARKER}" is missing from ${path.relative(root, file)}; nothing was written.`,
+      );
+    }
+  }
   if (
     existsSync(connectorDir) ||
     readFileSync(indexFile, 'utf8').includes(`'${slug}'`) ||
     readFileSync(catalogFile, 'utf8').includes(`'${slug}'`)
   ) {
     return fail(`A connector named "${name}" already exists (${slug}). Choose another --name.`);
+  }
+  const taken = files.filter((f) => existsSync(path.join(root, toNative(f.path))));
+  if (taken.length > 0) {
+    return fail(
+      `Refusing to overwrite: ${taken.map((f) => f.path).join(', ')} already exist. Nothing was written.`,
+    );
   }
 
   if (values['dry-run']) {
@@ -157,7 +177,9 @@ export function runScaffolder(argv: readonly string[], env: ScaffolderEnv): { ex
     log(`Created ${f.path}`);
   }
   const reg = registryLines(name);
-  const needsHelper = !readFileSync(indexFile, 'utf8').includes('datasetApiEntry }');
+  const needsHelper = !/import\s*\{[^}]*\bdatasetApiEntry\b[^}]*\}\s*from/.test(
+    readFileSync(indexFile, 'utf8'),
+  );
   const helperImport = "import { datasetApiEntry } from '../../base/dataset-api-connector';";
   insertAbove(
     indexFile,

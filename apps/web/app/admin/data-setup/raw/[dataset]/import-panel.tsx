@@ -279,8 +279,8 @@ export function ImportPanel({ dataset }: { dataset: ImportPanelDataset }): React
             className="rounded-md border border-[oklch(var(--color-warning-default)/0.4)] bg-warning/10 p-3"
           >
             <ul className="flex flex-col gap-1 text-xs text-text-primary">
-              {warnings.map((w) => (
-                <li key={w}>{w}</li>
+              {warnings.map((w, i) => (
+                <li key={`${i}-${w}`}>{w}</li>
               ))}
             </ul>
           </div>
