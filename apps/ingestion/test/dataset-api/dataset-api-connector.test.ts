@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
-import { prisma } from '@kku/db';
+import { IMPORT_DATASETS, prisma, type ImportDataset } from '@kku/db';
 import type { ConnectorContext } from '@kku/shared';
 
 import { ApiClient } from '../../src/connectors/base/api-client';
@@ -46,6 +46,46 @@ const PARENT_SLUG = 'api-tapi-test-connector';
 const FACULTY = 'TAPI-F';
 const PREFIX = 'TAPI-';
 const NAME_TH = 'ทดสอบ ข้อมูลส่วนตัว';
+
+// Throwaway fixture datasets, appended to the shared registry for this file
+// only. Neither writes anything: the tests read the run metadata they leave.
+const FIX_TERM = 'tapi-fixture-term';
+const FIX_NOSRC = 'tapi-fixture-nosrc';
+const FIX_SRC_SLUGS = [`xlsx-${FIX_TERM}`];
+
+function fixtureDataset(slug: string, over: Partial<ImportDataset> = {}): ImportDataset {
+  return {
+    slug,
+    title: `Fixture ${slug}`,
+    description: '',
+    tier: 0,
+    sheetName: 'Data',
+    columns: [
+      { header: 'Code', key: 'code', type: 'text', required: true, guide: 'c', example: 'A' },
+      { header: 'Year', key: 'year', type: 'integer', required: true, guide: 'y', example: '1999' },
+      {
+        header: 'Amount',
+        key: 'amount',
+        type: 'decimal',
+        required: false,
+        guide: 'a',
+        example: '1',
+      },
+    ],
+    strategy: {
+      kind: 'term-scoped',
+      termColumns: ['year'],
+      match: { kind: 'unique', columns: ['code'] },
+    },
+    // A prefill makes validateSheet skip rows that carry keys and no figures.
+    prefill: async () => [],
+    load: async () => ({ inserted: 1, updated: 0, deleted: 0 }),
+    count: async () => 0,
+    countForTerm: async () => 0,
+    clear: async () => 0,
+    ...over,
+  };
+}
 
 class TestConnector extends DatasetApiConnector {
   readonly slug = SLUG;
@@ -164,6 +204,22 @@ beforeAll(async () => {
   await prisma.faculty.create({
     data: { code: FACULTY, nameTh: 'คณะทดสอบ', nameEn: 'Test Faculty' },
   });
+  (IMPORT_DATASETS as ImportDataset[]).push(fixtureDataset(FIX_TERM), fixtureDataset(FIX_NOSRC));
+  for (const slug of FIX_SRC_SLUGS) {
+    await prisma.dataSource.upsert({
+      where: { slug },
+      update: { mocked: false },
+      create: {
+        slug,
+        name: `${slug} (test)`,
+        kind: 'CSV',
+        inputFormat: 'XLSX',
+        mocked: false,
+        scheduleEnabled: false,
+        status: 'real',
+      },
+    });
+  }
 });
 
 beforeEach(() => {
@@ -172,6 +228,11 @@ beforeEach(() => {
 });
 
 afterAll(async () => {
+  const registry = IMPORT_DATASETS as ImportDataset[];
+  for (const slug of [FIX_TERM, FIX_NOSRC]) {
+    const at = registry.findIndex((d) => d.slug === slug);
+    if (at >= 0) registry.splice(at, 1);
+  }
   const children = await prisma.ingestionRun.findMany({
     where: { OR: parentRunIds.map((id) => ({ metadata: { path: ['parentRunId'], equals: id } })) },
     select: { id: true },
@@ -186,7 +247,7 @@ afterAll(async () => {
   await prisma.faculty.deleteMany({ where: { code: FACULTY } });
   await prisma.importBatch.deleteMany({ where: { ingestionRunId: { in: runIds } } });
   await prisma.ingestionRun.deleteMany({ where: { id: { in: runIds } } });
-  await prisma.dataSource.deleteMany({ where: { slug: PARENT_SLUG } });
+  await prisma.dataSource.deleteMany({ where: { slug: { in: [PARENT_SLUG, ...FIX_SRC_SLUGS] } } });
 });
 
 describe('DatasetApiConnector', () => {
@@ -443,6 +504,105 @@ describe('DatasetApiConnector', () => {
     });
     expect(member?.ingestionRunId).toBe(meta.datasets['faculty-members']?.importRunId);
     expect(await prisma.classOffering.count({ where: { courseCode: 'TAPI-701' } })).toBe(0);
+  });
+
+  it("hands the loader the validated term, not a valueless first row's", async () => {
+    // Row 1 states no figure, so validation skips it; its year must not
+    // become the term the loader deletes by.
+    const connector = new TestConnector([FIX_TERM], () => ({
+      [FIX_TERM]: [
+        { Code: 'TAPI-X0', Year: 2000, Amount: null },
+        { Code: 'TAPI-X1', Year: 1999, Amount: 5 },
+      ],
+    }));
+    const { loaded } = await runConnector(connector, await newContext());
+    const meta = loaded.metadata as Meta;
+    expect(meta.datasets[FIX_TERM]).toMatchObject({ status: 'LOADED', rows: 2 });
+    const run = await prisma.ingestionRun.findUniqueOrThrow({
+      where: { id: meta.datasets[FIX_TERM]?.importRunId },
+      select: { metadata: true },
+    });
+    expect(run.metadata).toMatchObject({ term: { year: 1999 } });
+  });
+
+  it('error metadata omits a value with an embedded double quote', async () => {
+    const connector = new TestConnector(['faculty-members'], () => ({
+      'faculty-members': [
+        {
+          'Employee Code': 'TAPI-E8',
+          'Name (Thai)': 'ก',
+          'Name (English)': 'A',
+          'Faculty Code': FACULTY,
+          Rank: 'Ann "Secret" Smith',
+        },
+      ],
+    }));
+    const err = (await runConnector(connector, await newContext()).catch(
+      (e: unknown) => e,
+    )) as NonRetryableError;
+    const text = JSON.stringify(err.details) + err.message;
+    expect(text).not.toContain('Secret');
+    expect(text).not.toContain('Smith');
+  });
+
+  it('a missing xlsx data source fails that dataset with a NonRetryableError LOAD and keeps the earlier one', async () => {
+    const connector = new TestConnector([FIX_TERM, FIX_NOSRC], () => ({
+      [FIX_TERM]: [{ Code: 'TAPI-Y1', Year: 1999, Amount: 5 }],
+      [FIX_NOSRC]: [{ Code: 'TAPI-Y2', Year: 1999, Amount: 5 }],
+    }));
+    const err = (await runConnector(connector, await newContext()).catch(
+      (e: unknown) => e,
+    )) as NonRetryableError;
+    expect(err).toBeInstanceOf(NonRetryableError);
+    expect(err.code).toBe('LOAD');
+    expect(err.message).toContain(`Fixture ${FIX_NOSRC}`);
+    const meta = err.details as unknown as Meta;
+    expect(meta.datasets[FIX_TERM]?.status).toBe('LOADED');
+    expect(meta.datasets[FIX_TERM]?.importRunId).toEqual(expect.any(String));
+    expect(meta.datasets[FIX_NOSRC]?.status).toBe('FAILED');
+    expect(meta.errors).toEqual([
+      expect.objectContaining({ dataset: FIX_NOSRC, record: 0, column: null }),
+    ]);
+  });
+
+  it('an unexpected load error marks the dataset FAILED and rethrows a plain Error naming it', async () => {
+    const registry = IMPORT_DATASETS as ImportDataset[];
+    const boom = fixtureDataset('tapi-fixture-boom', {
+      load: async () => {
+        throw new Error('db exploded for ' + NAME_TH);
+      },
+    });
+    registry.push(boom);
+    await prisma.dataSource.upsert({
+      where: { slug: 'xlsx-tapi-fixture-boom' },
+      update: { mocked: false },
+      create: {
+        slug: 'xlsx-tapi-fixture-boom',
+        name: 'boom (test)',
+        kind: 'CSV',
+        inputFormat: 'XLSX',
+        mocked: false,
+        scheduleEnabled: false,
+        status: 'real',
+      },
+    });
+    try {
+      const connector = new TestConnector(['tapi-fixture-boom'], () => ({
+        'tapi-fixture-boom': [{ Code: 'TAPI-Z1', Year: 1999, Amount: 5 }],
+      }));
+      const err = await runConnector(connector, await newContext()).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(Error);
+      expect(err).not.toBeInstanceOf(NonRetryableError);
+      expect((err as Error).message).toContain('tapi-fixture-boom');
+      expect((err as Error).message).not.toContain(NAME_TH);
+    } finally {
+      registry.splice(registry.indexOf(boom), 1);
+      await prisma.importBatch.deleteMany({ where: { datasetSlug: 'tapi-fixture-boom' } });
+      await prisma.ingestionRun.deleteMany({
+        where: { dataSource: { slug: 'xlsx-tapi-fixture-boom' } },
+      });
+      await prisma.dataSource.deleteMany({ where: { slug: 'xlsx-tapi-fixture-boom' } });
+    }
   });
 
   describe('limits', () => {

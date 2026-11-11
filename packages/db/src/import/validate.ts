@@ -50,6 +50,15 @@ export interface ValidationContext {
   heldRowCountForScope?: number;
   allowShrink: boolean;
   maxRows: number;
+  /**
+   * Whether messages may quote the offending cell. Default true: an upload's
+   * operator is looking at the file and the quote helps. A connector's
+   * messages land in run metadata, which must carry no source values, so it
+   * passes false and every message names the column instead.
+   */
+  echoValues?: boolean;
+  /** dataset slug → title, for the missing-reference message when values are not echoed. */
+  datasetTitles?: ReadonlyMap<string, string>;
 }
 
 export type ValidateResult =
@@ -102,7 +111,11 @@ function coerceDate(value: unknown): Date | null {
 }
 
 /** Returns the coerced value, or a message saying why the cell is wrong. */
-function coerceCell(column: ImportColumn, raw: unknown): { value: ImportCellValue } | { error: string } {
+function coerceCell(
+  column: ImportColumn,
+  raw: unknown,
+  echo = true,
+): { value: ImportCellValue } | { error: string } {
   if (isBlank(raw)) return { value: null };
 
   /**
@@ -121,6 +134,7 @@ function coerceCell(column: ImportColumn, raw: unknown): { value: ImportCellValu
     if (groups.length < 2) return null;
     const last = groups[groups.length - 1] ?? '';
     if (/^\d{3}(\.\d+)?$/.test(last)) return null;
+    if (!echo) return 'Use a full stop for decimals, not a comma.';
     return (
       `"${trimmed}" uses a comma where this column expects a decimal point. ` +
       `Write ${groups.join('')} as ${groups.slice(0, -1).join('')}.${last} if you ` +
@@ -139,8 +153,10 @@ function coerceCell(column: ImportColumn, raw: unknown): { value: ImportCellValu
         if (decimalComma) return { error: decimalComma };
       }
       const n = typeof raw === 'number' ? raw : Number(String(raw).replace(/,/g, '').trim());
-      if (!Number.isFinite(n)) return { error: `"${String(raw)}" is not a number.` };
-      if (!Number.isInteger(n)) return { error: `"${String(raw)}" is not a whole number.` };
+      if (!Number.isFinite(n)) return { error: echo ? `"${String(raw)}" is not a number.` : 'This value is not a number.' };
+      if (!Number.isInteger(n)) {
+        return { error: echo ? `"${String(raw)}" is not a whole number.` : 'This value is not a whole number.' };
+      }
       return { value: n };
     }
     case 'decimal': {
@@ -149,7 +165,7 @@ function coerceCell(column: ImportColumn, raw: unknown): { value: ImportCellValu
         if (decimalComma) return { error: decimalComma };
       }
       const n = typeof raw === 'number' ? raw : Number(String(raw).replace(/,/g, '').trim());
-      if (!Number.isFinite(n)) return { error: `"${String(raw)}" is not a number.` };
+      if (!Number.isFinite(n)) return { error: echo ? `"${String(raw)}" is not a number.` : 'This value is not a number.' };
       return { value: n };
     }
     case 'boolean': {
@@ -157,18 +173,24 @@ function coerceCell(column: ImportColumn, raw: unknown): { value: ImportCellValu
       const text = String(raw).trim().toLowerCase();
       if (TRUTHY.has(text)) return { value: true };
       if (FALSY.has(text)) return { value: false };
-      return { error: `"${String(raw)}" is not yes or no.` };
+      return { error: echo ? `"${String(raw)}" is not yes or no.` : 'This value is not yes or no.' };
     }
     case 'date': {
       const parsed = coerceDate(raw);
-      if (!parsed) return { error: `"${String(raw)}" is not a date. Use YYYY-MM-DD.` };
+      if (!parsed) {
+        return { error: echo ? `"${String(raw)}" is not a date. Use YYYY-MM-DD.` : 'This value is not a date. Use YYYY-MM-DD.' };
+      }
       return { value: parsed };
     }
     case 'enum': {
       const text = String(raw).trim();
       const allowed = column.enumValues ?? [];
       if (!allowed.includes(text)) {
-        return { error: `"${text}" is not allowed. Use one of: ${allowed.join(', ')}.` };
+        return {
+          error: echo
+            ? `"${text}" is not allowed. Use one of: ${allowed.join(', ')}.`
+            : `This value is not one of the allowed values (${allowed.join(', ')}).`,
+        };
       }
       return { value: text };
     }
@@ -260,6 +282,7 @@ export function validateSheet(
   ctx: ValidationContext,
 ): ValidateResult {
   const sheet = parsed.sheetName;
+  const echo = ctx.echoValues !== false;
   const fail = (errors: ImportValidationError[]): ValidateResult => ({
     ok: false,
     errors: errors.slice(0, MAX_REPORTED_ERRORS),
@@ -395,7 +418,7 @@ export function validateSheet(
         continue;
       }
 
-      const coerced = coerceCell(column, raw);
+      const coerced = coerceCell(column, raw, echo);
       if ('error' in coerced) {
         errors.push({ sheet, row: sheetRow, column: column.header, message: coerced.error });
         continue;
@@ -423,7 +446,7 @@ export function validateSheet(
           row: sheetRow,
           column: column.header,
           message:
-            `A group of ${coerced.value} is too small to report. Each row must ` +
+            `${echo ? `A group of ${coerced.value}` : 'This group'} is too small to report. Each row must ` +
             `cover at least ${column.groupSizeFor.minimum} people, so no ` +
             `individual's figures can be inferred.`,
         });
@@ -566,9 +589,10 @@ export function validateSheet(
           sheet,
           row: sheetRow,
           column: column.header,
-          message:
-            `"${String(value)}" is not a known ${reference.dataset} ${reference.column}. ` +
-            `Upload that dataset first, or correct the value.`,
+          message: echo
+            ? `"${String(value)}" is not a known ${reference.dataset} ${reference.column}. ` +
+              `Upload that dataset first, or correct the value.`
+            : `This code does not exist in ${ctx.datasetTitles?.get(reference.dataset) ?? reference.dataset}.`,
         });
       }
     }
@@ -593,10 +617,12 @@ export function validateSheet(
             sheet,
             row: sheetRow,
             column: headerFor(key),
-            message:
-              `Every row in this file must cover the same period. Row ${first.sheetRow} ` +
-              `has ${String(firstTerm[key])} and this row has ${String(row[key])}. ` +
-              `Upload one file per period.`,
+            message: echo
+              ? `Every row in this file must cover the same period. Row ${first.sheetRow} ` +
+                `has ${String(firstTerm[key])} and this row has ${String(row[key])}. ` +
+                `Upload one file per period.`
+              : `Every row in this file must cover the same period. Row ${first.sheetRow} ` +
+                `and this row differ in ${headerFor(key)}. Upload one file per period.`,
           });
           reported = true;
         }

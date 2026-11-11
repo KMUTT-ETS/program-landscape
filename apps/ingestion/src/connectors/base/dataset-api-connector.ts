@@ -3,12 +3,12 @@ import {
   IMPORT_MAX_ROWS,
   prepareImportRows,
   readDeclaredScopes,
-  readDeclaredTerm,
   refreshMetricViewsIfNeeded,
   runImportLoad,
   type ImportDataset,
   type ParsedSheet,
 } from '@kku/db';
+import { ApiError } from '@kku/shared';
 import type {
   Connector,
   ConnectorContext,
@@ -29,7 +29,7 @@ export type DatasetRows = Readonly<Record<string, readonly Readonly<Record<strin
 const MAX_ROWS_CEILING = 100_000;
 const MAX_REPORTED_ERRORS = 100;
 
-type DatasetStatus = 'LOADED' | 'REFUSED' | 'NOT_RUN';
+type DatasetStatus = 'LOADED' | 'REFUSED' | 'FAILED' | 'NOT_RUN';
 
 interface DatasetOutcome {
   importRunId?: string;
@@ -45,15 +45,6 @@ interface ReportedError {
   record: number;
   column: string | null;
   message: string;
-}
-
-/**
- * Validation messages quote the offending cell ("abc" is not a number). A
- * connector's run metadata must never carry source values, so every quoted
- * span is blanked; the column name and record number say where to look.
- */
-function redactValues(message: string): string {
-  return message.replace(/"[^"]*"/g, '"…"');
 }
 
 /**
@@ -95,6 +86,37 @@ export abstract class DatasetApiConnector extends ApiConnector {
 
   transform(): Promise<NormalizedRecord[]> {
     return Promise.resolve([]);
+  }
+
+  /**
+   * Marks a dataset FAILED and builds the error to throw. An ApiError carries
+   * no cell values, so it becomes a NonRetryableError with the report
+   * attached; anything else is rethrown plain so the runner retries. Neither
+   * path logs more than the dataset slug and the error name.
+   */
+  private failDataset(
+    ctx: ConnectorContext,
+    dataset: ImportDataset,
+    outcome: DatasetOutcome,
+    cause: unknown,
+    report: Record<string, DatasetOutcome>,
+    warnings: string[],
+    errors: ReportedError[],
+    totalErrors: number,
+  ): Error {
+    outcome.status = 'FAILED';
+    const name = cause instanceof Error ? cause.name : 'Error';
+    ctx.log.error(`Dataset ${dataset.slug} failed to load (${name}).`);
+    if (cause instanceof ApiError) {
+      errors.push({ dataset: dataset.slug, record: 0, column: null, message: cause.message });
+      return new NonRetryableError('LOAD', `${dataset.title}: ${cause.message}`, {
+        datasets: report,
+        warnings,
+        errors,
+        totalErrors,
+      });
+    }
+    return new Error(`Loading ${dataset.title} (${dataset.slug}) failed (${name}).`);
   }
 
   async load(ctx: ConnectorContext, _normalized: NormalizedRecord[]): Promise<LoadResult> {
@@ -145,7 +167,18 @@ export abstract class DatasetApiConnector extends ApiConnector {
         rows: byDataset[dataset.slug] ?? [],
       };
 
-      const prepared = await prepareImportRows(dataset, parsed, { allowShrink, maxRows });
+      let prepared: Awaited<ReturnType<typeof prepareImportRows>>;
+      try {
+        // echoValues: false — validation messages go into run metadata, which
+        // must never carry source values.
+        prepared = await prepareImportRows(dataset, parsed, {
+          allowShrink,
+          maxRows,
+          echoValues: false,
+        });
+      } catch (e) {
+        throw this.failDataset(ctx, dataset, outcome, e, report, warnings, errors, totalErrors);
+      }
       if (!prepared.ok) {
         outcome.status = 'REFUSED';
         totalErrors = prepared.totalErrors;
@@ -155,32 +188,38 @@ export abstract class DatasetApiConnector extends ApiConnector {
             // Spreadsheet row → 1-based record; row 0 (the whole file) stays 0.
             record: Math.max(e.row - 1, 0),
             column: e.column,
-            message: redactValues(e.message),
+            message: e.message,
           });
         }
         refused = dataset;
         break;
       }
 
-      const out = await runImportLoad(
-        dataset,
-        prepared.rows,
-        {
-          via: 'api',
-          connectorSlug: this.slug,
-          connectorName: this.displayName,
-          parentRunId: ctx.runId,
-        },
-        readDeclaredTerm(dataset, parsed) ?? undefined,
-        readDeclaredScopes(dataset, parsed) ?? undefined,
-      );
-      outcome.status = 'LOADED';
-      outcome.importRunId = out.runId;
-      outcome.inserted = out.result.inserted;
-      outcome.updated = out.result.updated;
-      outcome.deleted = out.result.deleted;
-      loadedRows += prepared.rows.length;
-      warnings.push(...out.warnings);
+      try {
+        // The term handed to the loader is the validated one — the same the
+        // upload path uses — because the term loader deletes by it.
+        const out = await runImportLoad(
+          dataset,
+          prepared.rows,
+          {
+            via: 'api',
+            connectorSlug: this.slug,
+            connectorName: this.displayName,
+            parentRunId: ctx.runId,
+          },
+          prepared.term ?? undefined,
+          readDeclaredScopes(dataset, parsed) ?? undefined,
+        );
+        outcome.status = 'LOADED';
+        outcome.importRunId = out.runId;
+        outcome.inserted = out.result.inserted;
+        outcome.updated = out.result.updated;
+        outcome.deleted = out.result.deleted;
+        loadedRows += prepared.rows.length;
+        warnings.push(...out.warnings);
+      } catch (e) {
+        throw this.failDataset(ctx, dataset, outcome, e, report, warnings, errors, totalErrors);
+      }
 
       try {
         await refreshMetricViewsIfNeeded(dataset.slug);

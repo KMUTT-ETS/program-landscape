@@ -107,13 +107,22 @@ export async function runImportLoad(
   }
 
   // Before the load: the load itself rewrites who last wrote each term.
-  const warnings = loadWarnings(
-    dataset,
-    await readSourceMix(dataset.slug),
-    source.via === 'api' ? { via: 'api', connectorName: source.connectorName } : { via: 'upload' },
-    term,
-    scopes,
-  );
+  // A failed read must not orphan a stored upload or abort a load that is
+  // otherwise fine: the warnings are advice, not a gate.
+  let warnings: string[] = [];
+  try {
+    warnings = loadWarnings(
+      dataset,
+      await readSourceMix(dataset.slug),
+      source.via === 'api' ? { via: 'api', connectorName: source.connectorName } : { via: 'upload' },
+      term,
+      scopes,
+    );
+  } catch (e) {
+    console.warn(
+      `import: could not read the source mix for ${dataset.slug} (${e instanceof Error ? e.name : 'Error'}); no warnings.`,
+    );
+  }
 
   const { runId } = await startImportRun(dataset.slug, userId, { trigger, metadata });
 

@@ -1,5 +1,6 @@
 import { prisma } from '../index';
 import { loadImportReferences } from './references';
+import { IMPORT_DATASETS } from './registry';
 import type { ImportCellValue, ImportDataset } from './types';
 import { readDeclaredScopes, readDeclaredTerm, validateSheet, type ParsedSheet, type ValidateResult } from './validate';
 
@@ -32,7 +33,7 @@ export const defaultPrepareDeps: PrepareDeps = {
 export async function prepareImportRows(
   dataset: ImportDataset,
   parsed: ParsedSheet,
-  opts: { allowShrink: boolean; maxRows: number },
+  opts: { allowShrink: boolean; maxRows: number; echoValues?: boolean },
   deps: PrepareDeps = defaultPrepareDeps,
 ): Promise<ValidateResult> {
   const [references, heldRowCount] = await Promise.all([deps.loadReferences(dataset), deps.heldCount(dataset)]);
@@ -55,5 +56,7 @@ export async function prepareImportRows(
     heldRowCountForScope,
     allowShrink: opts.allowShrink,
     maxRows: opts.maxRows,
+    echoValues: opts.echoValues,
+    datasetTitles: new Map(IMPORT_DATASETS.map((d) => [d.slug, d.title])),
   });
 }
