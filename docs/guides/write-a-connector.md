@@ -119,7 +119,8 @@ Never commit the token.
 - The client retries transient failures but not 401, 403, 404 or redirects: those mean a wrong token, path or URL, and retrying only hides it.
 - Convert years yourself. Many Thai systems use Buddhist Era; the datasets want what their template says.
 - The default row limit is 10,000 per dataset (`IMPORT_MAX_ROWS`). `CONNECTOR_<SLUG>_MAX_ROWS` raises it, capped at 100,000. A load that would remove much of what a term or programme already holds is refused unless `CONNECTOR_<SLUG>_ALLOW_SHRINK=true`.
-- Validation errors are reported as dataset, record number (1-based), column and message, without the offending value. A run stops at the first dataset the validation refuses: later datasets are reported as not run.
+- Validation errors are reported as dataset, record number (1-based), column and message, without the offending value. A run stops at the first dataset the validation refuses: later datasets are reported as not run. A dataset that fails while loading (for example its `xlsx-<slug>` data source is missing; run `pnpm data-sources:sync --apply`) is marked FAILED, the datasets loaded before it stay in the report, and the run is not retried.
+- `api.paginate` accepts an empty page that still carries a next cursor, but stops with a PAGINATION error after three in a row. The scaffolded `fetchAll` and `toRows` throw `NOT_IMPLEMENTED` until you write them, so a premature "Run now" fails once instead of retrying.
 
 ### Run and check
 
