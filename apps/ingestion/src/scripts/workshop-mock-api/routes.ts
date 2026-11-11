@@ -287,8 +287,14 @@ export function buildRoutes(
     const auth = req.headers.authorization ?? '';
     if (auth !== `Bearer ${token}`) return send(res, 401, { error: 'unauthorized' });
     if (req.method !== 'GET') return send(res, 405, { error: 'method_not_allowed' });
-    const url = new URL(req.url ?? '/', 'http://localhost');
-    const parts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent);
+    let url: URL;
+    let parts: string[];
+    try {
+      url = new URL(req.url ?? '/', 'http://localhost');
+      parts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent);
+    } catch {
+      return send(res, 400, { error: 'bad_request' });
+    }
     if (parts[0] !== 'api' || parts[1] !== 'v1') return send(res, 404, { error: 'not_found' });
     const [, , a, b, c, d] = parts;
 

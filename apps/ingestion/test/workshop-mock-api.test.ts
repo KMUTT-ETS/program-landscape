@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import http from 'node:http';
+import os from 'node:os';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { getImportDataset, type ImportRow } from '@kku/db';
@@ -157,6 +158,13 @@ describe('workshop mock API', () => {
     expect(new Set(rows.map((r) => r.student_ref)).size).toBe(rows.length);
   });
 
+  it('answers 400 for a malformed escape and keeps serving', async () => {
+    const res = await get('/terms/%/1/sections');
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'bad_request' });
+    expect((await get('/terms')).status).toBe(200);
+  });
+
   it('answers 404 for unknown paths and terms', async () => {
     expect((await get('/nothing')).status).toBe(404);
     expect((await get('/terms/2500/1/sections')).status).toBe(404);
@@ -164,10 +172,7 @@ describe('workshop mock API', () => {
 });
 
 describe('loadMockSource without a class-offerings workbook', () => {
-  const tmp = path.join(
-    '/tmp/claude-1000/-home-chun-git-repos-program-landscape/9edeb45d-df10-4874-8257-05e44ff7f6f7/scratchpad',
-    'mock-api-synth',
-  );
+  let tmp = '';
 
   function write(file: string, slug: string, rows: Array<Record<string, string | number>>): void {
     const d = getImportDataset(slug);
@@ -182,8 +187,7 @@ describe('loadMockSource without a class-offerings workbook', () => {
   }
 
   beforeAll(() => {
-    fs.rmSync(tmp, { recursive: true, force: true });
-    fs.mkdirSync(tmp, { recursive: true });
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mock-api-'));
     write('01-faculties.xlsx', 'faculties', [{ code: 'F1', nameTh: 'คณะ', nameEn: 'Faculty' }]);
     write('03-programmes.xlsx', 'programmes', [
       { code: 'P-A', nameTh: 'หลักสูตร', nameEn: 'Prog', facultyCode: 'F1', level: 'Bachelor' },
