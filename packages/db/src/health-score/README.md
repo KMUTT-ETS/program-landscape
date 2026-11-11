@@ -22,6 +22,10 @@ When you change it:
    changed a curve.
 4. Record the change in your copy of `docs/methodologies/health-score.md`.
 
+The colour zones (danger below 40, healthy from 65) are not in `tuning.ts`.
+They decide colours and counts, not scores, and the browser needs them too.
+They live in `packages/shared/src/health/zones.ts`.
+
 Settings that need no code at all: intake floors and the institution's region
 (organisation profile), and each faculty's teaching-mode band for the
 student–staff ratio (faculty settings). All three are in the admin UI.

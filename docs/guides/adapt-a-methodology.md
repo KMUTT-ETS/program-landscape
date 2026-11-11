@@ -42,6 +42,7 @@ The safe adaptation pattern: keep your changes to the health score's *parameters
 | A threshold, curve point, target or weight (e.g. the student–staff band limits, revenue targets per level, strategic career groups, the domestic 75 : global 25 split) | `packages/db/src/health-score/tuning.ts` | Yes |
 | How a driver is computed | The dimension's file in `packages/db/src/health-score/` (`attractiveness.ts`, `financial.ts`, `capability.ts`, `outcomes.ts`, `relevance.ts`); change the programme scorer **and** the scope scorer | Yes |
 | Add or drop a driver | The dimension's file **and** `DIMENSION_DRIVERS` in `drivers.ts` | Yes |
+| Zone cut-offs (danger / needs attention / healthy) | `packages/shared/src/health/zones.ts` | No: presentation, not formula |
 
 `packages/db/src/health-score/README.md` lists which file computes each driver. Every value in `tuning.ts` is named after the driver label shown in the app's score tooltip, so searching for that label finds both the value and the code.
 

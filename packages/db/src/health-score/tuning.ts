@@ -17,13 +17,15 @@
 //   4. Record what you changed and why in your copy of
 //      docs/methodologies/health-score.md.
 //
-// What is NOT here, because it is set without code:
+// What is NOT here:
 //   - Intake floors per level          → organisation profile (admin UI)
 //   - Region for demographic resilience → organisation profile (admin UI)
 //   - Each faculty's teaching-mode band → Faculty.sfrBand (admin UI); the
 //     band THRESHOLDS are below
 //   - The DQ digital-competency band   → packages/db/src/student-dq.ts
 //     (shared with the DQ dashboard, so it lives beside the data)
+//   - Zone cut-offs (danger < 40, healthy ≥ 65) → packages/shared/src/health/zones.ts
+//     (presentation, not formula: moving them needs no version change)
 //
 // Which file computes each driver: see ./README.md.
 // ─────────────────────────────────────────────────────────────────────────────

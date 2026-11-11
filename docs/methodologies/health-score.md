@@ -949,6 +949,39 @@ average of the five. Why equal weighting:
   visible. When (if) we move to weighted composites, the weights MUST
   appear in the chart tooltip, not just in this doc.
 
+## Zones
+
+Every surface that colours or counts health scores puts each score in one
+of three zones:
+
+| Zone | Score | Colour |
+|---|---|---|
+| Danger zone | below 40 | red |
+| Needs attention | 40 up to but not including 65 | amber |
+| Healthy | 65 and above | green |
+
+The cut-offs live in one place, `packages/shared/src/health/zones.ts`
+(`HEALTH_DANGER_BELOW`, `HEALTH_HEALTHY_FROM`, `healthZone()`). A score with
+no value has no zone and keeps each surface's "no score" style.
+
+The zone is decided on the **unrounded** score. A programme at 64.6 is
+displayed as "65" but sits in "needs attention", in amber. This is
+deliberate: rounding first would move programmes across a boundary by
+display precision alone.
+
+Moving a cut-off is a presentation change, not a formula change. The scores
+do not move, so it needs no `HEALTH_SCORE_VERSION` bump and no
+`INSTITUTION_REVISION`. Update this section and the in-app methodology
+paper (`apps/web/app/docs/methodology/content-{en,th}.tsx`) with it. The
+cockpit's Council-facing danger-zone count does change with the cut-off,
+and its label prints the cut-off it used ("danger zone (<40 overall)"),
+so the published figure states its own threshold.
+
+One surface is a known exception: the Executive Landscape's health-by-faculty
+panel bands "fair" from 45, not 40, so a faculty at 40–44 reads "poor" there
+and "needs attention" in the cockpit. It is kept by decision (2026-11-11) and
+marked in `apps/web/src/components/dashboard/health-by-faculty.tsx`.
+
 ## Data completeness
 
 Every score carries a `dataCompletenessPct` field — the fraction of
