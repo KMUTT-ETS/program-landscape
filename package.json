@@ -78,6 +78,7 @@
     "outcomes:ingest-xlsx": "tsx apps/ingestion/src/scripts/ingest-employment-surveys-xlsx.ts",
     "outcomes:refresh-derived": "tsx apps/ingestion/src/scripts/refresh-derived.ts",
     "workshop:mock": "tsx apps/ingestion/src/scripts/workshop-mock/generate.ts",
+    "workshop:mock-api": "tsx apps/ingestion/src/scripts/workshop-mock-api/server.ts",
     "workshop:check-mock": "pnpm --filter api exec tsx scripts/workshop/check-mock.ts",
     "workshop:templates": "pnpm --filter api exec tsx scripts/workshop/export-templates.ts",
     "adopter:fresh-check": "tsx apps/ingestion/src/scripts/adopter-fresh-check.ts",
