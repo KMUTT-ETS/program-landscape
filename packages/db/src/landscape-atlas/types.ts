@@ -2,17 +2,20 @@
 // Spec: docs/superpowers/specs/2026-10-05-landscape-atlas-design.md
 // Methodology: docs/methodologies/landscape-atlas.md
 
+import { HEALTH_DANGER_BELOW as SHARED_HEALTH_DANGER_BELOW, HEALTH_HEALTHY_FROM } from '@kku/shared';
+
 export const LANDSCAPE_ATLAS_VERSION = 'landscape-atlas.v1';
 
 /** Split lines (spec D6) — each reuses a threshold the methodology already uses. */
 export const APPLICATIONS_PER_SEAT_SPLIT = 1;
 export const ENROLMENT_CHANGE_SPLIT_PCT = 0;
-/** "Healthy" band of the health score starts here. */
-export const HEALTH_SPLIT = 65;
+/** "Healthy" band of the health score starts here (shared health zones). */
+export const HEALTH_SPLIT = HEALTH_HEALTHY_FROM;
 /** KKU ERM: a matrix score of 10 or more is HIGH. */
 export const RISK_MATRIX_SPLIT = 10;
-/** Health score bands: < 40 danger, 40–65 needs attention, ≥ 65 healthy. */
-export const HEALTH_DANGER_BELOW = 40;
+/** Health score bands: < 40 danger, 40–65 needs attention, ≥ 65 healthy
+ *  (shared health zones, @kku/shared/health/zones). */
+export const HEALTH_DANGER_BELOW = SHARED_HEALTH_DANGER_BELOW;
 
 /** Answer-line thresholds. */
 export const SMALL_PROGRAMME_STUDENTS = 15;

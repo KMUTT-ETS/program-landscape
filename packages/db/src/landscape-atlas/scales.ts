@@ -1,5 +1,12 @@
 // packages/db/src/landscape-atlas/scales.ts
-import { HEALTH_DANGER_BELOW, HEALTH_SPLIT, type PlotTick, type Tone } from './types';
+import { healthZone, type HealthZone } from '@kku/shared';
+import type { PlotTick, Tone } from './types';
+
+const HEALTH_ZONE_TONE: Record<HealthZone, Tone> = {
+  danger: 'negative',
+  attention: 'warning',
+  healthy: 'positive',
+};
 
 function clamp01(t: number): number {
   return Math.max(0, Math.min(1, t));
@@ -32,10 +39,8 @@ export function logTicks(min: number, max: number, format: (v: number) => string
 
 /** Health-score band as a tone; null (no score) is neutral. */
 export function healthTone(score: number | null): Tone {
-  if (score === null) return 'neutral';
-  if (score < HEALTH_DANGER_BELOW) return 'negative';
-  if (score < HEALTH_SPLIT) return 'warning';
-  return 'positive';
+  const zone = healthZone(score);
+  return zone === null ? 'neutral' : HEALTH_ZONE_TONE[zone];
 }
 
 export function median(values: readonly number[]): number | null {

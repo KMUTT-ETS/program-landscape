@@ -11,7 +11,23 @@ import { z } from 'zod';
 import { GRANT_AWARD_CAVEAT, HEALTH_SCORE_VERSION, LANDSCAPE_METHODOLOGY_BUNDLE } from '@kku/db';
 import { ForbiddenException } from '@nestjs/common';
 import { prisma } from '@kku/db';
-import { ScopeLevelSchema, type ScopeLevel, type SessionUser, displayShortNames } from '@kku/shared';
+import {
+  ScopeLevelSchema,
+  type ScopeLevel,
+  type SessionUser,
+  displayShortNames,
+  healthZone,
+  type HealthZone,
+  HEALTH_DANGER_BELOW,
+  HEALTH_HEALTHY_FROM,
+} from '@kku/shared';
+
+/** Export-cell CSS class per health zone (literal strings). */
+const EXPORT_ZONE_CLASS: Record<HealthZone, 'danger' | 'warning' | 'success'> = {
+  danger: 'danger',
+  attention: 'warning',
+  healthy: 'success',
+};
 import {
   AuditLog,
   AuthSession,
@@ -497,8 +513,8 @@ function buildCouncilPackSections(inputs: CouncilPackInputs): Array<{ title: str
         .map((dim) => {
           const s = r.dimensions[dim];
           if (s.score === null) return `<td class="muted">—</td>`;
-          const tone =
-            s.score < 40 ? 'danger' : s.score < 65 ? 'warning' : 'success';
+          const zone = healthZone(s.score);
+          const tone = zone === null ? '' : EXPORT_ZONE_CLASS[zone];
           return `<td class="numeric ${tone}">${s.score.toFixed(0)}</td>`;
         })
         .join('');
@@ -541,7 +557,7 @@ function summariseKeyTakeaways(
 ): string[] {
   const out: string[] = [];
   if (kpis.dangerZoneCount > 0) {
-    out.push(`มี ${kpis.dangerZoneCount} หน่วยงานที่อยู่ในเขตอันตราย (คะแนนรวม < 40)`);
+    out.push(`มี ${kpis.dangerZoneCount} หน่วยงานที่อยู่ในเขตอันตราย (คะแนนรวม < ${HEALTH_DANGER_BELOW})`);
   }
   if (kpis.qualityConcernCount > 0) {
     out.push(`มี ${kpis.qualityConcernCount} หน่วยงานที่มีปัญหาด้านคุณภาพ`);
@@ -551,9 +567,9 @@ function summariseKeyTakeaways(
       `อายุเฉลี่ยของหลักสูตรอยู่ที่ ${kpis.averageCurriculumAgeYears.toFixed(0)} ปี — อาจต้องทบทวน`,
     );
   }
-  const healthy = rows.filter((r) => (r.overall.score ?? 0) >= 65).length;
+  const healthy = rows.filter((r) => healthZone(r.overall.score) === 'healthy').length;
   if (healthy > 0) {
-    out.push(`${healthy} หน่วยงานอยู่ในสถานะแข็งแรง (คะแนน ≥ 65)`);
+    out.push(`${healthy} หน่วยงานอยู่ในสถานะแข็งแรง (คะแนน ≥ ${HEALTH_HEALTHY_FROM})`);
   }
   return out;
 }

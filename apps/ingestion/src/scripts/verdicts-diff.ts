@@ -26,9 +26,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { loadOrganization, prisma } from '@kku/db';
+import { healthZone, type HealthZone } from '@kku/shared';
 
 // ── Thresholds — change with care; the bands are calibration choices ──
-const HEALTH_BAND_BOUNDARIES = [40, 65] as const;
 const BAND_EDGE_HEALTH_DIMENSION_DELTA = 20;     // pts
 const BAND_EDGE_LIFECYCLE_TRAJECTORY_DELTA = 10; // pts
 const BAND_EDGE_RISK_COMPOSITE_DELTA = 15;       // pts
@@ -62,11 +62,9 @@ function parseArgs(argv: string[]): CliArgs {
   return args;
 }
 
-function healthBand(score: number | null): 'danger' | 'attention' | 'healthy' | 'unknown' {
-  if (score === null) return 'unknown';
-  if (score < HEALTH_BAND_BOUNDARIES[0]) return 'danger';
-  if (score < HEALTH_BAND_BOUNDARIES[1]) return 'attention';
-  return 'healthy';
+// Health bands are the shared health zones (@kku/shared/health/zones).
+function healthBand(score: number | null): HealthZone | 'unknown' {
+  return healthZone(score) ?? 'unknown';
 }
 
 interface SnapshotRow {

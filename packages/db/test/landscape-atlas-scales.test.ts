@@ -40,6 +40,14 @@ describe('healthTone', () => {
     expect(healthTone(64.9)).toBe('warning');
     expect(healthTone(65)).toBe('positive');
   });
+  it('healthTone follows the shared zones at the boundaries', () => {
+    expect(healthTone(39.99)).toBe('negative');
+    expect(healthTone(40)).toBe('warning');
+    expect(healthTone(64.99)).toBe('warning');
+    expect(healthTone(65)).toBe('positive');
+    expect(healthTone(null)).toBe('neutral');
+    expect(healthTone(Number.NaN)).toBe('neutral');
+  });
 });
 
 describe('median / meanOf', () => {

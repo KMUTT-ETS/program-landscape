@@ -19,6 +19,8 @@ import {
   type AiService,
   type ScopeLevel,
   displayShortNames,
+  healthZone,
+  HEALTH_DANGER_BELOW,
 } from '@kku/shared';
 import { PrismaAiInferenceRecorder, getAiModelOverrideStore } from '@kku/db';
 
@@ -90,7 +92,8 @@ export class CockpitService implements OnModuleInit {
 
     // Health rollup at the child scope — drives risk count + data confidence.
     const scores = await computeHealthScores(scope, scopeId);
-    const dangerZone = scores.filter((s) => (s.overall.score ?? 100) < 40).length;
+    // A null overall score is not in the danger zone (healthZone → null).
+    const dangerZone = scores.filter((s) => healthZone(s.overall.score) === 'danger').length;
     const qualityConcern = scores.filter(
       (s) => (s.dimensions.outcomes.score ?? 100) < 50,
     ).length;
@@ -590,7 +593,7 @@ function summariseContextForBrief(
   lines.push(`Programs at scope: ${kpis.programCount}`);
   lines.push(`Enrolled (latest): ${kpis.enrolledTotal ?? 'n/a'}`);
   lines.push(`Net contribution (latest): ${kpis.netContributionTotal ?? 'n/a'} THB`);
-  lines.push(`Programs in danger zone (<40 overall): ${kpis.dangerZoneCount}`);
+  lines.push(`Programs in danger zone (<${HEALTH_DANGER_BELOW} overall): ${kpis.dangerZoneCount}`);
   lines.push(`Programs with quality concern: ${kpis.qualityConcernCount}`);
   lines.push(`Average curriculum age: ${kpis.averageCurriculumAgeYears?.toFixed(1) ?? 'n/a'} years`);
   lines.push('');
