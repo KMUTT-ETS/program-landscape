@@ -149,6 +149,13 @@ describe('ImportService.uploadFile — refusals', () => {
 });
 
 describe('ImportService.uploadFile — success path', () => {
+  it('refreshes the roll-up views through the injected seam after a metric dataset loads', async () => {
+    const h = harness();
+    await upload(h, workbook(VALID_ROWS));
+    await Promise.resolve();
+    expect(h.deps.refreshViews).toHaveBeenCalledTimes(1);
+  });
+
   it('puts the object, then loads, in that order', async () => {
     const h = harness();
     const result = await upload(h, workbook(VALID_ROWS));
@@ -365,5 +372,30 @@ describe('a programme-scoped upload', () => {
       [{ programmeCode: 'P1' }, { programmeCode: 'P2' }],
     );
     expect(h.deps.runLoad).toHaveBeenCalled();
+  });
+});
+
+describe('a programme-scoped upload', () => {
+  const courses = getImportDataset('programme-courses');
+  const HEADERS_PC = courses.columns.map((c) => c.header);
+
+  it('hands the loader the programmes the file names', async () => {
+    const h = harness({
+      loadReferences: () => Promise.resolve(new Map([['programmes', new Set(['P1'])]])),
+    });
+    const row = HEADERS_PC.map((header) => {
+      if (header === 'Programme Code') return 'P1';
+      if (header === 'Course Code') return 'C101';
+      return null;
+    });
+    await h.service.uploadFile({
+      datasetSlug: 'programme-courses',
+      originalFilename: 'pc.xlsx',
+      bytes: workbook([HEADERS_PC, row], courses.sheetName),
+      uploadedByUserId: null,
+      allowShrink: true,
+    });
+    expect(h.deps.runLoad).toHaveBeenCalled();
+    expect(h.deps.runLoad.mock.calls[0]?.[5]).toEqual([{ programmeCode: 'P1' }]);
   });
 });

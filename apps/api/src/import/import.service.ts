@@ -12,6 +12,7 @@ import {
   loadImportReferences,
   METRIC_VIEW_DATASETS,
   prepareImportRows,
+  readDeclaredScopes,
   runImportLoad,
   prisma,
   refreshMetricViews,
@@ -64,6 +65,8 @@ export interface ImportServiceDeps {
     batch: { filename: string; contentHash: string; storageKey: string; fileSize: number },
     /** The period a term-scoped file covers; the loader deletes it first. */
     term?: Readonly<Record<string, ImportCellValue>>,
+    /** The programmes a programme-scoped file covers; recorded on the run. */
+    scopes?: readonly Readonly<Record<string, ImportCellValue>>[],
   ) => Promise<{ batchId: string; result: ImportLoadResult }>;
   startOver: (slug: string) => Promise<{ rowsDeleted: number; batchesCleared: number }>;
   /** Empties every import in one transaction; returns the stored-file keys to delete. */
@@ -162,8 +165,8 @@ export class ImportService implements OnModuleInit {
           dataset.countForScope ? dataset.countForScope(prisma, scopes) : Promise.resolve(undefined)),
       runLoad:
         deps?.runLoad ??
-        (async (dataset, rows, userId, batch, term) => {
-          const { batchId, result } = await runImportLoad(dataset, rows, { via: 'upload', userId, batch }, term);
+        (async (dataset, rows, userId, batch, term, scopes) => {
+          const { batchId, result } = await runImportLoad(dataset, rows, { via: 'upload', userId, batch }, term, scopes);
           return { batchId, result };
         }),
       startOver: deps?.startOver ?? startOverDataset,
@@ -251,6 +254,7 @@ export class ImportService implements OnModuleInit {
     const parsed = parseImportWorkbook(args.bytes, dataset.sheetName);
     if (!parsed.ok) throw new ApiError('VALIDATION_FAILED', parsed.error);
 
+    const declaredScopes = readDeclaredScopes(dataset, parsed.parsed) ?? undefined;
     const validated = await prepareImportRows(
       dataset,
       parsed.parsed,
@@ -298,7 +302,9 @@ export class ImportService implements OnModuleInit {
       contentHash,
       storageKey,
       fileSize: args.bytes.byteLength,
-    }, validated.term ?? undefined);
+    }, validated.term ?? undefined, declaredScopes);
+    // Fire-and-forget, as before: the rows are committed, the refresh is best-effort.
+    void this.refreshViewsQuietly(dataset.slug);
 
     this.logger.log(
       `import ${dataset.slug}: batch ${batchId}, ${validated.rows.length} rows ` +

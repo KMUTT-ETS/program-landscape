@@ -76,6 +76,8 @@ async function finishQuietly(runId: string, rowCount: number, message: string): 
 /**
  * Opens a run, records the batch, loads the rows in one transaction and
  * closes everything. Shared by the upload path and API connectors.
+ * Does NOT refresh the metric views: the caller does, through
+ * `refreshMetricViewsIfNeeded` or its own seam.
  */
 export async function runImportLoad(
   dataset: ImportDataset,
@@ -144,13 +146,6 @@ export async function runImportLoad(
     // dedupe — only once the rows are committed.
     await markImportBatchSucceeded(created.id);
     await finishImportRun(runId, { loaded: rows.length, failed: 0, status: 'SUCCEEDED' });
-    // Fire-and-forget: the refresh takes seconds and must not hold the caller.
-    // Best-effort: the rows are already committed.
-    void refreshMetricViewsIfNeeded(dataset.slug).catch((e: unknown) => {
-      console.warn(
-        `import ${dataset.slug}: metric view refresh failed (run pnpm outcomes:refresh-derived): ${String(e)}`,
-      );
-    });
     return { batchId: created.id, runId, result };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

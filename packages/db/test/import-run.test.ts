@@ -147,6 +147,21 @@ describe('runImportLoad', () => {
   });
 });
 
+describe('runImportLoad scopes', () => {
+  it('records the scopes in run metadata', async () => {
+    const out = await runImportLoad(
+      flat,
+      [{ code: 'A' }],
+      { via: 'upload', userId: null, batch: { filename: 's.xlsx', contentHash: 'test-run-scopes-hash', storageKey: 'k', fileSize: 1 } },
+      undefined,
+      [{ programmeCode: 'P1' }],
+    );
+    runIds.push(out.runId);
+    const run = await prisma.ingestionRun.findUniqueOrThrow({ where: { id: out.runId }, select: { metadata: true } });
+    expect(run.metadata).toEqual({ via: 'upload', scopes: [{ programmeCode: 'P1' }] });
+  });
+});
+
 describe('prepareImportRows', () => {
   const sheet = (n: number) => ({
     sheetName: 'Data',
