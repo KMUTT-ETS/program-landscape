@@ -255,7 +255,7 @@ student per section, and per-programme intake. Years are Buddhist Era (2568).
 Student references are synthetic. A plain `pnpm workshop:mock` folder has no
 class offerings workbook, so the server invents one section per course per
 semester from the programme course list: those seat counts are made up, and a
-few sections have fewer than 5 enrolled. The routes are listed in
+few sections have fewer than 5 enrolled. Class Offerings accepts those; they are there to make you think about small groups, not to trigger a refusal. The routes are listed in
 `apps/ingestion/src/scripts/workshop-mock-api/README.md`.
 
 ## You are done when

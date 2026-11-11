@@ -144,7 +144,7 @@ The dataset page shows a banner when both sources have loaded, with a table of t
 
 ### Personal data
 
-Some APIs return one record per student. Aggregate them inside `toRows` to the dataset's grain (for example enrolled students per section); do not pass student-level values on. Groups smaller than the dataset's minimum (5 for most) are refused by validation exactly as in an upload. Connector code must never log the records it fetches, and the run metadata holds counts and positions only. Test fixtures must be invented or anonymised, never copied from a live system.
+Some APIs return one record per student. Aggregate them inside `toRows` to the dataset's grain (for example enrolled students per section, or graduates per programme and year); do not pass student-level values on. Datasets that report a group, such as Course Evaluations, Digital Competency, Employer Feedback, Graduate Outcomes, Staff Salary by Funding and Faculty Compensation, refuse groups under 5, exactly as an upload does. Class Offerings and Enrolment have no such minimum, so the connector author decides whether small sections are passed on. Connector code must never log the records it fetches, and the run metadata holds counts and positions only. Test fixtures must be invented or anonymised, never copied from a live system.
 
 ## Next step
 
