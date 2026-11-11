@@ -4,7 +4,7 @@ import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { getImportDataset } from '@kku/db';
+import { getImportDataset, listImportDatasets } from '@kku/db';
 
 import { generateConnectorFiles, runScaffolder } from '../src/scripts/connector-new/generate';
 
@@ -106,6 +106,24 @@ describe('runScaffolder', () => {
     expect(r.exitCode).toBe(2);
     expect(out.join('\n')).toContain('class-offerings');
     expect(out.join('\n')).not.toContain('    at ');
+  });
+
+  it('--list prints every dataset slug with its title and writes nothing', () => {
+    const r = runScaffolder(['--list'], { root, log });
+    expect(r.exitCode).toBe(0);
+    const datasets = listImportDatasets();
+    expect(out).toHaveLength(datasets.length);
+    for (const d of datasets) {
+      expect(out.some((line) => line.startsWith(d.slug) && line.endsWith(d.title))).toBe(true);
+    }
+    expect(existsSync(path.join(root, 'apps/ingestion/src/connectors/sources/institution/x'))).toBe(
+      false,
+    );
+  });
+
+  it('the unknown-dataset message points at --list', () => {
+    runScaffolder(['--name', 'x', '--dataset', 'nope'], { root, log });
+    expect(out.join('\n')).toContain('pnpm connector:new --list');
   });
 
   it('rejects a bad name', () => {

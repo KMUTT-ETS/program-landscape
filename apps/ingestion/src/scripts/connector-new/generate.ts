@@ -82,7 +82,13 @@ export function runScaffolder(argv: readonly string[], env: ScaffolderEnv): { ex
     return { exitCode: 2 };
   };
 
-  let values: { name?: string; dataset?: string; 'display-name'?: string; 'dry-run'?: boolean };
+  let values: {
+    name?: string;
+    dataset?: string;
+    'display-name'?: string;
+    'dry-run'?: boolean;
+    list?: boolean;
+  };
   try {
     values = parseArgs({
       args: [...argv],
@@ -91,14 +97,23 @@ export function runScaffolder(argv: readonly string[], env: ScaffolderEnv): { ex
         dataset: { type: 'string' },
         'display-name': { type: 'string' },
         'dry-run': { type: 'boolean', default: false },
+        list: { type: 'boolean', default: false },
       },
     }).values;
   } catch (err) {
     return fail(err instanceof Error ? err.message : String(err));
   }
 
+  if (values.list) {
+    const datasets = listImportDatasets();
+    const width = Math.max(...datasets.map((d) => d.slug.length));
+    for (const d of datasets) log(`${d.slug.padEnd(width)}  ${d.title}`);
+    return { exitCode: 0 };
+  }
+
   const usage =
-    'Usage: pnpm connector:new --name <kebab-name> --dataset <slug>[,<slug>...] [--display-name "<text>"] [--dry-run]';
+    'Usage: pnpm connector:new --name <kebab-name> --dataset <slug>[,<slug>...] [--display-name "<text>"] [--dry-run]\n' +
+    '       pnpm connector:new --list   (print every dataset slug)';
   if (!values.name || !values.dataset) return fail(usage);
   if (!NAME_PATTERN.test(values.name)) {
     return fail(
@@ -114,7 +129,7 @@ export function runScaffolder(argv: readonly string[], env: ScaffolderEnv): { ex
   const unknown = requested.filter((s) => !valid.includes(s));
   if (requested.length === 0 || unknown.length > 0) {
     return fail(
-      `Unknown dataset ${unknown.map((s) => `"${s}"`).join(', ') || '(none given)'}. Valid datasets: ${valid.join(', ')}.`,
+      `Unknown dataset ${unknown.map((s) => `"${s}"`).join(', ') || '(none given)'}. Valid datasets: ${valid.join(', ')}. Run pnpm connector:new --list to see them with their titles.`,
     );
   }
 
