@@ -1,3 +1,4 @@
+import { INSTITUTION_SOURCES } from './institution-catalog';
 import type { SourceCatalogEntry } from './types';
 
 // Canonical source catalog. DB seed upserts one row per entry; the
@@ -909,6 +910,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'Which staff member (by employee code) is on which external grant, uploaded through /admin/data-setup. Links grants to programmes through teaching staff.',
     mocked: false,
   },
+  ...INSTITUTION_SOURCES,
 ] as const;
 
 /** True for connectors that only work against KKU's internal systems. */

@@ -263,6 +263,11 @@ export class ConnectorRunner {
           durationMs: Date.now() - startedAt,
           errorCode: code,
           errorMessage: message.slice(0, 2000),
+          // A connector that refuses its input (validation problems) says
+          // what it refused in `details`; keep it on the run for the admin UI.
+          ...(err instanceof NonRetryableError && err.details
+            ? { metadata: err.details as Prisma.InputJsonValue }
+            : {}),
         },
       });
 
