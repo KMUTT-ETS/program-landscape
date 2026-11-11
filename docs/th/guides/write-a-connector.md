@@ -68,6 +68,84 @@ load(ctx, normalized) → LoadResult       // write, idempotently
 
 ตอนพลิก connector ไปเป็น real แถวใน `data_sources` ต้องอัปเดต **ทั้ง** `status` และ `mocked` พร้อมกันในคราวเดียว สองคอลัมน์นี้เป็นอิสระต่อกัน และ `status='real'` ไม่ได้แปลว่า `mocked=false` ทำผิดข้อนี้แล้วจะได้ UI ที่ว่างเปล่าทั้งที่เห็นแถวข้อมูลอยู่ใน SQL ชัด ๆ `pnpm data-sources:audit` มีไว้จับความเบี่ยงเบนแบบนี้โดยเฉพาะ ให้รันทุกครั้งหลังพลิก connector และหลังรีเซ็ตฐานข้อมูล
 
+## นำเข้าชุดข้อมูลจาก HTTP API
+
+### เมื่อใดควรใช้
+
+หากระบบทะเบียน การเงิน หรือบุคคลของท่านมี HTTP/JSON API อยู่แล้ว ท่านเติมชุดข้อมูลเดียวกับที่การนำเข้าจากสเปรดชีตเติมได้ (ดู[การนำเข้าข้อมูลของสถาบัน](../data-import.md)) โดยไม่ต้องเขียน connector เต็มรูปแบบ คลาสฐาน `DatasetApiConnector` (`apps/ingestion/src/connectors/base/dataset-api-connector.ts`) ดึงเรกคอร์ด ท่านแมปเรกคอร์ดเป็นแถวของชุดข้อมูล ส่วนการตรวจสอบและการโหลดใช้ pipeline เดียวกับการอัปโหลด การโหลดผ่าน API จึงอยู่ภายใต้กฎทุกข้อเหมือนการอัปโหลด connector หนึ่งตัวเติมได้หลายชุดข้อมูล โดยโหลดตามลำดับความพึ่งพา
+
+รองรับเฉพาะ HTTP ที่ตอบเป็น JSON หากเป็น SOAP, GraphQL, database view หรือ SFTP ให้ส่งออกเป็น XLSX แล้วอัปโหลด
+
+### สร้างโครง connector
+
+```bash
+pnpm connector:new --name myuni-classes --dataset class-offerings
+```
+
+`--dataset` รับ slug ของชุดข้อมูลหนึ่งตัวหรือหลายตัวคั่นด้วยจุลภาค (`--dataset external-grants,external-grant-team`) หาก slug ไม่ถูกต้อง คำสั่งจะแสดงรายการที่ใช้ได้ `--display-name "<text>"` กำหนดชื่อที่แสดงในหน้าผู้ดูแล และ `--dry-run` แสดงสิ่งที่จะสร้างโดยไม่เขียนไฟล์ ตัวสร้างโครงจะสร้างคลาส connector และไฟล์ทดสอบใต้ `apps/ingestion/` ลงทะเบียน connector และเพิ่มรายการ data source ในแคตตาล็อก แล้วพิมพ์ขั้นตอนถัดไป ท่านเติมสองเมธอด:
+
+```ts
+export class MyuniClassesConnector extends DatasetApiConnector {
+  readonly slug = 'api-myuni-classes';
+  readonly displayName = 'Myuni Classes API';
+  readonly datasets = ['class-offerings'] as const;
+
+  protected async fetchAll(ctx: ConnectorContext, api: ApiClient): Promise<readonly unknown[]> {
+    // talk to the API with api.getJson(path, ZodSchema) or api.paginate(...)
+  }
+
+  protected toRows(records: readonly unknown[]): DatasetRows {
+    // return { 'class-offerings': [ { <template header>: value, ... } ] }
+  }
+}
+```
+
+ค่าตั้งต้นมาจาก environment โดย `<SLUG>` คือ slug ของ connector ตัวพิมพ์ใหญ่และเปลี่ยน `-` เป็น `_` ดังนั้น `api-myuni-classes` ได้ `API_MYUNI_CLASSES`:
+
+```bash
+CONNECTOR_API_MYUNI_CLASSES_BASE_URL=https://registrar.example.ac.th/api/v1
+CONNECTOR_API_MYUNI_CLASSES_TOKEN=<bearer token>
+# optional
+CONNECTOR_API_MYUNI_CLASSES_MAX_ROWS=50000
+CONNECTOR_API_MYUNI_CLASSES_ALLOW_SHRINK=true
+```
+
+ห้าม commit token
+
+### แมปและรวมข้อมูล
+
+- คีย์ของแต่ละแถวคือข้อความหัวคอลัมน์ในเทมเพลตของชุดข้อมูล ตรงตามเทมเพลต XLSX ดาวน์โหลดเทมเพลตจากหน้าของชุดข้อมูลเพื่อดูหัวคอลัมน์ ไฟล์ทดสอบที่สร้างให้ตรวจว่ามีหัวคอลัมน์ที่จำเป็นครบ
+- ตรวจสอบทุก HTTP response ด้วย Zod `api.getJson` รับ schema เป็นอาร์กิวเมนต์ที่สอง และ `api.paginate` ไล่หน้าของ endpoint แบบรายการ
+- ไคลเอนต์ลองใหม่เมื่อเกิดความล้มเหลวชั่วคราว แต่ไม่ลองใหม่กับ 401, 403, 404 และ redirect เพราะหมายถึง token, path หรือ URL ผิด การลองซ้ำมีแต่ซ่อนปัญหา
+- แปลงปีเอง ระบบของไทยจำนวนมากใช้ พ.ศ. ส่วนชุดข้อมูลต้องการตามที่เทมเพลตระบุ
+- ขีดจำกัดแถวเริ่มต้นคือ 10,000 ต่อชุดข้อมูล (`IMPORT_MAX_ROWS`) `CONNECTOR_<SLUG>_MAX_ROWS` เพิ่มได้สูงสุด 100,000 การโหลดที่จะลบข้อมูลของภาคเรียนหรือหลักสูตรไปมากจะถูกปฏิเสธ เว้นแต่ตั้ง `CONNECTOR_<SLUG>_ALLOW_SHRINK=true`
+- ข้อผิดพลาดจากการตรวจสอบรายงานเป็นชุดข้อมูล ลำดับเรกคอร์ด (เริ่มที่ 1) คอลัมน์ และข้อความ โดยไม่แสดงค่าที่ผิด การรันหยุดที่ชุดข้อมูลแรกที่การตรวจสอบปฏิเสธ ชุดข้อมูลหลังจากนั้นรายงานว่ายังไม่ได้รัน
+
+### รันและตรวจสอบ
+
+1. ตั้งค่าตัวแปร environment ใน `.env`
+2. รัน `pnpm data-sources:sync --apply` คำสั่งนี้สร้าง data source ของ connector และเปลี่ยนชื่อแหล่งข้อมูลของชุดข้อมูลนำเข้าจาก "(spreadsheet import)" เป็น "(institution import)" ระบบที่ติดตั้งอยู่แล้วต้องรันหนึ่งครั้งหลังอัปเกรด
+3. รีสตาร์ท ingestion worker
+4. กด "Run now" ที่ `/admin/data-sources` หรือรัน `pnpm connector:run api-myuni-classes`
+
+แถวข้อมูลจะปรากฏที่ `/admin/data-setup/raw/<dataset>` โดยคอลัมน์ Source เป็น `API: <connector name>` และการโหลดแสดงในประวัติ Uploads ของชุดข้อมูล การรันของ connector เองแสดงรายการ import run ของแต่ละชุดข้อมูล คำเตือน และข้อผิดพลาดจากการตรวจสอบ แถวจาก API ถูกเก็บภายใต้ data source `xlsx-<slug>` ของชุดข้อมูลเดียวกับที่การอัปโหลดใช้ เพราะเส้นทางอ่านข้อมูลจำนวนมากค้นหาแถวของชุดข้อมูลด้วยชื่อนี้ metadata ของ import run บันทึก `via: 'api'`
+
+หากต้องการฝึกโดยไม่มีระบบจริง `pnpm workshop:mock-api <mock output folder>` เปิดข้อมูลจำลองที่สร้างไว้ผ่าน HTTP (ดู [Session 3](../workshop/03-university-data.md#mock-api-server))
+
+### สองแหล่งข้อมูลสำหรับชุดข้อมูลเดียว
+
+ชุดข้อมูลหนึ่งเติมได้ทั้งจากการอัปโหลดและจาก API ระบบไม่ปฏิเสธ แต่การโหลดสองแหล่งไม่ได้ผสานกัน:
+
+- Class Offerings และชุดข้อมูลอื่นที่ผูกกับภาคเรียน: แหล่งที่โหลดภาคเรียนนั้นทีหลังสุดจะแทนที่สิ่งที่อีกแหล่งโหลดไว้ในภาคเรียนนั้น
+- ชุดข้อมูลที่ผูกกับหลักสูตร: เป็นแบบเดียวกัน ต่อหลักสูตร
+- ชุดข้อมูลที่ upsert: แถวหนึ่งอาจมีค่าจากทั้งสองแหล่งปนกัน
+
+หน้าของชุดข้อมูลแสดงแบนเนอร์เมื่อทั้งสองแหล่งเคยโหลด พร้อมตารางภาคเรียนหรือหลักสูตรที่ได้รับผลกระทบ และคำเตือนเดียวกันปรากฏในผลการอัปโหลดและในการรันของ connector "Start over" ลบแถวจากการอัปโหลดและจากการรัน API ทั้งหมด
+
+### ข้อมูลส่วนบุคคล
+
+API บางตัวส่งเรกคอร์ดต่อนักศึกษาหนึ่งคน ให้รวมข้อมูลภายใน `toRows` ให้ได้ระดับของชุดข้อมูล (เช่น จำนวนนักศึกษาที่ลงทะเบียนต่อกลุ่มเรียน) และไม่ส่งค่าระดับนักศึกษาต่อไป กลุ่มที่เล็กกว่าขั้นต่ำของชุดข้อมูล (5 สำหรับชุดข้อมูลส่วนใหญ่) ถูกปฏิเสธโดยการตรวจสอบเหมือนการอัปโหลดทุกประการ โค้ดของ connector ต้องไม่บันทึก log เรกคอร์ดที่ดึงมา และ metadata ของการรันมีเพียงจำนวนและตำแหน่ง ไฟล์ตัวอย่างสำหรับทดสอบต้องเป็นข้อมูลที่แต่งขึ้นหรือทำให้ไม่ระบุตัวตนแล้ว ห้ามคัดลอกจากระบบจริง
+
 ## ขั้นต่อไป
 
 อ่านต่อที่ [เอกสารหลักสูตรและ pipeline การสรุปด้วย AI](./curriculum-pdfs-and-ai-digest.md)

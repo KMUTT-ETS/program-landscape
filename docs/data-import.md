@@ -9,6 +9,8 @@ instead. No code changes are needed.
 
 This page is for the person doing the uploading.
 
+If your system exposes an HTTP/JSON API, a connector can fill the same datasets instead of an upload. See [Load an import dataset from an HTTP API](./guides/write-a-connector.md#load-an-import-dataset-from-an-http-api).
+
 ## What you can import today
 
 | Dataset | What it is | Needed before |

@@ -53,6 +53,17 @@
 
 **Recent decisions worth knowing about:**
 
+*API dataset connectors (2026-11-11; branch `feat/api-dataset-connectors`, NOT merged):*
+- **What.** `DatasetApiConnector` (`apps/ingestion/src/connectors/base/dataset-api-connector.ts`) fills any import dataset from an institution's HTTP/JSON API. Subclasses write `fetchAll` and `toRows`; validation and loading reuse the upload pipeline (`prepareImportRows`, `runImportLoad`). `pnpm connector:new` scaffolds one; `pnpm workshop:mock-api` serves workshop mock data over HTTP.
+- **Provenance: rows load under `xlsx-<slug>`, not a per-connector source.** At least ten read paths filter on that slug by name (`student-dq.ts`, `dq-skill-lens.ts`, `demand-match-sources.ts`, `program-course-ownership.ts`, `research-services.ts`, `grant-award.ts`, `deep-dive.controller.ts`, the dataset loaders' own-run queries). A separate source would have left API rows invisible to them. The import run's `IngestionRun.metadata` carries `{ via: 'api' | 'upload', connector?, parentRunId? }`; the connector's own `api-<name>` run orchestrates and lists the child runs. Every API load also creates an `ImportBatch` (`API: <name>`, `contentHash` `api-run:<run id>`, empty `storageKey`) so it shows in Uploads history and in start-over.
+- **Catalogue rename.** Data-source names changed from "(spreadsheet import)" to "(institution import)". DEPLOY STEP: existing installs run `pnpm data-sources:sync --apply` after upgrading (the guide's "Run and check" says so too).
+- **Mixed sources allowed, with warnings.** Uploads and API runs may both fill a dataset. Whichever source loads a term (or programme) last replaces the other's rows for it; upsert datasets may hold values from both. Warnings show on the dataset page, in the upload result and in the connector run metadata. Start over removes both kinds of rows.
+- **HTTP/JSON only.** SOAP, GraphQL, database views and SFTP stay on XLSX upload. Max rows default `IMPORT_MAX_ROWS` (10,000), `CONNECTOR_<SLUG>_MAX_ROWS` up to 100,000; shrink guard on, `CONNECTOR_<SLUG>_ALLOW_SHRINK=true` overrides.
+- **No raw values in logs or run metadata.** Errors are `{ dataset, record, column, message }` with quoted values blanked; per-student APIs are aggregated in `toRows`; groups under the minimum are refused as in uploads.
+- **No reference solution in the repo.** The base class, scaffolder and mock server ship; the finished workshop connector is handed out by the instructor outside the repository. No committed failing test.
+- **Mock server sections are synthesized.** A plain `pnpm workshop:mock` folder has no class-offerings workbook, so the server invents one section per course per semester from the programme course list; seats and enrolled counts are made up and some sections are under 5.
+- **UNVERIFIED.** The scaffolded connector's "Run now" path (worker, schedule, admin button) is not verified end to end; do that in the clean-laptop dry run before the workshop.
+
 *Workshop sample data and rehearsal track removed (2026-11-08; branch `feat/organization-region-select`):*
 - **Why.** Participants load their own data (path A), their own data with generated gaps (B), or a `pnpm workshop:mock` set for their own university (C). The committed *Workshop Demo University* files in `workshop/sample-data/` were no longer needed.
 - **Removed.** `workshop/sample-data/`, `apps/api/scripts/workshop/{sample-data,write-sample-data,write-curriculum-pdf}.ts`, `apps/api/test/workshop-sample-data.test.ts`, and the `workshop:sample-data` / `workshop:sample-pdf` scripts.

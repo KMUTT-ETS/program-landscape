@@ -237,9 +237,26 @@ reverse of the upload order. Delete a mock set's output folder too.
 
 ## The mock API server
 
-Tomorrow, sessions 4 and 5 connect the app to a mock API server that plays
-the part of one of your university's systems, and you will write the code that
-reads it with an AI assistant. Its instructions arrive with those sessions.
+Tomorrow, session 4 connects the app to a mock API server that plays the part
+of one of your university's systems, and you will write the code that reads it
+with an AI assistant. You can start the server now to see what it serves:
+
+```bash
+pnpm workshop:mock-api <mock output folder> [--port 4010] [--token <t>]
+```
+
+Use the folder `pnpm workshop:mock` wrote. The server prints its base URL
+(`http://127.0.0.1:4010/api/v1`) and a bearer token (random unless you pass
+`--token`), listens on 127.0.0.1 only and needs no database. Every request needs
+`Authorization: Bearer <token>`.
+
+It serves the terms, the class sections of a term, one enrolment record per
+student per section, and per-programme intake. Years are Buddhist Era (2568).
+Student references are synthetic. A plain `pnpm workshop:mock` folder has no
+class offerings workbook, so the server invents one section per course per
+semester from the programme course list: those seat counts are made up, and a
+few sections have fewer than 5 enrolled. The routes are listed in
+`apps/ingestion/src/scripts/workshop-mock-api/README.md`.
 
 ## You are done when
 
