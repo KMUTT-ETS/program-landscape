@@ -121,6 +121,60 @@ describe('ApiClient', () => {
     expect((err as Error).message).toContain('20');
   });
 
+  it('a stalled body triggers the timeout as a retryable error', async () => {
+    const fetchImpl = (async (_i: RequestInfo | URL, init?: RequestInit) => {
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          init?.signal?.addEventListener('abort', () =>
+            controller.error(new DOMException('aborted', 'AbortError')),
+          );
+        },
+      });
+      return new Response(stream, { status: 200 });
+    }) as typeof fetch;
+    const client = new ApiClient({ baseUrl: 'https://x.test', timeoutMs: 20, fetchImpl });
+    const err = await client.getJson('/stall', Schema).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err).not.toBeInstanceOf(NonRetryableError);
+    expect((err as Error).message).toContain('/stall');
+    expect((err as Error).message).toContain('timed out');
+  });
+
+  it('a body stream that errors mid-read is retryable, not SCHEMA', async () => {
+    const { fetchImpl } = recorder(() => {
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('{"ok":'));
+          controller.error(new TypeError('socket reset'));
+        },
+      });
+      return new Response(stream, { status: 200 });
+    });
+    const client = new ApiClient({ baseUrl: 'https://x.test', fetchImpl });
+    const err = await client.getJson('/a', Schema).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err).not.toBeInstanceOf(NonRetryableError);
+    expect((err as Error).message).toContain('/a');
+  });
+
+  it('a 302 throws NonRetryableError HTTP_302 and the request used redirect manual', async () => {
+    const { requests, fetchImpl } = recorder(
+      () => new Response(null, { status: 302, headers: { location: 'https://evil.test/' } }),
+    );
+    const client = new ApiClient({
+      baseUrl: 'https://x.test',
+      token: 'tok',
+      authHeader: { header: 'X-Api-Key' },
+      fetchImpl,
+    });
+    const err = await client.getJson('/a', Schema).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(NonRetryableError);
+    expect((err as NonRetryableError).code).toBe('HTTP_302');
+    expect((err as Error).message).toBe('GET /a redirected; set the base URL to the final address');
+    expect(requests[0]!.redirect).toBe('manual');
+    expect(requests).toHaveLength(1);
+  });
+
   it('paginate stops at maxPages with an error', async () => {
     const Page = z.object({ rows: z.array(z.number()) });
     const { fetchImpl } = recorder(() => json({ rows: [1] }));

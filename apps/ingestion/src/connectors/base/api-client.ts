@@ -76,29 +76,52 @@ export class ApiClient {
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-    let res: Response;
+    const fail = (err: unknown): Error =>
+      err instanceof Error && err.name === 'AbortError'
+        ? new Error(`GET ${path} timed out after ${this.timeoutMs} ms`)
+        : new Error(`GET ${path} failed: ${err instanceof Error ? err.name : 'network error'}`);
+
+    let text: string;
     try {
-      res = await this.fetchImpl(url, { method: 'GET', headers, signal: controller.signal });
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        throw new Error(`GET ${path} timed out after ${this.timeoutMs} ms`);
+      let res: Response;
+      try {
+        res = await this.fetchImpl(url, {
+          method: 'GET',
+          headers,
+          signal: controller.signal,
+          redirect: 'manual',
+        });
+      } catch (err) {
+        throw fail(err);
       }
-      throw new Error(`GET ${path} failed: ${err instanceof Error ? err.name : 'network error'}`);
+
+      if (res.status >= 300 && res.status < 400) {
+        throw new NonRetryableError(
+          `HTTP_${res.status}`,
+          `GET ${path} redirected; set the base URL to the final address`,
+        );
+      }
+      if (!res.ok) {
+        const message = `GET ${path} returned ${res.status}`;
+        if (res.status === 401 || res.status === 403 || res.status === 404) {
+          throw new NonRetryableError(`HTTP_${res.status}`, message);
+        }
+        throw new Error(message);
+      }
+
+      // The timer stays armed until the body has been fully read.
+      try {
+        text = await res.text();
+      } catch (err) {
+        throw fail(err);
+      }
     } finally {
       clearTimeout(timer);
     }
 
-    if (!res.ok) {
-      const message = `GET ${path} returned ${res.status}`;
-      if (res.status === 401 || res.status === 403 || res.status === 404) {
-        throw new NonRetryableError(`HTTP_${res.status}`, message);
-      }
-      throw new Error(message);
-    }
-
     let body: unknown;
     try {
-      body = await res.json();
+      body = JSON.parse(text);
     } catch {
       throw new NonRetryableError('SCHEMA', `${path}: response was not valid JSON`);
     }
