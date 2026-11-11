@@ -83,7 +83,7 @@ load(ctx, normalized) → LoadResult       // write, idempotently
 pnpm connector:new --name myuni-classes --dataset class-offerings
 ```
 
-`--dataset` รับ slug ของชุดข้อมูลหนึ่งตัวหรือหลายตัวคั่นด้วยจุลภาค (`--dataset external-grants,external-grant-team`) หาก slug ไม่ถูกต้อง คำสั่งจะแสดงรายการที่ใช้ได้ `--display-name "<text>"` กำหนดชื่อที่แสดงในหน้าผู้ดูแล และ `--dry-run` แสดงสิ่งที่จะสร้างโดยไม่เขียนไฟล์ ตัวสร้างโครงจะสร้างคลาส connector และไฟล์ทดสอบใต้ `apps/ingestion/` ลงทะเบียน connector และเพิ่มรายการ data source ในแคตตาล็อก แล้วพิมพ์ขั้นตอนถัดไป ท่านเติมสองเมธอด:
+`--dataset` รับ slug ของชุดข้อมูลหนึ่งตัวหรือหลายตัวคั่นด้วยจุลภาค (`--dataset external-grants,external-grant-team`) หาก slug ไม่ถูกต้อง คำสั่งจะแสดงรายการที่ใช้ได้ slug ของทุกชุดข้อมูลอยู่ในตารางหัวข้อ "ชุดข้อมูลที่นำเข้าได้ในปัจจุบัน" ของ [การนำเข้าข้อมูล](../data-import.md) และ `pnpm connector:new --list` พิมพ์รายการนี้ `--display-name "<text>"` กำหนดชื่อที่แสดงในหน้าผู้ดูแล และ `--dry-run` แสดงสิ่งที่จะสร้างโดยไม่เขียนไฟล์ ตัวสร้างโครงจะสร้างคลาส connector และไฟล์ทดสอบใต้ `apps/ingestion/` ลงทะเบียน connector และเพิ่มรายการ data source ในแคตตาล็อก แล้วพิมพ์ขั้นตอนถัดไป ท่านเติมสองเมธอด:
 
 ```ts
 export class MyuniClassesConnector extends DatasetApiConnector {
@@ -146,7 +146,7 @@ CONNECTOR_API_MYUNI_CLASSES_ALLOW_SHRINK=true
 
 ### ข้อมูลส่วนบุคคล
 
-API บางตัวส่งเรกคอร์ดต่อนักศึกษาหนึ่งคน ให้รวมข้อมูลภายใน `toRows` ให้ได้ระดับของชุดข้อมูล (เช่น จำนวนนักศึกษาที่ลงทะเบียนต่อกลุ่มเรียน หรือจำนวนบัณฑิตต่อหลักสูตรต่อปี) และไม่ส่งค่าระดับนักศึกษาต่อไป ชุดข้อมูลที่รายงานเป็นกลุ่ม เช่น Course Evaluations, Digital Competency, Employer Feedback, Graduate Outcomes, Staff Salary by Funding และ Faculty Compensation จะปฏิเสธกลุ่มที่เล็กกว่า 5 เหมือนการอัปโหลดทุกประการ ส่วน Class Offerings และ Enrolment ไม่มีขั้นต่ำนี้ ผู้เขียน connector จึงเป็นผู้ตัดสินว่าจะส่งกลุ่มเรียนขนาดเล็กต่อไปหรือไม่ โค้ดของ connector ต้องไม่บันทึก log เรกคอร์ดที่ดึงมา และ metadata ของการรันมีเพียงจำนวนและตำแหน่ง ไฟล์ตัวอย่างสำหรับทดสอบต้องเป็นข้อมูลที่แต่งขึ้นหรือทำให้ไม่ระบุตัวตนแล้ว ห้ามคัดลอกจากระบบจริง
+API บางตัวส่งเรกคอร์ดต่อนักศึกษาหนึ่งคน ให้รวมข้อมูลภายใน `toRows` ให้ได้ระดับของชุดข้อมูล (เช่น จำนวนนักศึกษาที่ลงทะเบียนต่อกลุ่มเรียน หรือจำนวนบัณฑิตต่อหลักสูตรต่อปี) และไม่ส่งค่าระดับนักศึกษาต่อไป ชุดข้อมูลที่รายงานเป็นกลุ่ม เช่น Course Evaluations, Digital Competency, Employer Feedback, Graduate Outcomes, Staff Salary by Funding และ Compensation จะปฏิเสธกลุ่มที่เล็กกว่า 5 เหมือนการอัปโหลดทุกประการ ส่วน Class Offerings และ Enrolment ไม่มีขั้นต่ำนี้ ผู้เขียน connector จึงเป็นผู้ตัดสินว่าจะส่งกลุ่มเรียนขนาดเล็กต่อไปหรือไม่ โค้ดของ connector ต้องไม่บันทึก log เรกคอร์ดที่ดึงมา และ metadata ของการรันมีเพียงจำนวนและตำแหน่ง ไฟล์ตัวอย่างสำหรับทดสอบต้องเป็นข้อมูลที่แต่งขึ้นหรือทำให้ไม่ระบุตัวตนแล้ว ห้ามคัดลอกจากระบบจริง
 
 ## ขั้นต่อไป
 

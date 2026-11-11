@@ -13,34 +13,38 @@ If your system exposes an HTTP/JSON API, a connector can fill the same datasets 
 
 ## What you can import today
 
-| Dataset | What it is | Needed before |
-|---|---|---|
-| **Faculties** | The faculties, colleges and institutes that own programmes | Everything |
-| **Departments** | Departments within a faculty. Optional | Programmes |
-| **Programmes** | The curricula you offer | Every metric |
-| **Enrolment** | Applications through to graduation, per programme per year | Programmes |
-| **Finance** | Tuition and other revenue, per programme per year | Programmes |
-| **Graduate Outcomes** | Employment survey results per graduating cohort | Programmes |
-| **Employer Feedback** | Employer satisfaction per programme and survey year; shown in the Deep-Dive's Outcomes section | Programmes |
-| **Population Projections** | Projected population per region, year and age group; overrides the built-in UN series | — |
-| **Career Skill Demand** | Share of postings naming each skill, per career; the fallback for the KMITL API | — (skills from the programme pipeline) |
-| **University Rankings** | QS / THE ranks per university; the peer-selection universe (template pre-filled with a starter list) | — |
-| **Student Cohorts** | How many of each entry cohort are still enrolled | Programmes |
-| **Digital Competency — Cohorts** | Students tested, scored and passing, per programme and entry year | Programmes |
-| **Digital Competency — Modules** | Mean score on each of the 13 modules, per programme and entry year | Programmes |
-| **Alumni Cohorts** | What became of each entry cohort | Programmes |
-| **Staff** | Your teaching-staff roster | Publications, Programme Teaching Staff, External Grant Team |
-| **Compensation** | Aggregate salary by faculty, department and rank | Faculties |
-| **Staff Salary by Funding** | Monthly salary by faculty, rank and funding source | Faculties, Staff, Programme Teaching Staff (for the Deep-Dive card) |
-| **Budgets** | Budget by division and fund category | Faculties |
-| **Publications** | Research outputs, one row per paper per author | Staff |
-| **Admission Campaigns** | The recruitment funnel, per campaign | Programmes |
-| **Class Offerings** | Every class section taught in one term | Faculties |
-| **Programme Teaching Staff** | Which staff teach which programmes | Programmes, Staff |
-| **External Grants** | Externally funded projects with whole-project budgets | Faculties |
-| **External Grant Team** | Which staff member is on which grant | External Grants, Staff |
-| **Programme course lists** | The course list of each programme | Programmes |
-| **Course Evaluations** | Overall student rating of each course, per term | Programme course lists |
+| Dataset | Slug | What it is | Needed before |
+|---|---|---|---|
+| **Faculties** | `faculties` | The faculties, colleges and institutes that own programmes | Everything |
+| **Departments** | `departments` | Departments within a faculty. Optional | Programmes |
+| **Programmes** | `programmes` | The curricula you offer | Every metric |
+| **Enrolment** | `enrollment-metrics` | Applications through to graduation, per programme per year | Programmes |
+| **Finance** | `financial-metrics` | Tuition and other revenue, per programme per year | Programmes |
+| **Graduate Outcomes** | `graduate-outcomes` | Employment survey results per graduating cohort | Programmes |
+| **Employer Feedback** | `employer-feedback` | Employer satisfaction per programme and survey year; shown in the Deep-Dive's Outcomes section | Programmes |
+| **Population Projections** | `population-projections` | Projected population per region, year and age group; overrides the built-in UN series | — |
+| **Career Skill Demand** | `career-skill-demand` | Share of postings naming each skill, per career; the fallback for the KMITL API | — (skills from the programme pipeline) |
+| **University Rankings** | `ranked-universities` | QS / THE ranks per university; the peer-selection universe (template pre-filled with a starter list) | — |
+| **Student Cohorts** | `student-cohorts` | How many of each entry cohort are still enrolled | Programmes |
+| **Digital Competency — Cohorts** | `digital-competency-cohorts` | Students tested, scored and passing, per programme and entry year | Programmes |
+| **Digital Competency — Modules** | `digital-competency-modules` | Mean score on each of the 13 modules, per programme and entry year | Programmes |
+| **Alumni Cohorts** | `alumni-cohorts` | What became of each entry cohort | Programmes |
+| **Staff** | `faculty-members` | Your teaching-staff roster | Publications, Programme Teaching Staff, External Grant Team |
+| **Compensation** | `faculty-compensation` | Aggregate salary by faculty, department and rank | Faculties |
+| **Staff Salary by Funding** | `staff-salary-by-funding` | Monthly salary by faculty, rank and funding source | Faculties, Staff, Programme Teaching Staff (for the Deep-Dive card) |
+| **Budgets** | `faculty-budgets` | Budget by division and fund category | Faculties |
+| **Publications** | `research-outputs` | Research outputs, one row per paper per author | Staff |
+| **Admission Campaigns** | `admission-campaigns` | The recruitment funnel, per campaign | Programmes |
+| **Class Offerings** | `class-offerings` | Every class section taught in one term | Faculties |
+| **Programme Teaching Staff** | `program-faculty` | Which staff teach which programmes | Programmes, Staff |
+| **External Grants** | `external-grants` | Externally funded projects with whole-project budgets | Faculties |
+| **External Grant Team** | `external-grant-team` | Which staff member is on which grant | External Grants, Staff |
+| **Programme course lists** | `programme-courses` | The course list of each programme | Programmes |
+| **Course Evaluations** | `course-evaluations` | Overall student rating of each course, per term | Programme course lists |
+
+The slug names a dataset wherever the app or a command needs it: the dataset's page is
+`/admin/data-setup/raw/<slug>`, and an API connector is created with
+`pnpm connector:new --dataset <slug>` (`pnpm connector:new --list` prints the same list).
 
 Load them top to bottom. The first three are the backbone everything else
 refers to by code; **Staff** must come before **Publications**, **Programme

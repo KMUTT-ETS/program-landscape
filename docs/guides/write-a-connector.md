@@ -83,7 +83,7 @@ Only HTTP with a JSON body is supported. For SOAP, GraphQL, database views or SF
 pnpm connector:new --name myuni-classes --dataset class-offerings
 ```
 
-`--dataset` takes one or more dataset slugs separated by commas (`--dataset external-grants,external-grant-team`); an unknown slug lists the valid ones. `--display-name "<text>"` sets the name shown in the admin and `--dry-run` prints what would be created. The scaffolder creates the connector class and its test under `apps/ingestion/`, registers the connector and adds its data-source entry to the catalogue, then prints the next steps. You fill in two methods:
+`--dataset` takes one or more dataset slugs separated by commas (`--dataset external-grants,external-grant-team`); an unknown slug lists the valid ones. Every dataset's slug is in the table under [What you can import today](../data-import.md#what-you-can-import-today), and `pnpm connector:new --list` prints them. `--display-name "<text>"` sets the name shown in the admin and `--dry-run` prints what would be created. The scaffolder creates the connector class and its test under `apps/ingestion/`, registers the connector and adds its data-source entry to the catalogue, then prints the next steps. You fill in two methods:
 
 ```ts
 export class MyuniClassesConnector extends DatasetApiConnector {
@@ -146,7 +146,7 @@ The dataset page shows a banner when both sources have loaded, with a table of t
 
 ### Personal data
 
-Some APIs return one record per student. Aggregate them inside `toRows` to the dataset's grain (for example enrolled students per section, or graduates per programme and year); do not pass student-level values on. Datasets that report a group, such as Course Evaluations, Digital Competency, Employer Feedback, Graduate Outcomes, Staff Salary by Funding and Faculty Compensation, refuse groups under 5, exactly as an upload does. Class Offerings and Enrolment have no such minimum, so the connector author decides whether small sections are passed on. Connector code must never log the records it fetches, and the run metadata holds counts and positions only. Test fixtures must be invented or anonymised, never copied from a live system.
+Some APIs return one record per student. Aggregate them inside `toRows` to the dataset's grain (for example enrolled students per section, or graduates per programme and year); do not pass student-level values on. Datasets that report a group, such as Course Evaluations, Digital Competency, Employer Feedback, Graduate Outcomes, Staff Salary by Funding and Compensation, refuse groups under 5, exactly as an upload does. Class Offerings and Enrolment have no such minimum, so the connector author decides whether small sections are passed on. Connector code must never log the records it fetches, and the run metadata holds counts and positions only. Test fixtures must be invented or anonymised, never copied from a live system.
 
 ## Next step
 
