@@ -22,6 +22,7 @@ export * from './identity';
 export * from './institution';
 export * from './intake-policy';
 export * from './organization';
+export * from './health/zones';
 export * from './net';
 export * from './observability';
 export * from './resilience';
