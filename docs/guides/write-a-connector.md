@@ -130,9 +130,9 @@ Never commit the token.
 3. Restart the ingestion worker.
 4. Press "Run now" on `/admin/data-sources`, or run `pnpm connector:run api-myuni-classes`.
 
-The rows appear on `/admin/data-setup/raw/<dataset>`, with Source `API: <connector name>`, and the load shows in the dataset's Uploads history. The connector's own run lists the import run for each dataset, the warnings and the validation errors. API rows are stored under the dataset's `xlsx-<slug>` data source, the same one uploads use, because many read paths find a dataset's rows by that name; the import run's metadata records `via: 'api'`.
+The rows appear on `/admin/data-setup/raw/<dataset>`, with Source `API: <connector name>`, and the load shows in the dataset's Uploads history. The connector's own run stores the import run for each dataset, the warnings and the validation errors in its metadata; the admin page does not display that report yet, but a failed run's "Log" shows the error code and message. API rows are stored under the dataset's `xlsx-<slug>` data source, the same one uploads use, because many read paths find a dataset's rows by that name; the import run's metadata records `via: 'api'`.
 
-To practise without a real system, `pnpm workshop:mock-api <mock output folder>` serves generated mock data over HTTP (see [Session 3](../workshop/03-university-data.md#the-mock-api-server)).
+To practise without a real system, `pnpm workshop:mock-api <mock output folder>` serves generated mock data over HTTP (see [Session 3](../workshop/03-university-data.md#the-mock-api-server)); [Load data from an API (practice run)](../tutorials/load-data-from-an-api.md) walks through a complete connector against it.
 
 ### Two sources for one dataset
 
@@ -142,7 +142,7 @@ A dataset can be filled by both uploads and an API. Nothing is refused, but the 
 - Programme-scoped datasets: the same, per programme.
 - Datasets that upsert: a row can end up holding values from both sources.
 
-The dataset page shows a banner when both sources have loaded, with a table of the terms or programmes affected, and the same warnings appear in the upload result and in the connector run. "Start over" removes the rows from uploads and from API runs alike.
+The dataset page shows a banner when both sources have loaded, with a table of the terms or programmes affected, and the same warnings appear in the upload result and are stored with the connector run. "Start over" removes the rows from uploads and from API runs alike.
 
 ### Personal data
 
