@@ -22,7 +22,7 @@ depends on that input: it answers "if this upload is missing, what goes blank?".
 <DeepDiveDataMap />
 
 The driver list and each driver's inputs are checked against the code
-(`DIMENSION_DRIVERS` in `packages/db/src/health-score.ts` and `CHECKLIST_SOURCES`
+(`DIMENSION_DRIVERS` in `packages/db/src/health-score/drivers.ts` and `CHECKLIST_SOURCES`
 in `packages/db/src/program-setup-checklist.ts`) by
 `packages/db/test/deep-dive-data-map-doc.test.ts`. The plain-language text lives
 in `apps/docs-site/.vitepress/theme/deep-dive-data-map/data.ts`. Formulas in full,

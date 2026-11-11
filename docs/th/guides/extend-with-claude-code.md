@@ -169,7 +169,7 @@ prompt เหล่านี้เขียนไว้ให้คัดลอ�
 
 **สิ่งที่ prompt นี้ทำ:** ให้ผู้ช่วย AI เขียนบทวิเคราะห์ก่อน ยังไม่แตะโค้ด ครอบคลุมทุกมิติและทุกตัวขับเคลื่อน แหล่งข้อมูลของแต่ละตัว ตัวใดบ้างที่วันนี้จะคืนค่าว่างเพราะยังไม่ได้ต่อ connector ที่เกี่ยวข้อง และน้ำหนักตัวใดที่เข้ารหัสวิจารณญาณของสภามหาวิทยาลัยขอนแก่นไว้ ไม่ใช่หลักการทั่วไป จากนั้นเมื่ออนุมัติบทวิเคราะห์แล้วจึงลงมือทำเวอร์ชันของเรา พร้อมเลขเวอร์ชันใหม่ เอกสารระเบียบวิธีที่อัปเดตใน commit เดียวกัน และการทดสอบที่ครอบคลุมกฎเรื่องค่าว่าง
 
-> Read `docs/methodologies/health-score.md` and `packages/db/src/health-score.ts` (currently `health-score.v4.0`), and `docs/evaluation-pipeline.md` for how the score feeds lifecycle, risk, and BCG classification.
+> Read `docs/methodologies/health-score.md` and `packages/db/src/health-score/` (start with its `README.md`; currently `health-score.v5.6`), and `docs/evaluation-pipeline.md` for how the score feeds lifecycle, risk, and BCG classification.
 >
 > Produce a written analysis first — no code — covering: every dimension and driver, where each driver's data comes from, which drivers return null for us today given which connectors we have wired, and which weights encode a KKU Council judgement rather than a general principle. Flag anything you are unsure about rather than guessing.
 >

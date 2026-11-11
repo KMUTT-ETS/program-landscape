@@ -1001,8 +1001,11 @@ The weighted-by-enrolment rule is the same as `queryMetricByScope`'s
 When the formula changes (weights, dimensions, null-handling, completeness
 thresholds):
 
-1. Bump the version constant (`HEALTH_SCORE_VERSION` in
-   `packages/db/src/health-score.ts`).
+1. Bump the version constant (`UPSTREAM_HEALTH_SCORE_VERSION` in
+   `packages/db/src/health-score/version.ts`). An adopting institution
+   sets `INSTITUTION_REVISION` in `packages/db/src/health-score/tuning.ts`
+   instead, which stamps `health-score.vX.Y+<revision>`; see
+   [Adapt a methodology](../guides/adapt-a-methodology.md).
 2. Update this doc's "Version:" and "Reviewed:" lines.
 3. Never edit an existing version's logic in place — historical scores
    on past Council Packs must remain reproducible.

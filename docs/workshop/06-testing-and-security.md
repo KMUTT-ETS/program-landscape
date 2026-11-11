@@ -26,7 +26,7 @@ assistant:
 ```text
 In packages/db/test/health-score.test.ts, find the tests that check what happens
 when a programme has no data for a driver. Explain the rule in two sentences and
-point to the code in packages/db/src/health-score.ts that applies it.
+point to the code in packages/db/src/health-score/ that applies it.
 ```
 
 The method behind each score is written up in

@@ -59,7 +59,7 @@ export function MethodologyContentEn() {
         </P>
         <OL>
           <LI>
-            The application source code at <Code>packages/db/src/health-score.ts</Code> and{' '}
+            The application source code at <Code>packages/db/src/health-score/</Code> and{' '}
             <Code>packages/db/src/program-deep-dive.ts</Code> (commit history is the canonical reference);
           </LI>
           <LI>
@@ -2082,7 +2082,7 @@ otherwise                                         → SUNSET`}</Pre>
         <DocSubsection number="9.1" title="Versioning policy">
           <P>The methodology version constants are:</P>
           <UL>
-            <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v5.6'</Code> (in <Code>packages/db/src/health-score.ts</Code>).</LI>
+            <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v5.6'</Code> (in <Code>packages/db/src/health-score/version.ts</Code>).</LI>
             <LI><Code>LIFECYCLE_VERSION = 'lifecycle.v1.4'</Code> (in <Code>packages/db/src/program-deep-dive.ts</Code>).</LI>
           </UL>
           <P>
@@ -2284,7 +2284,7 @@ otherwise                                         → SUNSET`}</Pre>
         </P>
         <DocSubsection number="12.1" title="Internal — methodology canon">
           <UL>
-            <LI><Code>packages/db/src/health-score.ts</Code>. Primary implementation of the five-dimension health score scorers. Methodology version constant <Code>HEALTH_SCORE_VERSION</Code>.</LI>
+            <LI><Code>packages/db/src/health-score/</Code>. Primary implementation of the five-dimension health score scorers, one file per dimension; thresholds and weights in <Code>tuning.ts</Code>, methodology version constant <Code>HEALTH_SCORE_VERSION</Code> in <Code>version.ts</Code>.</LI>
             <LI><Code>packages/db/src/program-deep-dive.ts</Code>. Primary implementation of <Code>programLifecycleVerdict</Code> and <Code>programAiReadiness</Code>. Methodology version constant <Code>LIFECYCLE_VERSION</Code>.</LI>
             <LI><Code>docs/methodologies/health-score.md</Code>. Internal-facing methodology notes; version history and review log.</LI>
             <LI><Code>docs/methodologies/cost-allocation.md</Code>. Cost-allocation methodology (v0 draft) feeding the Financial dimension.</LI>

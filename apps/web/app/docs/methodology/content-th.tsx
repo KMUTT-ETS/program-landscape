@@ -59,7 +59,7 @@ export function MethodologyContentTh() {
           โดยอ้างอิงจาก:
         </P>
         <OL>
-          <LI>ซอร์สโค้ดของระบบที่ <Code>packages/db/src/health-score.ts</Code> และ <Code>packages/db/src/program-deep-dive.ts</Code> (ประวัติ git เป็นแหล่งอ้างอิงที่เป็นทางการ)</LI>
+          <LI>ซอร์สโค้ดของระบบที่ <Code>packages/db/src/health-score/</Code> และ <Code>packages/db/src/program-deep-dive.ts</Code> (ประวัติ git เป็นแหล่งอ้างอิงที่เป็นทางการ)</LI>
           <LI>บันทึกระเบียบวิธีภายในที่ <Code>docs/methodologies/health-score.md</Code> และข้อกำหนดต่อแหล่งข้อมูลที่ <Code>docs/data-sources/</Code></LI>
           <LI>คำถามเชิงกลยุทธ์แปดข้อที่กำหนดไว้ในกฎบัตรโครงการ (<Code>CLAUDE.md</Code>)</LI>
         </OL>
@@ -1668,7 +1668,7 @@ score >= 45                                       → STABLE
         <DocSubsection number="9.1" title="นโยบายเวอร์ชัน">
           <P>ค่าเวอร์ชันของระเบียบวิธีคือ:</P>
           <UL>
-            <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v5.6'</Code> (ใน <Code>packages/db/src/health-score.ts</Code>)</LI>
+            <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v5.6'</Code> (ใน <Code>packages/db/src/health-score/version.ts</Code>)</LI>
             <LI><Code>LIFECYCLE_VERSION = 'lifecycle.v1.4'</Code> (ใน <Code>packages/db/src/program-deep-dive.ts</Code>)</LI>
           </UL>
           <P>
@@ -1863,7 +1863,7 @@ score >= 45                                       → STABLE
         </P>
         <DocSubsection number="12.1" title="ภายใน — ระเบียบวิธีที่เป็นทางการ">
           <UL>
-            <LI><Code>packages/db/src/health-score.ts</Code> การติดตั้งหลักของตัวคำนวณคะแนนห้ามิติ ค่าคงที่ <Code>HEALTH_SCORE_VERSION</Code></LI>
+            <LI><Code>packages/db/src/health-score/</Code> การติดตั้งหลักของตัวคำนวณคะแนนห้ามิติ แยกไฟล์ละหนึ่งมิติ เกณฑ์และน้ำหนักอยู่ใน <Code>tuning.ts</Code> ค่าคงที่ <Code>HEALTH_SCORE_VERSION</Code> อยู่ใน <Code>version.ts</Code></LI>
             <LI><Code>packages/db/src/program-deep-dive.ts</Code> การติดตั้งหลักของ <Code>programLifecycleVerdict</Code> และ <Code>programAiReadiness</Code></LI>
             <LI><Code>docs/methodologies/health-score.md</Code> บันทึกระเบียบวิธีสำหรับนักพัฒนา ประวัติเวอร์ชันและบันทึกการรีวิว</LI>
             <LI><Code>docs/methodologies/cost-allocation.md</Code> ระเบียบวิธีการจัดสรรต้นทุน (ร่าง v0)</LI>

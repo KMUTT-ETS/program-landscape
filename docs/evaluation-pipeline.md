@@ -24,7 +24,7 @@ A single program carries up to **five** signed verdicts. Each is independently v
 
 | Axis | Output | Where stamped | Code reference |
 |---|---|---|---|
-| **Health Score** | 0–100 composite + 5 dimension sub-scores + 0–100 `dataCompletenessPct` | `methodologyVersion: 'health-score.v3.4'` on `HealthScoreRow` | `packages/db/src/health-score.ts` |
+| **Health Score** | 0–100 composite + 5 dimension sub-scores + 0–100 `dataCompletenessPct` | `methodologyVersion: 'health-score.v3.4'` on `HealthScoreRow` | `packages/db/src/health-score/` |
 | **Lifecycle Verdict** | `SUNSET` / `STABLE` / `RISING` / `FRONTIER` + 0–100 trajectory + 9 signed drivers + counterfactual (`ungatedVerdict`) | `methodologyVersion: 'lifecycle.v1.2'` on `ProgramLifecycleResult` + persisted to `program_lifecycle_snapshots` | `packages/db/src/program-deep-dive.ts` |
 | **Risk Tier** | `LOW` / `MODERATE` / `HIGH` / `CRITICAL` / `NEEDS_DATA` + L1/L2/L3 drivers + I1/I2 impact + composite | `methodologyVersion: 'risk-scoring.v1.11'` on `RiskAssessment` + `risk-assessment.v2` on AI overlay | `packages/db/src/risk-scoring.ts` + `packages/shared/src/ai/prompts/risk-assessment.ts` |
 | **KKU 5×5 Matrix** | `LOW` / `MODERATE` / `HIGH` / `VERY_HIGH` / `NEEDS_DATA` + `matrixScore` 1–25 (likelihood × impact bins) | Derived from Risk Tier; same methodology stamp | `bin5` + `deriveKkuMatrix` in `risk-scoring.ts` |
@@ -100,7 +100,7 @@ Key invariants:
 
 ## 2. The Health Score (v3.4)
 
-`packages/db/src/health-score.ts` · `HEALTH_SCORE_VERSION = 'health-score.v3.4'` · doc: `docs/methodologies/health-score.md`, in-app paper `apps/web/app/docs/methodology/content-en.tsx` §2
+`packages/db/src/health-score/` · `HEALTH_SCORE_VERSION = 'health-score.v3.4'` · doc: `docs/methodologies/health-score.md`, in-app paper `apps/web/app/docs/methodology/content-en.tsx` §2
 
 ### 2.1 Composition
 
@@ -118,7 +118,7 @@ Version in force: `health-score.v5.6`. The external-grant award raises the Finan
 
 **Aggregation rule (critical):** faculty/department/university scopes are *not* simple averages of program scores. Since `health-score.v5.0` they carry the same driver sets as programs: per-program-calibrated drivers roll up as the mean of program values, scope-invariant drivers as ratio-of-sums (weighted by program size). Faculty overall ≠ mean of programs, deliberately; measured gap after v5.0 ~3.9 pts. Documented in §2.3 and §8.3 of the in-app paper (`apps/web/app/docs/methodology/content-en.tsx`).
 
-**Org-tier collapse:** v3.4 silently skips the department tier when too many faculty programs have `departmentId=NULL`. `resolveChildren()` in `health-score.ts:269` returns `scope: 'program'` from a faculty scope by default — two-level drill, not three. Hitting `/cockpit?scope=department&scopeId=X` directly still works.
+**Org-tier collapse:** v3.4 silently skips the department tier when too many faculty programs have `departmentId=NULL`. `resolveChildren()` in `health-score/scope-tree.ts` returns `scope: 'program'` from a faculty scope by default — two-level drill, not three. Hitting `/cockpit?scope=department&scopeId=X` directly still works.
 
 ### 2.2 Attractiveness has special cases
 

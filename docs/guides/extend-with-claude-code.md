@@ -139,7 +139,7 @@ You may not need Claude Code for this. The three backbone datasets are spreadshe
 
 **Prompt 7 — Adapt the health-score methodology to our weights**
 
-> Read `docs/methodologies/health-score.md` and `packages/db/src/health-score.ts` (currently `health-score.v4.0`), and `docs/evaluation-pipeline.md` for how the score feeds lifecycle, risk, and BCG classification.
+> Read `docs/methodologies/health-score.md` and `packages/db/src/health-score/` (start with its `README.md`; currently `health-score.v5.6`), and `docs/evaluation-pipeline.md` for how the score feeds lifecycle, risk, and BCG classification.
 >
 > Produce a written analysis first — no code — covering: every dimension and driver, where each driver's data comes from, which drivers return null for us today given which connectors we have wired, and which weights encode a KKU Council judgement rather than a general principle. Flag anything you are unsure about rather than guessing.
 >
