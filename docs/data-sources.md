@@ -27,6 +27,16 @@ and (for PDF connectors) the `PdfDocument.id` it created. The admin
 page at `/admin/data-sources` reads both tables and offers Run-now +
 Pause/Resume + cadence editing.
 
+Each run also keeps a line-by-line log in `ingestion_run_logs`: everything
+the connector writes through `ctx.log`, plus the runner's own step markers
+(health check, fetched / transformed / loaded counts, and the full error stack
+on failure). Open it with the **Log** button on a row of *Recent runs* at
+`/admin/data-sources/<slug>`; while a run is queued or running the modal adds
+new lines every 3 seconds. Lines are written in batches and always before the
+run's final status, are masked for national IDs, emails and phone numbers,
+are capped at 5,000 connector lines per run, and are deleted after 90 days by
+the retention sweep. Runs from before this table existed show "No log captured".
+
 ### Routing rules
 
 - `kind = 'API'` / inputFormat = JSON/XML → fetch parsed object, load to
