@@ -1,5 +1,5 @@
 import { ApiError } from '@kku/shared';
-import type { ImportBatchStatus, Prisma } from '@prisma/client';
+import type { ImportBatchStatus, IngestionRunTrigger, Prisma } from '@prisma/client';
 
 import { prisma } from '../index';
 import { getImportDataset, importDataSourceSlug, listImportDatasets } from './registry';
@@ -170,6 +170,7 @@ export async function listImportBatches(
 export async function startImportRun(
   datasetSlug: string,
   userId: string | null,
+  opts: { trigger?: IngestionRunTrigger; metadata?: Prisma.InputJsonValue } = {},
 ): Promise<{ runId: string }> {
   const sourceSlug = importDataSourceSlug(datasetSlug);
   const source = await prisma.dataSource.findUnique({
@@ -195,8 +196,9 @@ export async function startImportRun(
   const run = await prisma.ingestionRun.create({
     data: {
       dataSourceId: source.id,
-      trigger: 'MANUAL',
+      trigger: opts.trigger ?? 'MANUAL',
       triggeredByUserId: userId,
+      ...(opts.metadata !== undefined ? { metadata: opts.metadata } : {}),
       status: 'RUNNING',
       startedAt: new Date(),
       attempt: 1,
