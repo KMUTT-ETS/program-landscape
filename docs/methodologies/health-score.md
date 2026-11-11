@@ -962,7 +962,9 @@ of three zones:
 
 The cut-offs live in one place, `packages/shared/src/health/zones.ts`
 (`HEALTH_DANGER_BELOW`, `HEALTH_HEALTHY_FROM`, `healthZone()`). A score with
-no value has no zone and keeps each surface's "no score" style.
+no value, or a non-finite one (NaN, ±Infinity), has no zone: no surface
+shows it as danger or healthy, and missing scores keep each surface's
+"no score" style.
 
 The zone is decided on the **unrounded** score. A programme at 64.6 is
 displayed as "65" but sits in "needs attention", in amber. This is
@@ -973,9 +975,11 @@ Moving a cut-off is a presentation change, not a formula change. The scores
 do not move, so it needs no `HEALTH_SCORE_VERSION` bump and no
 `INSTITUTION_REVISION`. Update this section and the in-app methodology
 paper (`apps/web/app/docs/methodology/content-{en,th}.tsx`) with it. The
-cockpit's Council-facing danger-zone count does change with the cut-off,
-and its label prints the cut-off it used ("danger zone (<40 overall)"),
-so the published figure states its own threshold.
+cockpit's Council-facing danger-zone count does change with the cut-off.
+The Council Pack takeaway line and the AI-brief context state the cut-off
+they used ("คะแนนรวม < 40", "danger zone (<40 overall)"); the Council Pack
+KPI table row ("หลักสูตรในเขตอันตราย") does not, so a pack produced after a
+cut-off change should say so where it is presented.
 
 One surface is a known exception: the Executive Landscape's health-by-faculty
 panel bands "fair" from 45, not 40, so a faculty at 40–44 reads "poor" there
