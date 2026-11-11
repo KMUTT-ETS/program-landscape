@@ -3,6 +3,22 @@
 import * as React from 'react';
 import { cn } from '../lib/cn';
 import { HoverTooltip } from '../primitives/tooltip';
+import { healthZone, type HealthZone } from '@kku/shared/health/zones';
+
+// Health-zone colours (cut-offs live in @kku/shared/health/zones). Literal
+// class strings so Tailwind's JIT keeps them.
+const ZONE_TINT: Record<HealthZone, string> = {
+  danger: 'bg-danger-subtle text-danger',
+  attention: 'bg-warning-subtle text-warning',
+  healthy: 'bg-success-subtle text-success',
+};
+const ZONE_TEXT: Record<HealthZone, string> = {
+  danger: 'text-danger',
+  attention: 'text-warning',
+  healthy: 'text-success',
+};
+/** A non-finite score has no zone; show it untinted rather than healthy. */
+const NO_ZONE_CLASS = 'text-text-tertiary';
 
 // Heatmap for the Portfolio Overview Cockpit (prompt 05). Rows are scope
 // children (faculties / departments / programs depending on current
@@ -130,14 +146,8 @@ function Cell({ cell }: { cell: HeatmapCell }) {
       </td>
     );
   }
-  const tone =
-    cell.score < 40 ? 'danger' : cell.score < 65 ? 'warning' : 'success';
-  const tint =
-    tone === 'danger'
-      ? 'bg-danger-subtle text-danger'
-      : tone === 'warning'
-        ? 'bg-warning-subtle text-warning'
-        : 'bg-success-subtle text-success';
+  const zone = healthZone(cell.score);
+  const tint = zone === null ? NO_ZONE_CLASS : ZONE_TINT[zone];
   const tooltipBody = (
     <div className="flex flex-col gap-1.5 text-left">
       <div className="flex items-baseline justify-between gap-3">
@@ -190,7 +200,7 @@ function OverallCell({ cell }: { cell: HeatmapCell }) {
   if (cell.score === null) {
     return <span className="text-text-tertiary">—</span>;
   }
-  const tone =
-    cell.score < 40 ? 'text-danger' : cell.score < 65 ? 'text-warning' : 'text-success';
+  const zone = healthZone(cell.score);
+  const tone = zone === null ? NO_ZONE_CLASS : ZONE_TEXT[zone];
   return <span className={cn('font-tabular font-semibold', tone)}>{Math.round(cell.score)}</span>;
 }
