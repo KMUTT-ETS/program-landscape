@@ -1,6 +1,7 @@
 // A pretend registrar API for workshop session 4. It serves a `pnpm workshop:mock` folder in a shape
 // that is deliberately NOT the import template: snake_case, nested objects, Buddhist-era years, a
 // bearer token, opaque cursors, and a per-student endpoint that has to be aggregated.
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import path from 'node:path';
@@ -10,6 +11,8 @@ import { getImportDataset, validateSheet, type ImportRow, type ParsedSheet } fro
 export interface MockSource {
   classOfferings: readonly ImportRow[];
   enrollment: readonly ImportRow[];
+  /** Where the sections came from: a real class-offerings workbook, or invented from programme-courses. */
+  classOfferingsOrigin?: 'workbook' | 'synthesized';
 }
 
 const DEFAULT_LIMIT = 50;
@@ -21,6 +24,10 @@ function findWorkbook(dir: string, slug: string): string {
   if (!hit)
     throw new Error(`No *-${slug}.xlsx in ${dir}. Is this a "pnpm workshop:mock" output folder?`);
   return path.join(dir, hit);
+}
+
+function hasWorkbook(dir: string, slug: string): boolean {
+  return fs.readdirSync(dir).some((f) => f.endsWith(`-${slug}.xlsx`) && !f.startsWith('~$'));
 }
 
 function readSheet(file: string, sheetName: string): ParsedSheet {
@@ -36,12 +43,88 @@ function readSheet(file: string, sheetName: string): ParsedSheet {
   return { sheetName, headers, rows };
 }
 
-/** Reads and validates the two workbooks the API serves. No database involved. */
+function hash(text: string): number {
+  return createHash('sha256').update(text).digest().readUInt32BE(0);
+}
+
+/** Sheet rows keyed by the dataset's column keys (unvalidated: only used to feed the synthesis). */
+function keyedRows(dir: string, slug: string): Array<Record<string, unknown>> {
+  const d = getImportDataset(slug);
+  const sheet = readSheet(findWorkbook(dir, slug), d.sheetName);
+  return sheet.rows.map((r) =>
+    Object.fromEntries(d.columns.map((c) => [c.key, r[c.header] ?? null])),
+  );
+}
+
+/**
+ * No class-offerings workbook: invent the sections. One row per distinct course per semester (1 and 2),
+ * for the latest academic year in the enrolment sheet. Seats and enrolled counts are invented, but
+ * deterministic (seeded by course code); some sections have fewer than 5 enrolled on purpose.
+ */
+function synthesizeClassOfferings(dir: string, enrollment: readonly ImportRow[]): ImportRow[] {
+  const years = enrollment
+    .map((r) => r.academicYear)
+    .filter((y): y is number => typeof y === 'number');
+  const year = years.length > 0 ? Math.max(...years) : new Date().getUTCFullYear();
+  const programmes = new Map(keyedRows(dir, 'programmes').map((p) => [str(p.code), p]));
+  const courses = new Map<string, Record<string, unknown>>();
+  for (const r of keyedRows(dir, 'programme-courses')) {
+    const code = str(r.courseCode);
+    if (code && !courses.has(code)) courses.set(code, r);
+  }
+  const out: ImportRow[] = [];
+  for (const code of [...courses.keys()].sort()) {
+    const c = courses.get(code) as Record<string, unknown>;
+    const prog = programmes.get(str(c.programmeCode));
+    const credit = typeof c.credits === 'number' ? c.credits : 3;
+    for (const semester of [1, 2]) {
+      const h = hash(`${code}|${year}|${semester}`);
+      const seats = 20 + (h % 6) * 10;
+      const enrolled = h % 5 === 0 ? (h >>> 8) % 5 : Math.min(seats, 5 + ((h >>> 4) % (seats - 4)));
+      out.push({
+        academicYear: year,
+        semester,
+        facultyCode: str(prog?.facultyCode),
+        levelName: str(prog?.level),
+        courseCode: code,
+        section: 1,
+        classId: null,
+        courseNameTh: str(c.courseNameTh),
+        courseNameEn: str(c.courseNameEn),
+        creditTotal: credit,
+        lectureHrsPerWeek: credit,
+        labHrsPerWeek: h % 4 === 0 ? 2 : 0,
+        enrollSeat: Math.min(enrolled, seats),
+        totalSeat: seats,
+      });
+    }
+  }
+  return out;
+}
+
+/** Reads and validates the workbooks the API serves. No database involved. */
 export async function loadMockSource(dir: string): Promise<MockSource> {
-  const slugs = ['class-offerings', 'enrollment-metrics'] as const;
-  const parsed = new Map<string, ParsedSheet>();
-  for (const slug of slugs) {
-    parsed.set(slug, readSheet(findWorkbook(dir, slug), getImportDataset(slug).sheetName));
+  const enrollSheet = readSheet(
+    findWorkbook(dir, 'enrollment-metrics'),
+    getImportDataset('enrollment-metrics').sheetName,
+  );
+  const slugs = hasWorkbook(dir, 'class-offerings')
+    ? (['class-offerings', 'enrollment-metrics'] as const)
+    : (['enrollment-metrics'] as const);
+  if (slugs.length === 1 && !hasWorkbook(dir, 'programme-courses')) {
+    throw new Error(
+      `Neither *-class-offerings.xlsx nor *-programme-courses.xlsx found in ${dir}. Is this a "pnpm workshop:mock" output folder?`,
+    );
+  }
+  const parsed = new Map<string, ParsedSheet>([['enrollment-metrics', enrollSheet]]);
+  if (slugs.length === 2) {
+    parsed.set(
+      'class-offerings',
+      readSheet(
+        findWorkbook(dir, 'class-offerings'),
+        getImportDataset('class-offerings').sheetName,
+      ),
+    );
   }
   // References (faculty codes, programme codes) come from the sibling workbooks in the same folder.
   const references = new Map<string, Set<string>>();
@@ -56,7 +139,7 @@ export async function loadMockSource(dir: string): Promise<MockSource> {
       references.set(ref.dataset, new Set(sheet.rows.map((r) => String(r[header] ?? ''))));
     }
   }
-  const out: ImportRow[][] = [];
+  const validated = new Map<string, ImportRow[]>();
   for (const slug of slugs) {
     const result = validateSheet(getImportDataset(slug), parsed.get(slug) as ParsedSheet, {
       references,
@@ -69,9 +152,15 @@ export async function loadMockSource(dir: string): Promise<MockSource> {
         `${slug}: ${result.totalErrors} validation errors, first: ${JSON.stringify(result.errors[0])}`,
       );
     }
-    out.push([...result.rows]);
+    validated.set(slug, [...result.rows]);
   }
-  return { classOfferings: out[0] as ImportRow[], enrollment: out[1] as ImportRow[] };
+  const enrollment = validated.get('enrollment-metrics') as ImportRow[];
+  const given = validated.get('class-offerings');
+  return {
+    classOfferings: given ?? synthesizeClassOfferings(dir, enrollment),
+    enrollment,
+    classOfferingsOrigin: given ? 'workbook' : 'synthesized',
+  };
 }
 
 function num(v: unknown): number {

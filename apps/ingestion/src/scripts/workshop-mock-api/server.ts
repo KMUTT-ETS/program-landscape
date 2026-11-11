@@ -32,6 +32,11 @@ async function main(): Promise<void> {
     console.log(`Mock institution API: http://${values.host}:${actual}/api/v1`);
     console.log(`Token: ${token}`);
     console.log(
+      source.classOfferingsOrigin === 'synthesized'
+        ? 'Sections: no class-offerings workbook, so they were INVENTED from programme-courses (seats and enrolled counts are made up).'
+        : 'Sections: read from the class-offerings workbook.',
+    );
+    console.log(
       `${source.classOfferings.length} class sections, ${source.enrollment.length} intake rows. Ctrl+C to stop.`,
     );
   });

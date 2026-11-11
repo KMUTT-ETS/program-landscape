@@ -24,3 +24,9 @@ Paged routes return `next_cursor` (an opaque string, `null` on the last page). `
 
 **Years are Buddhist era (2568), not Common Era.** Convert them. Student references (`S-1`, ...)
 are synthetic; the seats `enrolled` count is the number of enrolment records for that section.
+
+**Where the sections come from.** If the folder has a `*-class-offerings.xlsx` the server serves it.
+A plain `pnpm workshop:mock` folder has none, so the server invents sections from
+`*-programme-courses.xlsx`: one section per course per semester (1 and 2) of the latest year in the
+enrolment sheet. Those seats and enrolled counts are made up (deterministic, and a few sections
+have fewer than 5 enrolled). The server prints which source it used at start-up.

@@ -1,8 +1,15 @@
+import fs from 'node:fs';
 import http from 'node:http';
+import path from 'node:path';
 import type { AddressInfo } from 'node:net';
-import type { ImportRow } from '@kku/db';
+import { getImportDataset, type ImportRow } from '@kku/db';
+import * as XLSX from 'xlsx';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buildRoutes, type MockSource } from '../src/scripts/workshop-mock-api/routes';
+import {
+  buildRoutes,
+  loadMockSource,
+  type MockSource,
+} from '../src/scripts/workshop-mock-api/routes';
 
 const TOKEN = 'test-token';
 const PROGRAMMES = ['P-A', 'P-B', 'P-C'];
@@ -153,5 +160,88 @@ describe('workshop mock API', () => {
   it('answers 404 for unknown paths and terms', async () => {
     expect((await get('/nothing')).status).toBe(404);
     expect((await get('/terms/2500/1/sections')).status).toBe(404);
+  });
+});
+
+describe('loadMockSource without a class-offerings workbook', () => {
+  const tmp = path.join(
+    '/tmp/claude-1000/-home-chun-git-repos-program-landscape/9edeb45d-df10-4874-8257-05e44ff7f6f7/scratchpad',
+    'mock-api-synth',
+  );
+
+  function write(file: string, slug: string, rows: Array<Record<string, string | number>>): void {
+    const d = getImportDataset(slug);
+    const h = (k: string): string => d.columns.find((c) => c.key === k)?.header as string;
+    const mapped = rows.map((r) =>
+      Object.fromEntries(Object.entries(r).map(([k, v]) => [h(k), v])),
+    );
+    const ws = XLSX.utils.json_to_sheet(mapped);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, d.sheetName);
+    XLSX.writeFile(wb, path.join(tmp, file));
+  }
+
+  beforeAll(() => {
+    fs.rmSync(tmp, { recursive: true, force: true });
+    fs.mkdirSync(tmp, { recursive: true });
+    write('01-faculties.xlsx', 'faculties', [{ code: 'F1', nameTh: 'คณะ', nameEn: 'Faculty' }]);
+    write('03-programmes.xlsx', 'programmes', [
+      { code: 'P-A', nameTh: 'หลักสูตร', nameEn: 'Prog', facultyCode: 'F1', level: 'Bachelor' },
+    ]);
+    write('04-enrollment-metrics.xlsx', 'enrollment-metrics', [
+      { programmeCode: 'P-A', academicYear: 2023, applications: 10, admitted: 8, enrolled: 6 },
+      { programmeCode: 'P-A', academicYear: 2024, applications: 10, admitted: 8, enrolled: 6 },
+    ]);
+    write('13-programme-courses.xlsx', 'programme-courses', [
+      {
+        programmeCode: 'P-A',
+        courseCode: 'X101',
+        courseNameTh: 'ก',
+        courseNameEn: 'Alpha',
+        credits: 3,
+        category: 'Core',
+      },
+      {
+        programmeCode: 'P-A',
+        courseCode: 'X102',
+        courseNameTh: 'ข',
+        courseNameEn: 'Beta',
+        credits: 2,
+        category: 'Core',
+      },
+    ]);
+  });
+  afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
+
+  it('loadMockSource synthesizes sections from programme-courses when no class-offerings workbook exists', async () => {
+    const src = await loadMockSource(tmp);
+    expect(src.classOfferingsOrigin).toBe('synthesized');
+    expect(src.classOfferings).toHaveLength(4);
+    expect(src.classOfferings.every((r) => r.academicYear === 2024 && r.facultyCode === 'F1')).toBe(
+      true,
+    );
+    expect(src.classOfferings.map((r) => r.semester).sort()).toEqual([1, 1, 2, 2]);
+    expect(
+      src.classOfferings.every(
+        (r) => Number(r.enrollSeat) >= 0 && Number(r.enrollSeat) <= Number(r.totalSeat),
+      ),
+    ).toBe(true);
+    expect(src.classOfferings.find((r) => r.courseCode === 'X102')?.creditTotal).toBe(2);
+  });
+
+  it('synthesis is deterministic', async () => {
+    expect((await loadMockSource(tmp)).classOfferings).toEqual(
+      (await loadMockSource(tmp)).classOfferings,
+    );
+  });
+
+  it('fails clearly when neither workbook exists', async () => {
+    const empty = path.join(tmp, 'empty');
+    fs.mkdirSync(empty);
+    fs.copyFileSync(
+      path.join(tmp, '04-enrollment-metrics.xlsx'),
+      path.join(empty, '04-enrollment-metrics.xlsx'),
+    );
+    await expect(loadMockSource(empty)).rejects.toThrow(/class-offerings.*programme-courses/);
   });
 });
