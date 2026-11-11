@@ -3583,11 +3583,41 @@ model IngestionRun {
   admissionCampaignStats        AdmissionCampaignStat[]
   dqStudentCubes                DqStudentCube[]
   dqModuleCubes                 DqModuleCube[]
+  // Per-run log lines (ctx.log + runner step markers). Not provenance —
+  // read only by the admin run-log modal.
+  logs                          IngestionRunLog[]
 
   @@index([dataSourceId, createdAt])
   @@index([status])
   @@index([createdAt])
   @@map("ingestion_runs")
+}
+
+enum IngestionRunLogLevel {
+  INFO
+  WARN
+  ERROR
+}
+
+// One line of a connector run's log. Written by ConnectorRunner, which
+// wraps ConnectorContext.log and adds its own step markers; read by the
+// "Log" modal on /admin/data-sources/<slug>. Capped per run by the runner
+// (MAX_LOG_LINES) and pruned at 90 days by the PDPA retention sweep.
+model IngestionRunLog {
+  id             String               @id @default(cuid())
+  ingestionRunId String               @map("ingestion_run_id")
+  // Monotonic per run, from 1. The modal polls with ?afterSeq=N.
+  seq            Int
+  ts             DateTime             @default(now())
+  level          IngestionRunLogLevel
+  message        String               @db.Text
+  meta           Json?
+
+  run IngestionRun @relation(fields: [ingestionRunId], references: [id], onDelete: Cascade)
+
+  @@unique([ingestionRunId, seq])
+  @@index([ts])
+  @@map("ingestion_run_logs")
 }
 
 // Every call to PdfGenerationService writes a row here — success or

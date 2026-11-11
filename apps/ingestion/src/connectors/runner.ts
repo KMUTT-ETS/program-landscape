@@ -8,6 +8,7 @@ import type {
 } from '@kku/shared';
 import { OrganizationNotConfiguredError, connectorModeEnvKey, mockRunsAllowed } from '@kku/shared';
 import { NonRetryableError } from './base';
+import { RunLog, type RunLogWriter } from './run-log';
 
 /** A fresh install with no organisation profile: retrying cannot help until an admin fills it in. */
 export function isOrganizationNotConfigured(err: unknown): boolean {
@@ -52,7 +53,11 @@ export interface RunOutcome {
 export class ConnectorRunner {
   private readonly logger = new Logger('ConnectorRunner');
 
-  constructor(private readonly registry: Map<string, Connector>) {}
+  // `logWriter` is injectable for tests; production writes to ingestion_run_logs.
+  constructor(
+    private readonly registry: Map<string, Connector>,
+    private readonly logWriter?: RunLogWriter,
+  ) {}
 
   async run(opts: RunOptions): Promise<RunOutcome> {
     const connector = this.registry.get(opts.dataSourceSlug);
@@ -94,6 +99,11 @@ export class ConnectorRunner {
             'and its connection settings, or load the matching spreadsheet dataset.',
         },
       });
+      const skipLog = new RunLog(skipped.id, this.logWriter);
+      skipLog.add('WARN', `Skipped (MOCK_NOT_ALLOWED): ${skipped.errorMessage ?? ''}`, undefined, {
+        force: true,
+      });
+      await skipLog.close();
       return { runId: skipped.id, status: 'SKIPPED', recordsLoaded: 0, recordsFailed: 0 };
     }
 
@@ -177,6 +187,7 @@ export class ConnectorRunner {
         attempt: opts.attempt ?? 1,
       },
     });
+    const runLog = new RunLog(run.id, this.logWriter);
 
     const ctx: ConnectorContext = {
       runId: run.id,
@@ -187,18 +198,40 @@ export class ConnectorRunner {
         baseUrl: dataSource.baseUrl,
         lastSyncedAt: dataSource.lastSyncedAt,
       },
+      // Console as before, plus the per-run log the admin modal reads.
       log: {
-        info: (msg, meta) => this.logger.log(`[${opts.dataSourceSlug}] ${msg}` + (meta ? ` ${JSON.stringify(meta)}` : '')),
-        warn: (msg, meta) => this.logger.warn(`[${opts.dataSourceSlug}] ${msg}` + (meta ? ` ${JSON.stringify(meta)}` : '')),
-        error: (msg, meta) => this.logger.error(`[${opts.dataSourceSlug}] ${msg}` + (meta ? ` ${JSON.stringify(meta)}` : '')),
+        info: (msg, meta) => {
+          this.logger.log(`[${opts.dataSourceSlug}] ${msg}` + (meta ? ` ${JSON.stringify(meta)}` : ''));
+          runLog.add('INFO', msg, meta);
+        },
+        warn: (msg, meta) => {
+          this.logger.warn(`[${opts.dataSourceSlug}] ${msg}` + (meta ? ` ${JSON.stringify(meta)}` : ''));
+          runLog.add('WARN', msg, meta);
+        },
+        error: (msg, meta) => {
+          this.logger.error(`[${opts.dataSourceSlug}] ${msg}` + (meta ? ` ${JSON.stringify(meta)}` : ''));
+          runLog.add('ERROR', msg, meta);
+        },
       },
     };
 
     const startedAt = Date.now();
+    const elapsed = () => `${((Date.now() - startedAt) / 1000).toFixed(1)}s`;
+    // Runner step markers bypass the per-run line cap.
+    const step = (level: 'INFO' | 'WARN' | 'ERROR', msg: string, meta?: Record<string, unknown>) =>
+      runLog.add(level, `[runner] ${msg}`, meta, { force: true });
+
+    step('INFO', `Run started — trigger ${opts.trigger}, attempt ${opts.attempt ?? 1}`, {
+      connector: connector.slug,
+      mocked: connector.mocked,
+      since: dataSource.lastSyncedAt?.toISOString() ?? null,
+    });
 
     try {
       const health = await connector.healthCheck(ctx);
       if (!health.ok) {
+        step('WARN', `Health check failed — run skipped: ${health.message ?? 'connector reported unhealthy'}`);
+        await runLog.flush();
         await prisma.ingestionRun.update({
           where: { id: run.id },
           data: {
@@ -212,16 +245,30 @@ export class ConnectorRunner {
         return { runId: run.id, status: 'SKIPPED', recordsLoaded: 0, recordsFailed: 0 };
       }
 
+      step('INFO', `Health check OK${health.message ? ` — ${health.message}` : ''}`);
+
+      step('INFO', 'Fetching');
       const rawRecords = await connector.fetch(ctx, dataSource.lastSyncedAt ?? undefined);
+      step('INFO', `Fetched ${rawRecords.length.toLocaleString('en-US')} raw records (${elapsed()})`);
 
       const normalizedBatches: NormalizedRecord[][] = [];
       for (const raw of rawRecords) {
         normalizedBatches.push(await connector.transform(ctx, raw));
       }
       const normalized = normalizedBatches.flat();
+      step('INFO', `Transformed into ${normalized.length.toLocaleString('en-US')} records (${elapsed()})`);
 
+      step('INFO', 'Loading');
       const result = await connector.load(ctx, normalized);
+      step(
+        result.recordsFailed > 0 ? 'WARN' : 'INFO',
+        `Loaded ${result.recordsLoaded.toLocaleString('en-US')}, failed ${result.recordsFailed.toLocaleString('en-US')} (${elapsed()})`,
+      );
 
+      // Every line is stored BEFORE the status turns terminal, so the modal
+      // (which reads status first, then lines) never stops polling early.
+      step('INFO', `Run succeeded in ${elapsed()}`);
+      await runLog.flush();
       await prisma.ingestionRun.update({
         where: { id: run.id },
         data: {
@@ -255,6 +302,13 @@ export class ConnectorRunner {
       if (err instanceof NonRetryableError) code = err.code;
       else if (orgMissing) code = 'ORG_NOT_CONFIGURED';
 
+      step(
+        'ERROR',
+        `Run failed after ${elapsed()} — ${code}${isNonRetryable ? ' (not retried)' : ' (BullMQ will retry)'}: ` +
+          (err instanceof Error && err.stack ? err.stack : message),
+      );
+      await runLog.flush();
+
       await prisma.ingestionRun.update({
         where: { id: run.id },
         data: {
@@ -271,6 +325,8 @@ export class ConnectorRunner {
         return { runId: run.id, status: 'FAILED', recordsLoaded: 0, recordsFailed: 0 };
       }
       throw err;
+    } finally {
+      await runLog.close();
     }
   }
 }

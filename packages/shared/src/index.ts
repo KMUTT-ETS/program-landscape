@@ -3,6 +3,9 @@ export * from './api';
 export * from './pdf';
 export * from './markitdown';
 export * from './storage';
+// Also reachable as `@kku/shared/ingestion/run-log` — the run-log modal on
+// /admin/data-sources is a client component and MUST use that subpath, not
+// this barrel (which pulls node:crypto via './pdf' and './ingestion/kmitl-token').
 export * from './ingestion';
 export * from './pdf-intake';
 export * from './ai';

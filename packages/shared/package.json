@@ -34,6 +34,7 @@
     "./src/usage": "./src/usage/index.ts",
     "./demand/sources": "./src/demand/sources.ts",
     "./src/demand/sources": "./src/demand/sources.ts",
+    "./ingestion/run-log": "./src/ingestion/run-log.ts",
     "./job108": "./src/job108/index.ts",
     "./src/job108": "./src/job108/index.ts",
     "./package.json": "./package.json"
@@ -58,5 +59,6 @@
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"
   },
+  "//exports-ingestion-run-log": "`./ingestion/run-log` is client-safe the same way `./demand/sources` is: pure Zod schemas + types + the one pure `isRunLogFinal` predicate, no node:* and no SDK imports. The run-log modal on /admin/data-sources/<slug> (`run-log-dialog.tsx`, a 'use client' component) needs `isRunLogFinal` at RUNTIME — a value, not a type — so it cannot take it from the root barrel, which re-exports './pdf' and './ingestion/kmitl-token', both of which import node:crypto. No deep `src/` spelling is listed: only apps/web imports this subpath, and it resolves via bundler resolution, which reads this map.",
   "//exports-jobthai": "`./jobthai/parse-sheet` follows the same rule as `./scholar/search-parse`: published as a subpath precisely so it is NOT in any barrel. It depends on `xlsx`, a large server-only spreadsheet parser, and nothing client-reachable may pull it. Keep it out of src/jobthai/index.ts. Both the short and the deep `src/` spelling are listed for the same measured reason recorded above: apps/api and apps/ingestion typecheck under moduleResolution 'node', which ignores this map and needs the deep path, while Node at runtime honours the map and refuses a deep path that is not a key. `./jobthai` itself is pure (no xlsx) but is also kept off the root barrel, so the boundary stays a rule rather than a per-import judgement."
 }

@@ -20,6 +20,7 @@ The three record types:
 - `RawRecord` — `{ externalId, data: unknown, sourceTimestamp }`. `externalId` is what dedup keys on across re-runs.
 - `NormalizedRecord` — `{ target, externalId, payload, freshnessDate, sourcePdfId? }`. `target` names the destination table.
 - `LoadResult` — `{ recordsFetched, recordsLoaded, recordsFailed, metadata }`. The `metadata` blob is surfaced in `/admin/data-sources/<slug>` and is where you put unmapped-code samples, distribution counts, and anything an analyst needs for triage.
+- `ctx.log.info/warn/error(msg, meta?)` — log through this, never `console`. The runner stores every line (plus its own `[runner]` step markers and the failure stack) in `ingestion_run_logs`; admins read it from the **Log** button on each run in `/admin/data-sources/<slug>`, live while the run is going. Lines are masked for national IDs, emails and phone numbers, capped at 5,000 per run and deleted after 90 days — but still never log names or whole rows.
 
 ## What a real connector looks like
 

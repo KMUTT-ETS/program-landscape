@@ -90,6 +90,7 @@ All app data is stored on KKU-owned infrastructure within Thailand. **Two extern
   `RAW_RETENTION_DAYS` in `packages/db/src/usage.ts` — the same constant the
   usage reader switches on, deliberately not a second copy.
 - `ApiRequestLog` table: **365 days**, then hard-deleted. Never stores the citizen id, its hash or the email a caller sent — only the staff record matched.
+- `IngestionRunLog` table (connector run log lines): **90 days**, then hard-deleted. Masked at write time for Thai national IDs (checksum-valid), emails and phone numbers; upstream error text may still carry other values, which is why the window is short. Admin-grade read only.
 
 Retention is enforced by `scripts/pdpa/retention-sweep.ts` (`--dry-run`
 reports without writing); the windows live in `packages/db/src/retention.ts`

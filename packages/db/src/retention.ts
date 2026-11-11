@@ -6,6 +6,7 @@
 //   ScholarFetchArchive  — full-row retention 90 days
 //   ScholarBindAttempt   — free-text redaction at 90 days; row kept
 //   ApiRequestLog        — full-row retention 365 days (external API call log)
+//   IngestionRunLog      — full-row retention 90 days (connector run log lines)
 //   PageView             — rolled into PageViewDaily at 120 days, then deleted
 //
 // The page-view rule is the only one that is not a plain delete or redact: the
@@ -64,6 +65,8 @@ export interface RetentionWindowsDays {
   pageViewRawRetention: number;
   /** Hard-delete ApiRequestLog rows (external API call log) older than this. */
   apiRequestLogRetention: number;
+  /** Hard-delete IngestionRunLog rows (connector run log lines) older than this. */
+  ingestionRunLogRetention: number;
 }
 
 // Defaults from docs/pdpa.md §retention.
@@ -78,6 +81,7 @@ export const DEFAULT_WINDOWS: RetentionWindowsDays = {
   // disagreed the gap would be read as days with no traffic.
   pageViewRawRetention: RAW_RETENTION_DAYS,
   apiRequestLogRetention: 365,
+  ingestionRunLogRetention: 90,
 };
 
 /** Written over a free-text column once its row passes the retention window.
@@ -107,6 +111,7 @@ export interface RetentionCutoffs {
    *  only days strictly before it are rolled up and deleted. */
   pageViewRollupBefore: Date;
   apiRequestLogDeleteBefore: Date;
+  ingestionRunLogDeleteBefore: Date;
 }
 
 export function computeRetentionCutoffs(
@@ -126,6 +131,7 @@ export function computeRetentionCutoffs(
     ),
     pageViewRollupBefore: new Date(now.getTime() - ms(windows.pageViewRawRetention)),
     apiRequestLogDeleteBefore: new Date(now.getTime() - ms(windows.apiRequestLogRetention)),
+    ingestionRunLogDeleteBefore: new Date(now.getTime() - ms(windows.ingestionRunLogRetention)),
   };
 }
 
@@ -168,6 +174,9 @@ export interface RetentionPrismaLike extends RollupPrismaLike {
   apiRequestLog: {
     deleteMany(args: { where: Prisma.ApiRequestLogWhereInput }): Promise<{ count: number }>;
   };
+  ingestionRunLog: {
+    deleteMany(args: { where: Prisma.IngestionRunLogWhereInput }): Promise<{ count: number }>;
+  };
 }
 
 export interface RetentionResult {
@@ -178,6 +187,7 @@ export interface RetentionResult {
   scholarArchiveDeleted: number;
   scholarBindAttemptTextRedacted: number;
   apiRequestLogDeleted: number;
+  ingestionRunLogDeleted: number;
   /** Bangkok days folded into page_view_daily. */
   pageViewDaysRolledUp: number;
   /** Raw page_views rows deleted once their day was rolled up. */
@@ -216,6 +226,7 @@ export async function runRetentionSweep(opts: {
       scholarArchiveDeleted: 0,
       scholarBindAttemptTextRedacted: 0,
       apiRequestLogDeleted: 0,
+      ingestionRunLogDeleted: 0,
       pageViewDaysRolledUp: 0,
       pageViewRowsDeleted: 0,
       dryRun: true,
@@ -279,6 +290,15 @@ export async function runRetentionSweep(opts: {
     })
   ).count;
 
+  // 5b. Connector run log lines — a plain hard delete by age. Operational
+  //     debugging aid only; masked at write time but may still name people
+  //     inside upstream error text, so it is kept short.
+  const ingestionRunLogDeleted = (
+    await prisma.ingestionRunLog.deleteMany({
+      where: { ts: { lt: cutoffs.ingestionRunLogDeleteBefore } },
+    })
+  ).count;
+
   // 6. Page views. Unlike every rule above it, this one is not purely
   //    destructive: each Bangkok day past the window is folded into
   //    page_view_daily and only then deleted, inside one transaction per day,
@@ -297,6 +317,7 @@ export async function runRetentionSweep(opts: {
     scholarArchiveDeleted,
     scholarBindAttemptTextRedacted,
     apiRequestLogDeleted,
+    ingestionRunLogDeleted,
     pageViewDaysRolledUp: pageViews.daysRolledUp,
     pageViewRowsDeleted: pageViews.rowsDeleted,
     // Absent on a clean run, so the report only carries the two keys when

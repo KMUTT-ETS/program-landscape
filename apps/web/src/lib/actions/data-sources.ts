@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { RunLogResponseSchema, type RunLogResponse } from '@kku/shared';
 import { apiFetch } from '@/lib/api-client';
 
 // Server actions used by the /admin/data-sources page. Each one:
@@ -51,6 +52,24 @@ export async function bulkStatusAction(
     });
     revalidatePath('/admin/data-sources');
     return { ok: true, updated: r.updated };
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
+}
+
+// Read-only: one page of a run's connector log for the run-log modal on
+// /admin/data-sources/<slug>. The modal calls this every few seconds with
+// the last seq it has while the run is QUEUED/RUNNING. No revalidate — it
+// changes nothing.
+export async function fetchRunLogAction(
+  runId: string,
+  afterSeq: number,
+): Promise<{ ok: true; data: RunLogResponse } | { ok: false; message: string }> {
+  try {
+    const raw = await apiFetch<unknown>(
+      `/data-sources/runs/${encodeURIComponent(runId)}/logs?afterSeq=${Math.max(0, Math.floor(afterSeq))}`,
+    );
+    return { ok: true, data: RunLogResponseSchema.parse(raw) };
   } catch (e) {
     return { ok: false, message: (e as Error).message };
   }

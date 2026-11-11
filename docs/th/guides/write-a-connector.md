@@ -20,6 +20,7 @@ load(ctx, normalized) → LoadResult       // write, idempotently
 - `RawRecord` — `{ externalId, data: unknown, sourceTimestamp }` โดย `externalId` คือคีย์ที่ใช้ตัดข้อมูลซ้ำข้ามการรันแต่ละครั้ง
 - `NormalizedRecord` — `{ target, externalId, payload, freshnessDate, sourcePdfId? }` โดย `target` ระบุตารางปลายทาง
 - `LoadResult` — `{ recordsFetched, recordsLoaded, recordsFailed, metadata }` ก้อน `metadata` จะไปโผล่ที่ `/admin/data-sources/<slug>` และเป็นที่สำหรับใส่ตัวอย่างรหัสที่แปลงไม่ได้ จำนวนแถวแยกตามการกระจายตัว และอะไรก็ตามที่นักวิเคราะห์ต้องใช้คัดกรอง
+- `ctx.log.info/warn/error(msg, meta?)` — เขียน log ผ่านตัวนี้เสมอ ห้ามใช้ `console` ตัวรันจะเก็บทุกบรรทัด (รวมเครื่องหมายขั้นตอน `[runner]` และ stack ของข้อผิดพลาด) ไว้ในตาราง `ingestion_run_logs` ผู้ดูแลเปิดดูได้จากปุ่ม **Log** ของแต่ละการรันที่ `/admin/data-sources/<slug>` และเห็นแบบสดระหว่างที่การรันยังทำงานอยู่ ระบบจะปิดบังเลขประจำตัวประชาชน อีเมล และเบอร์โทรศัพท์ จำกัดไว้ที่ 5,000 บรรทัดต่อการรัน และลบทิ้งเมื่อครบ 90 วัน — แต่ถึงอย่างนั้นก็ห้าม log ชื่อบุคคลหรือข้อมูลทั้งแถว
 
 ## connector จริงหน้าตาเป็นอย่างไร
 
