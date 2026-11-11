@@ -46,6 +46,11 @@ const DIMENSION_ORDER = [
   { key: 'relevance', label: 'Rel' },
 ] as const;
 
+// Deliberate exception to the shared health zones (@kku/shared/health/zones,
+// < 40 danger / 40–65 needs attention / ≥ 65 healthy): this dashboard bands
+// "fair" from 45, so a score of 40–44 reads "poor" here but "needs
+// attention" in the cockpit. Kept by owner decision on 2026-11-11; switch to
+// healthZone() if the two should agree.
 function band(score: number | null): 'good' | 'fair' | 'poor' | 'unknown' {
   if (score === null) return 'unknown';
   if (score >= 65) return 'good';

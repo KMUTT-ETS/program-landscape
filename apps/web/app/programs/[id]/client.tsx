@@ -28,6 +28,7 @@ import {
 // as the `dqModules` prop. Nothing here reaches into `@kku/shared` or
 // `@kku/db` at runtime.
 import type { ApiMeta, DqModule, SessionUser } from '@kku/shared';
+import { healthZone, type HealthZone } from '@kku/shared/health/zones';
 import {
   regenerateNarrativeAction,
   submitDisagreementAction,
@@ -670,16 +671,7 @@ function HeaderSection({
                     Overall
                   </span>
                   <span
-                    className={
-                      'font-tabular text-3xl font-semibold ' +
-                      (h.overall.score === null
-                        ? 'text-text-tertiary'
-                        : h.overall.score < 40
-                          ? 'text-danger'
-                          : h.overall.score < 65
-                            ? 'text-warning'
-                            : 'text-success')
-                    }
+                    className={'font-tabular text-3xl font-semibold ' + scoreToneClass(h.overall.score)}
                   >
                     {h.overall.score === null ? '—' : Math.round(h.overall.score)}
                   </span>
@@ -5060,11 +5052,16 @@ function humaniseDriverLabel(label: string): string {
   return DRIVER_LABEL_LOOKUP[label] ?? label.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+// Health-zone text colours (cut-offs live in @kku/shared/health/zones).
+const ZONE_TEXT: Record<HealthZone, string> = {
+  danger: 'text-danger',
+  attention: 'text-warning',
+  healthy: 'text-success',
+};
+
 function scoreToneClass(score: number | null): string {
-  if (score === null) return 'text-text-tertiary';
-  if (score < 40) return 'text-danger';
-  if (score < 65) return 'text-warning';
-  return 'text-success';
+  const zone = healthZone(score);
+  return zone === null ? 'text-text-tertiary' : ZONE_TEXT[zone];
 }
 
 interface HealthBreakdownRow {

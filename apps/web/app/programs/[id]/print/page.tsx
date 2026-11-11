@@ -1,6 +1,20 @@
 import { notFound, redirect } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import type { SessionUser } from '@kku/shared';
+import { healthZone, type HealthZone } from '@kku/shared/health/zones';
+
+// Health-zone colours (cut-offs live in @kku/shared/health/zones). Literal
+// class strings so Tailwind's JIT keeps them.
+const ZONE_TEXT: Record<HealthZone, string> = {
+  danger: 'text-danger',
+  attention: 'text-warning',
+  healthy: 'text-success',
+};
+const ZONE_FILL: Record<HealthZone, string> = {
+  danger: 'bg-danger/65',
+  attention: 'bg-warning/65',
+  healthy: 'bg-success/65',
+};
 import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
 import { brandingForRequest } from '@/lib/branding';
@@ -331,14 +345,8 @@ function HeroKpiStrip({
   outcomes: DeepDiveOutcomes | null;
 }) {
   const overall = overview.health?.overall.score ?? null;
-  const overallTone =
-    overall === null
-      ? 'text-text-tertiary'
-      : overall < 40
-        ? 'text-danger'
-        : overall < 65
-          ? 'text-warning'
-          : 'text-success';
+  const overallZone = healthZone(overall);
+  const overallTone = overallZone === null ? 'text-text-tertiary' : ZONE_TEXT[overallZone];
   const verdictTone: Record<string, string> = {
     SUNSET: 'text-warning',
     STABLE: 'text-text-secondary',
@@ -589,14 +597,8 @@ function HealthDimRow({
     : never;
 }) {
   const score = cell.score;
-  const tone =
-    score === null
-      ? 'bg-border-subtle/40'
-      : score < 40
-        ? 'bg-danger/65'
-        : score < 65
-          ? 'bg-warning/65'
-          : 'bg-success/65';
+  const zone = healthZone(score);
+  const tone = zone === null ? 'bg-border-subtle/40' : ZONE_FILL[zone];
   const populated = cell.drivers.filter((d) => d.value !== null);
   return (
     <div className="rounded border border-border-subtle bg-surface-1 p-2.5">

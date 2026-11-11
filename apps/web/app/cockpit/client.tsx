@@ -36,6 +36,14 @@ import {
   Wallet,
 } from 'lucide-react';
 import type { SessionUser } from '@kku/shared';
+import { healthZone, type HealthZone } from '@kku/shared/health/zones';
+
+// Health-zone text colours (cut-offs live in @kku/shared/health/zones).
+const ZONE_TEXT: Record<HealthZone, string> = {
+  danger: 'text-danger',
+  attention: 'text-warning',
+  healthy: 'text-success',
+};
 import Link from 'next/link';
 import {
   FilterField,
@@ -679,7 +687,8 @@ function RollupTable({
       cell: ({ row }) => {
         const s = row.original.overall.score;
         if (s === null) return <span className="text-text-tertiary">—</span>;
-        const tone = s < 40 ? 'text-danger' : s < 65 ? 'text-warning' : 'text-success';
+        const zone = healthZone(s);
+        const tone = zone === null ? 'text-text-tertiary' : ZONE_TEXT[zone];
         return <span className={`font-tabular font-semibold ${tone}`}>{s.toFixed(0)}</span>;
       },
     },

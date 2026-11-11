@@ -1,5 +1,6 @@
 import { ChartFrame, PortfolioTreemap, type TreemapGroup } from '@kku/ui';
 import { round1, type ShapeChapter } from '@kku/db';
+import { HEALTH_DANGER_BELOW, HEALTH_HEALTHY_FROM } from '@kku/shared/health/zones';
 import { fetchChapter } from './fetch-chapter';
 import { ChapterHeader, ChapterUnavailable, UnplottedList } from './chapter-header';
 import { AtlasTable } from './atlas-table';
@@ -38,7 +39,7 @@ export async function ShapeSection({ scopeQuery, children }: { scopeQuery: strin
       <ChapterHeader {...HEAD} answer={data.answer} />
       <ChartFrame
         title="Portfolio treemap"
-        description="Faculty → programme. Area = currently active students; colour = health score (< 40 danger, 40–65 needs attention, ≥ 65 healthy; hatched = no score). Click a faculty to zoom in, a programme to open its Deep-Dive."
+        description={`Faculty → programme. Area = currently active students; colour = health score (< ${HEALTH_DANGER_BELOW} danger, ${HEALTH_DANGER_BELOW}–${HEALTH_HEALTHY_FROM} needs attention, ≥ ${HEALTH_HEALTHY_FROM} healthy; hatched = no score). Click a faculty to zoom in, a programme to open its Deep-Dive.`}
         meta={meta}
         height={470}
         chart={<PortfolioTreemap nodes={nodes} height={420} unit="active students" emptyLabel="No programme in this scope has active-student data." />}
