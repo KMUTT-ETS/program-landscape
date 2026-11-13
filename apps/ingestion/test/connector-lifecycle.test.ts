@@ -63,6 +63,7 @@ process.env.MINIO_ACCESS_KEY = 'test';
 process.env.MINIO_SECRET_KEY = 'test';
 process.env.MINIO_BUCKET_PDF_RAW = 'pdf-raw';
 
+import { NonRetryableError } from '../src/connectors/base';
 import { ConnectorRunner } from '../src/connectors/runner';
 import { KkuRegistryConnector } from '../src/connectors/sources/kku-connectors';
 import { NsoConnector } from '../src/connectors/sources/pdf-connectors';
@@ -207,5 +208,32 @@ describe('ConnectorRunner — end-to-end (mocked prisma)', () => {
     };
     expect(updateCall.data.pdfDocumentId).toBe('pdf-999');
     expect(outcome.status).toBe('SUCCEEDED');
+  });
+
+  it('stores the details of a NonRetryableError in the run metadata on failure', async () => {
+    dataSourceFindUnique.mockResolvedValue(fakeDataSourceRow('kku-registry'));
+    const connector = new KkuRegistryConnector();
+    const details = { datasets: { 'class-offerings': { status: 'REFUSED' } }, totalErrors: 1 };
+    vi.spyOn(connector, 'load').mockRejectedValue(new NonRetryableError('VALIDATION', 'bad', details));
+    const runner = new ConnectorRunner(new Map([[connector.slug, connector]]));
+
+    const outcome = await runner.run({ dataSourceSlug: 'kku-registry', trigger: 'MANUAL' });
+
+    expect(outcome.status).toBe('FAILED');
+    const data = (runUpdate.mock.calls.at(-1)?.[0] as { data: Record<string, unknown> }).data;
+    expect(data.errorCode).toBe('VALIDATION');
+    expect(data.metadata).toEqual(details);
+  });
+
+  it('leaves metadata out of the failure update when the error has no details', async () => {
+    dataSourceFindUnique.mockResolvedValue(fakeDataSourceRow('kku-registry'));
+    const connector = new KkuRegistryConnector();
+    vi.spyOn(connector, 'load').mockRejectedValue(new NonRetryableError('CONFIG', 'bad'));
+    const runner = new ConnectorRunner(new Map([[connector.slug, connector]]));
+
+    await runner.run({ dataSourceSlug: 'kku-registry', trigger: 'MANUAL' });
+
+    const data = (runUpdate.mock.calls.at(-1)?.[0] as { data: Record<string, unknown> }).data;
+    expect('metadata' in data).toBe(false);
   });
 });

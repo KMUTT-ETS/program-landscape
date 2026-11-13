@@ -4,3 +4,5 @@ export * from './web-scrape-connector';
 export * from './csv-file-connector';
 export * from './pdf-upload-connector';
 export * from './manual-entry-connector';
+export * from './api-client';
+export * from './dataset-api-connector';

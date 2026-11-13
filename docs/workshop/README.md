@@ -35,7 +35,7 @@ Remove personal data first: no national ID numbers, no birth dates.
 | Before (by 19 Nov) | Before the day: install, first start, your data | Readiness form sent |
 | Day 1 09:00–10:30 | 1–2. Environment, architecture and source | App running, signed in as administrator |
 | Day 1 10:45–12:00 | 3. University data (your own A/B/C data) | Pipeline running before lunch |
-| Day 1 13:00–14:30 | 4. Hands-on integration with AI | Deep-Dive shows your programme; connector run lands rows (page coming soon) |
+| Day 1 13:00–14:30 | 4. Hands-on integration with AI | Deep-Dive shows your programme; API connector run lands rows (page coming soon) |
 | Day 1 14:45–16:00 | 5. AI-assisted curriculum analytics | Your new analysis shows with provenance (page coming soon) |
 | Day 2 09:00–12:00 | Joint lectures with your executive | — |
 | Day 2 13:00–14:30 | 6. Testing, validation and security | Test Record filled |

@@ -1,8 +1,9 @@
 import { ApiError } from '@kku/shared';
-import type { ImportBatchStatus, Prisma } from '@prisma/client';
+import type { ImportBatchStatus, IngestionRunTrigger, Prisma } from '@prisma/client';
 
 import { prisma } from '../index';
 import { getImportDataset, importDataSourceSlug, listImportDatasets } from './registry';
+import { connectorFromBatch, viaFromMetadata } from './source-mix';
 import type { ImportDataset } from './types';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -26,6 +27,10 @@ export interface ImportBatchView {
   uploadedBy: string | null;
   storageKey: string;
   errorMessage: string | null;
+  /** Where the load came from; an upload when the run is gone or says nothing. */
+  via: 'upload' | 'api';
+  /** The API connector's display name; null for an upload. */
+  connector: string | null;
 }
 
 export interface ImportDatasetStatus {
@@ -144,9 +149,14 @@ export async function listImportBatches(
       id: true, filename: true, rowCount: true, fileSize: true, status: true,
       createdAt: true, clearedAt: true, storageKey: true, errorMessage: true,
       uploadedBy: { select: { name: true, email: true } },
+      ingestionRun: { select: { metadata: true } },
     },
   });
-  return rows.map((r) => ({
+  return rows.map((r) => {
+    // Start-over deletes the run, so a cleared API batch is recognised by its
+    // filename, which only a connector writes (uploads must end in .xlsx).
+    const via = r.ingestionRun ? viaFromMetadata(r.ingestionRun.metadata) : r.filename.startsWith('API: ') ? 'api' : 'upload';
+    return {
     id: r.id,
     filename: r.filename,
     rowCount: r.rowCount,
@@ -157,7 +167,10 @@ export async function listImportBatches(
     uploadedBy: r.uploadedBy?.name ?? r.uploadedBy?.email ?? null,
     storageKey: r.storageKey,
     errorMessage: r.errorMessage,
-  }));
+    via,
+    connector: connectorFromBatch(via, r.filename),
+    };
+  });
 }
 
 /**
@@ -170,6 +183,7 @@ export async function listImportBatches(
 export async function startImportRun(
   datasetSlug: string,
   userId: string | null,
+  opts: { trigger?: IngestionRunTrigger; metadata?: Prisma.InputJsonValue } = {},
 ): Promise<{ runId: string }> {
   const sourceSlug = importDataSourceSlug(datasetSlug);
   const source = await prisma.dataSource.findUnique({
@@ -195,8 +209,9 @@ export async function startImportRun(
   const run = await prisma.ingestionRun.create({
     data: {
       dataSourceId: source.id,
-      trigger: 'MANUAL',
+      trigger: opts.trigger ?? 'MANUAL',
       triggeredByUserId: userId,
+      ...(opts.metadata !== undefined ? { metadata: opts.metadata } : {}),
       status: 'RUNNING',
       startedAt: new Date(),
       attempt: 1,

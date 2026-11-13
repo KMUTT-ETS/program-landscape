@@ -9,6 +9,7 @@ import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
 import { PageHeader, Section, Badge, FreshnessBadge } from '@kku/ui';
 import { ImdUploadWidget } from './imd-upload';
 import { RunNowButton } from './run-now-button';
+import { RunLogDialog } from './run-log-dialog';
 import { DataSourceMark, acknowledgementHref, isMarkedSource } from '@/components/data-source-mark';
 
 export const dynamic = 'force-dynamic';
@@ -193,12 +194,15 @@ export default async function DataSourceStatsPage({ params }: { params: { slug: 
                 <th className="p-3">Failed</th>
                 <th className="p-3">Duration</th>
                 <th className="p-3">Error</th>
+                <th className="p-3 text-right">
+                  <span className="sr-only">Log</span>
+                </th>
               </tr>
             </thead>
             <tbody>
               {stats.recent.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-6 text-center text-text-tertiary">
+                  <td colSpan={7} className="p-6 text-center text-text-tertiary">
                     No runs recorded.
                   </td>
                 </tr>
@@ -220,6 +224,9 @@ export default async function DataSourceStatsPage({ params }: { params: { slug: 
                     </td>
                     <td className="p-3 text-xs text-text-tertiary">
                       {r.errorCode ?? '—'}
+                    </td>
+                    <td className="p-2 text-right">
+                      <RunLogDialog runId={r.id} label={new Date(r.createdAt).toLocaleString()} />
                     </td>
                   </tr>
                 ))

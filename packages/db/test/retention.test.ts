@@ -141,6 +141,7 @@ describe('runRetentionSweep', () => {
   const archiveDelete = vi.fn();
   const bindUpdate = vi.fn();
   const apiLogDelete = vi.fn();
+  const runLogDelete = vi.fn();
   // The page-view rule is raw SQL rather than a delegate call. Its own
   // behaviour is covered in usage-retention.test.ts; here it only has to be
   // reachable, and `$queryRaw` returning no candidate days makes it a no-op.
@@ -154,6 +155,7 @@ describe('runRetentionSweep', () => {
     scholarFetchArchive: { deleteMany: archiveDelete },
     scholarBindAttempt: { updateMany: bindUpdate },
     apiRequestLog: { deleteMany: apiLogDelete },
+    ingestionRunLog: { deleteMany: runLogDelete },
     $queryRaw: queryRaw,
     $executeRaw: executeRaw,
     $transaction: transaction,
@@ -166,6 +168,7 @@ describe('runRetentionSweep', () => {
     archiveDelete.mockReset().mockResolvedValue({ count: 0 });
     bindUpdate.mockReset().mockResolvedValue({ count: 0 });
     apiLogDelete.mockReset().mockResolvedValue({ count: 7 });
+    runLogDelete.mockReset().mockResolvedValue({ count: 42 });
     queryRaw.mockReset().mockResolvedValue([]);
     executeRaw.mockReset().mockResolvedValue(0);
     transaction
@@ -345,6 +348,21 @@ describe('runRetentionSweep', () => {
     expect(r.apiRequestLogDeleted).toBe(7);
   });
 
+  it('hard-deletes connector run log lines older than 90 days by ts', async () => {
+    auditDelete.mockResolvedValue({ count: 0 });
+    aiUpdate.mockResolvedValue({ count: 0 });
+    aiDelete.mockResolvedValue({ count: 0 });
+    const now = new Date('2026-11-11T00:00:00Z');
+    expect(computeRetentionCutoffs(now).ingestionRunLogDeleteBefore.toISOString()).toBe(
+      '2026-08-13T00:00:00.000Z',
+    );
+    const r = await runRetentionSweep({ prisma: prismaMock, now });
+    expect(runLogDelete).toHaveBeenCalledWith({
+      where: { ts: { lt: r.cutoffs.ingestionRunLogDeleteBefore } },
+    });
+    expect(r.ingestionRunLogDeleted).toBe(42);
+  });
+
   it('never touches ScholarFetchRun — it is the quota ledger', () => {
     // Structural, not behavioural: if a future edit adds a `scholarFetchRun`
     // writer to the injectable client, this fails and the reviewer has to
@@ -360,6 +378,7 @@ describe('runRetentionSweep', () => {
       'aiInference',
       'apiRequestLog',
       'auditLog',
+      'ingestionRunLog',
       'scholarBindAttempt',
       'scholarFetchArchive',
     ]);
@@ -404,7 +423,9 @@ describe('runRetentionSweep', () => {
     expect(archiveDelete).not.toHaveBeenCalled();
     expect(bindUpdate).not.toHaveBeenCalled();
     expect(apiLogDelete).not.toHaveBeenCalled();
+    expect(runLogDelete).not.toHaveBeenCalled();
     expect(result.apiRequestLogDeleted).toBe(0);
+    expect(result.ingestionRunLogDeleted).toBe(0);
     expect(queryRaw).not.toHaveBeenCalled();
     expect(executeRaw).not.toHaveBeenCalled();
     expect(transaction).not.toHaveBeenCalled();

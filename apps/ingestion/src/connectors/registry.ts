@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common';
 import type { Connector } from '@kku/shared';
 import { resolveConnectorMode } from '@kku/shared';
 
+import { INSTITUTION_CONNECTORS } from './sources/institution';
 import { JobThaiConnector } from './sources/jobthai/connector';
 
 import {
@@ -98,7 +99,7 @@ import { PeerProgramScraperConnector } from './sources/scrape-connectors';
 
 type ConnectorFactory = () => Connector;
 
-interface ConnectorEntry {
+export interface ConnectorEntry {
   slug: string;
   // Always present — the catalog is 100% mocked today.
   mock: ConnectorFactory;
@@ -114,6 +115,8 @@ interface ConnectorEntry {
 }
 
 const ENTRIES: readonly ConnectorEntry[] = [
+  // Institution-added dataset API connectors ─────────────────────────
+  ...INSTITUTION_CONNECTORS,
   // Internal KKU ─────────────────────────────────────────────────────
   {
     slug: 'kku-registry',

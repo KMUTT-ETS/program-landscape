@@ -55,6 +55,7 @@ async function main(): Promise<void> {
       scholarArchiveToDelete,
       scholarBindTextToRedact,
       apiRequestLogToDelete,
+      ingestionRunLogToDelete,
       pageViewPlan,
     ] = await Promise.all([
       prisma.auditLog.count({
@@ -81,6 +82,9 @@ async function main(): Promise<void> {
       prisma.apiRequestLog.count({
         where: { createdAt: { lt: cutoffs.apiRequestLogDeleteBefore } },
       }),
+      prisma.ingestionRunLog.count({
+        where: { ts: { lt: cutoffs.ingestionRunLogDeleteBefore } },
+      }),
       // The page-view rule is a roll-up, not a count, so its dry run is the
       // rule itself with `dryRun: true` rather than a separate `count()` that
       // could drift from what the wet run would actually do.
@@ -101,12 +105,14 @@ async function main(): Promise<void> {
             scholarBindAttemptRedactBefore: cutoffs.scholarBindAttemptRedactBefore.toISOString(),
             pageViewRollupBefore: cutoffs.pageViewRollupBefore.toISOString(),
             apiRequestLogDeleteBefore: cutoffs.apiRequestLogDeleteBefore.toISOString(),
+            ingestionRunLogDeleteBefore: cutoffs.ingestionRunLogDeleteBefore.toISOString(),
           },
           wouldDelete: {
             auditLog: auditLogToDelete,
             aiInference: aiToDelete,
             scholarFetchArchive: scholarArchiveToDelete,
             apiRequestLog: apiRequestLogToDelete,
+            ingestionRunLog: ingestionRunLogToDelete,
             // Only ever deleted after the day they belong to is written to
             // page_view_daily — the two numbers below move together.
             pageViews: pageViewPlan.rowsDeleted,
@@ -136,6 +142,7 @@ async function main(): Promise<void> {
       scholarFetchArchive: prisma.scholarFetchArchive,
       scholarBindAttempt: prisma.scholarBindAttempt,
       apiRequestLog: prisma.apiRequestLog,
+      ingestionRunLog: prisma.ingestionRunLog,
       $queryRaw: (q) => prisma.$queryRaw(q),
       $executeRaw: (q) => prisma.$executeRaw(q),
       $transaction: (fn, options) => prisma.$transaction(fn, options),
@@ -156,6 +163,7 @@ async function main(): Promise<void> {
               result.cutoffs.scholarBindAttemptRedactBefore.toISOString(),
             pageViewRollupBefore: result.cutoffs.pageViewRollupBefore.toISOString(),
             apiRequestLogDeleteBefore: result.cutoffs.apiRequestLogDeleteBefore.toISOString(),
+            ingestionRunLogDeleteBefore: result.cutoffs.ingestionRunLogDeleteBefore.toISOString(),
           },
         },
         null,

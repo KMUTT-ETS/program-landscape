@@ -68,11 +68,15 @@ Phase ordering tracks the prompt-14 priority list: A (highest-leverage internal)
 
 ## Adding a new source
 
-1. Add the catalog entry in [`@kku/shared/ingestion/catalog.ts`](../../packages/shared/src/ingestion/catalog.ts).
-2. Copy [`_template.md`](./_template.md) → `docs/data-sources/<slug>.md` and fill in.
-3. Drop a mock connector class in the appropriate file under `apps/ingestion/src/connectors/sources/`.
-4. Register the slug in [`apps/ingestion/src/connectors/registry.ts`](../../apps/ingestion/src/connectors/registry.ts).
-5. Seed / migrate a `DataSource` row.
+**An institution's own HTTP/JSON API** (a dataset API connector that fills import datasets): follow the `managing-connectors` skill in [`.claude/skills/managing-connectors/SKILL.md`](../../.claude/skills/managing-connectors/SKILL.md), or [Load an import dataset from an HTTP API](../guides/write-a-connector.md#load-an-import-dataset-from-an-http-api) by hand. In short: `pnpm connector:new --name <name> --dataset <slug>` scaffolds and registers it, you write `fetchAll` and `toRows`, then `pnpm data-sources:sync --apply`, `pnpm connector:run api-<name>` and `pnpm connector:verify api-<name>` until nothing FAILs.
+
+**Any other kind** (an internal database, a public API, a scraper, a PDF source):
+
+1. Add the catalog entry in [`@kku/shared/ingestion/catalog.ts`](../../packages/shared/src/ingestion/catalog.ts). A real connector says `mocked: false`; the seed rewrites the DataSource row from it.
+2. Write the connector class under `apps/ingestion/src/connectors/sources/<slug>/` (see [Write a connector](../guides/write-a-connector.md)).
+3. Register the slug in [`apps/ingestion/src/connectors/registry.ts`](../../apps/ingestion/src/connectors/registry.ts).
+4. Run `pnpm data-sources:sync --apply` to create the `DataSource` row.
+5. Copy [`_template.md`](./_template.md) → `docs/data-sources/<slug>.md` and fill in.
 6. Update the status table above.
 
 ## Flipping a connector from mocked to real

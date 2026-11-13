@@ -6,36 +6,40 @@
 
 หน้านี้เขียนสำหรับผู้ที่ทำหน้าที่อัปโหลดข้อมูล
 
+หากระบบของท่านมี HTTP/JSON API connector เติมชุดข้อมูลเดียวกันแทนการอัปโหลดได้ ดู[นำเข้าชุดข้อมูลจาก HTTP API](./guides/write-a-connector.md#นำเข้าชุดข้อมูลจาก-http-api)
+
 ## ชุดข้อมูลที่นำเข้าได้ในปัจจุบัน
 
-| Dataset | คืออะไร | ต้องมีก่อน |
-|---|---|---|
-| **Faculties** | คณะ วิทยาลัย และสถาบันที่เป็นเจ้าของหลักสูตร | ทุกอย่าง |
-| **Departments** | ภาควิชาในคณะ ไม่บังคับ | Programmes |
-| **Programmes** | หลักสูตรที่ท่านเปิดสอน | ทุก metric |
-| **Enrolment** | ตั้งแต่การสมัครจนถึงการสำเร็จการศึกษา ต่อหลักสูตรต่อปี | Programmes |
-| **Finance** | ค่าเล่าเรียนและรายได้อื่น ต่อหลักสูตรต่อปี | Programmes |
-| **Graduate Outcomes** | ผลการสำรวจการมีงานทำ ต่อรุ่นที่สำเร็จการศึกษา | Programmes |
-| **Employer Feedback** | ความพึงพอใจของนายจ้าง ต่อหลักสูตรและปีที่สำรวจ แสดงในส่วน Outcomes ของ Deep-Dive | Programmes |
-| **Population Projections** | ประมาณการประชากร ต่อภูมิภาค ปี และกลุ่มอายุ ใช้แทนชุดข้อมูลของ UN ที่มีมาในระบบ | — |
-| **Career Skill Demand** | สัดส่วนประกาศรับสมัครงานที่ระบุแต่ละทักษะ ต่ออาชีพ ใช้แทน KMITL API | — (ทักษะมาจาก pipeline ของหลักสูตร) |
-| **University Rankings** | อันดับ QS / THE ของแต่ละมหาวิทยาลัย เป็นกลุ่มที่ใช้เลือกสถาบันเปรียบเทียบ (เทมเพลตมีรายการเริ่มต้นอยู่แล้ว) | — |
-| **Student Cohorts** | นักศึกษาแต่ละรุ่นที่เข้าศึกษายังคงศึกษาอยู่กี่คน | Programmes |
-| **Digital Competency — Cohorts** | จำนวนนักศึกษาที่สอบ ที่มีคะแนน และที่ผ่าน ต่อหลักสูตรและปีที่เข้าศึกษา | Programmes |
-| **Digital Competency — Modules** | คะแนนเฉลี่ยของแต่ละโมดูลจาก 13 โมดูล ต่อหลักสูตรและปีที่เข้าศึกษา | Programmes |
-| **Alumni Cohorts** | สถานะปัจจุบันของนักศึกษาแต่ละรุ่นที่เข้าศึกษา | Programmes |
-| **Staff** | รายชื่อบุคลากรสายสอนของท่าน | Publications, Programme Teaching Staff, External Grant Team |
-| **Compensation** | เงินเดือนแบบรวมกลุ่ม ตามคณะ ภาควิชา และตำแหน่งวิชาการ | Faculties |
-| **Staff Salary by Funding** | เงินเดือนรายเดือน ตามคณะ ตำแหน่ง และแหล่งเงิน | Faculties, Staff, Programme Teaching Staff (สำหรับการ์ดใน Deep-Dive) |
-| **Budgets** | งบประมาณ ตามหน่วยงานและหมวดเงิน | Faculties |
-| **Publications** | ผลงานวิจัย หนึ่งแถวต่อหนึ่งผลงานต่อหนึ่งผู้เขียน | Staff |
-| **Admission Campaigns** | กรวยการรับสมัครนักศึกษา (funnel) ต่อแคมเปญ | Programmes |
-| **Class Offerings** | ทุกกลุ่มเรียนที่สอนในหนึ่งภาคการศึกษา | Faculties |
-| **Programme Teaching Staff** | บุคลากรคนใดสอนหลักสูตรใด | Programmes, Staff |
-| **External Grants** | โครงการที่ได้รับทุนจากภายนอก พร้อมงบประมาณทั้งโครงการ | Faculties |
-| **External Grant Team** | บุคลากรคนใดอยู่ในทุนใด | External Grants, Staff |
-| **Programme course lists** | รายวิชาของแต่ละหลักสูตร | Programmes |
-| **Course Evaluations** | คะแนนประเมินภาพรวมของนักศึกษาต่อแต่ละรายวิชา ต่อภาคการศึกษา | Programme course lists |
+| Dataset | Slug | คืออะไร | ต้องมีก่อน |
+|---|---|---|---|
+| **Faculties** | `faculties` | คณะ วิทยาลัย และสถาบันที่เป็นเจ้าของหลักสูตร | ทุกอย่าง |
+| **Departments** | `departments` | ภาควิชาในคณะ ไม่บังคับ | Programmes |
+| **Programmes** | `programmes` | หลักสูตรที่ท่านเปิดสอน | ทุก metric |
+| **Enrolment** | `enrollment-metrics` | ตั้งแต่การสมัครจนถึงการสำเร็จการศึกษา ต่อหลักสูตรต่อปี | Programmes |
+| **Finance** | `financial-metrics` | ค่าเล่าเรียนและรายได้อื่น ต่อหลักสูตรต่อปี | Programmes |
+| **Graduate Outcomes** | `graduate-outcomes` | ผลการสำรวจการมีงานทำ ต่อรุ่นที่สำเร็จการศึกษา | Programmes |
+| **Employer Feedback** | `employer-feedback` | ความพึงพอใจของนายจ้าง ต่อหลักสูตรและปีที่สำรวจ แสดงในส่วน Outcomes ของ Deep-Dive | Programmes |
+| **Population Projections** | `population-projections` | ประมาณการประชากร ต่อภูมิภาค ปี และกลุ่มอายุ ใช้แทนชุดข้อมูลของ UN ที่มีมาในระบบ | — |
+| **Career Skill Demand** | `career-skill-demand` | สัดส่วนประกาศรับสมัครงานที่ระบุแต่ละทักษะ ต่ออาชีพ ใช้แทน KMITL API | — (ทักษะมาจาก pipeline ของหลักสูตร) |
+| **University Rankings** | `ranked-universities` | อันดับ QS / THE ของแต่ละมหาวิทยาลัย เป็นกลุ่มที่ใช้เลือกสถาบันเปรียบเทียบ (เทมเพลตมีรายการเริ่มต้นอยู่แล้ว) | — |
+| **Student Cohorts** | `student-cohorts` | นักศึกษาแต่ละรุ่นที่เข้าศึกษายังคงศึกษาอยู่กี่คน | Programmes |
+| **Digital Competency — Cohorts** | `digital-competency-cohorts` | จำนวนนักศึกษาที่สอบ ที่มีคะแนน และที่ผ่าน ต่อหลักสูตรและปีที่เข้าศึกษา | Programmes |
+| **Digital Competency — Modules** | `digital-competency-modules` | คะแนนเฉลี่ยของแต่ละโมดูลจาก 13 โมดูล ต่อหลักสูตรและปีที่เข้าศึกษา | Programmes |
+| **Alumni Cohorts** | `alumni-cohorts` | สถานะปัจจุบันของนักศึกษาแต่ละรุ่นที่เข้าศึกษา | Programmes |
+| **Staff** | `faculty-members` | รายชื่อบุคลากรสายสอนของท่าน | Publications, Programme Teaching Staff, External Grant Team |
+| **Compensation** | `faculty-compensation` | เงินเดือนแบบรวมกลุ่ม ตามคณะ ภาควิชา และตำแหน่งวิชาการ | Faculties |
+| **Staff Salary by Funding** | `staff-salary-by-funding` | เงินเดือนรายเดือน ตามคณะ ตำแหน่ง และแหล่งเงิน | Faculties, Staff, Programme Teaching Staff (สำหรับการ์ดใน Deep-Dive) |
+| **Budgets** | `faculty-budgets` | งบประมาณ ตามหน่วยงานและหมวดเงิน | Faculties |
+| **Publications** | `research-outputs` | ผลงานวิจัย หนึ่งแถวต่อหนึ่งผลงานต่อหนึ่งผู้เขียน | Staff |
+| **Admission Campaigns** | `admission-campaigns` | กรวยการรับสมัครนักศึกษา (funnel) ต่อแคมเปญ | Programmes |
+| **Class Offerings** | `class-offerings` | ทุกกลุ่มเรียนที่สอนในหนึ่งภาคการศึกษา | Faculties |
+| **Programme Teaching Staff** | `program-faculty` | บุคลากรคนใดสอนหลักสูตรใด | Programmes, Staff |
+| **External Grants** | `external-grants` | โครงการที่ได้รับทุนจากภายนอก พร้อมงบประมาณทั้งโครงการ | Faculties |
+| **External Grant Team** | `external-grant-team` | บุคลากรคนใดอยู่ในทุนใด | External Grants, Staff |
+| **Programme course lists** | `programme-courses` | รายวิชาของแต่ละหลักสูตร | Programmes |
+| **Course Evaluations** | `course-evaluations` | คะแนนประเมินภาพรวมของนักศึกษาต่อแต่ละรายวิชา ต่อภาคการศึกษา | Programme course lists |
+
+slug คือชื่อที่ใช้อ้างถึงชุดข้อมูลในแอปและในคำสั่ง หน้าของชุดข้อมูลคือ `/admin/data-setup/raw/<slug>` และสร้าง API connector ด้วย `pnpm connector:new --dataset <slug>` (`pnpm connector:new --list` พิมพ์รายการเดียวกันนี้)
 
 โหลดจากบนลงล่าง สามชุดแรกเป็นโครงหลักที่ทุกอย่างอ้างอิงด้วยรหัส **Staff** ต้องมาก่อน **Publications**, **Programme Teaching Staff** และ **External Grant Team** ซึ่งระบุตัวบุคคลด้วยรหัสพนักงาน นอกจากนั้น แผ่นงานหนึ่งต้องการเพียงแผ่นงานที่ระบุในแถวของตนด้านบน เพราะอ้างอิงรหัสของแผ่นงานเหล่านั้น และไฟล์ที่ระบุรหัสซึ่งยังไม่มีอยู่จะถูกปฏิเสธ
 

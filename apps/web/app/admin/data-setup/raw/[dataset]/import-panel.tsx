@@ -36,6 +36,24 @@ export interface ImportBatchRow {
   clearedAt: string | null;
   uploadedBy: string | null;
   errorMessage: string | null;
+  /** Where the load came from; absent means an upload. */
+  via?: 'upload' | 'api';
+  connector?: string | null;
+}
+
+export interface SourceMixRow {
+  label: string;
+  via: 'upload' | 'api';
+  connector: string | null;
+  at: string;
+}
+
+export interface ImportSourceMix {
+  sources: ('upload' | 'api')[];
+  /** Each distinct source (uploads as one, each API connector as its own). Absent from older responses. */
+  feeders?: { via: 'upload' | 'api'; connector: string | null; at: string }[];
+  lastBy: { via: 'upload' | 'api'; connector: string | null; at: string } | null;
+  perScope: SourceMixRow[];
 }
 
 export interface ImportPanelDataset {
@@ -46,6 +64,7 @@ export interface ImportPanelDataset {
   keyColumns: string[];
   rowCount: number;
   batches: ImportBatchRow[];
+  sourceMix?: ImportSourceMix;
 }
 
 interface UploadOutcome {
@@ -55,6 +74,7 @@ interface UploadOutcome {
   deleted: number;
   deduplicated: boolean;
   unresolved?: number;
+  warnings?: string[];
 }
 
 function formatBytes(bytes: number): string {
@@ -63,11 +83,47 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function sourceName(via: 'upload' | 'api', connector: string | null): string {
+  return via === 'api' ? `API: ${connector ?? 'connector'}` : 'Upload';
+}
+
+/** The API connector's name, wherever the data happens to carry it. */
+function apiConnectorName(dataset: ImportPanelDataset): string {
+  const mix = dataset.sourceMix;
+  const fromMix =
+    mix?.perScope.find((p) => p.via === 'api')?.connector ??
+    (mix?.lastBy?.via === 'api' ? mix.lastBy.connector : null);
+  const fromBatch = dataset.batches.find((b) => b.via === 'api')?.connector;
+  return fromMix ?? fromBatch ?? 'connector';
+}
+
+/** The banner's title and opening sentence, naming every source that feeds the dataset. */
+function feederSummary(dataset: ImportPanelDataset): { count: number; subject: string } {
+  const mix = dataset.sourceMix;
+  const feeders = mix?.feeders;
+  if (!feeders || feeders.length === 0) {
+    // Older response: only the kinds are known, so name the one connector we can find.
+    return {
+      count: mix?.sources.length ?? 0,
+      subject: `Uploads and the API connector "${apiConnectorName(dataset)}"`,
+    };
+  }
+  const names = feeders.map((f) =>
+    f.via === 'upload' ? 'uploads' : `the API connector "${f.connector ?? 'connector'}"`,
+  );
+  const list =
+    names.length <= 1
+      ? names.join('')
+      : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  return { count: feeders.length, subject: list.charAt(0).toUpperCase() + list.slice(1) };
+}
+
 export function ImportPanel({ dataset }: { dataset: ImportPanelDataset }): React.JSX.Element {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
   const [errors, setErrors] = React.useState<ImportValidationErrorRow[] | null>(null);
   const [errorSummary, setErrorSummary] = React.useState<string | null>(null);
+  const [warnings, setWarnings] = React.useState<string[]>([]);
   const [shrinkFile, setShrinkFile] = React.useState<File | null>(null);
   const [confirmName, setConfirmName] = React.useState('');
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -84,6 +140,7 @@ export function ImportPanel({ dataset }: { dataset: ImportPanelDataset }): React
     setBusy(true);
     setErrors(null);
     setErrorSummary(null);
+    setWarnings([]);
     try {
       const body = new FormData();
       body.append('file', file);
@@ -126,6 +183,7 @@ export function ImportPanel({ dataset }: { dataset: ImportPanelDataset }): React
           `${outcome.unresolved} row${outcome.unresolved === 1 ? '' : 's'} named a skill that matched none in the skill taxonomy. They are stored but do not score until the skill exists and the sheet is uploaded again.`,
         );
       }
+      setWarnings(outcome?.warnings ?? []);
       setShrinkFile(null);
       // router.refresh(), not location.reload(): a full reload tears down the
       // toast before the operator can read what happened.
@@ -164,8 +222,50 @@ export function ImportPanel({ dataset }: { dataset: ImportPanelDataset }): React
     }
   }
 
+  const mix = dataset.sourceMix;
+  const feeders = feederSummary(dataset);
+  const twoSources = feeders.count > 1;
+
   return (
     <div className="flex flex-col gap-4">
+      {twoSources && mix ? (
+        <div
+          role="status"
+          className="rounded-md border border-[oklch(var(--color-warning-default)/0.4)] bg-warning/10 p-3"
+        >
+          <p className="text-sm font-medium text-text-primary">
+            {feeders.count === 2 ? 'Two' : feeders.count} sources feed this dataset
+          </p>
+          <p className="mt-1 max-w-2xl text-xs text-text-secondary">
+            {feeders.subject} {feeders.count === 2 ? 'both' : 'all'} load this dataset. Whichever
+            loads a term (or programme) last replaces what the {feeders.count === 2 ? 'other' : 'others'}{' '}
+            loaded. Uploads history shows which source loaded what.
+          </p>
+          {mix.perScope.length > 0 ? (
+            <table className="mt-2 w-full text-left text-xs">
+              <thead className="text-text-secondary">
+                <tr>
+                  <th className="py-1 pr-3 font-medium">Term / Programme</th>
+                  <th className="py-1 pr-3 font-medium">Last loaded by</th>
+                  <th className="py-1 font-medium">When</th>
+                </tr>
+              </thead>
+              <tbody>
+                {mix.perScope.map((p) => (
+                  <tr key={p.label} className="border-t border-subtle">
+                    <td className="py-1 pr-3 text-text-primary">{p.label}</td>
+                    <td className="py-1 pr-3 text-text-secondary">{sourceName(p.via, p.connector)}</td>
+                    <td className="py-1 text-text-secondary">
+                      {new Date(p.at).toLocaleDateString('en-GB')}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : null}
+        </div>
+      ) : null}
+
       <Card padding="md" className="flex flex-col gap-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-2xl">
@@ -198,6 +298,19 @@ export function ImportPanel({ dataset }: { dataset: ImportPanelDataset }): React
             if (file) void send(file, false);
           }}
         />
+
+        {warnings.length > 0 ? (
+          <div
+            role="status"
+            className="rounded-md border border-[oklch(var(--color-warning-default)/0.4)] bg-warning/10 p-3"
+          >
+            <ul className="flex flex-col gap-1 text-xs text-text-primary">
+              {warnings.map((w, i) => (
+                <li key={`${i}-${w}`}>{w}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         {errorSummary ? (
           <div className="rounded-md border border-default bg-surface-2 p-3">
@@ -251,6 +364,7 @@ export function ImportPanel({ dataset }: { dataset: ImportPanelDataset }): React
             <thead className="text-text-secondary">
               <tr>
                 <th className="py-1 pr-3 font-medium">File</th>
+                <th className="py-1 pr-3 font-medium">Source</th>
                 <th className="py-1 pr-3 font-medium">Uploaded</th>
                 <th className="py-1 pr-3 font-medium">By</th>
                 <th className="py-1 pr-3 text-right font-medium">Rows</th>
@@ -265,12 +379,15 @@ export function ImportPanel({ dataset }: { dataset: ImportPanelDataset }): React
                     {b.filename}
                   </td>
                   <td className="py-1 pr-3 text-text-secondary">
+                    {b.via === 'api' ? `API: ${b.connector ?? 'connector'}` : 'Upload'}
+                  </td>
+                  <td className="py-1 pr-3 text-text-secondary">
                     {new Date(b.createdAt).toLocaleDateString('en-GB')}
                   </td>
                   <td className="py-1 pr-3 text-text-secondary">{b.uploadedBy ?? '—'}</td>
                   <td className="py-1 pr-3 text-right tabular-nums text-text-secondary">{b.rowCount}</td>
                   <td className="py-1 pr-3 text-right tabular-nums text-text-secondary">
-                    {formatBytes(b.fileSize)}
+                    {b.via === 'api' ? '—' : formatBytes(b.fileSize)}
                   </td>
                   <td className="py-1">
                     <Badge tone={b.status === 'FAILED' ? 'danger' : b.status === 'CLEARED' ? 'neutral' : 'success'}>
@@ -288,8 +405,8 @@ export function ImportPanel({ dataset }: { dataset: ImportPanelDataset }): React
         <div>
           <h2 className="text-sm font-semibold text-text-primary">Start over</h2>
           <p className="mt-1 max-w-2xl text-xs text-text-secondary">
-            Deletes the rows these uploads created. Anything from a connector or the original
-            setup is left alone — including a row an upload only edited. It refuses if other data
+            Deletes the rows these uploads and API connector runs created. Anything from a
+            connector or the original setup is left alone — including a row an upload only edited. It refuses if other data
             would be destroyed along with them, and names what is in the way. The uploaded files
             above are kept, so you can rebuild by uploading them again — but if those files are
             gone, this cannot be undone.

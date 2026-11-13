@@ -974,3 +974,89 @@ describe('readDeclaredScopes', () => {
     expect(readDeclaredScopes(makeDataset(), sheet(ALL_HEADERS, [row()]))).toBeNull();
   });
 });
+
+describe('validateSheet — echoValues: false', () => {
+  const quiet = (over: Partial<ValidationContext> = {}): ValidationContext => ctx({ echoValues: false, ...over });
+  const messages = (r: ReturnType<typeof validateSheet>): string => errorsOf(r).map((e) => e.message).join('\n');
+
+  it('omits the offending value from a non-number, enum miss, decimal comma, date and boolean', () => {
+    const result = validateSheet(
+      makeDataset(),
+      sheet(ALL_HEADERS, [
+        row({ Code: 'A1', Year: 'SECRET-NUM' }),
+        row({ Code: 'A2', Level: 'SECRET-ENUM' }),
+        row({ Code: 'A3', Amount: '123456,78' }),
+        row({ Code: 'A4', Started: 'SECRET-DATE' }),
+        row({ Code: 'A5', Active: 'SECRET-BOOL' }),
+        row({ Code: 'A6', Year: 12.5 }),
+      ]),
+      quiet(),
+    );
+    const text = messages(result);
+    for (const leak of ['SECRET', '123456', '78', '12.5']) expect(text).not.toContain(leak);
+    expect(text).toContain('This value is not a number.');
+    expect(text).toContain('This value is not one of the allowed values (BACHELOR, MASTER).');
+    expect(text).toContain('Use a full stop for decimals, not a comma.');
+    expect(text).toContain('This value is not a whole number.');
+  });
+
+  it('omits a value containing an embedded double quote', () => {
+    const result = validateSheet(
+      makeDataset(),
+      sheet(ALL_HEADERS, [row({ Level: 'Ann "Secret" Smith' }), row({ Code: 'A2', Year: 'x "Secret" y' })]),
+      quiet(),
+    );
+    const text = messages(result);
+    expect(text).not.toContain('Secret');
+    expect(text).not.toContain('Smith');
+    expect(text).not.toContain('"');
+  });
+
+  it('omits the term values when rows disagree, naming the column', () => {
+    const termed = makeDataset({
+      strategy: { kind: 'term-scoped', termColumns: ['year'], match: { kind: 'unique', columns: ['code'] } },
+    });
+    const result = validateSheet(
+      termed,
+      sheet(ALL_HEADERS, [row({ Code: 'A1', Year: 2568 }), row({ Code: 'A2', Year: 2577 })]),
+      quiet(),
+    );
+    const text = messages(result);
+    expect(text).not.toContain('2568');
+    expect(text).not.toContain('2577');
+    expect(text).toContain('Year');
+  });
+
+  it('omits a missing reference value and names the dataset title', () => {
+    const withRef = makeDataset({
+      columns: [
+        { header: 'Code', key: 'code', type: 'text', required: true, guide: 'the code', example: 'A1' },
+        {
+          header: 'Faculty Code', key: 'facultyCode', type: 'text', required: true,
+          references: { dataset: 'faculties', column: 'code' }, guide: 'owning faculty', example: 'ENG',
+        },
+      ],
+    });
+    const result = validateSheet(
+      withRef,
+      sheet(['Code', 'Faculty Code'], [{ Code: 'A1', 'Faculty Code': 'SECRET-FAC' }]),
+      quiet({
+        references: new Map([['faculties', new Set(['ENG'])]]),
+        datasetTitles: new Map([['faculties', 'Faculties']]),
+      }),
+    );
+    const text = messages(result);
+    expect(text).not.toContain('SECRET-FAC');
+    expect(text).toBe('This code does not exist in Faculties.');
+  });
+
+  it('omits a too-small group size', () => {
+    const result = validateSheet(makeDataset(), sheet(ALL_HEADERS, [row({ Headcount: 3 })]), quiet());
+    expect(messages(result)).not.toMatch(/\b3\b/);
+  });
+
+  it('default (uploads) still echoes the value', () => {
+    const result = validateSheet(makeDataset(), sheet(ALL_HEADERS, [row({ Year: 'abc' })]), ctx());
+    expect(messages(result)).toContain('"abc" is not a number.');
+  });
+});

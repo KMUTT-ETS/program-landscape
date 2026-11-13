@@ -153,6 +153,7 @@ The instructor shares the readiness form link at the pre-workshop. It asks for:
 - your data path: A, B or C;
 - for each dataset, whether it is real or mock;
 - the programme you chose, and whether its PDF passed `curriculum:check`;
+- Do you have an HTTP/JSON API for any of this data? If yes: which dataset it fits, how it authenticates, whether it returns one row per student, and a redacted sample response;
 - anything still blocking you.
 
 Send it by **19 November, 18:00**. Never paste keys, the environment file or personal data into the form.

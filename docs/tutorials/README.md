@@ -9,5 +9,6 @@ pages, files and buttons, and what you should see after each step.
 |---|---|---|
 | 1 | [Getting started](./getting-started.md) | A running app on your laptop and your first administrator signed in |
 | 2 | [Get Program Deep-Dive working](./program-deep-dive.md) | `/programs/<id>` shows real content for one programme, and its Setup checklist is green |
-| 3 | [Workshop: set up Program Deep-Dive](../workshop/README.md) | A 1.5-day hands-on workshop: pre-work, one page per session, troubleshooting and a facilitator guide |
+| 3 | [Load data from an API (practice run)](./load-data-from-an-api.md) | A connector you wrote fills the Enrolment dataset from a mock HTTP API, next to your upload |
+| 4 | [Workshop: set up Program Deep-Dive](../workshop/README.md) | A 1.5-day hands-on workshop: pre-work, one page per session, troubleshooting and a facilitator guide |
 | Advanced, optional | [Adapt the registrar connector](./adapt-the-registrar-connector.md) | A KKU example: the registrar connector reads a student-records system directly |

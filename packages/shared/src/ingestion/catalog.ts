@@ -1,3 +1,4 @@
+import { INSTITUTION_SOURCES } from './institution-catalog';
 import type { SourceCatalogEntry } from './types';
 
 // Canonical source catalog. DB seed upserts one row per entry; the
@@ -590,7 +591,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   // is the trigger — there is nothing for a cadence to wake.
   {
     slug: 'xlsx-faculties',
-    name: 'Faculties (spreadsheet import)',
+    name: 'Faculties (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -600,7 +601,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'xlsx-departments',
-    name: 'Departments (spreadsheet import)',
+    name: 'Departments (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -610,7 +611,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'xlsx-programmes',
-    name: 'Programmes (spreadsheet import)',
+    name: 'Programmes (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -620,7 +621,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'xlsx-enrollment-metrics',
-    name: 'Enrolment (spreadsheet import)',
+    name: 'Enrolment (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -632,7 +633,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'xlsx-financial-metrics',
-    name: 'Finance (spreadsheet import)',
+    name: 'Finance (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -644,7 +645,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'xlsx-graduate-outcomes',
-    name: 'Graduate Outcomes (spreadsheet import)',
+    name: 'Graduate Outcomes (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -656,7 +657,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'xlsx-student-cohorts',
-    name: 'Student Cohorts (spreadsheet import)',
+    name: 'Student Cohorts (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -668,7 +669,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'xlsx-alumni-cohorts',
-    name: 'Alumni Cohorts (spreadsheet import)',
+    name: 'Alumni Cohorts (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -680,7 +681,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'xlsx-faculty-members',
-    name: 'Staff (spreadsheet import)',
+    name: 'Staff (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -692,7 +693,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'xlsx-faculty-compensation',
-    name: 'Compensation (spreadsheet import)',
+    name: 'Compensation (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -704,7 +705,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'xlsx-staff-salary-by-funding',
-    name: 'Staff Salary by Funding (spreadsheet import)',
+    name: 'Staff Salary by Funding (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -716,7 +717,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'xlsx-faculty-budgets',
-    name: 'Budgets (spreadsheet import)',
+    name: 'Budgets (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -728,7 +729,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'xlsx-research-outputs',
-    name: 'Publications (spreadsheet import)',
+    name: 'Publications (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -740,7 +741,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'xlsx-admission-campaigns',
-    name: 'Admission Campaigns (spreadsheet import)',
+    name: 'Admission Campaigns (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -752,7 +753,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'xlsx-class-offerings',
-    name: 'Class Offerings (spreadsheet import)',
+    name: 'Class Offerings (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -764,7 +765,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'xlsx-program-faculty',
-    name: 'Programme Teaching Staff (spreadsheet import)',
+    name: 'Programme Teaching Staff (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -777,7 +778,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'xlsx-programme-courses',
-    name: 'Programme Course Lists (spreadsheet import)',
+    name: 'Programme Course Lists (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -788,7 +789,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'xlsx-career-skill-demand',
-    name: 'Career Skill Demand (spreadsheet import)',
+    name: 'Career Skill Demand (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -799,7 +800,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'xlsx-course-evaluations',
-    name: 'Course Evaluations (spreadsheet import)',
+    name: 'Course Evaluations (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -834,7 +835,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'xlsx-population-projections',
-    name: 'Population Projections (spreadsheet import)',
+    name: 'Population Projections (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -845,7 +846,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'xlsx-ranked-universities',
-    name: 'University Rankings (spreadsheet import)',
+    name: 'University Rankings (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -856,7 +857,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'xlsx-employer-feedback',
-    name: 'Employer Feedback (spreadsheet import)',
+    name: 'Employer Feedback (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -867,7 +868,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'xlsx-digital-competency-cohorts',
-    name: 'Digital Competency — Cohorts (spreadsheet import)',
+    name: 'Digital Competency — Cohorts (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -878,7 +879,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'xlsx-digital-competency-modules',
-    name: 'Digital Competency — Modules (spreadsheet import)',
+    name: 'Digital Competency — Modules (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -889,7 +890,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'xlsx-external-grants',
-    name: 'External Grants (spreadsheet import)',
+    name: 'External Grants (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -900,7 +901,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
   },
   {
     slug: 'xlsx-external-grant-team',
-    name: 'External Grant Team (spreadsheet import)',
+    name: 'External Grant Team (institution import)',
     kind: 'CSV',
     inputFormat: 'XLSX',
     scheduleEnabled: false,
@@ -909,6 +910,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'Which staff member (by employee code) is on which external grant, uploaded through /admin/data-setup. Links grants to programmes through teaching staff.',
     mocked: false,
   },
+  ...INSTITUTION_SOURCES,
 ] as const;
 
 /** True for connectors that only work against KKU's internal systems. */

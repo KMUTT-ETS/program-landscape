@@ -89,7 +89,7 @@ a participant's pre-work failed, they also need `registry.npmjs.org`,
 
 | Time | Day 2 |
 |---|---|
-| 09:00 | Session 4: hands-on integration with AI (page to come). |
+| 09:00 | Session 4: hands-on integration with AI (page to come). Exit check: the API connector run lands rows. The reference solution comes from the instructor, outside the repository; hand it out only to participants who are stuck. |
 | 10:30 | Break. |
 | 10:45 | Session 5: AI-assisted curriculum analytics (page to come). |
 | 12:00 | Lunch. |

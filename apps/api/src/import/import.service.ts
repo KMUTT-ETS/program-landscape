@@ -3,29 +3,29 @@ import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
 
 import {
-  finishImportRun,
   findLiveBatchByHash,
   getImportDataset,
   importDatasetStatus,
+  importSourceMix,
   listImportBatches,
+  IMPORT_MAX_ROWS,
   listImportDatasets,
-  markImportBatchFailed,
-  markImportBatchSucceeded,
-  prisma,
+  loadImportReferences,
+  METRIC_VIEW_DATASETS,
+  prepareImportRows,
   readDeclaredScopes,
-  readDeclaredTerm,
-  recordImportBatch,
+  runImportLoad,
+  prisma,
   refreshMetricViews,
-  startImportRun,
   startOverAllImports,
   startOverDataset,
-  validateSheet,
   type ImportBatchView,
   type ImportCellValue,
   type ImportDataset,
   type ImportLoadResult,
   type ImportRow,
   type ImportValidationError,
+  type SourceMix,
   type PrefillOptions,
   type StartOverAllResult,
 } from '@kku/db';
@@ -67,7 +67,9 @@ export interface ImportServiceDeps {
     batch: { filename: string; contentHash: string; storageKey: string; fileSize: number },
     /** The period a term-scoped file covers; the loader deletes it first. */
     term?: Readonly<Record<string, ImportCellValue>>,
-  ) => Promise<{ batchId: string; result: ImportLoadResult }>;
+    /** The programmes a programme-scoped file covers; recorded on the run. */
+    scopes?: readonly Readonly<Record<string, ImportCellValue>>[],
+  ) => Promise<{ batchId: string; result: ImportLoadResult; warnings: string[] }>;
   startOver: (slug: string) => Promise<{ rowsDeleted: number; batchesCleared: number }>;
   /** Empties every import in one transaction; returns the stored-file keys to delete. */
   startOverAll: () => Promise<StartOverAllResult>;
@@ -95,6 +97,8 @@ export interface ImportUploadResult {
   updated: number;
   deleted: number;
   unresolved?: number;
+  /** Notes the operator should read, e.g. that this load replaced another source's term. */
+  warnings: string[];
 }
 
 export interface ImportDatasetSummary {
@@ -120,36 +124,13 @@ export interface ImportDatasetDetail extends ImportDatasetSummary {
   keyColumns: string[];
   dependents: readonly string[];
   batches: ImportBatchView[];
+  sourceMix: SourceMix;
 }
 
 /** Matches JOBTHAI_MAX_UPLOAD_BYTES: generous without inviting a year's dump. */
 export const IMPORT_MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
-/**
- * A hard ceiling, not a fallback to async. A file above this is a sign the
- * dataset wants splitting — by term, for the term-scoped ones.
- *
- * 10,000 is set by what the loaders can actually finish, not by taste: each
- * does a sequential find + update/create per row (two round-trips) inside one
- * transaction with a 120 s timeout. At a realistic 1-2 ms per round-trip,
- * 10,000 rows take 20-40 s, leaving headroom. 50,000 rows would need
- * 100-300 s — past that timeout and past most reverse proxies' read timeout,
- * leaving the operator with a hung request and a failed batch. Raised from
- * 5,000 so a typical institution's publications or course list fits one
- * file. Raise further only together with batched loaders.
- */
-export const IMPORT_MAX_ROWS = 10_000;
-
-/** Datasets whose rows feed the scope roll-up views. */
-const METRIC_VIEW_DATASETS: ReadonlySet<string> = new Set([
-  // The department and faculty views join these two, so their rows matter too.
-  'faculties',
-  'departments',
-  'programmes',
-  'enrollment-metrics',
-  'financial-metrics',
-  'graduate-outcomes',
-]);
+export { IMPORT_MAX_ROWS };
 
 const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -177,7 +158,7 @@ export class ImportService implements OnModuleInit {
           const storage = this.storage;
           return storage.ensureBucket(a.bucket).then(() => storage.putObject(a)).then(() => undefined);
         }),
-      loadReferences: deps?.loadReferences ?? ((dataset) => this.defaultLoadReferences(dataset)),
+      loadReferences: deps?.loadReferences ?? loadImportReferences,
       heldCount: deps?.heldCount ?? ((dataset) => dataset.count(prisma)),
       heldCountForTerm:
         deps?.heldCountForTerm ??
@@ -187,7 +168,12 @@ export class ImportService implements OnModuleInit {
         deps?.heldCountForScope ??
         ((dataset, scopes) =>
           dataset.countForScope ? dataset.countForScope(prisma, scopes) : Promise.resolve(undefined)),
-      runLoad: deps?.runLoad ?? ((dataset, rows, userId, batch, term) => this.defaultRunLoad(dataset, rows, userId, batch, term)),
+      runLoad:
+        deps?.runLoad ??
+        (async (dataset, rows, userId, batch, term, scopes) => {
+          const { batchId, result, warnings } = await runImportLoad(dataset, rows, { via: 'upload', userId, batch }, term, scopes);
+          return { batchId, result, warnings };
+        }),
       startOver: deps?.startOver ?? startOverDataset,
       startOverAll: deps?.startOverAll ?? (() => startOverAllImports()),
       deleteObject:
@@ -228,93 +214,6 @@ export class ImportService implements OnModuleInit {
     return value;
   }
 
-  /** Resolves the key values each referenced dataset currently holds. */
-  private async defaultLoadReferences(dataset: ImportDataset): Promise<Map<string, Set<string>>> {
-    const references = new Map<string, Set<string>>();
-    const slugs = [...new Set(dataset.columns.flatMap((c) => (c.references ? [c.references.dataset] : [])))];
-
-    for (const slug of slugs) {
-      // Tier 0 references are always a `code` column; a later tier that
-      // references something else adds its own branch here.
-      if (slug === 'faculties') {
-        const rows = await prisma.faculty.findMany({ select: { code: true } });
-        references.set(slug, new Set(rows.map((r) => r.code)));
-      } else if (slug === 'departments') {
-        const rows = await prisma.department.findMany({ select: { code: true } });
-        references.set(slug, new Set(rows.map((r) => r.code)));
-      } else if (slug === 'programmes') {
-        const rows = await prisma.program.findMany({ select: { code: true } });
-        references.set(slug, new Set(rows.map((r) => r.code)));
-      } else if (slug === 'faculty-members') {
-        // The first reference that is not a `code` column: staff are named
-        // by the employer-assigned code the adopter chose.
-        const rows = await prisma.facultyMember.findMany({ select: { employeeCode: true } });
-        references.set(slug, new Set(rows.map((r) => r.employeeCode)));
-      } else if (slug === 'external-grants') {
-        // Imported projects only: the connector's projects are not addressable
-        // by an adopter's code. Stored as `xlsx:<code>`.
-        const rows = await prisma.researchServiceProject.findMany({
-          where: { sourceProposalKey: { startsWith: 'xlsx:' } },
-          select: { sourceProposalKey: true },
-        });
-        references.set(slug, new Set(rows.map((r) => r.sourceProposalKey.slice('xlsx:'.length))));
-      }
-    }
-    return references;
-  }
-
-  private async defaultRunLoad(
-    dataset: ImportDataset,
-    rows: readonly ImportRow[],
-    userId: string | null,
-    batch: { filename: string; contentHash: string; storageKey: string; fileSize: number },
-    term?: Readonly<Record<string, ImportCellValue>>,
-  ): Promise<{ batchId: string; result: ImportLoadResult }> {
-    const { runId } = await startImportRun(dataset.slug, userId);
-
-    let created: { id: string };
-    try {
-      created = await recordImportBatch({
-        datasetSlug: dataset.slug,
-        filename: batch.filename,
-        contentHash: batch.contentHash,
-        storageKey: batch.storageKey,
-        fileSize: batch.fileSize,
-        rowCount: rows.length,
-        uploadedByUserId: userId,
-        ingestionRunId: runId,
-      });
-    } catch (e) {
-      // Without this the run is left RUNNING forever, counted by the data
-      // source dashboard and by the readiness green-history gate.
-      const message = e instanceof Error ? e.message : String(e);
-      await this.finishQuietly(runId, rows.length, message);
-      throw e;
-    }
-
-    try {
-      const result = await prisma.$transaction(
-        (tx) => dataset.load({ tx, ingestionRunId: runId, term }, rows),
-        { timeout: 120_000 },
-      );
-      // Order matters: the batch becomes SUCCEEDED — and therefore live for
-      // dedupe — only once the rows are committed.
-      await markImportBatchSucceeded(created.id);
-      await finishImportRun(runId, { loaded: rows.length, failed: 0, status: 'SUCCEEDED' });
-      // Fire-and-forget: the refresh takes seconds and must not hold the request.
-      void this.refreshViewsQuietly(dataset.slug);
-      return { batchId: created.id, result };
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      // Mark the batch FIRST. If finishImportRun throws (a concurrent
-      // start-over may have deleted the run), the batch would otherwise be
-      // left LOADING with no record of why.
-      await markImportBatchFailed(created.id, message).catch(() => undefined);
-      await this.finishQuietly(runId, rows.length, message);
-      throw e;
-    }
-  }
-
   /**
    * The scope roll-ups (program, department, faculty, university) are
    * materialised views over these tables, and nothing else refreshes them
@@ -330,20 +229,6 @@ export class ImportService implements OnModuleInit {
       await this.deps.refreshViews();
     } catch (e) {
       this.logger.warn(`import ${slug}: metric view refresh failed (run pnpm outcomes:refresh-derived): ${String(e)}`);
-    }
-  }
-
-  /** Closes a run on the failure path without masking the original error. */
-  private async finishQuietly(runId: string, rowCount: number, message: string): Promise<void> {
-    try {
-      await finishImportRun(runId, {
-        loaded: 0,
-        failed: rowCount,
-        status: 'FAILED',
-        errorMessage: message,
-      });
-    } catch (e) {
-      this.logger.error(`import: could not close run ${runId}: ${String(e)}`);
     }
   }
 
@@ -374,34 +259,18 @@ export class ImportService implements OnModuleInit {
     const parsed = parseImportWorkbook(args.bytes, dataset.sheetName);
     if (!parsed.ok) throw new ApiError('VALIDATION_FAILED', parsed.error);
 
-    const [references, heldRowCount] = await Promise.all([
-      this.deps.loadReferences(dataset),
-      this.deps.heldCount(dataset),
-    ]);
-
-    // A term-scoped file is compared against its own term, not the table.
-    // The term is read from the file here only to pick that baseline;
-    // validateSheet is still what refuses a file whose rows disagree.
-    const declaredTerm = readDeclaredTerm(dataset, parsed.parsed);
-    const heldRowCountForTerm = declaredTerm
-      ? await this.deps.heldCountForTerm(dataset, declaredTerm)
-      : undefined;
-
-    // Likewise a programme-scoped file is compared against the rows held for
-    // the programmes it names.
-    const declaredScopes = readDeclaredScopes(dataset, parsed.parsed);
-    const heldRowCountForScope = declaredScopes
-      ? await this.deps.heldCountForScope(dataset, declaredScopes)
-      : undefined;
-
-    const validated = validateSheet(dataset, parsed.parsed, {
-      references,
-      heldRowCount,
-      heldRowCountForTerm,
-      heldRowCountForScope,
-      allowShrink: args.allowShrink,
-      maxRows: IMPORT_MAX_ROWS,
-    });
+    const declaredScopes = readDeclaredScopes(dataset, parsed.parsed) ?? undefined;
+    const validated = await prepareImportRows(
+      dataset,
+      parsed.parsed,
+      { allowShrink: args.allowShrink, maxRows: IMPORT_MAX_ROWS },
+      {
+        loadReferences: this.deps.loadReferences,
+        heldCount: this.deps.heldCount,
+        heldCountForTerm: this.deps.heldCountForTerm,
+        heldCountForScope: this.deps.heldCountForScope,
+      },
+    );
 
     if (!validated.ok) {
       // Nothing is stored and no run is created: a refused file leaves no trace.
@@ -422,6 +291,7 @@ export class ImportService implements OnModuleInit {
         inserted: 0,
         updated: 0,
         deleted: 0,
+        warnings: [],
       };
     }
 
@@ -433,12 +303,14 @@ export class ImportService implements OnModuleInit {
       contentType: XLSX_CONTENT_TYPE,
     });
 
-    const { batchId, result } = await this.deps.runLoad(dataset, validated.rows, args.uploadedByUserId, {
+    const { batchId, result, warnings } = await this.deps.runLoad(dataset, validated.rows, args.uploadedByUserId, {
       filename: args.originalFilename,
       contentHash,
       storageKey,
       fileSize: args.bytes.byteLength,
-    }, validated.term ?? undefined);
+    }, validated.term ?? undefined, declaredScopes);
+    // Fire-and-forget, as before: the rows are committed, the refresh is best-effort.
+    void this.refreshViewsQuietly(dataset.slug);
 
     this.logger.log(
       `import ${dataset.slug}: batch ${batchId}, ${validated.rows.length} rows ` +
@@ -452,6 +324,7 @@ export class ImportService implements OnModuleInit {
       inserted: result.inserted,
       updated: result.updated,
       deleted: result.deleted,
+      warnings,
       ...(result.unresolved !== undefined ? { unresolved: result.unresolved } : {}),
     };
   }
@@ -495,9 +368,10 @@ export class ImportService implements OnModuleInit {
   async getDataset(datasetSlug: string): Promise<ImportDatasetDetail> {
     const dataset = getImportDataset(datasetSlug);
     const byKey = new Map(dataset.columns.map((c) => [c.key, c.header]));
-    const [status, batches] = await Promise.all([
+    const [status, batches, sourceMix] = await Promise.all([
       importDatasetStatus(dataset.slug),
       listImportBatches(dataset.slug),
+      importSourceMix(dataset.slug),
     ]);
 
     return {
@@ -520,6 +394,7 @@ export class ImportService implements OnModuleInit {
       keyColumns: dataset.strategy.match.columns.map((k) => byKey.get(k) ?? k),
       dependents: dataset.dependents ?? [],
       batches,
+      sourceMix,
     };
   }
 

@@ -10,7 +10,14 @@ import {
 } from '@nestjs/common';
 import { Prisma, prisma } from '@kku/db';
 import { z } from 'zod';
-import type { SessionUser } from '@kku/shared';
+import {
+  RUN_LOG_PAGE_SIZE,
+  RunLogQuerySchema,
+  RunLogResponseSchema,
+  type RunLogQuery,
+  type RunLogResponse,
+  type SessionUser,
+} from '@kku/shared';
 import {
   AuditLog,
   AuthSession,
@@ -196,6 +203,47 @@ export class DataSourcesController {
       recent,
       sparkline,
     };
+  }
+
+  // Per-run connector log for the admin "Log" modal. The modal polls with
+  // ?afterSeq=<last seq seen> while the run is QUEUED/RUNNING.
+  //
+  // Status is read BEFORE the lines: the runner stores every line before it
+  // sets a terminal status, so a terminal status here means `lines` is
+  // complete and the client can stop polling.
+  @Get('runs/:runId/logs')
+  @Authorized('data_sources:read')
+  @Provenance({ sources: [{ id: 'internal', name: 'Ingestion Framework' }] })
+  async runLogs(
+    @Param('runId') runId: string,
+    @Query(new ZodValidationPipe(RunLogQuerySchema)) query: RunLogQuery,
+  ): Promise<RunLogResponse> {
+    const run = await prisma.ingestionRun.findUnique({
+      where: { id: runId },
+      select: { id: true, status: true, startedAt: true, completedAt: true },
+    });
+    if (!run) throw new NotFoundException();
+    const rows = await prisma.ingestionRunLog.findMany({
+      where: { ingestionRunId: runId, seq: { gt: query.afterSeq } },
+      orderBy: { seq: 'asc' },
+      take: RUN_LOG_PAGE_SIZE + 1,
+      select: { seq: true, ts: true, level: true, message: true, meta: true },
+    });
+    const page = rows.slice(0, RUN_LOG_PAGE_SIZE);
+    return RunLogResponseSchema.parse({
+      runId: run.id,
+      status: run.status,
+      startedAt: run.startedAt?.toISOString() ?? null,
+      completedAt: run.completedAt?.toISOString() ?? null,
+      lines: page.map((r) => ({
+        seq: r.seq,
+        ts: r.ts.toISOString(),
+        level: r.level,
+        message: r.message,
+        meta: r.meta ?? null,
+      })),
+      hasMore: rows.length > RUN_LOG_PAGE_SIZE,
+    });
   }
 
   @Get(':id')
