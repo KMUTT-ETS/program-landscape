@@ -79,6 +79,7 @@
     "outcomes:refresh-derived": "tsx apps/ingestion/src/scripts/refresh-derived.ts",
     "workshop:mock": "tsx apps/ingestion/src/scripts/workshop-mock/generate.ts",
     "workshop:check-mock": "pnpm --filter api exec tsx scripts/workshop/check-mock.ts",
+    "workshop:prefetch-kit": "node workshop/pre-fetch/build-kit.mjs",
     "workshop:templates": "pnpm --filter api exec tsx scripts/workshop/export-templates.ts",
     "adopter:fresh-check": "tsx apps/ingestion/src/scripts/adopter-fresh-check.ts",
     "imd:seed": "tsx apps/ingestion/src/scripts/seed-imd-rankings.ts",
