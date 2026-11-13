@@ -282,6 +282,32 @@ describe('runChecks', () => {
 });
 
 describe('formatReport', () => {
+  it('says a run in progress is not verified yet', async () => {
+    const results = await check('api-demo', { latest: run({ status: 'QUEUED', metadata: null }) });
+    expect(formatReport('api-demo', results)).toContain('not verified yet');
+  });
+
+  it('never prints a token even when the run failed with a message and metadata', async () => {
+    const results = await check(
+      'api-demo',
+      {
+        latest: run({
+          status: 'FAILED',
+          errorCode: 'HTTP_401',
+          errorMessage: 'GET /intake returned 401',
+          metadata: loadedMeta({
+            errors: [{ dataset: 'faculties', record: 1, column: 'Faculty Code', message: 'unknown code' }],
+            totalErrors: 1,
+          }),
+        }),
+      },
+      { CONNECTOR_API_DEMO_BASE_URL: 'https://x.example/abc', CONNECTOR_API_DEMO_TOKEN: 's3cr3t-token-value' },
+    );
+    const text = formatReport('api-demo', results) + JSON.stringify({ slug: 'api-demo', results });
+    expect(text).not.toContain('s3cr3t-token-value');
+    expect(text).not.toContain('https://x.example/abc');
+  });
+
   it('prints one line per result, next steps and a summary', () => {
     const text = formatReport('api-demo', [
       { id: 'registered', status: 'PASS', reason: 'ok' },

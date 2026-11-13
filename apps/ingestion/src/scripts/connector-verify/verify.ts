@@ -67,10 +67,12 @@ function loadDotEnv(envPath: string): void {
 }
 
 function isDbUnreachable(e: unknown): boolean {
-  return (
-    e instanceof Error &&
-    (e.name === 'PrismaClientInitializationError' || /P1001|P1000|reach database/i.test(e.message))
-  );
+  if (!(e instanceof Error)) return false;
+  if (e.name === 'PrismaClientInitializationError') return true;
+  // P10xx are Prisma's connection-level codes (auth, unreachable, dropped).
+  const code = 'code' in e ? (e as { code: unknown }).code : undefined;
+  if (typeof code === 'string' && code.startsWith('P10')) return true;
+  return /P10\d\d|reach database/i.test(e.message);
 }
 
 /**

@@ -13,6 +13,9 @@ export function formatReport(slug: string, results: readonly CheckResult[]): str
     '',
     `${n('PASS')} passed, ${n('FAIL')} failed, ${n('WARN')} warnings, ${n('SKIP')} skipped`,
   );
+  if (results.some((r) => r.id === 'latest-run' && r.status === 'WARN')) {
+    lines.push('A run is in progress, so the data is not verified yet — run connector:verify again when it ends.');
+  }
   return lines.join('\n');
 }
 

@@ -7,7 +7,7 @@ description: Use when an institution wants its own data in Program Landscape fro
 
 ## Overview
 
-A dataset API connector (`DatasetApiConnector`, slug `api-<name>`) fills one or more import datasets from an institution's own API. Validation and loading reuse the XLSX upload pipeline, so every upload rule applies. **A connector is done when `pnpm connector:verify <slug>` reports no FAIL** — not when a test passes or a run succeeds.
+A dataset API connector (`DatasetApiConnector`, slug `api-<name>`) fills one or more import datasets from an institution's own API. Validation and loading reuse the XLSX upload pipeline, so every upload rule applies. **A connector is done when `pnpm connector:verify <slug>` reports no FAIL and `latest-run` is PASS** — not when a test passes or a run succeeds. A `latest-run` WARN means a run is still in progress (or stuck QUEUED because the worker is down): nothing was checked yet, verify again.
 
 The code is the source of truth; when a doc disagrees with it, follow the code:
 `apps/ingestion/src/connectors/base/dataset-api-connector.ts`, `apps/ingestion/src/connectors/base/api-client.ts`, `apps/ingestion/src/scripts/connector-new/`, `packages/db/src/import/datasets/<dataset>.ts`.

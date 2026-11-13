@@ -14,6 +14,8 @@ Run `pnpm connector:verify <slug>` first; fix the first FAIL.
 | `visible` | Rows exist but `realDataWhere()` hides them | Their data source is mocked: `pnpm data-sources:audit`, then sync |
 | `reaches-programme` (WARN) | Rows link to no canonical programme / faculty | Code mapping in `toRows`; load programmes/faculties first |
 
+`latest-run` WARN (run in progress) is not a pass: the later checks SKIP because nothing was checked. Verify again when the run ends; a run stuck QUEUED means the ingestion worker is not running.
+
 SKIP "no visibility check for this dataset yet" is not an error — the dataset is not in `apps/ingestion/src/scripts/connector-verify/visibility.ts`.
 
 ## By run error code

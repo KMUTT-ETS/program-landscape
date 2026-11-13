@@ -50,6 +50,26 @@ describe('connector:verify CLI', () => {
     expect(t.err.join('\n')).not.toContain('    at ');
   });
 
+  it('exits 3 when the connection drops mid-query', async () => {
+    const dropped = Object.assign(new Error('Server has closed the connection.'), {
+      name: 'PrismaClientKnownRequestError',
+      code: 'P1017',
+    });
+    const reader: VerifyReader = {
+      dataSources: () => Promise.reject(dropped),
+      latestRun: () => Promise.reject(dropped),
+      rowCounts: () => Promise.reject(dropped),
+    };
+    const t = io();
+    const code = await main(['api-anything'], t.sink, {
+      reader,
+      entries: [{ slug: 'api-anything', mock: fakeConnector, real: fakeConnector }],
+      catalog: [catalogEntry('api-anything')],
+    });
+    expect(code).toBe(3);
+    expect(t.err[0]).toContain('could not reach the database');
+  });
+
   it('--json prints parseable results', async () => {
     const t = io();
     const code = await main(['api-nope', '--json'], t.sink, { reader: emptyReader });
