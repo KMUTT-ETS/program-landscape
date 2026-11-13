@@ -266,17 +266,26 @@ value. The common ones:
 
 ## Step 8: Check the result
 
-1. Open `/admin/data-setup/raw/enrollment-metrics`.
+1. Run the connector's checks:
+
+   ```bash
+   pnpm connector:verify api-practice-intake
+   ```
+
+   Every line should read PASS (or SKIP with a reason), ending with a summary
+   such as `7 passed, 0 failed, 0 warnings, 0 skipped`. A FAIL line says what
+   to do next on the line below it.
+2. Open `/admin/data-setup/raw/enrollment-metrics`.
    - The Uploads table has a new row with Source "API: Practice Intake API"
      next to your spreadsheet upload.
    - A banner says "Two sources feed this dataset": uploads and the API now
      both load Enrolment.
-2. Open `/admin/data-sources` and the `api-practice-intake` source. "Recent
+3. Open `/admin/data-sources` and the `api-practice-intake` source. "Recent
    runs" shows the run as SUCCEEDED with the number of rows loaded, and "Log"
    shows its steps. The per-dataset report (which import run loaded Enrolment,
    the warnings) is stored with the run, but this page does not display it yet:
-   the banner in step 1 is where the two-source warning shows.
-3. Open `/programs/<id>` for one of the programmes. The Students section reads
+   the banner in step 2 is where the two-source warning shows.
+4. Open `/programs/<id>` for one of the programmes. The Students section reads
    the same rows: the API supplied the figures the spreadsheet did.
 
 Because Enrolment is matched row by row, a row the API loaded and a row you

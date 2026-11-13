@@ -129,6 +129,9 @@ Never commit the token.
 2. Run `pnpm data-sources:sync --apply`. It creates the connector's data source and renames the import datasets' sources from "(spreadsheet import)" to "(institution import)". An existing installation needs this once after upgrading.
 3. Restart the ingestion worker.
 4. Press "Run now" on `/admin/data-sources`, or run `pnpm connector:run api-myuni-classes`.
+5. Run `pnpm connector:verify api-myuni-classes`. It checks, read-only, that the connector is registered and configured, that its latest run succeeded, and that each dataset's rows carry the run's provenance, are visible to the app and link to programmes. It prints PASS, FAIL, WARN or SKIP per check with the next step; the connector is done when nothing FAILs.
+
+If you build connectors with an AI coding agent, point it at the `managing-connectors` skill in `.claude/skills/managing-connectors/`: it walks the agent through planning the mapping, writing, verifying and maintaining a connector.
 
 The rows appear on `/admin/data-setup/raw/<dataset>`, with Source `API: <connector name>`, and the load shows in the dataset's Uploads history. The connector's own run stores the import run for each dataset, the warnings and the validation errors in its metadata; the admin page does not display that report yet, but a failed run's "Log" shows the error code and message. API rows are stored under the dataset's `xlsx-<slug>` data source, the same one uploads use, because many read paths find a dataset's rows by that name; the import run's metadata records `via: 'api'`.
 

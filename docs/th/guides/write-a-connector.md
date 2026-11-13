@@ -129,6 +129,9 @@ CONNECTOR_API_MYUNI_CLASSES_ALLOW_SHRINK=true
 2. รัน `pnpm data-sources:sync --apply` คำสั่งนี้สร้าง data source ของ connector และเปลี่ยนชื่อแหล่งข้อมูลของชุดข้อมูลนำเข้าจาก "(spreadsheet import)" เป็น "(institution import)" ระบบที่ติดตั้งอยู่แล้วต้องรันหนึ่งครั้งหลังอัปเกรด
 3. รีสตาร์ท ingestion worker
 4. กด "Run now" ที่ `/admin/data-sources` หรือรัน `pnpm connector:run api-myuni-classes`
+5. รัน `pnpm connector:verify api-myuni-classes` คำสั่งนี้ตรวจแบบอ่านอย่างเดียวว่า connector ลงทะเบียนและตั้งค่าแล้ว การรันล่าสุดสำเร็จ และแถวของแต่ละชุดข้อมูลมีที่มาของการรันกำกับ แอปมองเห็น และเชื่อมกับหลักสูตร ผลแสดงเป็น PASS, FAIL, WARN หรือ SKIP ต่อการตรวจแต่ละข้อพร้อมขั้นถัดไป connector ถือว่าเสร็จเมื่อไม่มี FAIL
+
+หากท่านใช้ AI coding agent เขียน connector ให้ agent ใช้ skill `managing-connectors` ใน `.claude/skills/managing-connectors/` ซึ่งพา agent วางแผนการแมป เขียน ตรวจสอบ และดูแล connector
 
 แถวข้อมูลจะปรากฏที่ `/admin/data-setup/raw/<dataset>` โดยคอลัมน์ Source เป็น `API: <connector name>` และการโหลดแสดงในประวัติ Uploads ของชุดข้อมูล การรันของ connector เองเก็บ import run ของแต่ละชุดข้อมูล คำเตือน และข้อผิดพลาดจากการตรวจสอบไว้ใน metadata ของการรัน หน้าผู้ดูแลยังไม่แสดงรายงานนี้ แต่ปุ่ม "Log" ของการรันที่ล้มเหลวจะแสดงรหัสและข้อความของข้อผิดพลาด แถวจาก API ถูกเก็บภายใต้ data source `xlsx-<slug>` ของชุดข้อมูลเดียวกับที่การอัปโหลดใช้ เพราะเส้นทางอ่านข้อมูลจำนวนมากค้นหาแถวของชุดข้อมูลด้วยชื่อนี้ metadata ของ import run บันทึก `via: 'api'`
 

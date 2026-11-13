@@ -229,11 +229,18 @@ pnpm --filter ingestion typecheck
 
 ## ขั้นที่ 8: ตรวจผลลัพธ์
 
-1. เปิด `/admin/data-setup/raw/enrollment-metrics`
+1. รันการตรวจของ connector:
+
+   ```bash
+   pnpm connector:verify api-practice-intake
+   ```
+
+   ทุกบรรทัดควรเป็น PASS (หรือ SKIP พร้อมเหตุผล) และจบด้วยสรุป เช่น `7 passed, 0 failed, 0 warnings, 0 skipped` บรรทัด FAIL บอกขั้นถัดไปไว้ในบรรทัดใต้มัน
+2. เปิด `/admin/data-setup/raw/enrollment-metrics`
    - ตาราง Uploads มีแถวใหม่ที่ Source เป็น "API: Practice Intake API" อยู่ถัดจากการอัปโหลดแฟ้มของท่าน
    - แบนเนอร์ "Two sources feed this dataset" บอกว่าตอนนี้ทั้งการอัปโหลดและ API โหลด Enrolment
-2. เปิด `/admin/data-sources` แล้วเลือก source `api-practice-intake` ส่วน "Recent runs" แสดงการรันเป็น SUCCEEDED พร้อมจำนวนแถวที่โหลด และ "Log" แสดงขั้นตอนของการรัน รายงานแยกตามชุดข้อมูล (import run ใดโหลด Enrolment และคำเตือน) ถูกเก็บไว้กับการรัน แต่หน้านี้ยังไม่แสดง คำเตือนเรื่องสองแหล่งข้อมูลแสดงที่แบนเนอร์ในข้อ 1
-3. เปิด `/programs/<id>` ของหลักสูตรหนึ่ง ส่วน Students อ่านจากแถวเดียวกัน คือ API ให้ตัวเลขชุดเดียวกับที่ spreadsheet ให้
+3. เปิด `/admin/data-sources` แล้วเลือก source `api-practice-intake` ส่วน "Recent runs" แสดงการรันเป็น SUCCEEDED พร้อมจำนวนแถวที่โหลด และ "Log" แสดงขั้นตอนของการรัน รายงานแยกตามชุดข้อมูล (import run ใดโหลด Enrolment และคำเตือน) ถูกเก็บไว้กับการรัน แต่หน้านี้ยังไม่แสดง คำเตือนเรื่องสองแหล่งข้อมูลแสดงที่แบนเนอร์ในข้อ 2
+4. เปิด `/programs/<id>` ของหลักสูตรหนึ่ง ส่วน Students อ่านจากแถวเดียวกัน คือ API ให้ตัวเลขชุดเดียวกับที่ spreadsheet ให้
 
 เนื่องจาก Enrolment จับคู่ทีละแถว แถวที่ API โหลดกับแถวที่ท่านอัปโหลดสำหรับหลักสูตรและปีเดียวกันจึงเป็นแถวเดียวกัน ค่าของแถวเป็นของแหล่งที่โหลดล่าสุด สำหรับชุดข้อมูลที่ครอบคลุมทั้งภาคเรียน เช่น Class Offerings การโหลดล่าสุดจะแทนที่ทั้งภาคเรียน ดูหัวข้อ "สองแหล่งข้อมูลสำหรับชุดข้อมูลเดียว" ใน [คู่มือการเขียน connector](../guides/write-a-connector.md)
 
