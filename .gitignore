@@ -70,6 +70,11 @@ apps/web/public/pdf.worker.*.mjs
 # scripts/dev-guard/ only protects a checkout that has this file, and the dev
 # database is shared — see docs/dev-database-safety.md.
 !.claude/settings.json
+# ...and the project's own skills, which adopters' AI agents use. Skills
+# installed from elsewhere (skills-lock.json) stay ignored.
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/managing-connectors/
 
 
 # Ad-hoc operational SQL. One-off scripts written to patch production data
