@@ -248,7 +248,8 @@ export function runScaffolder(argv: readonly string[], env: ScaffolderEnv): { ex
     `  2. Fill in fetchAll and toRows in apps/ingestion/src/connectors/sources/institution/${name}/connector.ts.`,
   );
   log('  3. Run pnpm data-sources:sync --apply, then restart the ingestion worker.');
-  log('  4. Press "Run now" on /admin/data-sources.');
+  log(`  4. Press "Run now" on /admin/data-sources, or run pnpm connector:run ${slug}.`);
+  log(`  5. Run pnpm connector:verify ${slug} — done when nothing FAILs.`);
   return { exitCode: 0 };
 }
 

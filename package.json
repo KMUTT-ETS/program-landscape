@@ -101,6 +101,7 @@
     "staff:enrich-scopus": "tsx apps/ingestion/src/scripts/enrich-scopus-ids.ts",
     "staff:reconcile-mhesi": "tsx apps/api/src/staff/reconcile-mhesi-codes.ts",
     "connector:run": "tsx apps/ingestion/src/scripts/run-connector.ts",
+    "connector:verify": "tsx apps/ingestion/src/scripts/connector-verify/verify.ts",
     "org:seed-kku": "tsx apps/ingestion/src/scripts/org-seed-kku.ts",
     "data-sources:audit": "tsx apps/ingestion/src/scripts/audit-data-sources.ts",
     "build:release": "tsx scripts/build-release.ts",

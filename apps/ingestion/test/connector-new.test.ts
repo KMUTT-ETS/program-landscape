@@ -170,6 +170,7 @@ describe('runScaffolder', () => {
     expect(catalog).toContain("kind: 'API'");
     expect(catalog).toContain('mocked: false');
     expect(out.join('\n')).toContain('CONNECTOR_API_DEMO_CLASSES_BASE_URL');
+    expect(out.join('\n')).toContain('pnpm connector:verify api-demo-classes');
 
     out.length = 0;
     const again = runScaffolder(args, { root, log });
