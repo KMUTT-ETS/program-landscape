@@ -24,7 +24,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     // false: prisma/seed.ts writes `status` and `mocked` from this field on
     // every seed, so a stale `true` here silently re-mocks the connector and
     // realDataWhere() then discards every row it ever loaded.
-    mocked: false,
+    mocked: true,
   },
   {
     slug: 'kku-tcas-funnel',
@@ -50,7 +50,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     ownerContact: 'KKU Registrar — Academic Office',
     notes:
       'Practical recruitment grain from POWERBI.ADMISSION_STAT — one row per campaign TRACK (competency / language / exam option / quota type / branch-campus intake) within a program × round × year. Finer than the curriculum-level ADMISSION_STAT_CURRID. PROGRAMID is the recruitment-program code (≠ MHESI curr code), resolved to canonical programs via the LLM-assisted AdmissionStatProgramMapping bridge. Seat/plan columns populate once Registrar IT adds them (connector auto-detects).',
-    mocked: false,
+    mocked: true,
   },
   {
     slug: 'kku-finance',
@@ -65,7 +65,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     // false: prisma/seed.ts writes `status` and `mocked` from this field on
     // every seed, so a stale `true` here silently re-mocks the connector and
     // realDataWhere() then discards every row it ever loaded.
-    mocked: false,
+    mocked: true,
   },
   {
     slug: 'kku-hr',
@@ -80,7 +80,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     // false: prisma/seed.ts writes `status` and `mocked` from this field on
     // every seed, so a stale `true` here silently re-mocks the connector and
     // realDataWhere() then discards every row it ever loaded.
-    mocked: false,
+    mocked: true,
   },
   {
     slug: 'kku-alumni',
@@ -96,7 +96,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       '`pnpm outcomes:ingest` / `pnpm outcomes:ingest-xlsx`. Catalog flag flipped to mocked=false on ' +
       '2026-05-11 because the data flowing through this DataSource is real (PDF intake), even though ' +
       'the API connector itself never runs.',
-    mocked: false,
+    mocked: true,
   },
   {
     slug: 'kku-research',
@@ -118,7 +118,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     // false: prisma/seed.ts writes `status` and `mocked` from this field on
     // every seed, so a stale `true` here silently re-mocks the connector and
     // realDataWhere() then discards every row it ever loaded.
-    mocked: false,
+    mocked: true,
   },
   {
     slug: 'digital-transcript',
@@ -151,7 +151,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'and /staff/teaching (instructor-individual with tiered visibility). ' +
       'Refresh: bi-weekly (1st + 15th at 21:00); full load is ~110 min. ' +
       'Real connector wired 2026-05-19; 30-day green-history countdown to 2026-06-18.',
-    mocked: false,
+    mocked: true,
   },
   {
     slug: 'kku-dq',
@@ -168,7 +168,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'Per-student DQ competency results (13 theory + 4 workshop modules, pass mark 70). ' +
       'Aggregated in memory to two cubes; no student names or ids are persisted. ' +
       'Powers /education/student-dq.',
-    mocked: false,
+    mocked: true,
   },
 
   // ── National Thai ──────────────────────────────────────────────────────
@@ -260,7 +260,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     // false: prisma/seed.ts writes `status` and `mocked` from this field on
     // every seed, so a stale `true` here silently re-mocks the connector and
     // realDataWhere() then discards every row it ever loaded.
-    mocked: false,
+    mocked: true,
   },
   {
     slug: 'jobthai',
@@ -286,7 +286,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'only 0.8% mention a postgraduate qualification and just 41 state one as the ' +
       'minimum, so it is near-blind to 179 of KKU\'s 297 programmes; and the source ' +
       'carries no salary, no employer name and no posting date.',
-    mocked: false,
+    mocked: true,
   },
   {
     slug: 'job-108',
@@ -307,7 +307,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'everywhere except /go.php and /url.php. The connector must therefore identify ' +
       'itself honestly as this organisation rather than route through a scraping proxy, and must never request ' +
       'those two paths.',
-    mocked: false,
+    mocked: true,
   },
   {
     slug: 'jobsdb',
@@ -521,7 +521,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     cadenceCron: '0 4 * * *', // daily at 04:00 (after DS2004 03:00 so resolution sees latest aliases)
     ownerContact: 'KKU Registrar — UNICON system administrator',
     notes: 'Per-student snapshot. PII-stripped projection — names + full DOB + address + passport never leave the source. CITIZEN_ID + STD_ID hashed at ingestion; CURR_ID joins Program.mhesiCode ∪ ProgramMhesiAlias.',
-    mocked: false,
+    mocked: true,
   },
   {
     slug: 'unicon-ds2001',
@@ -532,7 +532,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     cadenceCron: '0 5 * * *', // daily at 05:00
     ownerContact: 'KKU Personnel — UNICON system administrator',
     notes: 'Per-staff master snapshot. Names retained (RBAC-gated); CITIZEN_ID hashed. Drives the Staff dashboard suite.',
-    mocked: false,
+    mocked: true,
   },
   {
     slug: 'kku-hr-processed',
@@ -543,7 +543,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     cadenceCron: '0 6 * * *', // daily at 06:00
     ownerContact: 'KKU HR Office',
     notes: 'Server-side GROUP BY ... HAVING n>=5 from vw_history salary. Per-person never crosses the wire. Powers Staff #6 Compensation + program pipeline cost-allocation methodology.',
-    mocked: false,
+    mocked: true,
   },
   {
     slug: 'unicon-ds2003',
@@ -554,7 +554,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     cadenceCron: '0 2 * * *', // daily at 02:00
     ownerContact: 'KKU Personnel — UNICON system administrator',
     notes: 'KKU\'s submission to MHESI-UniCON. One row per (staff × degree). Hashed citizen ID is the cross-system join key.',
-    mocked: false,
+    mocked: true,
   },
   {
     slug: 'unicon-ds2004',
@@ -565,7 +565,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     cadenceCron: '0 3 * * *', // daily at 03:00
     ownerContact: 'KKU Registrar — UNICON system administrator',
     notes: 'Academic staff appointments per MHESI curriculum. CURR_ID joins Program.mhesiCode. Auto-resolves the latest ds2004_<YYSEM> table.',
-    mocked: false,
+    mocked: true,
   },
   {
     slug: 'kku-research-services',
@@ -577,7 +577,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     ownerContact: 'KKU Research Administration (กองบริหารงานวิจัย)',
     notes:
       'Externally funded research and academic-service projects with lead + co-investigators (MySQL views T_external_fund_View_landscape + coproject_landscape). Daily snapshot replace. Lead citizen id hashed in SQL.',
-    mocked: false,
+    mocked: true,
   },
 
   // ── Spreadsheet import (xlsx-*) ────────────────────────────────────────────
