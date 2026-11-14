@@ -40,8 +40,17 @@ If the containers are not running, start them with `pnpm db:up` and wait until
 Open `.env` and confirm `AI_PROVIDER` names your provider (`google` or
 `openrouter`) and the matching key is set. `stub` runs the app with no real AI,
 which is fine for today's sessions 1 and 2 but not for the pipeline in session
-3. If you have not tested the key yet, run the check in
-[Before the day](./00-before-the-day.md#get-an-ai-key-and-check-it-works).
+3. Then test the key from the project folder:
+
+```bash
+pnpm ai:check-key
+```
+
+You should see a ✓ line for completions and one for embeddings, then "AI key
+check passed." It sends one short request per line, reads the key from `.env`
+and never prints it. A ✗ line says what went wrong: a refused key, no credit
+left, a quota limit, or, with OpenRouter and no Google key, a missing
+`AI_OPENROUTER_EMBEDDING_MODEL`. Fix `.env` and run it again.
 
 ## Check the AI assistant can read the repo
 
