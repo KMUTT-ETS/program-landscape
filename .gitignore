@@ -75,6 +75,7 @@ apps/web/public/pdf.worker.*.mjs
 !.claude/skills/
 .claude/skills/*
 !.claude/skills/managing-connectors/
+!.claude/skills/workshop-slides/
 
 
 # Ad-hoc operational SQL. One-off scripts written to patch production data
