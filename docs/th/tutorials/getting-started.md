@@ -64,7 +64,7 @@ cp .env.example .env
 | `AI_PROVIDER` | `google` หากใช้ Gemini key หรือ `openrouter` หากใช้ OpenRouter key ค่าตัวอย่าง `stub` จะไม่เรียก AI จริง |
 | `GOOGLE_AI_API_KEY` | Gemini key ของท่าน หากเลือก `google` |
 | `OPENROUTER_API_KEY` | OpenRouter key ของท่าน หากเลือก `openrouter` |
-| `NEXTAUTH_SECRET` | สตริงสุ่มที่ยาว |
+| `NEXTAUTH_SECRET` | สตริงสุ่มที่ยาว — รัน `pnpm secret:nextauth` เพื่อสร้างและเขียนลง `.env` |
 | `ENABLE_LOCAL_AUTH` | คงเป็น `true` บนแล็ปท็อป เพื่อให้ลงชื่อเข้าใช้ด้วยรหัสผ่านที่ท่านสร้างในภายหลัง |
 
 ตอนนี้ท่านควรมีแฟ้ม `.env` ที่ git ไม่ติดตาม ห้าม commit แฟ้มนี้เด็ดขาด
