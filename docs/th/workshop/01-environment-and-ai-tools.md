@@ -36,8 +36,16 @@ docker compose ps
 
 เปิด `.env` แล้วตรวจสอบว่า `AI_PROVIDER` ระบุผู้ให้บริการของท่าน (`google` หรือ `openrouter`)
 และตั้งค่า key ที่ตรงกันแล้ว ค่า `stub` ทำให้แอปทำงานโดยไม่เรียก AI จริง ซึ่งใช้ได้สำหรับ session 1 และ 2
-แต่ใช้กับ pipeline ใน session 3 ไม่ได้ หากยังไม่ได้ทดสอบ key ให้ทำตามขั้นตอนใน
-[ก่อนวันอบรม](./00-before-the-day.md#ขอ-ai-key-และตรวจสอบว่าใช้งานได้)
+แต่ใช้กับ pipeline ใน session 3 ไม่ได้ จากนั้นทดสอบ key จากโฟลเดอร์โครงการ:
+
+```bash
+pnpm ai:check-key
+```
+
+ท่านควรเห็นบรรทัด ✓ สำหรับ completion และ embeddings แล้วตามด้วย "AI key check passed."
+คำสั่งนี้ส่งคำขอสั้น ๆ บรรทัดละหนึ่งครั้ง อ่าน key จาก `.env` และไม่แสดง key ออกมา
+บรรทัด ✗ จะบอกสาเหตุ เช่น key ถูกปฏิเสธ เครดิตหมด ติด quota หรือใช้ OpenRouter
+โดยไม่มี Google key แต่ยังไม่ได้ตั้ง `AI_OPENROUTER_EMBEDDING_MODEL` แก้ `.env` แล้วรันอีกครั้ง
 
 ## ตรวจสอบว่า AI assistant อ่าน repo ได้
 
