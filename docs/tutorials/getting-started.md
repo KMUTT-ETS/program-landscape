@@ -69,7 +69,7 @@ cp .env.example .env
 | `AI_PROVIDER` | `google` for a Gemini key, or `openrouter` for an OpenRouter key. The example value `stub` runs no real AI. |
 | `GOOGLE_AI_API_KEY` | Your Gemini key, if you chose `google`. |
 | `OPENROUTER_API_KEY` | Your OpenRouter key, if you chose `openrouter`. |
-| `NEXTAUTH_SECRET` | A long random string. |
+| `NEXTAUTH_SECRET` | A long random string — run `pnpm secret:nextauth` to generate one into `.env`. |
 | `ENABLE_LOCAL_AUTH` | Keep `true` on a laptop. It lets you sign in with the password you create later. |
 
 You should now have a `.env` file that is not tracked by git. Never commit it.
