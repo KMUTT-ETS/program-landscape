@@ -60,7 +60,7 @@ function loadDotEnv(envPath: string): void {
 }
 
 import { loadOrganization, prisma } from '@kku/db';
-import { SOURCE_CATALOG } from '@kku/shared';
+import { SOURCE_CATALOG, catalogStatus } from '@kku/shared';
 
 interface Finding {
   slug: string;
@@ -148,8 +148,19 @@ async function audit(): Promise<Finding[]> {
     // 3. `status` is the human-readable label on /admin/data-sources and
     //    /admin/dashboard-topology. It must agree with `mocked` or the page
     //    advertises a real feed as a stub (or worse, the reverse).
-    const expectedStatus = entry.mocked ? 'mocked' : 'active';
-    if (row.mocked === false && row.status === 'mocked') {
+    const expectedStatus = catalogStatus(entry);
+    if (expectedStatus === 'disabled') {
+      // `enabled: false` in the catalog: the label must say so, or the
+      // scheduler (which keys on status) would still fire it.
+      if (row.status !== 'disabled') {
+        findings.push({
+          slug: entry.slug,
+          issue: 'stale-status-label',
+          detail: `catalog enabled=false but status='${row.status}' — should be 'disabled'`,
+          fixable: true,
+        });
+      }
+    } else if (row.mocked === false && row.status === 'mocked') {
       findings.push({
         slug: entry.slug,
         issue: 'stale-status-label',
@@ -178,7 +189,7 @@ async function applyFixes(findings: Finding[]): Promise<number> {
       where: { slug: f.slug },
       // Always write BOTH columns together. They are independent in the
       // schema, and setting one without the other is the original bug.
-      data: { mocked: entry.mocked, status: entry.mocked ? 'mocked' : 'active' },
+      data: { mocked: entry.mocked, status: catalogStatus(entry) },
     });
     fixed += 1;
   }

@@ -2,12 +2,23 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { Queue } from 'bullmq';
 import type { Connector } from '@kku/shared';
 
-const { findMany } = vi.hoisted(() => ({ findMany: vi.fn() }));
+const { findMany, disabledSlugs } = vi.hoisted(() => ({
+  findMany: vi.fn(),
+  disabledSlugs: new Set<string>(),
+}));
 vi.mock('@kku/db', () => ({
   prisma: {
     dataSource: { findMany },
   },
 }));
+vi.mock('@kku/shared', async () => {
+  const actual = await vi.importActual<typeof import('@kku/shared')>('@kku/shared');
+  return {
+    ...actual,
+    // Decoupled from the live catalog: only the slugs a test names are disabled.
+    isSourceEnabled: (slug: string) => !disabledSlugs.has(slug),
+  };
+});
 
 import { IngestionScheduler } from '../src/queue/scheduler';
 import type { IngestionJobData, IngestionJobResult } from '../src/queue/queue';
@@ -44,6 +55,27 @@ const asQueue = (f: FakeQueue) => f as unknown as Queue<IngestionJobData, Ingest
 describe('IngestionScheduler', () => {
   beforeEach(() => {
     findMany.mockReset();
+    disabledSlugs.clear();
+  });
+
+  it('only asks for rows whose status is not disabled', async () => {
+    findMany.mockResolvedValue([]);
+    await new IngestionScheduler(asQueue(createFakeQueue()), realRegistry(), {}).registerSchedules();
+    expect(findMany.mock.calls[0]?.[0]).toMatchObject({ where: { status: { not: 'disabled' } } });
+  });
+
+  it('skips a source switched off in the catalog even if its row was never synced', async () => {
+    disabledSlugs.add('kku-registry');
+    findMany.mockResolvedValue([{ slug: 'kku-registry', cadenceCron: '0 2 * * *' }]);
+    const fake = createFakeQueue();
+    const result = await new IngestionScheduler(
+      asQueue(fake),
+      realRegistry('kku-registry'),
+      {},
+    ).registerSchedules();
+
+    expect(fake.add).not.toHaveBeenCalled();
+    expect(result.skippedSlugs).toEqual([{ slug: 'kku-registry', reason: 'disabled' }]);
   });
 
   it('registers a repeatable job for each scheduleEnabled source with cadenceCron', async () => {

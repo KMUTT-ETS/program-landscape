@@ -111,6 +111,7 @@ describe('syncDataSourcesFromCatalog', () => {
     await syncDataSourcesFromCatalog(client);
 
     for (const row of rows.values()) {
+      if (row.status === 'disabled') continue; // enabled: false — see below
       if (row.mocked === true) expect(row.status).toBe('mocked');
       else expect(['active', 'deprecated']).toContain(row.status);
     }
@@ -126,6 +127,44 @@ describe('syncDataSourcesFromCatalog', () => {
       expect(row.scheduleEnabled).toBe(false);
       expect(row.status).toBe(entry.mocked ? 'mocked' : 'deprecated');
     }
+  });
+});
+
+describe('syncDataSourcesFromCatalog — enabled: false', () => {
+  const base = { kind: 'API', inputFormat: 'JSON', cadenceCron: '0 2 * * *' } as const;
+  const catalog = [
+    { ...base, slug: 'off-real', name: 'Off (real)', mocked: false, enabled: false },
+    { ...base, slug: 'off-mocked', name: 'Off (mocked)', mocked: true, enabled: false },
+    { ...base, slug: 'on', name: 'On', mocked: false },
+  ];
+
+  it("labels a switched-off source 'disabled' but keeps its mocked column from the catalog", async () => {
+    const { client, rows } = fakeClient();
+    await syncDataSourcesFromCatalog(client, catalog);
+
+    expect(rows.get('off-real')).toMatchObject({ status: 'disabled', mocked: false, scheduleEnabled: false });
+    // mocked stays atomic with the catalog so realDataWhere() keeps the rows
+    // a source loaded before it was switched off.
+    expect(rows.get('off-mocked')).toMatchObject({ status: 'disabled', mocked: true });
+    expect(rows.get('on')).toMatchObject({ status: 'active' });
+  });
+
+  it('turns off the schedule of an existing row and relabels it', async () => {
+    const { client, rows } = fakeClient([
+      { ...base, slug: 'off-real', name: 'Off (real)', status: 'active', mocked: false, scheduleEnabled: true },
+    ]);
+    const result = await syncDataSourcesFromCatalog(client, catalog.slice(0, 1));
+
+    expect(rows.get('off-real')).toMatchObject({ status: 'disabled', scheduleEnabled: false });
+    expect(result.updated[0]?.changes).toEqual(expect.arrayContaining(['status', 'scheduleEnabled']));
+  });
+
+  it('re-enabling restores the status label but leaves the schedule to the operator', async () => {
+    const { client, rows } = fakeClient();
+    await syncDataSourcesFromCatalog(client, catalog.slice(0, 1));
+    await syncDataSourcesFromCatalog(client, [{ ...catalog[0]!, enabled: true }]);
+
+    expect(rows.get('off-real')).toMatchObject({ status: 'active', scheduleEnabled: false });
   });
 });
 

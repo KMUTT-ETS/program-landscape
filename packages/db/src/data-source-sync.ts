@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
-import { SOURCE_CATALOG } from '@kku/shared';
+import { SOURCE_CATALOG, catalogStatus } from '@kku/shared';
 
 import { prisma as defaultPrisma } from './index';
 
@@ -31,8 +31,10 @@ import { prisma as defaultPrisma } from './index';
  * every source off, so an adopting university runs nothing it has not turned on.
  * After that the column belongs to the operator (admin UI) and a sync never
  * flips it — KKU's production keeps its current schedules across upgrades. The
- * one exception is a `deprecated` catalog entry: a retired source whose stored
- * schedule is on is forced off (reported as a `'scheduleEnabled'` change).
+ * exceptions are a `deprecated` or `enabled: false` catalog entry: a retired or
+ * switched-off source whose stored schedule is on is forced off (reported as a
+ * `'scheduleEnabled'` change). Re-enabling a source does NOT turn its schedule
+ * back on — that stays the operator's call.
  */
 export interface DataSourceSyncResult {
   /** Slugs inserted by this run. */
@@ -55,7 +57,7 @@ export interface DataSourceSyncResult {
 /** The columns this function owns. `lastSyncedAt` and `status` transitions
  *  made by the running system (e.g. a connector marking itself 'error') are
  *  deliberately NOT in this list for `lastSyncedAt`; `status` IS, because the
- *  catalog is the authority on mocked/deprecated/active. */
+ *  catalog is the authority on mocked/deprecated/disabled/active. */
 const SYNCED_COLUMNS = [
   'name',
   'kind',
@@ -71,14 +73,13 @@ const SYNCED_COLUMNS = [
 
 type SyncedColumn = (typeof SYNCED_COLUMNS)[number];
 
+type CatalogEntry = (typeof SOURCE_CATALOG)[number];
+
 /** The row shape the catalog dictates, for one entry. */
-function desiredRow(entry: (typeof SOURCE_CATALOG)[number]): Record<SyncedColumn, unknown> {
-  // `status` is the human-readable label the admin surfaces render, and it has
-  // to account for `deprecated` as well as `mocked`: deriving it from `mocked`
-  // alone re-labelled every superseded source as "active" on each seed, which
-  // is how openalex + scopus kept advertising themselves as live feeds for the
-  // four months after kku-research replaced them.
-  const status = entry.mocked ? 'mocked' : entry.deprecated ? 'deprecated' : 'active';
+function desiredRow(entry: CatalogEntry): Record<SyncedColumn, unknown> {
+  // `status` is the human-readable label the admin surfaces render; see
+  // catalogStatus() for the precedence (disabled > mocked > deprecated).
+  const status = catalogStatus(entry);
   return {
     name: entry.name,
     kind: entry.kind,
@@ -99,6 +100,7 @@ function desiredRow(entry: (typeof SOURCE_CATALOG)[number]): Record<SyncedColumn
 
 export async function syncDataSourcesFromCatalog(
   client: Pick<PrismaClient, 'dataSource'> = defaultPrisma,
+  catalog: readonly CatalogEntry[] = SOURCE_CATALOG,
 ): Promise<DataSourceSyncResult> {
   const existing = await client.dataSource.findMany({
     select: {
@@ -120,7 +122,7 @@ export async function syncDataSourcesFromCatalog(
 
   const result: DataSourceSyncResult = { created: [], updated: [], unchanged: 0, orphaned: [] };
 
-  for (const entry of SOURCE_CATALOG) {
+  for (const entry of catalog) {
     const desired = desiredRow(entry);
     const current = bySlug.get(entry.slug);
 
@@ -133,8 +135,10 @@ export async function syncDataSourcesFromCatalog(
     }
 
     const changes: string[] = SYNCED_COLUMNS.filter((c) => current[c] !== desired[c]);
-    // Deprecated sources are the only case where a sync turns a schedule off.
-    const forceOff = entry.deprecated === true && current.scheduleEnabled === true;
+    // Deprecated and disabled sources are the only cases where a sync turns a
+    // schedule off.
+    const forceOff =
+      (entry.deprecated === true || entry.enabled === false) && current.scheduleEnabled === true;
     if (forceOff) changes.push('scheduleEnabled');
     if (changes.length === 0) {
       result.unchanged += 1;
@@ -147,7 +151,7 @@ export async function syncDataSourcesFromCatalog(
     result.updated.push({ slug: entry.slug, changes });
   }
 
-  const catalogSlugs = new Set(SOURCE_CATALOG.map((e) => e.slug));
+  const catalogSlugs = new Set(catalog.map((e) => e.slug));
   result.orphaned = existing.map((r) => r.slug).filter((s) => !catalogSlugs.has(s));
 
   return result;

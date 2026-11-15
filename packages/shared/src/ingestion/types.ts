@@ -73,6 +73,13 @@ export interface SourceCatalogEntry {
   // scheduling it. Removal happens after the replacement source has
   // 30 days of green history (per docs/readiness-checklist.md gate 11).
   deprecated?: boolean;
+  // False switches the source off on this installation while keeping its
+  // connector code and its historical rows. `pnpm data-sources:sync --apply`
+  // sets `data_sources.status = 'disabled'` and turns the schedule off; the
+  // runner refuses every run (scheduled or manual) with SOURCE_DISABLED.
+  // Unlike `deprecated` it says nothing about a replacement — flip it back to
+  // true (or delete the line) to re-enable. Omitted = enabled.
+  enabled?: boolean;
   // True for connectors that only work against KKU's internal systems;
   // they are examples for an adopting university, not defaults.
   kkuExample?: boolean;

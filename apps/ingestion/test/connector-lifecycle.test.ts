@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   dataSourceFindUnique: vi.fn(),
   dataSourceUpdate: vi.fn(),
   userFindUnique: vi.fn(),
+  // Every source enabled by default; one test switches a slug off.
+  disabledSlugs: new Set<string>(),
 }));
 const {
   pdfUpsert,
@@ -49,6 +51,9 @@ vi.mock('@kku/shared', async () => {
   const actual = await vi.importActual<typeof import('@kku/shared')>('@kku/shared');
   return {
     ...actual,
+    // Decoupled from the live catalog (which may switch kku-* sources off on
+    // an installation): only the slugs a test names are disabled.
+    isSourceEnabled: (slug: string) => !mocks.disabledSlugs.has(slug),
     S3Storage: class {
       putObject = vi.fn().mockResolvedValue({ bucket: 'pdf-raw', key: 'x', byteSize: 0 });
       getSignedDownloadUrl = vi.fn().mockResolvedValue('https://minio.test/x');
@@ -101,6 +106,30 @@ describe('ConnectorRunner — end-to-end (mocked prisma)', () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
+    mocks.disabledSlugs.clear();
+  });
+
+  it('skips a source switched off in the catalog with SOURCE_DISABLED, even when mock runs are allowed', async () => {
+    mocks.disabledSlugs.add('kku-registry');
+    dataSourceFindUnique.mockResolvedValue(fakeDataSourceRow('kku-registry'));
+    const connector = new KkuRegistryConnector();
+    const fetchSpy = vi.spyOn(connector, 'fetch');
+    const runner = new ConnectorRunner(new Map([[connector.slug, connector]]));
+
+    const outcome = await runner.run({
+      dataSourceSlug: 'kku-registry',
+      trigger: 'MANUAL',
+      triggeredByUserId: 'user-test',
+    });
+
+    expect(outcome).toEqual({ runId: 'run-123', status: 'SKIPPED', recordsLoaded: 0, recordsFailed: 0 });
+    const data = (runCreate.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data;
+    expect(data.errorCode).toBe('SOURCE_DISABLED');
+    expect(data.trigger).toBe('MANUAL');
+    expect(data.triggeredByUserId).toBe('user-test');
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(dataSourceUpdate).not.toHaveBeenCalled();
+    expect(runUpdateMany).not.toHaveBeenCalled();
   });
 
   it('skips a mock connector with MOCK_NOT_ALLOWED and leaves lastSyncedAt alone', async () => {

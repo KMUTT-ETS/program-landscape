@@ -1,5 +1,6 @@
 import {
   Body,
+  ConflictException,
   Controller,
   Get,
   NotFoundException,
@@ -14,6 +15,7 @@ import {
   RUN_LOG_PAGE_SIZE,
   RunLogQuerySchema,
   RunLogResponseSchema,
+  isSourceEnabled,
   type RunLogQuery,
   type RunLogResponse,
   type SessionUser,
@@ -276,6 +278,13 @@ export class DataSourcesController {
   async runNow(@AuthSession() user: SessionUser, @Param('id') id: string) {
     const source = await prisma.dataSource.findUnique({ where: { id } });
     if (!source) throw new NotFoundException();
+    // The runner refuses it too (SOURCE_DISABLED); failing here tells the
+    // operator at once instead of leaving a SKIPPED run to find later.
+    if (!isSourceEnabled(source.slug)) {
+      throw new ConflictException(
+        `${source.slug} is switched off on this installation (enabled: false in the source catalog).`,
+      );
+    }
     const jobId = await this.queue.enqueueManual(source.slug, user.userId);
     return { jobId, dataSourceSlug: source.slug };
   }

@@ -29,7 +29,8 @@ describe('syncDataSourcesFromCatalog — scheduleEnabled ownership (D1)', () => 
 
   it("keeps an existing row's scheduleEnabled", async () => {
     const rows = await freshRows();
-    const existing = rows.map((r) => ({ ...r, scheduleEnabled: r.slug === 'kku-registry' }));
+    // A source that is neither deprecated nor switched off (`enabled: false`).
+    const existing = rows.map((r) => ({ ...r, scheduleEnabled: r.slug === 'tcas' }));
     const { client, create, update } = fakeClient(existing);
     const result = await syncDataSourcesFromCatalog(client);
     expect(create).not.toHaveBeenCalled();

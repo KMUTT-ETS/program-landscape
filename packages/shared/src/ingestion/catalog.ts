@@ -25,6 +25,8 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     // every seed, so a stale `true` here silently re-mocks the connector and
     // realDataWhere() then discards every row it ever loaded.
     mocked: true,
+    // Switched off on this installation (2026-11-15) — code kept; remove to re-enable.
+    enabled: false,
   },
   {
     slug: 'kku-tcas-funnel',
@@ -51,6 +53,8 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     notes:
       'Practical recruitment grain from POWERBI.ADMISSION_STAT — one row per campaign TRACK (competency / language / exam option / quota type / branch-campus intake) within a program × round × year. Finer than the curriculum-level ADMISSION_STAT_CURRID. PROGRAMID is the recruitment-program code (≠ MHESI curr code), resolved to canonical programs via the LLM-assisted AdmissionStatProgramMapping bridge. Seat/plan columns populate once Registrar IT adds them (connector auto-detects).',
     mocked: true,
+    // Switched off on this installation (2026-11-15) — code kept; remove to re-enable.
+    enabled: false,
   },
   {
     slug: 'kku-finance',
@@ -66,6 +70,8 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     // every seed, so a stale `true` here silently re-mocks the connector and
     // realDataWhere() then discards every row it ever loaded.
     mocked: true,
+    // Switched off on this installation (2026-11-15) — code kept; remove to re-enable.
+    enabled: false,
   },
   {
     slug: 'kku-hr',
@@ -81,6 +87,8 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     // every seed, so a stale `true` here silently re-mocks the connector and
     // realDataWhere() then discards every row it ever loaded.
     mocked: true,
+    // Switched off on this installation (2026-11-15) — code kept; remove to re-enable.
+    enabled: false,
   },
   {
     slug: 'kku-alumni',
@@ -97,6 +105,8 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       '2026-05-11 because the data flowing through this DataSource is real (PDF intake), even though ' +
       'the API connector itself never runs.',
     mocked: true,
+    // Switched off on this installation (2026-11-15) — code kept; remove to re-enable.
+    enabled: false,
   },
   {
     slug: 'kku-research',
@@ -119,6 +129,8 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     // every seed, so a stale `true` here silently re-mocks the connector and
     // realDataWhere() then discards every row it ever loaded.
     mocked: true,
+    // Switched off on this installation (2026-11-15) — code kept; remove to re-enable.
+    enabled: false,
   },
   {
     slug: 'digital-transcript',
@@ -152,6 +164,8 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'Refresh: bi-weekly (1st + 15th at 21:00); full load is ~110 min. ' +
       'Real connector wired 2026-05-19; 30-day green-history countdown to 2026-06-18.',
     mocked: true,
+    // Switched off on this installation (2026-11-15) — code kept; remove to re-enable.
+    enabled: false,
   },
   {
     slug: 'kku-dq',
@@ -169,6 +183,8 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'Aggregated in memory to two cubes; no student names or ids are persisted. ' +
       'Powers /education/student-dq.',
     mocked: true,
+    // Switched off on this installation (2026-11-15) — code kept; remove to re-enable.
+    enabled: false,
   },
 
   // ── National Thai ──────────────────────────────────────────────────────
@@ -547,6 +563,8 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     ownerContact: 'KKU HR Office',
     notes: 'Server-side GROUP BY ... HAVING n>=5 from vw_history salary. Per-person never crosses the wire. Powers Staff #6 Compensation + program pipeline cost-allocation methodology.',
     mocked: true,
+    // Switched off on this installation (2026-11-15) — code kept; remove to re-enable.
+    enabled: false,
   },
   {
     slug: 'unicon-ds2003',
@@ -581,6 +599,8 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     notes:
       'Externally funded research and academic-service projects with lead + co-investigators (MySQL views T_external_fund_View_landscape + coproject_landscape). Daily snapshot replace. Lead citizen id hashed in SQL.',
     mocked: true,
+    // Switched off on this installation (2026-11-15) — code kept; remove to re-enable.
+    enabled: false,
   },
 
   // ── Spreadsheet import (xlsx-*) ────────────────────────────────────────────
@@ -919,6 +939,29 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
 /** True for connectors that only work against KKU's internal systems. */
 export function isKkuExample(slug: string): boolean {
   return getCatalogEntry(slug)?.kkuExample === true;
+}
+
+/**
+ * The `data_sources.status` label a catalog entry dictates. `enabled: false`
+ * wins: the scheduler and the runner key on 'disabled'. Then `mocked`, then
+ * `deprecated` — deriving it from `mocked` alone re-labelled every superseded
+ * source as "active" on each seed. The `mocked` column is written separately
+ * and always carries `entry.mocked`, so a disabled source's earlier real rows
+ * stay visible to realDataWhere().
+ */
+export function catalogStatus(
+  entry: Pick<SourceCatalogEntry, 'enabled' | 'mocked' | 'deprecated'>,
+): 'disabled' | 'mocked' | 'deprecated' | 'active' {
+  if (entry.enabled === false) return 'disabled';
+  if (entry.mocked) return 'mocked';
+  if (entry.deprecated) return 'deprecated';
+  return 'active';
+}
+
+/** False only when the catalog entry says `enabled: false`. Unknown slugs
+ *  count as enabled — the runner and registry report those separately. */
+export function isSourceEnabled(slug: string): boolean {
+  return getCatalogEntry(slug)?.enabled !== false;
 }
 
 export function getCatalogEntry(slug: string): SourceCatalogEntry | undefined {

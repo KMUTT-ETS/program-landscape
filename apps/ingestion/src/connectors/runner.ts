@@ -6,7 +6,12 @@ import type {
   IngestionRunTrigger,
   NormalizedRecord,
 } from '@kku/shared';
-import { OrganizationNotConfiguredError, connectorModeEnvKey, mockRunsAllowed } from '@kku/shared';
+import {
+  OrganizationNotConfiguredError,
+  connectorModeEnvKey,
+  isSourceEnabled,
+  mockRunsAllowed,
+} from '@kku/shared';
 import { NonRetryableError } from './base';
 import { RunLog, type RunLogWriter } from './run-log';
 
@@ -59,6 +64,37 @@ export class ConnectorRunner {
     private readonly logWriter?: RunLogWriter,
   ) {}
 
+  /** Record one SKIPPED run for a run the runner refuses to start. No fetch,
+   *  no lastSyncedAt bump. */
+  private async recordRefusal(
+    dataSourceId: string,
+    opts: RunOptions,
+    errorCode: 'SOURCE_DISABLED' | 'MOCK_NOT_ALLOWED',
+    errorMessage: string,
+  ): Promise<RunOutcome> {
+    const now = new Date();
+    // Same FK guard as the normal path: an unknown trigger user is recorded as null.
+    const skipUser = opts.triggeredByUserId
+      ? await prisma.user.findUnique({ where: { id: opts.triggeredByUserId }, select: { id: true } })
+      : null;
+    const skipped = await prisma.ingestionRun.create({
+      data: {
+        dataSourceId,
+        trigger: opts.trigger,
+        triggeredByUserId: skipUser?.id ?? null,
+        status: 'SKIPPED',
+        startedAt: now,
+        completedAt: now,
+        errorCode,
+        errorMessage,
+      },
+    });
+    const skipLog = new RunLog(skipped.id, this.logWriter);
+    skipLog.add('WARN', `Skipped (${errorCode}): ${errorMessage}`, undefined, { force: true });
+    await skipLog.close();
+    return { runId: skipped.id, status: 'SKIPPED', recordsLoaded: 0, recordsFailed: 0 };
+  }
+
   async run(opts: RunOptions): Promise<RunOutcome> {
     const connector = this.registry.get(opts.dataSourceSlug);
     if (!connector) {
@@ -76,35 +112,22 @@ export class ConnectorRunner {
       );
     }
 
+    // A source switched off in the catalog (`enabled: false`) never runs,
+    // whatever triggered it — schedule, Run now, or a dashboard refresh bar.
+    // Same shape as the mock refusal: one SKIPPED run, nothing else touched.
+    if (!isSourceEnabled(opts.dataSourceSlug)) {
+      return this.recordRefusal(dataSource.id, opts, 'SOURCE_DISABLED',
+        'This source is switched off on this installation (enabled: false in the source catalog). ' +
+          'Remove that flag and run `pnpm data-sources:sync --apply` to switch it back on.');
+    }
+
     // A mock implementation writes invented rows. Refuse unless the operator
     // explicitly allowed it; record one SKIPPED run and touch nothing else
     // (no lastSyncedAt bump, no fetch).
     if (connector.mocked && !mockRunsAllowed()) {
-      const now = new Date();
-      // Same FK guard as the normal path: an unknown trigger user is recorded as null.
-      const skipUser = opts.triggeredByUserId
-        ? await prisma.user.findUnique({ where: { id: opts.triggeredByUserId }, select: { id: true } })
-        : null;
-      const skipped = await prisma.ingestionRun.create({
-        data: {
-          dataSourceId: dataSource.id,
-          trigger: opts.trigger,
-          triggeredByUserId: skipUser?.id ?? null,
-          status: 'SKIPPED',
-          startedAt: now,
-          completedAt: now,
-          errorCode: 'MOCK_NOT_ALLOWED',
-          errorMessage:
-            `This source has no real connection configured. Set ${connectorModeEnvKey(opts.dataSourceSlug)}=real ` +
-            'and its connection settings, or load the matching spreadsheet dataset.',
-        },
-      });
-      const skipLog = new RunLog(skipped.id, this.logWriter);
-      skipLog.add('WARN', `Skipped (MOCK_NOT_ALLOWED): ${skipped.errorMessage ?? ''}`, undefined, {
-        force: true,
-      });
-      await skipLog.close();
-      return { runId: skipped.id, status: 'SKIPPED', recordsLoaded: 0, recordsFailed: 0 };
+      return this.recordRefusal(dataSource.id, opts, 'MOCK_NOT_ALLOWED',
+        `This source has no real connection configured. Set ${connectorModeEnvKey(opts.dataSourceSlug)}=real ` +
+          'and its connection settings, or load the matching spreadsheet dataset.');
     }
 
     // ── Orphan reaper ───────────────────────────────────────────────────

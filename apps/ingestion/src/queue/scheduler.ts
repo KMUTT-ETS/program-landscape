@@ -1,7 +1,7 @@
 import type { Queue } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { prisma } from '@kku/db';
-import { mockRunsAllowed, type Connector } from '@kku/shared';
+import { isSourceEnabled, mockRunsAllowed, type Connector } from '@kku/shared';
 import type { IngestionJobData, IngestionJobResult } from './queue';
 
 // Reads DataSource rows from the DB at boot and registers one BullMQ
@@ -17,6 +17,8 @@ import type { IngestionJobData, IngestionJobResult } from './queue';
 // overhead of a BullMQ pub-sub on DataSource updates isn't worth it for
 // a daily-cadence service.
 
+type SkipReason = 'disabled' | 'unregistered' | 'mock-only';
+
 export class IngestionScheduler {
   private readonly logger = new Logger('IngestionScheduler');
 
@@ -29,7 +31,7 @@ export class IngestionScheduler {
   async registerSchedules(): Promise<{
     registered: number;
     skipped: number;
-    skippedSlugs: { slug: string; reason: 'unregistered' | 'mock-only' }[];
+    skippedSlugs: { slug: string; reason: SkipReason }[];
   }> {
     const sources = await prisma.dataSource.findMany({
       where: {
@@ -47,7 +49,7 @@ export class IngestionScheduler {
 
     let registered = 0;
     let skipped = 0;
-    const skippedSlugs: { slug: string; reason: 'unregistered' | 'mock-only' }[] = [];
+    const skippedSlugs: { slug: string; reason: SkipReason }[] = [];
     const allowMocks = mockRunsAllowed(this.env);
 
     for (const src of sources) {
@@ -56,11 +58,16 @@ export class IngestionScheduler {
         continue;
       }
       const connector = this.registry.get(src.slug);
-      const reason = !connector
-        ? 'unregistered'
-        : connector.mocked && !allowMocks
-          ? 'mock-only'
-          : null;
+      // `status: 'disabled'` already filters a synced row out above; checking
+      // the catalog too covers a DB that has not been synced since the flag
+      // was set (the runner would refuse the run anyway).
+      const reason: SkipReason | null = !isSourceEnabled(src.slug)
+        ? 'disabled'
+        : !connector
+          ? 'unregistered'
+          : connector.mocked && !allowMocks
+            ? 'mock-only'
+            : null;
       if (reason) {
         this.logger.warn(`Not scheduling ${src.slug}: ${reason}`);
         skippedSlugs.push({ slug: src.slug, reason });
