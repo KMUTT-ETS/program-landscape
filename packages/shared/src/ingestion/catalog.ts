@@ -278,7 +278,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     // (DEMAND_SOURCE_RUN_SLUGS in packages/db/src/demand-match-sources.ts).
     // Entry kept so historical IngestionRun rows don't orphan; `deprecated`
     // makes `pnpm data-sources:sync --apply` switch its schedule off.
-    mocked: true,
+    mocked: false,
     deprecated: true,
   },
   {
@@ -340,7 +340,7 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     cadenceCron: '0 */6 * * *', // every 6 hours (no longer scheduled — see deprecated)
     ownerContact: 'Institutional data office',
     notes: 'SUPERSEDED by kmitl-skill-mapping (2026-05-01). Catalog entry retained so historical IngestionRun rows don\'t orphan; full removal after kmitl-skill-mapping clears 30-day green-history gate.',
-    mocked: true,
+    mocked: false,
     deprecated: true,
   },
   {
@@ -545,6 +545,8 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     ownerContact: 'KKU Registrar — UNICON system administrator',
     notes: 'Per-student snapshot. PII-stripped projection — names + full DOB + address + passport never leave the source. CITIZEN_ID + STD_ID hashed at ingestion; CURR_ID joins Program.mhesiCode ∪ ProgramMhesiAlias.',
     mocked: true,
+    // Switched off on this installation (2026-11-15) — code kept; remove to re-enable.
+    enabled: false,
   },
   {
     slug: 'unicon-ds2001',
@@ -556,6 +558,8 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     ownerContact: 'KKU Personnel — UNICON system administrator',
     notes: 'Per-staff master snapshot. Names retained (RBAC-gated); CITIZEN_ID hashed. Drives the Staff dashboard suite.',
     mocked: true,
+    // Switched off on this installation (2026-11-15) — code kept; remove to re-enable.
+    enabled: false,
   },
   {
     slug: 'kku-hr-processed',
@@ -580,6 +584,8 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     ownerContact: 'KKU Personnel — UNICON system administrator',
     notes: 'KKU\'s submission to MHESI-UniCON. One row per (staff × degree). Hashed citizen ID is the cross-system join key.',
     mocked: true,
+    // Switched off on this installation (2026-11-15) — code kept; remove to re-enable.
+    enabled: false,
   },
   {
     slug: 'unicon-ds2004',
@@ -591,6 +597,8 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     ownerContact: 'KKU Registrar — UNICON system administrator',
     notes: 'Academic staff appointments per MHESI curriculum. CURR_ID joins Program.mhesiCode. Auto-resolves the latest ds2004_<YYSEM> table.',
     mocked: true,
+    // Switched off on this installation (2026-11-15) — code kept; remove to re-enable.
+    enabled: false,
   },
   {
     slug: 'kku-research-services',
