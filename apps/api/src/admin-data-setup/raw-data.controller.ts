@@ -1446,7 +1446,7 @@ const DATASETS: Record<string, DatasetFetcher> = {
       prisma.labourMarketSkillDemand.count({ where }),
     ]);
     return {
-      title: 'Career skill demand (uploaded)',
+      title: 'Career skill demand',
       description:
         'Rows uploaded through the Career Skill Demand sheet. A skill showing as unresolved matched nothing in the skill taxonomy and does not score; upload the sheet again once the programme pipeline has built your skills.',
       columns: [
