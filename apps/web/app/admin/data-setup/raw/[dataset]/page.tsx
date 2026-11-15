@@ -1,7 +1,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { redirect, notFound } from 'next/navigation';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Info } from 'lucide-react';
 import { isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetch } from '@/lib/api-client';
@@ -64,7 +64,7 @@ const DATASET_TITLES: Record<string, string> = {
   'course-evaluations': 'Course evaluations',
   'faculty-compensation': 'Faculty compensation (aggregate)',
   'staff-salary-by-funding': 'Staff salary by funding',
-  'career-skill-demand': 'Career skill demand (uploaded)',
+  'career-skill-demand': 'Career skill demand',
   'labour-market-careers': 'Labour-market career taxonomy',
   'labour-market-skill-demands': 'Labour-market skill demand',
   'labour-market-skill-growths': 'Labour-market skill growth',
@@ -145,6 +145,22 @@ export default async function RawDatasetPage({
       />
 
       {importDataset ? <ImportPanel dataset={importDataset} /> : null}
+
+      {dataset === 'career-skill-demand' ? (
+        <Card padding="md" className="flex items-start gap-3">
+          <Info className="mt-0.5 size-icon-sm shrink-0 text-text-secondary" aria-hidden />
+          <p className="text-sm text-text-secondary">
+            <span className="font-medium text-text-primary">After uploading,</span> run{' '}
+            <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-xs text-text-primary">
+              pnpm skills:normalise --auto-promote
+            </code>{' '}
+            from the repository root. The import links only skill names that match the skill
+            taxonomy exactly; this command uses AI to match the rest, and{' '}
+            <code className="font-mono text-xs">--auto-promote</code> adds high-confidence new
+            skills to the taxonomy.
+          </p>
+        </Card>
+      ) : null}
 
       <Card padding="md" tone="quiet" className="flex flex-wrap items-center justify-between gap-4">
         <form action={`/admin/data-setup/raw/${dataset}`} method="get" className="flex items-center gap-3">
