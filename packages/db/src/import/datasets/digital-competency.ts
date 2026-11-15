@@ -79,6 +79,7 @@ export const digitalCompetencyCohortsDataset: ImportDataset = {
     'of the Deep-Dive and the Student DQ dashboard.',
   tier: 2,
   sheetName: 'Digital Competency Cohorts',
+  targetTables: ['dq_student_cube'],
   columns: [
     PROGRAMME_COLUMN,
     buddhistYearColumn('Entry Year', 'entryYear', 'The year this cohort started.'),
@@ -208,6 +209,7 @@ export const digitalCompetencyModulesDataset: ImportDataset = {
     'Digital Competency — Cohorts sheet: the score is withheld until that sheet gives six scored students.',
   tier: 2,
   sheetName: 'Digital Competency Modules',
+  targetTables: ['dq_module_cube'],
   columns: [
     PROGRAMME_COLUMN,
     buddhistYearColumn('Entry Year', 'entryYear', 'The year this cohort started.'),

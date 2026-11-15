@@ -71,6 +71,7 @@ export const enrollmentDataset: ImportDataset = {
     'Fills the Deep-Dive student sections.',
   tier: 1,
   sheetName: 'Enrolment',
+  targetTables: ['enrollment_metrics'],
   columns: [
     {
       header: 'Programme Code',

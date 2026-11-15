@@ -51,6 +51,7 @@ export const financialsDataset: ImportDataset = {
     'methodology and are left untouched by an upload.',
   tier: 1,
   sheetName: 'Finance',
+  targetTables: ['financial_metrics'],
   columns: [
     {
       header: 'Programme Code',

@@ -51,6 +51,7 @@ export const programFacultyDataset: ImportDataset = {
     'programme page.',
   tier: 2,
   sheetName: 'Programme Staff',
+  targetTables: ['program_faculties'],
   columns: [
     {
       header: 'Programme Code',

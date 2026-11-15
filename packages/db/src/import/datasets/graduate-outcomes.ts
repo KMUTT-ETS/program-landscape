@@ -57,6 +57,7 @@ export const graduateOutcomesDataset: ImportDataset = {
     'per survey. A cohort surveyed twice has two rows.',
   tier: 1,
   sheetName: 'Graduate Outcomes',
+  targetTables: ['graduate_outcomes'],
   columns: [
     {
       header: 'Programme Code',

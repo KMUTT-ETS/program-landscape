@@ -162,6 +162,13 @@ export interface ImportDataset {
   tier: 0 | 1 | 2;
   /** Name of the data sheet. Every other sheet in the workbook is ignored. */
   sheetName: string;
+  /**
+   * PostgreSQL tables (the `@@map` names, not Prisma model names) an upload
+   * writes rows into, shown on the dataset's admin page. Optional only so
+   * test fixtures need not declare it; every registered dataset must —
+   * test/import-target-tables.test.ts checks each name against the schema.
+   */
+  targetTables?: readonly string[];
   columns: readonly ImportColumn[];
   strategy: ImportStrategy;
   /** Cross-column checks, run per row once its cells have passed. */

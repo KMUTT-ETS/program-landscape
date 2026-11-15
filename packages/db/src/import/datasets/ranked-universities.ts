@@ -60,6 +60,7 @@ export const rankedUniversitiesDataset: ImportDataset = {
     'Southeast Asian and Thai universities — edit it. Feeds the AI peer selection and the benchmarking views.',
   tier: 2,
   sheetName: 'University Rankings',
+  targetTables: ['ranked_universities'],
   columns: [
     {
       header: 'University',

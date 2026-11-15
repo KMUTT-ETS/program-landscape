@@ -61,6 +61,8 @@ export interface ImportPanelDataset {
   title: string;
   description: string;
   sheetName: string;
+  /** Database tables an upload writes into. Absent from older responses. */
+  targetTables?: string[];
   keyColumns: string[];
   rowCount: number;
   batches: ImportBatchRow[];
@@ -274,6 +276,21 @@ export function ImportPanel({ dataset }: { dataset: ImportPanelDataset }): React
               {dataset.description} Rows are matched on {dataset.keyColumns.join(' + ')}; uploading
               again updates matching rows and leaves everything else alone.
             </p>
+            {dataset.targetTables && dataset.targetTables.length > 0 ? (
+              <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-text-secondary">
+                <span>
+                  {dataset.targetTables.length === 1 ? 'Database table:' : 'Database tables:'}
+                </span>
+                {dataset.targetTables.map((t) => (
+                  <code
+                    key={t}
+                    className="rounded border border-subtle bg-surface-2 px-1.5 py-0.5 font-mono text-text-primary"
+                  >
+                    {t}
+                  </code>
+                ))}
+              </p>
+            ) : null}
           </div>
           <div className="flex items-center gap-2">
             <Button asChild variant="outline" size="sm">

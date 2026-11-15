@@ -33,6 +33,7 @@ export const populationProjectionsDataset: ImportDataset = {
     'built-in UN series. Feeds the demographic-ceiling analysis and the scenario planner.',
   tier: 2,
   sheetName: 'Population Projections',
+  targetTables: ['demographic_projections'],
   columns: [
     {
       header: 'Region',

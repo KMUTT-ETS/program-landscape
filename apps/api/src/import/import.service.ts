@@ -113,6 +113,8 @@ export interface ImportDatasetSummary {
 
 export interface ImportDatasetDetail extends ImportDatasetSummary {
   sheetName: string;
+  /** Database tables an upload writes into. */
+  targetTables: readonly string[];
   columns: {
     header: string;
     required: boolean;
@@ -383,6 +385,7 @@ export class ImportService implements OnModuleInit {
       lastUpload: status.lastUpload,
       batchCount: status.batchCount,
       sheetName: dataset.sheetName,
+      targetTables: dataset.targetTables ?? [],
       columns: dataset.columns.map((c) => ({
         header: c.header,
         required: c.required,

@@ -129,6 +129,7 @@ export const classOfferingsDataset: ImportDataset = {
     'as cancelled, which is how a timetable export actually behaves.',
   tier: 2,
   sheetName: 'Class Offerings',
+  targetTables: ['class_offerings'],
   columns: [
     buddhistYearColumn('Academic Year', 'academicYear', 'The academic year this term belongs to.'),
     {

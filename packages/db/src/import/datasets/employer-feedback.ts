@@ -32,6 +32,7 @@ export const employerFeedbackDataset: ImportDataset = {
     'rows replaced. Feeds the Top employers list in the Deep-Dive’s graduate outcomes section.',
   tier: 2,
   sheetName: 'Employer Feedback',
+  targetTables: ['employer_feedback'],
   columns: [
     {
       header: 'Programme Code',

@@ -102,6 +102,7 @@ export const studentCohortsDataset: ImportDataset = {
     'programme per entry year.',
   tier: 2,
   sheetName: 'Student Cohorts',
+  targetTables: ['student_cohort_distributions'],
   columns: [
     PROGRAMME_COLUMN,
     buddhistYearColumn('Entry Year', 'entryYear', 'The year this cohort started.'),
@@ -175,6 +176,7 @@ export const alumniCohortsDataset: ImportDataset = {
     'per programme per entry year per outcome.',
   tier: 2,
   sheetName: 'Alumni Cohorts',
+  targetTables: ['alumni_cohort_statuses'],
   columns: [
     PROGRAMME_COLUMN,
     buddhistYearColumn('Entry Year', 'entryYear', 'The year this cohort started.'),

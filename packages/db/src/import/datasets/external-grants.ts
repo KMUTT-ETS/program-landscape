@@ -71,6 +71,7 @@ export const externalGrantsDataset: ImportDataset = {
     'dashboard and the grant award on a programme’s Financial score.',
   tier: 2,
   sheetName: 'External Grants',
+  targetTables: ['research_service_projects'],
   columns: [
     PROJECT_CODE_COLUMN,
     {
@@ -235,6 +236,7 @@ export const externalGrantTeamDataset: ImportDataset = {
     'grant award when any of its active teaching staff is on it.',
   tier: 2,
   sheetName: 'External Grant Team',
+  targetTables: ['research_service_project_members'],
   columns: [
     {
       ...PROJECT_CODE_COLUMN,

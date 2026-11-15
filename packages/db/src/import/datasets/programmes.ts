@@ -131,6 +131,7 @@ export const programmesDataset: ImportDataset = {
     'if you use them — first. Every metric you import later refers to these codes.',
   tier: 0,
   sheetName: 'Programmes',
+  targetTables: ['programs'],
   columns: [
     {
       header: 'Programme Code',

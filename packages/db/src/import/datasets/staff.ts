@@ -38,6 +38,7 @@ export const staffDataset: ImportDataset = {
     'succession risk, and every per-staff figure on the dashboards.',
   tier: 2,
   sheetName: 'Staff',
+  targetTables: ['faculty_members'],
   columns: [
     {
       header: 'Employee Code',

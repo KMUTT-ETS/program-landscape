@@ -41,6 +41,7 @@ export const courseEvaluationsDataset: ImportDataset = {
     'measure of each programme’s Outcomes score.',
   tier: 2,
   sheetName: 'Course Evaluations',
+  targetTables: ['evaluation_response_summaries'],
   columns: [
     {
       header: 'Course Code',

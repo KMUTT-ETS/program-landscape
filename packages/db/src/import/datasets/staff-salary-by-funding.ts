@@ -74,6 +74,7 @@ export const staffSalaryByFundingDataset: ImportDataset = {
     'describes a group of at least five people — never an individual.',
   tier: 2,
   sheetName: 'Staff Salary by Funding',
+  targetTables: ['staff_compensation_cube'],
   columns: [
     {
       header: 'Faculty Code',

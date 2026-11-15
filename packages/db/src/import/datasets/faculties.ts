@@ -77,6 +77,7 @@ export const facultiesDataset: ImportDataset = {
     'departments and programmes refer to these codes.',
   tier: 0,
   sheetName: 'Faculties',
+  targetTables: ['faculties'],
   columns: [
     {
       header: 'Faculty Code',

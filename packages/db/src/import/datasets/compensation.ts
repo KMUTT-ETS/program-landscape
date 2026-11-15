@@ -51,6 +51,7 @@ export const compensationDataset: ImportDataset = {
     'group of at least five people — never an individual.',
   tier: 2,
   sheetName: 'Compensation',
+  targetTables: ['faculty_compensation'],
   columns: [
     {
       header: 'Faculty Code',

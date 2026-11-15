@@ -44,7 +44,8 @@ If your system exposes an HTTP/JSON API, a connector can fill the same datasets 
 
 The slug names a dataset wherever the app or a command needs it: the dataset's page is
 `/admin/data-setup/raw/<slug>`, and an API connector is created with
-`pnpm connector:new --dataset <slug>` (`pnpm connector:new --list` prints the same list).
+`pnpm connector:new --dataset <slug>` (`pnpm connector:new --list` prints the same list). The
+dataset's page also names the database tables an upload writes into.
 
 Load them top to bottom. The first three are the backbone everything else
 refers to by code; **Staff** must come before **Publications**, **Programme

@@ -35,6 +35,7 @@ export const researchDataset: ImportDataset = {
     'your staff on it is three rows — that is how it counts for each of them.',
   tier: 2,
   sheetName: 'Publications',
+  targetTables: ['research_outputs'],
   columns: [
     {
       header: 'Employee Code',

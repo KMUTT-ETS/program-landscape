@@ -46,6 +46,7 @@ export const budgetsDataset: ImportDataset = {
     'institute or a central office — only faculties roll up into faculty views.',
   tier: 2,
   sheetName: 'Budgets',
+  targetTables: ['faculty_budgets'],
   columns: [
     {
       header: 'Division Name',

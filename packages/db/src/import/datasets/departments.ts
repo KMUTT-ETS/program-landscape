@@ -16,6 +16,7 @@ export const departmentsDataset: ImportDataset = {
     'programmes hang directly off faculties.',
   tier: 0,
   sheetName: 'Departments',
+  targetTables: ['departments'],
   columns: [
     {
       header: 'Department Code',

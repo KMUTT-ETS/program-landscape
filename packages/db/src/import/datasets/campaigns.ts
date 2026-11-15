@@ -50,6 +50,7 @@ export const campaignsDataset: ImportDataset = {
     'students who actually arrived. One row per programme per year per round.',
   tier: 2,
   sheetName: 'Admission Campaigns',
+  targetTables: ['admission_campaign_stats'],
   columns: [
     {
       header: 'Programme Code',

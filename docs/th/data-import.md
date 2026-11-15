@@ -39,7 +39,7 @@
 | **Programme course lists** | `programme-courses` | รายวิชาของแต่ละหลักสูตร | Programmes |
 | **Course Evaluations** | `course-evaluations` | คะแนนประเมินภาพรวมของนักศึกษาต่อแต่ละรายวิชา ต่อภาคการศึกษา | Programme course lists |
 
-slug คือชื่อที่ใช้อ้างถึงชุดข้อมูลในแอปและในคำสั่ง หน้าของชุดข้อมูลคือ `/admin/data-setup/raw/<slug>` และสร้าง API connector ด้วย `pnpm connector:new --dataset <slug>` (`pnpm connector:new --list` พิมพ์รายการเดียวกันนี้)
+slug คือชื่อที่ใช้อ้างถึงชุดข้อมูลในแอปและในคำสั่ง หน้าของชุดข้อมูลคือ `/admin/data-setup/raw/<slug>` และสร้าง API connector ด้วย `pnpm connector:new --dataset <slug>` (`pnpm connector:new --list` พิมพ์รายการเดียวกันนี้) หน้าของชุดข้อมูลยังแสดงชื่อตารางในฐานข้อมูลที่การอัปโหลดจะเขียนข้อมูลลงไปด้วย
 
 โหลดจากบนลงล่าง สามชุดแรกเป็นโครงหลักที่ทุกอย่างอ้างอิงด้วยรหัส **Staff** ต้องมาก่อน **Publications**, **Programme Teaching Staff** และ **External Grant Team** ซึ่งระบุตัวบุคคลด้วยรหัสพนักงาน นอกจากนั้น แผ่นงานหนึ่งต้องการเพียงแผ่นงานที่ระบุในแถวของตนด้านบน เพราะอ้างอิงรหัสของแผ่นงานเหล่านั้น และไฟล์ที่ระบุรหัสซึ่งยังไม่มีอยู่จะถูกปฏิเสธ
 

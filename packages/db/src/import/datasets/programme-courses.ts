@@ -60,6 +60,7 @@ export const programmeCoursesDataset: ImportDataset = {
     'programmes not in the file are untouched. Programme overlap and the curriculum sections read these rows.',
   tier: 2,
   sheetName: 'Programme Courses',
+  targetTables: ['program_courses'],
   columns: [
     {
       header: 'Programme Code',

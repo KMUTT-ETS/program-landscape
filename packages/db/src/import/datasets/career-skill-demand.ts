@@ -47,6 +47,7 @@ export const careerSkillDemandDataset: ImportDataset = {
     'has built your skills, and again later to resolve more skill names.',
   tier: 2,
   sheetName: 'Career Skill Demand',
+  targetTables: ['kmitl_careers', 'kmitl_career_skill_demands'],
   columns: [
     {
       header: 'Career Group',
