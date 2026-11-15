@@ -570,7 +570,7 @@ export class AnalystToolExecutor {
             name: 'gap-analysis',
             version: GAP_ANALYSIS_VERSION,
             summary:
-              'Per-programme LinkedIn demand-gap helper: for each programme, the share of demand-relevant skills its curriculum already covers, from AI-resolved ProgramDemandMatch rows. Soft/transferable skills excluded by default. This is NOT the field-of-study gap map — for that, ask for gap-map.',
+              'Per-programme labour-market demand-gap helper: for each programme, the share of demand-relevant skills its curriculum already covers, from AI-resolved ProgramDemandMatch rows. Soft/transferable skills excluded by default. This is NOT the field-of-study gap map — for that, ask for gap-map.',
           };
       }
     },

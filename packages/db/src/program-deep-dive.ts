@@ -3140,24 +3140,24 @@ export async function programSkills(programId: string) {
   // hosted at KMITL), filtered to careers the PROGRAM actually targets.
   //
   // Filter chain:
-  //   (1) If Program.kmitlCareerIds is set → restrict demand rows to
-  //       KmitlCareer rows whose kmitlCareerId is in that set. This is
+  //   (1) If Program.labourMarketCareerIds is set → restrict demand rows to
+  //       LabourMarketCareer rows whose sourceCareerId is in that set. This is
   //       the right scope: SEQ-0062 (Mech Eng) shows Mechanical Engineer
   //       / Mechanical Design Engineer / Mechanical Project Engineer
   //       demand, not generic top-10 across all 401 careers.
-  //   (2) If kmitlCareerIds is empty → fall back to ALL careers
+  //   (2) If labourMarketCareerIds is empty → fall back to ALL careers
   //       (legacy behaviour) so programs without a career mapping still
   //       see SOMETHING, with a banner in the UI noting it's unfiltered.
   //
-  // Run `pnpm programs:map-careers <code>` to populate kmitlCareerIds.
+  // Run `pnpm programs:map-careers <code>` to populate labourMarketCareerIds.
   const programForCareers = await prisma.program.findUnique({
     where: { id: programId },
-    select: { kmitlCareerIds: true },
+    select: { labourMarketCareerIds: true },
   });
-  const targetKmitlIds = programForCareers?.kmitlCareerIds ?? [];
+  const targetKmitlIds = programForCareers?.labourMarketCareerIds ?? [];
   const careerFilter =
     targetKmitlIds.length > 0
-      ? { career: { kmitlCareerId: { in: targetKmitlIds } } }
+      ? { career: { sourceCareerId: { in: targetKmitlIds } } }
       : {};
 
   // Demand fallback chain. Engineering / specialty careers often have no
@@ -3186,7 +3186,7 @@ export async function programSkills(programId: string) {
   let usedDemandLabel = 'none';
 
   for (const tier of demandFallbackChain) {
-    const rows = await prisma.kmitlCareerSkillDemand.groupBy({
+    const rows = await prisma.labourMarketSkillDemand.groupBy({
       by: ['skillId'],
       where: {
         dataScope: tier.scope,

@@ -139,7 +139,7 @@ export async function generateProgramPeerReview(
       { dataScope: 'THAILAND' as const, dataSource: 'PROFILES'     as const },
       { dataScope: 'GLOBAL'   as const, dataSource: 'PROFILES'     as const },
     ]) {
-      const demanded = await prisma.kmitlCareerSkillDemand.findMany({
+      const demanded = await prisma.labourMarketSkillDemand.findMany({
         where: {
           dataScope: q.dataScope,
           dataSource: q.dataSource,

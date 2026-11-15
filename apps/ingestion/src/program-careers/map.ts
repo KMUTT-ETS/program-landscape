@@ -12,15 +12,15 @@ import {
 // Reads:
 //   - Program.careersThJson (Thai career labels — populated by program-digest
 //     materialise; if missing, falls back to AiExtraction.payloadJson.careerPathsTh)
-//   - KmitlCareer rows (the full career taxonomy, ~400 entries)
+//   - LabourMarketCareer rows (the full career taxonomy, ~400 entries)
 //
 // Calls Gemini once with the FULL KMITL list as context; returns
-// kmitlCareerIds per program-career. Persists the resolved id set on
-// `Program.kmitlCareerIds` (Int[] column). Careers that don't map to
+// labourMarketCareerIds per program-career. Persists the resolved id set on
+// `Program.labourMarketCareerIds` (Int[] column). Careers that don't map to
 // any KMITL entry land in `unmappedCareers` for the Phase-2 external-
 // grounded-search fallback to consume.
 //
-// Idempotent: re-running overwrites Program.kmitlCareerIds with the new
+// Idempotent: re-running overwrites Program.labourMarketCareerIds with the new
 // mapping. Force-flag exists for debugging; no skip-if-exists logic
 // because re-mapping is cheap and may be triggered after KMITL taxonomy
 // updates.
@@ -43,7 +43,7 @@ export type MapCareersOutcome =
       careersTotal: number;
       kmitlMatched: number;
       kmitlUnmatched: number;
-      kmitlCareerIds: number[];
+      labourMarketCareerIds: number[];
       unmappedCareers: string[];
       mappingSummary: Array<{ career: string; kmitlIds: number[]; reasoning: string }>;
     }
@@ -95,9 +95,9 @@ export async function mapProgramCareers(params: MapCareersParams): Promise<MapCa
   }
 
   // Snapshot the full KMITL career taxonomy
-  const kmitlRows = await prisma.kmitlCareer.findMany({
+  const kmitlRows = await prisma.labourMarketCareer.findMany({
     select: {
-      kmitlCareerId: true,
+      sourceCareerId: true,
       careerName: true,
       groupName: true,
       subGroupName: true,
@@ -105,15 +105,17 @@ export async function mapProgramCareers(params: MapCareersParams): Promise<MapCa
     orderBy: [{ groupName: 'asc' }, { subGroupName: 'asc' }, { careerName: 'asc' }],
   });
   if (kmitlRows.length === 0) {
-    return { status: 'SKIPPED', reason: 'no KmitlCareer rows loaded — run kmitl-skill-mapping connector' };
+    return { status: 'SKIPPED', reason: 'no labour-market careers loaded — upload the Career Skill Demand sheet' };
   }
 
   const messages = buildCareerKmitlMappingMessages({
     programDegree: program.nameTh,
     programFaculty: program.faculty.nameTh,
     programCareers: careers,
+    // `kmitlCareers` / `kmitlCareerIds` are the field names of the published
+    // career-kmitl-mapping.v2 prompt; renaming them is a prompt version bump.
     kmitlCareers: kmitlRows.map((k) => ({
-      id: k.kmitlCareerId,
+      id: k.sourceCareerId,
       name: k.careerName,
       group: k.groupName,
       subGroup: k.subGroupName,
@@ -137,7 +139,7 @@ export async function mapProgramCareers(params: MapCareersParams): Promise<MapCa
   );
 
   // Validate IDs against the snapshot — drop hallucinated ones.
-  const validIds = new Set(kmitlRows.map((k) => k.kmitlCareerId));
+  const validIds = new Set(kmitlRows.map((k) => k.sourceCareerId));
   const allIds = new Set<number>();
   const unmapped: string[] = [];
   const summary: MapCareersOutcome extends infer R
@@ -156,7 +158,7 @@ export async function mapProgramCareers(params: MapCareersParams): Promise<MapCa
 
   await prisma.program.update({
     where: { id: program.id },
-    data: { kmitlCareerIds: sortedIds, careersThJson: careers },
+    data: { labourMarketCareerIds: sortedIds, careersThJson: careers },
   });
 
   return {
@@ -169,7 +171,7 @@ export async function mapProgramCareers(params: MapCareersParams): Promise<MapCa
     careersTotal: careers.length,
     kmitlMatched: careers.length - unmapped.length,
     kmitlUnmatched: unmapped.length,
-    kmitlCareerIds: sortedIds,
+    labourMarketCareerIds: sortedIds,
     unmappedCareers: unmapped,
     mappingSummary: summary,
   };

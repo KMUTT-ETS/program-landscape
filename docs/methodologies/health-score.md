@@ -545,7 +545,7 @@ the Outcomes table below.
 > | **Financial** | Q2: Does it pay for itself? | net_contribution_per_student · revenue_coverage_program_direct · tuition_trend_slope + external-grant award (≤ +10) | `financial_metrics` (REAL via link-financials) · `enrollment_metrics` (REAL) |
 > | **Capability** | Q6: Is the teaching team strong + sustainable? | senior_rank_share · publications_per_faculty · retirement_horizon_5y · student_faculty_ratio | `program_faculties` × `faculty_members` (REAL via kku-hr) · `research_outputs` (REAL via kku-research) |
 > | **Outcomes** | Q1+Q6: Do graduates thrive? | tcas_min_score_percentile · employment_rate · average_salary | `tcas_admission_stats` (REAL) · `graduate_outcomes` (PENDING kku-alumni) · `employer_feedback` (PENDING) |
-> | **Relevance** | Q1+Q3+Q7: 10y forward-looking strategic fit? | labour_market_alignment · demand_match_filled · demographic_resilience · strategic_sector_alignment | LinkedIn labour-market data (MHESI subscription, KMITL-hosted API; tables `kmitl_career_skill_demands` + `kmitl_careers` are technical handles) · `program_demand_matches` (REAL) · `demographic_projections` (REAL) |
+> | **Relevance** | Q1+Q3+Q7: 10y forward-looking strategic fit? | labour_market_alignment · demand_match_filled · demographic_resilience · strategic_sector_alignment | LinkedIn labour-market data (MHESI subscription, KMITL-hosted API; tables `labour_market_skill_demands` + `labour_market_careers` are technical handles) · `program_demand_matches` (REAL) · `demographic_projections` (REAL) |
 >
 > **What changed from v2:**
 >
@@ -654,10 +654,10 @@ The driver's `raw` carries the same statement (`lowerBound: true` and a `caveat`
 
 | Driver | Formula | Data source |
 |---|---|---|
-| `labour_market_alignment` | % of program skills matching LinkedIn-demanded set, with 4-quadrant fallback (Thailand/Job → Global/Job → Thailand/Profiles → Global/Profiles) | `program_skills` × `kmitl_career_skill_demands` |
+| `labour_market_alignment` | % of program skills matching the labour-market-demanded set (Career Skill Demand upload), with 4-quadrant fallback (Thailand/Job → Global/Job → Thailand/Profiles → Global/Profiles) | `program_skills` × `labour_market_skill_demands` |
 | `demand_match_filled` | `100 × (matched_demanded / relevant_demanded)` — share of *relevant* demanded skills the curriculum already teaches | `program_demand_matches` |
 | `demographic_resilience` | `100 - clamp((required_share_at_+10y × 100000) × 100)` — inverted required cohort share. <0.05% → ~100, >0.2% → ~0 | `programDemographicOutlook` (`demographic_projections`) |
-| `strategic_sector_alignment` | 100 if any career mapped to the program (via the labour-market career taxonomy used by the LinkedIn-derived data) maps to a BCG/S-curve target sector; 50 otherwise | Career taxonomy from the labour-market data source × `Program` career mappings × strategic-sector heuristic |
+| `strategic_sector_alignment` | 100 if any career mapped to the program (via the labour-market career taxonomy used by the uploaded labour-market demand data) maps to a BCG/S-curve target sector; 50 otherwise | Career taxonomy from the labour-market data source × `Program` career mappings × strategic-sector heuristic |
 
 
 
@@ -666,7 +666,7 @@ The driver's `raw` carries the same statement (`lowerBound: true` and a `caveat`
 > retention year 2, on-time graduation) are unchanged — they remain internal-
 > KKU proxies for demand. The new driver pulls real external labour-market
 > signal from **LinkedIn**, sourced via the **MHESI subscription** to the
-> labour-market-insights API hosted at KMITL (`KmitlCareerSkillDemand`,
+> labour-market-insights API hosted at KMITL (`LabourMarketSkillDemand`,
 > scope=THAILAND, source=JOB_POSTINGS, percentage ≥ 5%). Computation: per-
 > program, the share of ProgramSkill rows whose skill_id is in the demanded
 > set (skills with ≥5% prevalence in any career), ×100. Faculty/department

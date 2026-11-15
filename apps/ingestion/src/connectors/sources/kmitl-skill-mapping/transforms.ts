@@ -185,15 +185,15 @@ export type { SkillLookup } from '@kku/db';
 
 // ─── Mapping helpers (raw payload → domain rows) ─────────────────────────────
 
-export type KmitlDataScope = 'GLOBAL' | 'THAILAND';
-export type KmitlDemandSource = 'PROFILES' | 'JOB_POSTINGS';
+export type LabourMarketDataScope = 'GLOBAL' | 'THAILAND';
+export type LabourMarketDemandSource = 'PROFILES' | 'JOB_POSTINGS';
 
 export interface CareerSkillDemandRowDraft {
-  kmitlCareerId: number;
+  sourceCareerId: number;
   skillNameRaw: string;
   skillId: string | null;
-  dataScope: KmitlDataScope;
-  dataSource: KmitlDemandSource;
+  dataScope: LabourMarketDataScope;
+  dataSource: LabourMarketDemandSource;
   amount: number;
   percentage: number;
 }
@@ -204,7 +204,7 @@ export interface SkillGrowthRowDraft {
   contextName: string;
   skillNameRaw: string;
   skillId: string | null;
-  dataScope: KmitlDataScope;
+  dataScope: LabourMarketDataScope;
   growthPct: number;
 }
 
@@ -212,7 +212,7 @@ export interface SkillGrowthRowDraft {
  * Turn a career-detail payload into demand rows.
  *
  * Each `(skill × dataSource × dataScope)` produces one row keyed on
- * `(kmitl_career_id, skill_name_raw, data_scope, data_source)`. Compound
+ * `(source_career_id, skill_name_raw, data_scope, data_source)`. Compound
  * unique constraint on the table enforces the latest-snapshot semantics.
  */
 export function careerDetailToDemandDrafts(
@@ -223,14 +223,14 @@ export function careerDetailToDemandDrafts(
 
   const push = (
     rows: ReadonlyArray<{ skill: string; amount: number; percentage: number }>,
-    dataScope: KmitlDataScope,
-    dataSource: KmitlDemandSource,
+    dataScope: LabourMarketDataScope,
+    dataSource: LabourMarketDemandSource,
   ) => {
     for (const row of rows) {
       const skillNameRaw = row.skill.trim();
       if (!skillNameRaw) continue;
       out.push({
-        kmitlCareerId: detail.id,
+        sourceCareerId: detail.id,
         skillNameRaw,
         skillId: resolveSkillId(lookup, skillNameRaw),
         dataScope,
@@ -259,7 +259,7 @@ export function careerDetailToGrowthDrafts(
   const out: SkillGrowthRowDraft[] = [];
   const push = (
     rows: ReadonlyArray<{ skill: string; percentage: number }>,
-    dataScope: KmitlDataScope,
+    dataScope: LabourMarketDataScope,
   ) => {
     for (const row of rows) {
       const skillNameRaw = row.skill.trim();
@@ -290,7 +290,7 @@ export function groupDetailToGrowthDrafts(
   const out: SkillGrowthRowDraft[] = [];
   const push = (
     rows: ReadonlyArray<{ skill: string; percentage: number }>,
-    dataScope: KmitlDataScope,
+    dataScope: LabourMarketDataScope,
   ) => {
     for (const row of rows) {
       const skillNameRaw = row.skill.trim();

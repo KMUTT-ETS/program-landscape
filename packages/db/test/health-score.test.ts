@@ -59,7 +59,7 @@ vi.mock('../src/index', () => {
         findMany: mocks.programFindMany,
         findUnique: mocks.programFindUnique,
       },
-      kmitlCareerSkillDemand: { findMany: mocks.kmitlDemandFindMany },
+      labourMarketSkillDemand: { findMany: mocks.kmitlDemandFindMany },
       programSkill: { findMany: mocks.programSkillFindMany },
       financialMetric: { findMany: mocks.financialMetricFindMany },
       enrollmentMetric: {
@@ -74,7 +74,7 @@ vi.mock('../src/index', () => {
         findMany: mocks.tcasFindMany,
       },
       demographicProjection: { findFirst: mocks.demographicFindFirst, findMany: mocks.demographicFindMany },
-      kmitlCareer: { findMany: mocks.kmitlCareerFindMany },
+      labourMarketCareer: { findMany: mocks.kmitlCareerFindMany },
       graduateOutcome: { findFirst: mocks.graduateOutcomeFindFirst },
       programPedagogyAssessment: { findUnique: mocks.programPedagogyAssessmentFindUnique },
       programJobThaiLink: { findMany: mocks.programJobThaiLinkFindMany },
@@ -255,7 +255,7 @@ describe('financial dimension — tuition_trend_slope ignores the in-flight acad
       nameTh: 'หลักสูตรทดสอบ',
       departmentId: null,
       level: null,
-      kmitlCareerIds: [],
+      labourMarketCareerIds: [],
     });
     mocks.queryMetricByScope.mockResolvedValue([]);
     mocks.financialMetricFindMany.mockResolvedValue([
@@ -313,7 +313,7 @@ describe('financial dimension — tuition_trend_slope ignores the in-flight acad
       nameTh: 'หลักสูตรข้อมูลไม่ครบ',
       departmentId: null,
       level: null,
-      kmitlCareerIds: [],
+      labourMarketCareerIds: [],
     });
     mocks.queryMetricByScope.mockResolvedValue([]);
     mocks.financialMetricFindMany.mockResolvedValue([
@@ -391,7 +391,7 @@ function financialRows(): Array<Record<string, number>> {
 
 const programRow = {
   id: 'p1', nameEn: 'P', nameTh: 'ป', departmentId: null, level: 'BACHELOR',
-  kmitlCareerIds: [], faculty: { code: null },
+  labourMarketCareerIds: [], faculty: { code: null },
 };
 
 describe('v5.4 — capability is back to four drivers', () => {

@@ -301,7 +301,7 @@ export class GapController {
       { id: 'kku-dq', name: 'Digital Intelligence (DQ) test · LTIC' },
       {
         id: 'kmitl-skill-mapping',
-        name: 'LinkedIn labour-market skill demand · subscribed by MHESI (API hosted by KMITL)',
+        name: 'Labour-market skill demand',
       },
       { id: 'dq-module-skills', name: 'Curated DQ module → skill-taxonomy mapping' },
     ],

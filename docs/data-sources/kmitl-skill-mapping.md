@@ -1,6 +1,8 @@
 # LinkedIn Labour-Market Insights (MHESI subscription, KMITL-hosted)
 
-**Slug:** `kmitl-skill-mapping` · **Phase:** B · **Kind:** API · **Cadence:** `0 6 * * 1` (weekly Monday 06:00) · **Status:** 🚧 mocked (Phase A scaffolded 2026-05-01)
+> ⛔ **DEPRECATED 2026-11-15.** Load labour-market skill demand from the **Career Skill Demand** spreadsheet instead ([Career skill demand](../data-import.md#career-skill-demand), uploaded at `/admin/data-setup/raw/career-skill-demand`). It writes the same `labour_market_careers` and `labour_market_skill_demands` tables and counts as the same LinkedIn demand family, so every reader is unchanged. The catalogue entry and connector code are kept so historical ingestion runs don't orphan; the schedule is off.
+
+**Slug:** `kmitl-skill-mapping` · **Phase:** B · **Kind:** API · **Cadence:** none (was `0 6 * * 1`) · **Status:** 🚧 mocked (deprecated)
 
 > **Slug stays `kmitl-skill-mapping`** because it identifies the technical API endpoint at `https://skill.kmitl.ac.th`. The data attribution is different from the host name — see below.
 
@@ -79,7 +81,7 @@ The richest payloads are the group + career detail endpoints. They each return:
 Notable gotchas:
 
 - The PDF guideline (1.9.1-OBT, dated 2024-02-01) is the design reference. Real responses may have drifted; the discovery script (`pnpm kmitl:capture all`) is the source of truth.
-- Skills are returned as **free-text names** (`"Python"`, `"AI/ML"`, `"PLC"`) — no stable ID to our `Skill` table. Connector resolves via case-insensitive exact match against `Skill.nameEn`/`nameTh`; unmatched names land with `skillId = NULL` and the raw name in `KmitlCareerSkillDemand.skillNameRaw` for analyst triage.
+- Skills are returned as **free-text names** (`"Python"`, `"AI/ML"`, `"PLC"`) — no stable ID to our `Skill` table. Connector resolves via case-insensitive exact match against `Skill.nameEn`/`nameTh`; unmatched names land with `skillId = NULL` and the raw name in `LabourMarketSkillDemand.skillNameRaw` for analyst triage.
 - `id` fields on careers/groups/skills/industries/universities are **integers**, stable across calls but specific to KMITL's taxonomy (no ISCO-08, no ESCO crosswalk).
 - Confidential per the API guideline: do not redistribute the API responses or the API documentation outside the project.
 
@@ -89,23 +91,23 @@ Three new dedicated tables (additive migration `20260501120000_kmitl_skill_mappi
 
 | Source field | Our target | Table | Notes |
 |---|---|---|---|
-| `careers[].id` | `kmitl_career_id` (UNIQUE) | `KmitlCareer` | Stable upstream id |
-| `careers[].name` | `career_name` | `KmitlCareer` | |
-| Group/sub-group context | `group_name`, `sub_group_name`, `kmitl_group_id`, `kmitl_sub_group_id` | `KmitlCareer` | |
-| `skills_overview[]` (`source = profiles`) | one row per (career × skill × scope × source) | `KmitlCareerSkillDemand` | `dataSource = PROFILES`, `dataScope = GLOBAL` |
-| `thailand_skills_overview[]` | same | `KmitlCareerSkillDemand` | `dataScope = THAILAND` |
-| `job_posts_overview[]` | same | `KmitlCareerSkillDemand` | `dataSource = JOB_POSTINGS`, `dataScope = GLOBAL` |
-| `thailand_job_posts_overview[]` | same | `KmitlCareerSkillDemand` | `dataSource = JOB_POSTINGS`, `dataScope = THAILAND` |
-| `skills_growth_overview[]` | one row per (context × skill × scope) | `KmitlSkillGrowth` | context is `'group' \| 'sub_group' \| 'career'` |
-| `industries_overview[]`, `universities_overview[]`, `counts` | `KmitlCareerSkillDemand.metadata` (JSONB) | — | Promote to dedicated tables only if downstream consumers need them |
+| `careers[].id` | `source_career_id` (UNIQUE) | `LabourMarketCareer` | Stable upstream id |
+| `careers[].name` | `career_name` | `LabourMarketCareer` | |
+| Group/sub-group context | `group_name`, `sub_group_name`, `source_group_id`, `source_sub_group_id` | `LabourMarketCareer` | |
+| `skills_overview[]` (`source = profiles`) | one row per (career × skill × scope × source) | `LabourMarketSkillDemand` | `dataSource = PROFILES`, `dataScope = GLOBAL` |
+| `thailand_skills_overview[]` | same | `LabourMarketSkillDemand` | `dataScope = THAILAND` |
+| `job_posts_overview[]` | same | `LabourMarketSkillDemand` | `dataSource = JOB_POSTINGS`, `dataScope = GLOBAL` |
+| `thailand_job_posts_overview[]` | same | `LabourMarketSkillDemand` | `dataSource = JOB_POSTINGS`, `dataScope = THAILAND` |
+| `skills_growth_overview[]` | one row per (context × skill × scope) | `LabourMarketSkillGrowth` | context is `'group' \| 'sub_group' \| 'career'` |
+| `industries_overview[]`, `universities_overview[]`, `counts` | `LabourMarketSkillDemand.metadata` (JSONB) | — | Promote to dedicated tables only if downstream consumers need them |
 
 Skill resolution: exact match on `Skill.nameEn` (lowercased + trimmed); fallback `Skill.nameTh`; unmatched → `skillId = NULL`. Sample of unmatched names surfaced via `IngestionRun.metadata.unmappedSkillSamples` for analyst triage. Same pattern as kku-finance unmapped divisions, kku-research unmatched authors.
 
 ## Backfill plan
 
-- **Horizon**: KMITL doesn't publish snapshot history; the API exposes only the *current* aggregate. We snapshot weekly via the cron and accumulate our own time-series in `KmitlCareerSkillDemand.snapshotAt` and `KmitlSkillGrowth.snapshotAt`.
+- **Horizon**: KMITL doesn't publish snapshot history; the API exposes only the *current* aggregate. We snapshot weekly via the cron and accumulate our own time-series in `LabourMarketSkillDemand.snapshotAt` and `LabourMarketSkillGrowth.snapshotAt`.
 - **Chunking**: One run = one full crawl of all groups + careers. Wall-clock estimate: 5–10 min depending on group count (~50 groups × 200ms throttle).
-- **Sanity check**: total `KmitlCareerSkillDemand` row count per run should be stable within ±5% week over week (i.e., we expect the taxonomy to be slow-changing). Drift greater than that triggers a data-quality alert.
+- **Sanity check**: total `LabourMarketSkillDemand` row count per run should be stable within ±5% week over week (i.e., we expect the taxonomy to be slow-changing). Drift greater than that triggers a data-quality alert.
 
 ## Monitoring after go-live
 
@@ -144,7 +146,7 @@ A running log as the integration lands + matures. Date each entry.
 ## Session log
 
 - `2026-05-01` — kickoff: chose KMITL Skill Mapping API as substitution for jobthai + jobsdb. PDF manual at `/home/denpong/skillmapping.pdf` (do NOT commit — confidential per KMITL header).
-- `2026-05-01` — Phase A landed: schema (`KmitlCareer`, `KmitlCareerSkillDemand`, `KmitlSkillGrowth`), catalog entry, real-connector stub, auth helper, discovery script scaffold, jobthai/jobsdb deprecated.
+- `2026-05-01` — Phase A landed: schema (`LabourMarketCareer`, `LabourMarketSkillDemand`, `LabourMarketSkillGrowth`), catalog entry, real-connector stub, auth helper, discovery script scaffold, jobthai/jobsdb deprecated.
 - `YYYY-MM-DD` — Phase B: credentials added, `pnpm kmitl:capture all` run, fixtures committed.
 - `YYYY-MM-DD` — Phase C: real fetch/transform/load implementation, ≥3 green runs.
 - `YYYY-MM-DD` — Phase D: health-score demand dimension lit up, gap-analyzer kmitl source default.
@@ -155,7 +157,7 @@ A running log as the integration lands + matures. Date each entry.
 
 Credentials are issued by KMITL directly on request. An installation without
 them uploads the **Career Skill Demand** sheet instead (see
-[data-import.md](../data-import.md)); it writes the same `kmitl_careers` and
-`kmitl_career_skill_demands` tables with negative ids, which this connector's
+[data-import.md](../data-import.md)); it writes the same `labour_market_careers` and
+`labour_market_skill_demands` tables with negative ids, which this connector's
 upserts (positive upstream ids) never touch. The connector has no whole-table
 delete, so the two sources coexist without extra scoping.

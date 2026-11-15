@@ -95,7 +95,7 @@ export function RowPanels({
         <p className="font-medium">
           Global signal{' '}
           <span className="font-normal text-text-tertiary">
-            (LinkedIn data via MHESI
+            (labour-market data
             {row.globalSignal.scope
               ? `, ${row.globalSignal.scope === 'THAILAND' ? 'Thailand' : 'global'} series`
               : ''}
@@ -104,7 +104,7 @@ export function RowPanels({
         </p>
         {row.globalSignal.skills.length === 0 ? (
           <p className="text-text-tertiary">
-            No rising skill among this field&apos;s occupations intersects the LinkedIn growth series.
+            No rising skill among this field&apos;s occupations intersects the labour-market growth series.
           </p>
         ) : (
           <ul>

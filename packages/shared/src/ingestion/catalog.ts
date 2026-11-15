@@ -255,12 +255,15 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
     baseUrl: 'https://skill.kmitl.ac.th/api/v1',
     cadenceCron: '0 6 * * 1', // weekly Monday 06:00
     ownerContact: 'MHESI subscribes the LinkedIn data; KMITL operates the API. CLIENT_ID issued by KMITL under the MHESI agreement.',
-    notes: 'Aggregated skill-demand intelligence sourced from LinkedIn (profiles + Thai job postings + university grad data). Subscribed by MHESI under a national agreement; KMITL hosts the API endpoint that aggregates and serves the data. Returns percentages at career/group/sub-group level — no per-posting rows, no salary, no province granularity. Replaces jobthai + jobsdb.',
-    // Flipped real — see CLAUDE.md prompt-14 session log. This MUST stay
-    // false: prisma/seed.ts writes `status` and `mocked` from this field on
-    // every seed, so a stale `true` here silently re-mocks the connector and
-    // realDataWhere() then discards every row it ever loaded.
+    notes: 'DEPRECATED 2026-11-15 — superseded on this installation by the Career Skill Demand spreadsheet (xlsx-career-skill-demand), uploaded at /admin/data-setup/raw/career-skill-demand into the same labour_market_careers / labour_market_skill_demands tables. Original scope: aggregated skill-demand intelligence sourced from LinkedIn (profiles + Thai job postings + university grad data). Subscribed by MHESI under a national agreement; KMITL hosts the API endpoint that aggregates and serves the data. Returns percentages at career/group/sub-group level — no per-posting rows, no salary, no province granularity. Replaces jobthai + jobsdb.',
+    // Deprecated 2026-11-15 on this installation in favour of the Career Skill
+    // Demand spreadsheet (xlsx-career-skill-demand), which feeds the same
+    // tables and counts as the same LinkedIn demand family
+    // (DEMAND_SOURCE_RUN_SLUGS in packages/db/src/demand-match-sources.ts).
+    // Entry kept so historical IngestionRun rows don't orphan; `deprecated`
+    // makes `pnpm data-sources:sync --apply` switch its schedule off.
     mocked: true,
+    deprecated: true,
   },
   {
     slug: 'jobthai',

@@ -32,9 +32,9 @@ export class AdminDataSetupController {
       dataSourcesActive,
       dataSourcesMocked,
       dataSourcesDeprecated,
-      kmitlCareers,
-      kmitlSkillDemandRows,
-      kmitlSkillGrowthRows,
+      labourMarketCareers,
+      skillDemandRows,
+      skillGrowthRows,
       researchOutputsTotal,
       researchOutputsMatched,
       facultyMembersWithExternalIds,
@@ -65,10 +65,10 @@ export class AdminDataSetupController {
       // live + mocked + deprecated still reconciles to the total — otherwise
       // retiring a source looks like it vanished from the console.
       prisma.dataSource.count({ where: { status: 'deprecated' } }),
-      // Demand-side labour-market skills (KMITL skill-mapping connector)
-      prisma.kmitlCareer.count(),
-      prisma.kmitlCareerSkillDemand.count(),
-      prisma.kmitlSkillGrowth.count(),
+      // Demand-side labour-market skills (Career Skill Demand upload)
+      prisma.labourMarketCareer.count(),
+      prisma.labourMarketSkillDemand.count(),
+      prisma.labourMarketSkillGrowth.count(),
       // Research outputs (kku-research / OpenAlex connector)
       prisma.researchOutput.count(),
       prisma.researchOutput.count({ where: { facultyMemberId: { not: null } } }),
@@ -134,17 +134,13 @@ export class AdminDataSetupController {
         deprecated: dataSourcesDeprecated,
       },
       laborMarketSkills: {
-        // Demand-side skills aggregates from LinkedIn (subscribed by
-        // MHESI; API operated by KMITL at https://skill.kmitl.ac.th). The
-        // table-prefix `kmitl*` and the metric keys `kmitlCareers / …`
-        // match the technical API endpoint name; the underlying source is
-        // LinkedIn profile + Thai job-posting + university grad data
-        // already aggregated by the API (no per-person rows). Drives the
+        // Labour-market skill demand, loaded from the Career Skill Demand
+        // upload (aggregated percentages, no per-person rows). Drives the
         // gap-analyzer's labour-market demand source + the health-score's
         // labour-market-alignment driver.
-        kmitlCareers,
-        kmitlSkillDemandRows,
-        kmitlSkillGrowthRows,
+        labourMarketCareers,
+        skillDemandRows,
+        skillGrowthRows,
       },
       researchOutputs: {
         // Publications via OpenAlex (kku-research connector). Used by the

@@ -105,10 +105,10 @@ a participant's pre-work failed, they also need `registry.npmjs.org`,
 - **`un-wpp`** downloads about 68 MB. Twenty laptops starting it at once is
   about 1.4 GB through the room's connection: stagger it by table if the
   network is weak.
-- **`pnpm skills:normalise --source=linkedin --auto-promote`** takes about an
-  hour and is needed only with KMITL credentials. If you have them, run it on
-  your own machine beforehand to learn the time, and have participants start
-  it first thing in session 3.
+- **`pnpm skills:normalise --source=labour_market --auto-promote`** runs after
+  a Career Skill Demand upload. Its time grows with the number of skill names
+  (about 13 seconds for a mock set; roughly an hour for ~5,900 names), so run
+  it on your own machine beforehand with a realistic file to learn the time.
 - **Free Google keys** embed about 1,000 course texts a day. One programme
   of about 126 courses is well under that. A participant who runs a large
   programme, or several, may hit the limit; the overlap section then uses shared course

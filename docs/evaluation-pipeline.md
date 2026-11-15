@@ -49,7 +49,7 @@ A single program carries up to **five** signed verdicts. Each is independently v
   kku-hr (MSSQL)               ──▶ faculty_members + program_faculties │   297 KKU
   kku-finance (Oracle+MSSQL)   ──▶ financial_metrics + faculty_budgets │   programs
   kku-research (Postgres)      ──▶ research_outputs                    │
-  kmitl-skill-mapping (API)    ──▶ kmitl_careers + kmitl_career_skill_demands
+  kmitl-skill-mapping (API)    ──▶ labour_market_careers + labour_market_skill_demands
   PDF intake → AI extraction   ──▶ program_skills + courses + plos     │
   KKU demographics seed        ──▶ demographic_projections             │
   (mocked: 18 more sources)                                            ┘
@@ -112,7 +112,7 @@ Key invariants:
 | **Financial** | net_contribution_per_student · revenue_coverage_program_direct · tuition_trend_slope + external-grant award (≤ +10, after averaging) | `financial_metrics` + `enrollment_metrics` (latest non-partial CE year) |
 | **Capability** | senior_rank_share · publications_per_faculty · retirement_horizon_5y · student_faculty_ratio | `program_faculties × faculty_members.{rank, retirementDate}` + `research_outputs` (year ≥ now−3) |
 | **Outcomes** | tcas_min_score_percentile · employment_rate · average_salary | `tcas_admission_stats` (peer subject set) + `graduate_outcomes` (PENDING — kku-alumni still mocked) |
-| **Relevance** | labour_market_alignment · demand_match_filled · demographic_resilience · strategic_sector_alignment | `program_skills × kmitl_career_skill_demands` (4-quadrant fallback) + `program_demand_matches` + `programDemographicOutlook` (computed from `demographic_projections`) + career→sector taxonomy |
+| **Relevance** | labour_market_alignment · demand_match_filled · demographic_resilience · strategic_sector_alignment | `program_skills × labour_market_skill_demands` (4-quadrant fallback) + `program_demand_matches` + `programDemographicOutlook` (computed from `demographic_projections`) + career→sector taxonomy |
 
 Version in force: `health-score.v5.6`. The external-grant award raises the Financial dimension, so the overall score, the BCG/KKU matrix, the lifecycle verdict and the risk score all see it through Financial; it can never lower any of them.
 
@@ -131,7 +131,7 @@ The "complete year" filter (`(entry_year_be - 543) < currentCEYear`) is load-bea
 
 ### 2.3 Skipping the `kmitl-` slug confusion
 
-Driver `labour_market_alignment` reads `kmitl_career_skill_demands`. The slug is a stable code identifier referencing the API endpoint, **not** an attribution. The data is **LinkedIn**, the subscriber is **MHESI**, the host is **KMITL**. Every user-facing surface must attribute LinkedIn / MHESI / KMITL in that order. See `feedback_kmitl_data_attribution.md` in auto-memory and `health-score.md` §2.2.5 footnote.
+Driver `labour_market_alignment` reads `labour_market_skill_demands`. The slug is a stable code identifier referencing the API endpoint, **not** an attribution. The data is **LinkedIn**, the subscriber is **MHESI**, the host is **KMITL**. Every user-facing surface must attribute LinkedIn / MHESI / KMITL in that order. See `feedback_kmitl_data_attribution.md` in auto-memory and `health-score.md` §2.2.5 footnote.
 
 ### 2.4 What the Health Score feeds
 
@@ -327,7 +327,7 @@ grounding, confidence rubric, tell-ban, versioning, data-channel manifest) live 
 
 | Prompt | Purpose |
 |---|---|
-| `career-kmitl-mapping.v1` | Map a Program → ≤N `kmitlCareerIds` (used by Deep-Dive Skills + relevance driver) |
+| `career-kmitl-mapping.v1` | Map a Program → ≤N `labourMarketCareerIds` (used by Deep-Dive Skills + relevance driver) |
 | `demand-skill-match.v2` | Pre-compute `program_demand_matches` — `(matchedDemanded, relevantDemanded)` per program × career → drives Relevance's `demand_match_filled` |
 | `program-peer-selection.v3` | Pick 3–5 best-fit peers per tier (WORLD / ASIA / SEA / THAILAND_PEER) → input to `program-peer-review.v4` |
 | `skill-name-normaliser.v1` | Resolve `PROPOSED_SKILL` rows against `Skill.nameEn`/`nameTh` (taxonomy growth path); has an explicit `AMBIGUOUS` abstain path |
@@ -419,9 +419,9 @@ Quick "where does this number come from" reference. Read this when a UI value lo
 | `program_faculties × faculty_members` | Health capability (all 3 drivers) · `programAiReadiness` Path A (research presence) · `programFaculty` Deep-Dive section (role-gated) |
 | `research_outputs` | Health capability (publications_per_faculty) · `programAiReadiness` Path A (AI-keyword filter) · Profile page publications |
 | `program_skills × skill` | Health relevance (labour_market_alignment) · `programAiReadiness` Path A (curriculum integration + skill resilience) · Risk L2 skill_pressure · Deep-Dive Skills · `program-job-field.v1` input (gap-map assignments) |
-| `kmitl_career_skill_demands` | Health relevance (labour_market_alignment, 4-quadrant fallback) · Deep-Dive Skills demand side · benchmarking white-spaces |
+| `labour_market_skill_demands` | Health relevance (labour_market_alignment, 4-quadrant fallback) · Deep-Dive Skills demand side · benchmarking white-spaces |
 | `job_field_taxonomy` × `program_job_fields` | **Gap map rows and assignments** (`gap-map.v2`) · `/admin/job-fields` review page. Nothing else reads them |
-| `kmitl_skill_growths` | Gap map "what's coming" (rising skills, **newest capture only**). ⚠ The table keeps superseded captures — its unique key omits `snapshotAt` — and the newest capture carries **no THAILAND rows**. Every other reader of it has that exposure |
+| `labour_market_skill_growths` | Gap map "what's coming" (rising skills, **newest capture only**). ⚠ The table keeps superseded captures — its unique key omits `snapshotAt` — and the newest capture carries **no THAILAND rows**. Every other reader of it has that exposure |
 | `program_demand_matches` | Health relevance (demand_match_filled) · Deep-Dive Skills match score |
 | `demographic_projections` | Health relevance (demographic_resilience via `programDemographicOutlook`) · Lifecycle driver 7 |
 | `program_peer_reviews` | Lifecycle drivers 5+6 · `programAiReadiness` (gaps/recs filter) · Deep-Dive Peer Comparison |
@@ -457,7 +457,7 @@ request-scoped `basis` parameter (`private` / `public` / `all`) — see
 `alumni_cohort_statuses` (graduates, primary) → `enrollment_metrics.graduated_on_time`
 (proxy fallback) and `student_cohort_distributions` (pipeline). Context:
 `program_jobthai_links` (which programmes a row's occupations already link to),
-`jobthai_occupation_skills` × `kmitl_skill_growths` (rising skills — **newest capture
+`jobthai_occupation_skills` × `labour_market_skill_growths` (rising skills — **newest capture
 only**), `trend_signals` (what's coming), and the programme health index via
 `getProgramScoreIndex`.
 
@@ -502,7 +502,7 @@ Lifecycle Verdict.
 
 | Output | Inputs |
 |---|---|
-| `health-score.v3.4` (program scope) | `tcas_admission_funnels` + `tcas_admission_stats` (peers) + `enrollment_metrics` + `financial_metrics` + `program_faculties × faculty_members` + `research_outputs` + `program_skills × skill` + `kmitl_career_skill_demands` + `program_demand_matches` + `demographic_projections` + career→sector taxonomy |
+| `health-score.v3.4` (program scope) | `tcas_admission_funnels` + `tcas_admission_stats` (peers) + `enrollment_metrics` + `financial_metrics` + `program_faculties × faculty_members` + `research_outputs` + `program_skills × skill` + `labour_market_skill_demands` + `program_demand_matches` + `demographic_projections` + career→sector taxonomy |
 | `lifecycle.v1.1` | Above (via health) + `program_ai_readiness_assessments` (via `programAiReadiness` Path B) + `program_peer_reviews` (drivers 5+6) + `student_cohort_distributions` (driver 8) |
 | `risk-scoring.v1.11` L+I | `tcas_admission_funnels` (L1+L3) + `program_skills × skill.automationRisk` (L2) + `program_ai_readiness_assessments` (L2) + `financial_metrics` (I1+I2) — no Health Score dependency |
 | `dashboard-overview.v1` | `enrollment_metrics` + `financial_metrics` (BCG + KPIs) + `program_lifecycle_snapshots` (lifecycle distribution) + `program_strategic_narratives` (pulse) + `programs` (canonical filter) + `computeHealthScores('university')` (FacultyHealth rollup) |

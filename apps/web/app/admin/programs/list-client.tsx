@@ -748,7 +748,7 @@ function PipelinePickerDialog({
 // totalCredits + status (Active ↔ Inactive 2-state toggle). Mark Sunset
 // is a separate destructive action so terminal lifecycle changes need
 // explicit intent (per Q4). AI-generated + read-only fields stay
-// read-only; kmitlCareerIds shown as informational chips.
+// read-only; labourMarketCareerIds shown as informational chips.
 
 interface ProgramDetail {
   id: string;
@@ -763,7 +763,7 @@ interface ProgramDetail {
   durationYears: number | null;
   language: 'TH' | 'EN' | 'MIXED' | null;
   facultyId: string | null;
-  kmitlCareerIds: number[];
+  labourMarketCareerIds: number[];
 }
 
 function EditProgramDrawer({
@@ -1027,16 +1027,16 @@ function EditProgramDrawer({
               </div>
             </div>
 
-            {/* Read-only chips for kmitlCareerIds — informational; the AI
+            {/* Read-only chips for labourMarketCareerIds — informational; the AI
               * pipeline owns this field via the career-mapping phase. */}
-            {detail.kmitlCareerIds.length > 0 && (
+            {detail.labourMarketCareerIds.length > 0 && (
               <div className="flex flex-col gap-1.5">
                 <Label className="flex items-center gap-2">
                   KMITL career IDs
                   <Badge tone="neutral" size="sm">read-only</Badge>
                 </Label>
                 <div className="flex flex-wrap gap-1">
-                  {detail.kmitlCareerIds.map((id) => (
+                  {detail.labourMarketCareerIds.map((id) => (
                     <Badge key={id} tone="info" size="sm" className="font-tabular">
                       {id}
                     </Badge>

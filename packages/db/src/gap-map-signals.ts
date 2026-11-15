@@ -93,7 +93,7 @@ export interface GrowthIndex {
  *
  * Two rules, both of them defensibility rather than convenience:
  *
- * 1. **Newest snapshot only.** `kmitl_skill_growths` accumulates captures —
+ * 1. **Newest snapshot only.** `labour_market_skill_growths` accumulates captures —
  *    its unique key is (contextLevel, contextId, skillNameRaw, dataScope) with
  *    no `snapshotAt`, and the raw skill-name string drifts between runs, so an
  *    older capture's rows are never superseded and simply sit alongside the
@@ -179,8 +179,8 @@ export async function globalSignalForFields(
   if (fieldIds.length === 0 || allOcc.length === 0) return result;
   // `jobthai_occupation_skills` carries no `ingestion_run_id` column at all, so
   // this read cannot be realDataWhere()-gated — there is nothing to gate on.
-  // `kmitl_skill_growths` is different: it DOES carry `ingestion_run_id`
-  // (see KmitlSkillGrowth in schema.prisma, populated by every write in
+  // `labour_market_skill_growths` is different: it DOES carry `ingestion_run_id`
+  // (see LabourMarketSkillGrowth in schema.prisma, populated by every write in
   // apps/ingestion/src/connectors/sources/kmitl-skill-mapping/connector.ts),
   // so it is gated below — matching how the retired seven-lens analyzer read
   // the same table before v1.9.7.
@@ -189,7 +189,7 @@ export async function globalSignalForFields(
       where: { jobThaiOccupationId: { in: allOcc }, share: { gte: OCCUPATION_SKILL_DEMAND_FLOOR } },
       select: { jobThaiOccupationId: true, skillId: true },
     }),
-    prisma.kmitlSkillGrowth.findMany({
+    prisma.labourMarketSkillGrowth.findMany({
       where: { skillId: { not: null }, ...realDataWhere() },
       select: { skillId: true, dataScope: true, growthPct: true, snapshotAt: true, contextLevel: true },
     }),

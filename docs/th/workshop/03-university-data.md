@@ -148,15 +148,12 @@ pnpm workshop:check-mock workshop-mock-out my-university.json
 - `tcas` จับคู่หลักสูตรของท่านด้วยชื่อภาษาไทยของมหาวิทยาลัย
 - `openalex-works` ด้วย key แบบฟรี สำหรับเส้นทาง A หรือ B connector นี้จับคู่บุคลากรจำลองไม่ได้
   เพราะเป็นโทเค็น ไม่ใช่บุคคลจริง
-- `kmitl-skill-mapping` เฉพาะเมื่อผู้จัดให้ข้อมูลรับรองของ KMITL ใช้เวลาประมาณหนึ่งชั่วโมง
-  จึงควรเริ่มก่อน pipeline แล้วรันคำสั่งใน
-  [ทักษะตลาดแรงงาน](../tutorials/program-deep-dive.md#labour-market-skills)
 
 หากท่านอัปโหลดแฟ้ม Career Skill Demand (ชุดข้อมูลจำลองมีแฟ้มนี้) ให้เชื่อมชื่อทักษะเข้ากับอนุกรมวิธานทักษะ
 จากรากของ repository ใช้เวลาประมาณ 13 วินาทีสำหรับชื่อในชุดจำลอง:
 
 ```bash
-pnpm skills:normalise --source=linkedin --auto-promote
+pnpm skills:normalise --source=labour_market --auto-promote
 ```
 
 หากไม่รัน รายการ Setup checklist "Labour market alignment" และ "Demand match filled"
@@ -194,7 +191,7 @@ phase รายวิชาจะรายงานว่ารายการ�
 
 - **JobThai** แสดง "not applicable" เพราะเป็นข้อมูลเชิงพาณิชย์
 - รายการด้าน **ตลาดแรงงาน** (demand match, labour-market alignment) เว้นแต่ท่านอัปโหลดแฟ้ม
-  Career Skill Demand และรันคำสั่งด้านทักษะ หรือรัน `kmitl-skill-mapping` และคำสั่งของ connector นั้นแล้ว
+  Career Skill Demand และรันคำสั่งด้านทักษะแล้ว
 - **งานวิจัยจาก OpenAlex** ในชุดข้อมูลจำลอง เพราะข้อมูลผลงานตีพิมพ์มาจากการอัปโหลดแทน
 
 รายการอื่นทั้งหมดควรเป็นสีเขียวเมื่อ pipeline ทำงานเสร็จ รายการสีแดงอื่นจะระบุแฟ้มหรือการรัน connector ที่ยังขาด

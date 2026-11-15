@@ -39,7 +39,6 @@ These read from sources that are identical regardless of which university you ar
 | Slug | What it is | Your work |
 |---|---|---|
 | `tcas` | National TCAS admissions data | Configure; the shape is national |
-| `kmitl-skill-mapping` | Aggregated skill-demand intelligence via KMITL's institutional-partner API | Request your own client ID + secret key from KMITL |
 | `mhesi-cisa` | MHESI CISA | Configure |
 | `thailand-demographics` | Thailand youth-cohort projections | Seeded via `pnpm demographics:seed`; national data |
 | `world-bank` | World Bank indicators | Public API, works out of the box |
@@ -50,7 +49,7 @@ These read from sources that are identical regardless of which university you ar
 
 **Two attribution rules that are not negotiable.** KMITL's data is LinkedIn data subscribed by MHESI; KMITL only hosts the API. Never present it to a user as "KMITL data". And the KMITL feed's Thailand × job-postings quadrant is a **thin sample** (161 postings in the observed snapshot against ~950k global LinkedIn profiles) — any Council-facing surface using it must carry a sample-size caveat in its provenance drawer.
 
-**Honest effort estimate:** hours each, mostly waiting on credentials. The `kmitl-skill-mapping` connector is the highest-value one here because it is what lights up the demand side of the Gap Analyzer and the labour-market driver of the health score.
+**Honest effort estimate:** hours each, mostly waiting on credentials. Labour-market skill demand, which lights up the demand side of the Gap Analyzer and the labour-market driver of the health score, is not in this tier: it comes from the Career Skill Demand spreadsheet (the `kmitl-skill-mapping` connector is deprecated).
 
 ## Tier 3 — Must be rewritten per institution
 

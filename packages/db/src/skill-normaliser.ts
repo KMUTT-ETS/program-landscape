@@ -222,7 +222,7 @@ export async function promoteNewProposedToSkill(
 }
 
 /**
- * Re-link KmitlCareerSkillDemand + KmitlSkillGrowth + ProgramSkill rows
+ * Re-link LabourMarketSkillDemand + LabourMarketSkillGrowth + ProgramSkill rows
  * after new alias decisions land. This is what makes the next sync
  * benefit from a backfill: rows that previously had skill_id=NULL get
  * filled in.
@@ -233,10 +233,10 @@ export async function relinkUsingAliases(
   sourceContext: SkillAliasSourceContext,
 ): Promise<{ kmitlDemand: number; kmitlGrowth: number; programSkill: number }> {
   if (sourceContext === 'linkedin') {
-    // Update KmitlCareerSkillDemand rows where skill_id IS NULL but the
+    // Update LabourMarketSkillDemand rows where skill_id IS NULL but the
     // raw skill name now has a RESOLVED alias.
     const demandResult = await prisma.$executeRaw`
-      UPDATE kmitl_career_skill_demands d
+      UPDATE labour_market_skill_demands d
       SET skill_id = a.resolved_skill_id
       FROM skill_aliases a
       WHERE d.skill_id IS NULL
@@ -246,7 +246,7 @@ export async function relinkUsingAliases(
         AND LOWER(TRIM(d.skill_name_raw)) = a.raw_name_lower
     `;
     const growthResult = await prisma.$executeRaw`
-      UPDATE kmitl_skill_growths g
+      UPDATE labour_market_skill_growths g
       SET skill_id = a.resolved_skill_id
       FROM skill_aliases a
       WHERE g.skill_id IS NULL

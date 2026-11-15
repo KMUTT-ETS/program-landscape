@@ -1374,10 +1374,10 @@ const DATASETS: Record<string, DatasetFetcher> = {
     };
   },
 
-  // ── KMITL career taxonomy ────────────────────────────────────────────────
-  'kmitl-careers': async (q) => {
+  // ── Labour-market career taxonomy ────────────────────────────────────────────────
+  'labour-market-careers': async (q) => {
     const skip = (q.page - 1) * q.pageSize;
-    const where: Prisma.KmitlCareerWhereInput = q.q
+    const where: Prisma.LabourMarketCareerWhereInput = q.q
       ? {
           OR: [
             { careerName: { contains: q.q, mode: 'insensitive' } },
@@ -1387,26 +1387,26 @@ const DATASETS: Record<string, DatasetFetcher> = {
         }
       : {};
     const [rows, total] = await prisma.$transaction([
-      prisma.kmitlCareer.findMany({
+      prisma.labourMarketCareer.findMany({
         where,
         orderBy: [{ groupName: 'asc' }, { subGroupName: 'asc' }, { careerName: 'asc' }],
         skip,
         take: q.pageSize,
       }),
-      prisma.kmitlCareer.count({ where }),
+      prisma.labourMarketCareer.count({ where }),
     ]);
     return {
       title: 'Labour-market career taxonomy',
-      description: 'Career taxonomy used by the LinkedIn-derived labour-market dataset. **Data: LinkedIn. Subscriber: MHESI** (institutional licence). API hosted by KMITL on behalf of MHESI — KMITL is not the data owner. The taxonomy structure (14 groups → 77 sub-groups → 401 careers) is curated by KMITL for the API; iscoCode is populated by an analyst hand-mapping pass.',
+      description: 'Career taxonomy of the labour-market demand data: career groups → sub-groups → careers. Loaded by the Career Skill Demand upload (negative career ids) or by the deprecated kmitl-skill-mapping connector (positive ids). iscoCode is populated by an analyst hand-mapping pass.',
       columns: [
-        { key: 'kmitlCareerId', label: 'API career ID', numeric: true },
+        { key: 'sourceCareerId', label: 'API career ID', numeric: true },
         { key: 'groupName', label: 'Group' },
         { key: 'subGroupName', label: 'Sub-group' },
         { key: 'careerName', label: 'Career' },
         { key: 'iscoCode', label: 'ISCO-08' },
       ],
       items: rows.map((r) => ({
-        kmitlCareerId: r.kmitlCareerId,
+        sourceCareerId: r.sourceCareerId,
         groupName: r.groupName,
         subGroupName: r.subGroupName,
         careerName: r.careerName,
@@ -1421,8 +1421,8 @@ const DATASETS: Record<string, DatasetFetcher> = {
   'career-skill-demand': async (q) => {
     const skip = (q.page - 1) * q.pageSize;
     // Imported rows hang off careers with a negative id; the API's are positive.
-    const where: Prisma.KmitlCareerSkillDemandWhereInput = {
-      kmitlCareerId: { lt: 0 },
+    const where: Prisma.LabourMarketSkillDemandWhereInput = {
+      sourceCareerId: { lt: 0 },
       ...(q.q
         ? {
             OR: [
@@ -1433,7 +1433,7 @@ const DATASETS: Record<string, DatasetFetcher> = {
         : {}),
     };
     const [rows, total] = await prisma.$transaction([
-      prisma.kmitlCareerSkillDemand.findMany({
+      prisma.labourMarketSkillDemand.findMany({
         where,
         include: {
           career: { select: { careerName: true, groupName: true, subGroupName: true } },
@@ -1443,7 +1443,7 @@ const DATASETS: Record<string, DatasetFetcher> = {
         skip,
         take: q.pageSize,
       }),
-      prisma.kmitlCareerSkillDemand.count({ where }),
+      prisma.labourMarketSkillDemand.count({ where }),
     ]);
     return {
       title: 'Career skill demand (uploaded)',
@@ -1475,10 +1475,10 @@ const DATASETS: Record<string, DatasetFetcher> = {
     };
   },
 
-  // ── KMITL skill demand (the LinkedIn data) ───────────────────────────────
-  'kmitl-skill-demands': async (q) => {
+  // ── Labour-market skill demand ───────────────────────────────
+  'labour-market-skill-demands': async (q) => {
     const skip = (q.page - 1) * q.pageSize;
-    const where: Prisma.KmitlCareerSkillDemandWhereInput = q.q
+    const where: Prisma.LabourMarketSkillDemandWhereInput = q.q
       ? {
           OR: [
             { skillNameRaw: { contains: q.q, mode: 'insensitive' } },
@@ -1487,7 +1487,7 @@ const DATASETS: Record<string, DatasetFetcher> = {
         }
       : {};
     const [rows, total] = await prisma.$transaction([
-      prisma.kmitlCareerSkillDemand.findMany({
+      prisma.labourMarketSkillDemand.findMany({
         where,
         include: {
           career: { select: { careerName: true, groupName: true } },
@@ -1497,11 +1497,11 @@ const DATASETS: Record<string, DatasetFetcher> = {
         skip,
         take: q.pageSize,
       }),
-      prisma.kmitlCareerSkillDemand.count({ where }),
+      prisma.labourMarketSkillDemand.count({ where }),
     ]);
     return {
-      title: 'Labour-market skills demand — LinkedIn (subscribed by MHESI)',
-      description: '**Data: LinkedIn** (profile-level + job-posting prevalence, aggregated). **Subscriber / data licence holder: MHESI** (Ministry of Higher Education, Science, Research and Innovation). The API endpoint is hosted by KMITL on behalf of MHESI — KMITL is not the data owner and is not the data curator. Aggregated per (career, skill, dataScope, dataSource). Percentages — not per-posting rows. THAILAND × JOB_POSTINGS rows with percentage ≥ 5% drive the health-score labour-market alignment driver.',
+      title: 'Labour-market skills demand',
+      description: 'Share of job postings or profiles asking for each skill, per career, loaded from the Career Skill Demand upload (or the deprecated kmitl-skill-mapping connector). Aggregated per (career, skill, dataScope, dataSource). Percentages — not per-posting rows. THAILAND × JOB_POSTINGS rows with percentage ≥ 5% drive the health-score labour-market alignment driver.',
       columns: [
         { key: 'group', label: 'Group' },
         { key: 'careerName', label: 'Career' },
@@ -1528,10 +1528,10 @@ const DATASETS: Record<string, DatasetFetcher> = {
     };
   },
 
-  // ── KMITL skill growth ───────────────────────────────────────────────────
-  'kmitl-skill-growths': async (q) => {
+  // ── Labour-market skill growth ───────────────────────────────────────────────────
+  'labour-market-skill-growths': async (q) => {
     const skip = (q.page - 1) * q.pageSize;
-    const where: Prisma.KmitlSkillGrowthWhereInput = q.q
+    const where: Prisma.LabourMarketSkillGrowthWhereInput = q.q
       ? {
           OR: [
             { skillNameRaw: { contains: q.q, mode: 'insensitive' } },
@@ -1540,18 +1540,18 @@ const DATASETS: Record<string, DatasetFetcher> = {
         }
       : {};
     const [rows, total] = await prisma.$transaction([
-      prisma.kmitlSkillGrowth.findMany({
+      prisma.labourMarketSkillGrowth.findMany({
         where,
         include: { skill: { select: { nameEn: true, nameTh: true } } },
         orderBy: [{ growthPct: 'desc' }],
         skip,
         take: q.pageSize,
       }),
-      prisma.kmitlSkillGrowth.count({ where }),
+      prisma.labourMarketSkillGrowth.count({ where }),
     ]);
     return {
-      title: 'Labour-market skill growth — LinkedIn (subscribed by MHESI)',
-      description: '**Data: LinkedIn** skill-growth percentages aggregated at three levels — group, sub-group, career. **Subscriber: MHESI** (institutional licence). API hosted by KMITL on behalf of MHESI; KMITL is not the data owner. Positive growth = rising demand year-over-year per LinkedIn signal.',
+      title: 'Labour-market skill growth',
+      description: 'Skill-growth percentages aggregated at three levels — group, sub-group, career. Only the deprecated kmitl-skill-mapping connector loads these; the Career Skill Demand upload does not. Positive growth = rising demand year-over-year.',
       columns: [
         { key: 'contextLevel', label: 'Level' },
         { key: 'contextName', label: 'Context' },

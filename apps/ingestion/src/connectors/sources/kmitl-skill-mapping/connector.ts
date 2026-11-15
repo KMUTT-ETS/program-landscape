@@ -14,15 +14,15 @@
 //   5. /careers/{id} — for each career: full career detail (skills + growth)
 //
 // Transform/Load (single-threaded, manual upsert):
-//   - KmitlCareer rows from /careers + /careers/{id}.sub_groups
-//   - KmitlCareerSkillDemand rows from career-detail × {scope, source} matrix
-//   - KmitlSkillGrowth rows from group-detail.skills_growth_overview AND
+//   - LabourMarketCareer rows from /careers + /careers/{id}.sub_groups
+//   - LabourMarketSkillDemand rows from career-detail × {scope, source} matrix
+//   - LabourMarketSkillGrowth rows from group-detail.skills_growth_overview AND
 //     career-detail.skills_growth (both contexts retained — see schema)
 //
 // Skill resolution: case-insensitive trimmed exact match on Skill.nameEn,
 // then Skill.nameTh, then the SkillAlias cache (sourceContext='linkedin',
 // status='RESOLVED'). Unmatched → skillId=NULL + raw name in
-// KmitlCareerSkillDemand.skillNameRaw, surfaced in IngestionRun.metadata
+// LabourMarketSkillDemand.skillNameRaw, surfaced in IngestionRun.metadata
 // for analyst triage.
 //
 // The SkillAlias cache is filled by the AI normaliser script (run via
@@ -36,7 +36,7 @@
 //   1. Mon 06:00 UTC — connector cron triggers a full sync
 //   2. Optional: `pnpm skills:normalise --source=linkedin --auto-promote`
 //      processes any newly-encountered raw names (typically <50 per week
-//      after initial backfill) and updates KmitlCareerSkillDemand.skill_id
+//      after initial backfill) and updates LabourMarketSkillDemand.skill_id
 //      for the new resolutions.
 //
 // PDPA: API contract is aggregate-only; no per-person fields. The discovery
@@ -349,7 +349,7 @@ export class KmitlSkillMappingRealConnector extends ApiConnector implements Conn
     snapshotAt.setUTCHours(0, 0, 0, 0);
     const freshnessDate = snapshotAt;
 
-    // Phase 1: upsert KmitlCareer rows. Sequential is fine — only ~400 of
+    // Phase 1: upsert LabourMarketCareer rows. Sequential is fine — only ~400 of
     // them, and we need the cuid for the demand-row foreign key.
     const careerCuidByKmitlId = new Map<number, string>();
     const allDemandDrafts: Array<{ careerCuid: string; draft: CareerSkillDemandRowDraft; metadata: Record<string, unknown> }> = [];
@@ -460,11 +460,11 @@ export class KmitlSkillMappingRealConnector extends ApiConnector implements Conn
     freshnessDate: Date,
     runId: string,
   ): Promise<{ id: string }> {
-    return this.db.kmitlCareer.upsert({
-      where: { kmitlCareerId: p.detail.id },
+    return this.db.labourMarketCareer.upsert({
+      where: { sourceCareerId: p.detail.id },
       update: {
-        kmitlGroupId: p.groupId,
-        kmitlSubGroupId: p.subGroupId,
+        sourceGroupId: p.groupId,
+        sourceSubGroupId: p.subGroupId,
         groupName: p.groupName,
         subGroupName: p.subGroupName,
         careerName: p.detail.name,
@@ -473,9 +473,9 @@ export class KmitlSkillMappingRealConnector extends ApiConnector implements Conn
         // Preserve any analyst-set isco_code on update
       },
       create: {
-        kmitlCareerId: p.detail.id,
-        kmitlGroupId: p.groupId,
-        kmitlSubGroupId: p.subGroupId,
+        sourceCareerId: p.detail.id,
+        sourceGroupId: p.groupId,
+        sourceSubGroupId: p.subGroupId,
         groupName: p.groupName,
         subGroupName: p.subGroupName,
         careerName: p.detail.name,
@@ -494,10 +494,10 @@ export class KmitlSkillMappingRealConnector extends ApiConnector implements Conn
     metadata: Record<string, unknown>,
     runId: string,
   ): Promise<void> {
-    await this.db.kmitlCareerSkillDemand.upsert({
+    await this.db.labourMarketSkillDemand.upsert({
       where: {
-        kmitlCareerId_skillNameRaw_dataScope_dataSource: {
-          kmitlCareerId: d.kmitlCareerId,
+        sourceCareerId_skillNameRaw_dataScope_dataSource: {
+          sourceCareerId: d.sourceCareerId,
           skillNameRaw: d.skillNameRaw,
           dataScope: d.dataScope,
           dataSource: d.dataSource,
@@ -514,7 +514,7 @@ export class KmitlSkillMappingRealConnector extends ApiConnector implements Conn
       },
       create: {
         careerId: careerCuid,
-        kmitlCareerId: d.kmitlCareerId,
+        sourceCareerId: d.sourceCareerId,
         skillId: d.skillId,
         skillNameRaw: d.skillNameRaw,
         dataScope: d.dataScope,
@@ -530,7 +530,7 @@ export class KmitlSkillMappingRealConnector extends ApiConnector implements Conn
   }
 
   private async upsertGrowth(g: SkillGrowthRowDraft, snapshotAt: Date, runId: string): Promise<void> {
-    await this.db.kmitlSkillGrowth.upsert({
+    await this.db.labourMarketSkillGrowth.upsert({
       where: {
         contextLevel_contextId_skillNameRaw_dataScope: {
           contextLevel: g.contextLevel,

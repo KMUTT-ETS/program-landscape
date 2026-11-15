@@ -481,11 +481,11 @@ export function MethodologyContentEn() {
                 <TR>
                   <TD mono>labour_market_alignment</TD>
                   <TD>Share of <Code>program_skills</Code> that intersect the demanded-skill set in the labour-market data table. A four-quadrant fallback (Thailand × Job postings → Global × Job postings → Thailand × Profiles → Global × Profiles) selects the most local signal available; the quadrant used is recorded in the score's raw payload.</TD>
-                  <TD><Code>program_skills</Code> ⨯ aggregated LinkedIn skill-demand data (data: <Strong>LinkedIn</Strong>; subscriber and licence holder: <Strong>MHESI</Strong>; API endpoint hosted by KMITL on behalf of MHESI).</TD>
+                  <TD><Code>program_skills</Code> ⨯ uploaded labour-market skill-demand data (the Career Skill Demand spreadsheet; the institution chooses the source and records it as the upload's provenance).</TD>
                 </TR>
                 <TR>
                   <TD mono>demand_match_filled</TD>
-                  <TD><Code>100 × (matchedDemanded / relevantDemanded)</Code> over the LinkedIn-demanded skills. <Em>Relevant</Em> means the AI curriculum check classed the skill <Code>core</Code> or <Code>supporting</Code> to the profession the programme's graduates are hired into (§4.4); a skill that is another profession or outside the target careers is not counted, and teaching a skill does not by itself make it relevant.</TD>
+                  <TD><Code>100 × (matchedDemanded / relevantDemanded)</Code> over the labour-market-demanded skills. <Em>Relevant</Em> means the AI curriculum check classed the skill <Code>core</Code> or <Code>supporting</Code> to the profession the programme's graduates are hired into (§4.4); a skill that is another profession or outside the target careers is not counted, and teaching a skill does not by itself make it relevant.</TD>
                   <TD><Code>program_demand_matches</Code>, rows tagged <Code>kmitl-skill-mapping</Code> (AI check <Code>demand-match.v4</Code>).</TD>
                 </TR>
                 <TR>
@@ -500,7 +500,7 @@ export function MethodologyContentEn() {
                 </TR>
                 <TR>
                   <TD mono>strategic_sector_alignment</TD>
-                  <TD>100 if any career mapped to the programme (via the labour-market career taxonomy used by the LinkedIn-derived data) intersects a Thai BCG (Bio / Circular / Green) or S-curve target sector; otherwise 50.</TD>
+                  <TD>100 if any career mapped to the programme (via the labour-market career taxonomy used by the uploaded labour-market demand data) intersects a Thai BCG (Bio / Circular / Green) or S-curve target sector; otherwise 50.</TD>
                   <TD>Career taxonomy from the labour-market data source × <Code>Program</Code> career mappings × strategic-sector heuristic.</TD>
                 </TR>
                 <TR>
@@ -515,13 +515,12 @@ export function MethodologyContentEn() {
                 The <Code>_kmitl</Code> suffix on the internal driver name is a{' '}
                 <Strong>stable code identifier</Strong> referencing the API endpoint and{' '}
                 <Strong>must not be read as an attribution claim</Strong>. The data subject —
-                LinkedIn-derived skill demand — is owned by <Strong>LinkedIn</Strong>.{' '}
-                <Strong>MHESI</Strong> (the Ministry of Higher Education, Science, Research and
-                Innovation) holds the licence/subscription that makes the data accessible to Thai
-                universities. <Strong>KMITL hosts the API endpoint on behalf of MHESI</Strong> but is
-                neither the data owner nor the data curator. KKU consumes the data under MHESI's
-                institutional partner programme. This attribution is reproduced in the provenance
-                drawer of every chart that depends on the driver.
+                labour-market skill demand — comes from the{' '}
+                <Strong>Career Skill Demand spreadsheet</Strong> the institution uploads (data
+                source <Code>xlsx-career-skill-demand</Code>), which may hold data from any source the
+                institution chooses. The upload does not record where its figures came from, so the
+                institution is responsible for knowing and citing that source. The earlier{' '}
+                <Code>kmitl-skill-mapping</Code> connector is deprecated.
               </P>
             </Callout>
           </DocSubSubsection>
@@ -532,7 +531,7 @@ export function MethodologyContentEn() {
             A program-scope health score is the equal-weighted average of the <Strong>non-null</Strong>{' '}
             dimension scores. Within a dimension, drivers are also averaged with equal weight, with one
             exception: in Relevance, <Code>jobthai_demand_alignment</Code> (JobThai, domestic demand) and{' '}
-            <Code>labour_market_alignment</Code> (LinkedIn, global demand) are combined{' '}
+            <Code>labour_market_alignment</Code> (uploaded labour-market demand) are combined{' '}
             <Strong>75 : 25</Strong>. The pair keeps the weight of two drivers in the dimension; only the
             split between them is weighted, and when one has no data the other takes the pair's whole
             share (<Code>health-score.v5.2</Code>).
@@ -693,7 +692,7 @@ export function MethodologyContentEn() {
               <TR><TD>3</TD><TD mono>enrollment_trend_slope</TD><TD>±15</TD><TD>Direction and steepness of recent enrolment trend.</TD></TR>
               <TR><TD>4</TD><TD mono>tuition_trend_slope</TD><TD>±10</TD><TD>Direction of tuition revenue trend.</TD></TR>
               <TR><TD>5</TD><TD mono>content_modernity</TD><TD>±10</TD><TD>AI peer-review verdict on curriculum content (<Code>OLD_SCHOOL</Code> / <Code>IN_BETWEEN</Code> / <Code>FRONTIER</Code>). Halved from ±20 in v1.3 — qualitative LLM-as-judge signal complements but does not substitute for labour-market alignment.</TD></TR>
-              <TR><TD>6</TD><TD mono>labour_market_alignment</TD><TD>±15</TD><TD><Em>New in v1.3.</Em> Share of program skills that match KMITL employer demand (sourced directly from the relevance dimension). Brings the quantitative employer-demand signal up from "buried inside overall health" to first-class lifecycle input. Bands: ≥70 → +15, 50–70 → +5, 30–50 → −5, &lt;30 → −15. Null when KMITL career mapping isn't populated yet (no penalty).</TD></TR>
+              <TR><TD>6</TD><TD mono>labour_market_alignment</TD><TD>±15</TD><TD><Em>New in v1.3.</Em> Share of program skills that match labour-market employer demand (sourced directly from the relevance dimension). Brings the quantitative employer-demand signal up from "buried inside overall health" to first-class lifecycle input. Bands: ≥70 → +15, 50–70 → +5, 30–50 → −5, &lt;30 → −15. Null when career mapping isn't populated yet (no penalty).</TD></TR>
               <TR><TD>7</TD><TD mono>revenue_scale</TD><TD>±10</TD><TD><Em>New in v1.4.</Em> Level-aware absolute revenue ("revenue-substantial for your level"). Banded against per-level target: BACHELOR 8M / MASTER · DOCTORAL · HGD 2M THB per year. Bands: ratio ≥1.5 → +10, ≥1.0 → +5, ≥0.5 → 0, ≥0.25 → −5, &lt;0.25 → −10. Null when financial data missing (no penalty).</TD></TR>
               <TR><TD>8</TD><TD mono>major_content_gaps</TD><TD>up to −12</TD><TD>Penalty: 4 points per major curriculum gap identified by AI peer review, capped at 12.</TD></TR>
               <TR><TD>9</TD><TD mono>demographic_resilience</TD><TD>±10</TD><TD>Programme's resilience to Thailand's 18–22 cohort decline.</TD></TR>
@@ -797,7 +796,7 @@ otherwise                                         → SUNSET`}</Pre>
               <Code>RISING</Code> or <Code>FRONTIER</Code> verdict is downgraded to{' '}
               <Code>STABLE</Code>. Rationale: a program that teaches only a fraction of
               employer-demanded skills cannot claim trajectory, regardless of how good the AI
-              peer-review modernity verdict sounds. Null-safe: when KMITL career mapping is
+              peer-review modernity verdict sounds. Null-safe: when career mapping is
               missing, the gate cannot apply.
             </LI>
             <LI>
@@ -999,8 +998,8 @@ otherwise                                         → SUNSET`}</Pre>
             they exist precisely because taught skills are demanded, so they cannot vouch for that.
           </P>
           <P>
-            <Strong>LinkedIn — global demand.</Strong> Aggregated skill demand by career, filtered to
-            the careers mapped to the programme (<Code>kmitlCareerIds</Code>; all careers with a UI
+            <Strong>Labour-market demand.</Strong> Aggregated skill demand by career (the Career Skill Demand upload), filtered to
+            the careers mapped to the programme (<Code>labourMarketCareerIds</Code>; all careers with a UI
             banner when unmapped), through a four-tier fallback recorded in the response: Thailand ×
             Job postings (≥ 5%), Thailand × Profiles (≥ 5%), Global × Job postings, Global × Profiles.
           </P>
@@ -1008,7 +1007,7 @@ otherwise                                         → SUNSET`}</Pre>
             <Strong>Curriculum check and profession fit</Strong> (<Code>demand-match.v4</Code>). For
             each demanded skill from either source, one AI call reads the programme's PLOs, course
             descriptions and extracted skills, together with the programme's target careers (its
-            JobThai occupations and LinkedIn careers) and where each skill is demanded. It records two
+            JobThai occupations and labour-market careers) and where each skill is demanded. It records two
             independent judgements with evidence: whether the curriculum <Strong>teaches</Strong> the
             skill, and how the skill <Strong>fits</Strong> the profession — <Code>core</Code>,{' '}
             <Code>supporting</Code>, <Code>other-profession</Code>, <Code>not-relevant</Code> or{' '}
@@ -1025,14 +1024,14 @@ otherwise                                         → SUNSET`}</Pre>
             checked: a ratio over three skills moves by a third on one changed judgement, and two
             identical runs moved such a programme from 33 to 67. It is the same figure as the{' '}
             <Code>jobthai_demand_alignment</Code> health driver, read through the same loader. Without
-            AI decisions the LinkedIn score falls back to a taxonomy-only intersection{' '}
+            AI decisions the labour-market score falls back to a taxonomy-only intersection{' '}
             <Code>100 × (taughtIds ∩ demandIds) / |demandIds|</Code>, flagged in the UI.
           </P>
           <Callout tone="attribution">
             <P>
-              JobThai data is marked with the JobThai logo wherever it appears. LinkedIn demand keeps
+              JobThai data is marked with the JobThai logo wherever it appears. labour-market demand keeps
               the attribution chain of §2.2.5:{' '}
-              <Strong>LinkedIn data, subscribed by MHESI, hosted at KMITL on behalf of MHESI.</Strong>
+              <Strong>the source recorded with the Career Skill Demand upload.</Strong>
             </P>
           </Callout>
         </DocSubsection>
@@ -1679,11 +1678,11 @@ otherwise                                         → SUNSET`}</Pre>
             date within it.
           </P>
           <P>
-            <Strong>(a) Rising skills</Strong> — LinkedIn data via MHESI. The field&rsquo;s
+            <Strong>(a) Rising skills</Strong> — labour-market skill growth series (where loaded). The field&rsquo;s
             occupations give their demanded skills at 5 % posting share or above, generic skills
-            are removed, the remainder is intersected with the LinkedIn-via-MHESI growth table, and
-            the <Strong>top three by growth</Strong> are shown, each labelled with that
-            attribution. Two rules are defensibility rather than convenience. First,{' '}
+            are removed, the remainder is intersected with the labour-market skill-growth table, and
+            the <Strong>top three by growth</Strong> are shown, each labelled with the
+            source recorded for that table. Two rules are defensibility rather than convenience. First,{' '}
             <Strong>the newest capture only</Strong>: that table accumulates captures rather than
             superseding them, so reading across two let a July figure be quoted as today&rsquo;s —
             &ldquo;Digital marketing&rdquo; returned 600 % when the current capture&rsquo;s figure
@@ -1750,7 +1749,7 @@ otherwise                                         → SUNSET`}</Pre>
         <DocSubsection number="6.9" title="Known limitations">
           <UL>
             <LI><Strong>Cohort completeness is an open decision, and today&rsquo;s rule under-states graduates.</Strong> A cohort is admitted to the window as soon as it could have finished. Late graduations are still accruing against the newest admitted cohort, so it reads thin: across the scored bachelor programmes it averages 68.4 graduates against 79.2 across the five cohorts behind it, about 14 % lower, which drags each programme&rsquo;s six-cohort mean down by roughly 2 %. Read every graduates-per-year figure as a mild <Em>under</Em>-statement until the methodology owner settles the rule.</LI>
-            <LI><Strong>The current LinkedIn-via-MHESI capture carries no Thailand rows at all.</Strong> The 2026-09-14 capture holds 10,256 rows with a resolved skill, all global scope and none Thailand; the previous capture (2026-07-20) held 895 Thailand rows. Before the newest-capture rule the map reached back into July and labelled 55 of 71 fields &ldquo;Thailand data&rdquo;, every one of those figures two months old. The label is now honest — 0 of 71 Thailand, everything a global fallback. <Strong>This exposure is not confined to the Gap Analyzer</Strong>: anything reading that table for a Thailand figure has it, including the Health Score&rsquo;s labour-market driver.</LI>
+            <LI><Strong>The current labour-market skill-growth capture carries no Thailand rows at all.</Strong> The 2026-09-14 capture holds 10,256 rows with a resolved skill, all global scope and none Thailand; the previous capture (2026-07-20) held 895 Thailand rows. Before the newest-capture rule the map reached back into July and labelled 55 of 71 fields &ldquo;Thailand data&rdquo;, every one of those figures two months old. The label is now honest — 0 of 71 Thailand, everything a global fallback. <Strong>This exposure is not confined to the Gap Analyzer</Strong>: anything reading that table for a Thailand figure has it, including the Health Score&rsquo;s labour-market driver.</LI>
             <LI><Strong>Part of the KKU supply total rests on a single-year enrolment figure.</Strong> 13 of the 83 scored programmes carrying a graduate figure use the proxy rather than a multi-cohort mean; counted the way the supply denominator counts them, that is 906.0 of 6,958.6 graduates a year, or <Strong>13.0 %</Strong> of the supply total. Their figures were read from AY 2012, AY 2019 and AY 2022, and the reach-back has no floor, which is why the year travels with the figure in the row panel. It is the largest single piece of softness in the supply side.</LI>
             <LI><Strong>The taxonomy is largely unreviewed.</Strong> Fields appear on the map as soon as they are proposed, labelled unreviewed, and the provenance drawer states how many. On development at 2026-09-20 the page reports <Strong>1 of 71 fields checked by an administrator</Strong>; until the queue at <Code>/admin/job-fields</Code> is worked through, almost every row is machine-clustered rather than human-confirmed. Two consequences travel with that: the English name of a field carries no uniqueness constraint, so two rows can share one, and the raw strings below the five-mention floor are outside both denominators entirely.</LI>
             <LI><Strong>A field&rsquo;s demand share is national.</Strong> 37 % of adverts are Bangkok and 3.3 % the 20 Northeast provinces; the source carries no salary and no posting date. Shares make fields comparable with each other, not with KKU&rsquo;s regional catchment — the province breakdown inside each row is what answers that.</LI>
@@ -1978,10 +1977,10 @@ otherwise                                         → SUNSET`}</Pre>
             </TR>
             <TR>
               <TD mono>kmitl-skill-mapping</TD>
-              <TD>LinkedIn-derived labour-market skill demand — aggregated skill demand by career, derived from LinkedIn profiles and Thai job postings</TD>
-              <TD><Strong>Data: LinkedIn.</Strong> Subscriber / licence-holder: <Strong>MHESI</Strong>. API hosted by KMITL on behalf of MHESI</TD>
+              <TD><Strong>Deprecated</Strong> connector (slug kept for existing rows). Labour-market skill demand now comes from the Career Skill Demand spreadsheet upload (<Code>xlsx-career-skill-demand</Code>) — aggregated skill demand by career, from any source the institution chooses</TD>
+              <TD>Deprecated connector; the active source is the institution's Career Skill Demand upload (<Code>xlsx-career-skill-demand</Code>)</TD>
               <TD>Relevance (<Code>labour_market_alignment</Code>, <Code>strategic_sector_alignment</Code>), Gap Analyzer (the rising-skills panel inside a row)</TD>
-              <TD><Strong>Live</Strong> since 2026-05-01. The newest capture (2026-09-14) carries <Strong>no Thailand rows</Strong> — every growth figure currently read from it is a global fallback (§10.8).</TD>
+              <TD><Strong>Deprecated.</Strong> Live 2026-05-01 until deprecated. The newest capture (2026-09-14) carries <Strong>no Thailand rows</Strong> — every growth figure currently read from it is a global fallback (§10.8).</TD>
             </TR>
             <TR>
               <TD mono>jobthai</TD>
@@ -2058,17 +2057,16 @@ otherwise                                         → SUNSET`}</Pre>
             </TR>
           </tbody>
         </Tbl>
-        <Callout tone="attribution" title="Attribution chain — labour-market data (in order of authority)">
+        <Callout tone="attribution" title="Attribution chain — labour-market data">
           <P>
-            The data itself — skill prevalence by career — is owned by <Strong>LinkedIn</Strong>.{' '}
-            <Strong>MHESI</Strong> holds the institutional subscription / data-sharing agreement that
-            grants access to Thai universities. <Strong>KMITL</Strong> hosts the technical API endpoint
-            (<Code>https://skill.kmitl.ac.th/api/v1</Code>) on behalf of MHESI. KKU consumes the data
-            as an MHESI partner. The application's internal slug <Code>kmitl-skill-mapping</Code> and
-            table prefix <Code>Kmitl*</Code> are technical handles tied to the API endpoint name; they
-            are <Strong>not</Strong> user-facing attributions and do not imply data ownership by
-            KMITL. User-facing surfaces (UI labels, AI briefs, this document, Council Pack PDFs)
-            attribute the data to <Strong>LinkedIn / MHESI / KMITL</Strong> in that order.
+            Labour-market skill demand — skill prevalence by career — is loaded from the{' '}
+            <Strong>Career Skill Demand</Strong> spreadsheet (<Code>xlsx-career-skill-demand</Code>),
+            which may hold data from any source the institution chooses. The upload does not record
+            that source or its licence terms, so the institution must document and cite them itself.
+            The application's internal slug{' '}
+            <Code>kmitl-skill-mapping</Code> (a deprecated connector) and table prefix{' '}
+            <Code>Kmitl*</Code> are technical handles retained for compatibility; they are{' '}
+            <Strong>not</Strong> user-facing attributions and imply no data ownership.
           </P>
         </Callout>
         <P>
@@ -2144,7 +2142,7 @@ otherwise                                         → SUNSET`}</Pre>
             any weighted formulation encodes a value judgement, and the application errs toward making
             the unweighted reading available so decision-makers form their own bias rather than
             inherit ours. The one weighting inside a dimension is an explicit institutional position:
-            domestic labour-market demand (JobThai) counts 75 : 25 against global demand (LinkedIn)
+            domestic labour-market demand (JobThai) counts 75 : 25 against the uploaded labour-market demand
             within Relevance (§2.3). It is stated here, in the score breakdown, and in the version
             history so it can be disputed on its merits.
           </P>
@@ -2226,7 +2224,7 @@ otherwise                                         → SUNSET`}</Pre>
               mild under-statement until the methodology owner settles the rule.
             </LI>
             <LI>
-              <Strong>The current LinkedIn-via-MHESI capture has no Thailand series.</Strong> The
+              <Strong>The current labour-market skill-growth capture has no Thailand series.</Strong> The
               2026-09-14 capture holds 10,256 rows with a resolved skill, all global; the
               previous one held 895 Thailand rows. The map quotes the newest capture only, so
               every rising-skill figure is presently a global fallback and is labelled as such —
@@ -2308,7 +2306,7 @@ otherwise                                         → SUNSET`}</Pre>
             <LI><Strong>NESDC.</Strong> <a className="text-accent underline-offset-2 hover:underline" href="https://www.nesdc.go.th" target="_blank" rel="noopener noreferrer">https://www.nesdc.go.th</a>.</LI>
             <LI><Strong>NXPO.</Strong> <a className="text-accent underline-offset-2 hover:underline" href="https://www.nxpo.or.th" target="_blank" rel="noopener noreferrer">https://www.nxpo.or.th</a>.</LI>
             <LI><Strong>EECO.</Strong> <a className="text-accent underline-offset-2 hover:underline" href="https://www.eeco.or.th" target="_blank" rel="noopener noreferrer">https://www.eeco.or.th</a>.</LI>
-            <LI><Strong>LinkedIn-derived labour-market skill demand.</Strong> The dataset's contents are aggregated <Strong>LinkedIn</Strong> profile and Thai job-posting data. The institutional subscription is held by <Strong>MHESI</Strong>, which exposes the data to partner universities (KKU among them). <Strong>KMITL</Strong> operates the technical API endpoint (<Code>https://skill.kmitl.ac.th/api/v1</Code>) on behalf of MHESI; it is a technical host, not the data owner.</LI>
+            <LI><Strong>Labour-market skill demand.</Strong> Loaded from the institution's Career Skill Demand spreadsheet (<Code>xlsx-career-skill-demand</Code>), which may hold data from any source the institution chooses; the upload does not record that source, so the institution must document it. The earlier <Code>kmitl-skill-mapping</Code> connector is deprecated.</LI>
             <LI><Strong>JobThai.</Strong> Thai job-postings platform; vacancy files are delivered to KKU. <a className="text-accent underline-offset-2 hover:underline" href="https://www.jobthai.com" target="_blank" rel="noopener noreferrer">https://www.jobthai.com</a>.</LI>
             <LI><Strong>Personal Data Protection Act, B.E. 2562 (2019).</Strong> Available via the Office of the Council of State.</LI>
           </UL>

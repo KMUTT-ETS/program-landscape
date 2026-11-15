@@ -62,9 +62,9 @@ const PASS3_FALLBACK_SLUGS: Record<string, string> = {
   research_outputs:             'kku-research',
   faculty_compensation:         'kku-hr',
   faculty_budgets:              'kku-finance',
-  kmitl_careers:                'kmitl-skill-mapping',
-  kmitl_career_skill_demands:   'kmitl-skill-mapping',
-  kmitl_skill_growths:          'kmitl-skill-mapping',
+  labour_market_careers:                'kmitl-skill-mapping',
+  labour_market_skill_demands:   'kmitl-skill-mapping',
+  labour_market_skill_growths:          'kmitl-skill-mapping',
   tcas_admission_funnels:       'kku-tcas-funnel',
   // program_demand_matches is the AI sub-pipeline output; no obvious canonical
   // connector but the data IS real (AI-derived from real inputs). Attribute to
@@ -86,9 +86,9 @@ const TABLE_SOURCES: Record<string, TableConfig> = {
   research_outputs:              { slugs: ['kku-research'],        timestampCol: 'created_at' },
   faculty_compensation:          { slugs: ['kku-hr'],              timestampCol: 'created_at' },
   faculty_budgets:               { slugs: ['kku-finance'],         timestampCol: 'created_at' },
-  kmitl_careers:                 { slugs: ['kmitl-skill-mapping'], timestampCol: 'created_at' },
-  kmitl_career_skill_demands:    { slugs: ['kmitl-skill-mapping'], timestampCol: 'created_at' },
-  kmitl_skill_growths:           { slugs: ['kmitl-skill-mapping'], timestampCol: 'created_at' },
+  labour_market_careers:                 { slugs: ['kmitl-skill-mapping'], timestampCol: 'created_at' },
+  labour_market_skill_demands:    { slugs: ['kmitl-skill-mapping'], timestampCol: 'created_at' },
+  labour_market_skill_growths:           { slugs: ['kmitl-skill-mapping'], timestampCol: 'created_at' },
   tcas_admission_funnels:        { slugs: ['kku-tcas-funnel'],     timestampCol: 'created_at' },
   // No canonical connector — written by apps/ingestion/src/program-demand-match/.
   // Stays NULL; under STRICT mode these rows become suspect (correct posture

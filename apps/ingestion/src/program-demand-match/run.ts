@@ -19,7 +19,7 @@ import {
 // Demand-driven curriculum match.
 //
 // 1. Resolve the program's demanded-skills set: LinkedIn-via-MHESI demand
-//    filtered by Program.kmitlCareerIds, plus (v5.2) JobThai demand from the
+//    filtered by Program.labourMarketCareerIds, plus (v5.2) JobThai demand from the
 //    programme's field-of-study occupation links.
 // 2. Pull the program's PLOs (from latest PROGRAM_SKILLS_DETAILED) +
 //    course descriptions (from latest PROGRAM_DIGEST) + already-extracted
@@ -182,7 +182,7 @@ export async function runDemandMatch(params: MatchDemandParams): Promise<MatchDe
       nameTh: true,
       nameEn: true,
       level: true,
-      kmitlCareerIds: true,
+      labourMarketCareerIds: true,
       faculty: { select: { nameTh: true } },
     },
   });
@@ -198,12 +198,12 @@ export async function runDemandMatch(params: MatchDemandParams): Promise<MatchDe
     { scope: 'GLOBAL',   source: 'PROFILES',     minPct: 0 },
   ];
   const careerFilter =
-    program.kmitlCareerIds.length > 0
-      ? { career: { kmitlCareerId: { in: program.kmitlCareerIds } } }
+    program.labourMarketCareerIds.length > 0
+      ? { career: { sourceCareerId: { in: program.labourMarketCareerIds } } }
       : {};
   let demandRows: DemandRow[] = [];
   for (const tier of fallbackChain) {
-    const rows = await prisma.kmitlCareerSkillDemand.groupBy({
+    const rows = await prisma.labourMarketSkillDemand.groupBy({
       by: ['skillId'],
       where: {
         dataScope: tier.scope,
@@ -230,8 +230,8 @@ export async function runDemandMatch(params: MatchDemandParams): Promise<MatchDe
     // demand row still has skill_id NULL: the demand exists but none of it is
     // linked to a skill. Say so, with the fix, instead of a bare "none resolved".
     const [rows, linked] = await Promise.all([
-      prisma.kmitlCareerSkillDemand.count(),
-      prisma.kmitlCareerSkillDemand.count({ where: { skillId: { not: null } } }),
+      prisma.labourMarketSkillDemand.count(),
+      prisma.labourMarketSkillDemand.count({ where: { skillId: { not: null } } }),
     ]);
     if (rows > 0 && linked === 0) {
       return {
@@ -292,9 +292,9 @@ export async function runDemandMatch(params: MatchDemandParams): Promise<MatchDe
   //    the careers these graduates are hired into, and where each skill is
   //    demanded. Without it the model judges "relevance" from the degree name
   //    alone and calls other engineering disciplines gaps for Mechanical.
-  const linkedInCareers = program.kmitlCareerIds.length > 0
-    ? await prisma.kmitlCareer.findMany({
-        where: { kmitlCareerId: { in: program.kmitlCareerIds } },
+  const linkedInCareers = program.labourMarketCareerIds.length > 0
+    ? await prisma.labourMarketCareer.findMany({
+        where: { sourceCareerId: { in: program.labourMarketCareerIds } },
         select: { careerName: true, subGroupName: true },
         take: 12,
       })

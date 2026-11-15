@@ -28,7 +28,7 @@ Curriculum PDF  →  MinIO + PdfDocument row (content-hash deduped)
 | `pnpm programs:digest <code\|mhesi\|seq>` | Digest one programme |
 | `pnpm programs:digest-bulk [--limit N] [--level X]` | Bulk, with auto-resume |
 | `pnpm programs:approve-pending` | Approve + materialise every digest still `PENDING_REVIEW`. An auto-approved digest was applied when written and is not re-applied |
-| `pnpm skills:normalise --source=<linkedin\|program_digest> --auto-promote` | Build the skill taxonomy; see [Building your skill taxonomy](#building-your-skill-taxonomy) |
+| `pnpm skills:normalise --source=<labour_market\|program_digest> --auto-promote` | Build the skill taxonomy; see [Building your skill taxonomy](#building-your-skill-taxonomy) |
 | `pnpm programs:pipeline <code>` | The full per-programme pipeline (below) |
 | `/admin/programs/from-pdf` | The operator-facing submit wizard — new programme *or* revision |
 | `/admin/programs/[id]?tab=files` | Attach a PDF through the UI |
@@ -117,7 +117,7 @@ Materialisation (`packages/db/src/program-digest-materialize.ts`) uses **skip-if
 
 What builds the taxonomy is `pnpm skills:normalise` (`apps/ingestion/src/scripts/normalise-skill-names.ts`). It sends raw skill names to the AI in batches of 25. The model either matches each name to an existing skill or proposes it as new. A proposal becomes a real `Skill` row only when you pass `--auto-promote` **and** its confidence is at least 0.9. Lower-confidence proposals stay in `skill_aliases` with status `NEW_PROPOSED`, waiting for review. Every decision is also written to `logs/normalise-skills-<timestamp>.jsonl`.
 
-**On a fresh install the pipeline builds the taxonomy for you.** Phase 2 of `pnpm programs:pipeline` checks the programme's stored digest. It acts only on a programme that has no skills yet; a programme with skills is left alone. If the digest's skill names match nothing in the taxonomy, it promotes that programme's earlier proposals at confidence 0.9 or more (for example from a `skills:normalise` run without `--auto-promote`), runs the normaliser for that programme's own names with auto-promote, then re-applies the **same stored digest**. That is a database write, not a new AI digest, so phases 3, 6 and 7 later in the same run already see the skills. If every name already matches, it does nothing. Set `PIPELINE_BUILD_SKILL_TAXONOMY=0` to switch this off. `pnpm skills:normalise` stays as the manual tool, and is what you use for the LinkedIn source.
+**On a fresh install the pipeline builds the taxonomy for you.** Phase 2 of `pnpm programs:pipeline` checks the programme's stored digest. It acts only on a programme that has no skills yet; a programme with skills is left alone. If the digest's skill names match nothing in the taxonomy, it promotes that programme's earlier proposals at confidence 0.9 or more (for example from a `skills:normalise` run without `--auto-promote`), runs the normaliser for that programme's own names with auto-promote, then re-applies the **same stored digest**. That is a database write, not a new AI digest, so phases 3, 6 and 7 later in the same run already see the skills. If every name already matches, it does nothing. Set `PIPELINE_BUILD_SKILL_TAXONOMY=0` to switch this off. `pnpm skills:normalise` stays as the manual tool, and is what you use for uploaded labour-market demand (`--source=labour_market`).
 
 For the usual case, then, it is: digest the programmes, then run the pipeline.
 
@@ -127,16 +127,16 @@ The manual route, in order:
 
 | Step | Command | What it does |
 |---|---|---|
-| 1 | `pnpm connector:run kmitl-skill-mapping` | Loads labour-market skill demand (LinkedIn data via the KMITL connector). Needs credentials; see the [tutorial](../tutorials/program-deep-dive.md#labour-market-skills) |
-| 2 | `pnpm skills:normalise --source=linkedin --auto-promote` | Builds the taxonomy from those skill names, then re-links the KMITL demand and growth rows to the new skills |
+| 1 | Upload **Career Skill Demand** at `/admin/data-setup/raw/career-skill-demand` | Loads labour-market skill demand; see [Career skill demand](../data-import.md#career-skill-demand). The `kmitl-skill-mapping` connector is deprecated |
+| 2 | `pnpm skills:normalise --source=labour_market --auto-promote` | Builds the taxonomy from those skill names, then re-links the uploaded demand rows to the new skills |
 | 3 | `pnpm programs:pipeline <code> --only=phase1`, or `pnpm programs:digest <code>` | Digests the curriculum PDF. Names that match nothing become `PROPOSED_SKILL` extractions |
 | 4 | `pnpm skills:normalise --source=program_digest --auto-promote` | Adds your curriculum's own vocabulary to the taxonomy |
 | 5 | `pnpm programs:approve-pending --rematerialise` | Re-applies the stored digests so their skills now match. No AI call |
 | 6 | `pnpm programs:pipeline <code> --only=phase3` | Career mapping and demand match. It must run **after** steps 2 and 5, or the *Demand match* card stays 0 |
 
-- **Cost and time:** about USD 0.003 per batch of 25, so roughly USD 1 and 45 minutes for ~5,900 LinkedIn names. That was measured on an OpenRouter install; your model's price sets yours. The digest source is usually far smaller.
+- **Cost and time:** about USD 0.003 per batch of 25 (for scale: ~5,900 names took roughly USD 1 and 45 minutes). That was measured on an OpenRouter install; your model's price sets yours. The digest source is usually far smaller.
 - **Re-running is safe.** Names already decided are skipped, so a second run only retries the ones that failed. The summary's `Failed:` line is the one to read. The script exits 0 even when batches failed, for example on an OpenRouter balance refusal ([see below](./configure-ai.md#running-on-openrouter)).
-- **Without KMITL access, or outside Thailand,** skip steps 1, 2 and 6. Steps 3 to 5 still give you a taxonomy built entirely from your own curricula. The *Demand match* card then stays empty, because nothing supplies demand.
+- **Without a Career Skill Demand sheet,** skip steps 1, 2 and 6. Steps 3 to 5 still give you a taxonomy built entirely from your own curricula. The *Demand match* card then stays empty, because nothing supplies demand.
 - **`PROPOSED_SKILL` approval does not create skills.** With `AI_AUTO_APPROVE_THRESHOLD` unset (its code default is 0), those extractions are auto-approved as soon as they are written. Approval only changes their review status; only step 4 turns them into `Skill` rows.
 
 **Re-applying a digest costs no AI call.** `--rematerialise` writes the stored digest again. Re-running the AI digest (`pnpm programs:digest <code> --force`) is only needed when you want the curriculum re-read.

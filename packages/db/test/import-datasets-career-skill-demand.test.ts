@@ -76,9 +76,9 @@ async function cleanup(): Promise<void> {
   await prisma.programSkill.deleteMany({ where: { program: { code: 'CSD-PROG' } } });
   await prisma.program.deleteMany({ where: { code: 'CSD-PROG' } });
   await prisma.faculty.deleteMany({ where: { code: 'CSDFAC' } });
-  await prisma.kmitlCareerSkillDemand.deleteMany({ where: { skillNameRaw: { startsWith: PREFIX } } });
-  await prisma.kmitlCareerSkillDemand.deleteMany({ where: { career: { groupName: { startsWith: PREFIX } } } });
-  await prisma.kmitlCareer.deleteMany({ where: { groupName: { startsWith: PREFIX } } });
+  await prisma.labourMarketSkillDemand.deleteMany({ where: { skillNameRaw: { startsWith: PREFIX } } });
+  await prisma.labourMarketSkillDemand.deleteMany({ where: { career: { groupName: { startsWith: PREFIX } } } });
+  await prisma.labourMarketCareer.deleteMany({ where: { groupName: { startsWith: PREFIX } } });
   await prisma.skill.deleteMany({ where: { nameEn: { startsWith: PREFIX } } });
 }
 
@@ -109,28 +109,28 @@ describeScratchDb('career-skill-demand dataset', () => {
 
   it('allocates negative career ids, stable on re-upload', async () => {
     await load([iRow(), iRow({ career: `${PREFIX}Fitter`, skill: `${PREFIX}Other` })], runA);
-    const first = await prisma.kmitlCareer.findMany({
+    const first = await prisma.labourMarketCareer.findMany({
       where: { groupName: `${PREFIX}Engineer` },
       orderBy: { careerName: 'asc' },
     });
     expect(first).toHaveLength(2);
     for (const c of first) {
-      expect(c.kmitlCareerId).toBeLessThan(0);
-      expect(c.kmitlGroupId).toBeLessThan(0);
-      expect(c.kmitlSubGroupId).toBeLessThan(0);
+      expect(c.sourceCareerId).toBeLessThan(0);
+      expect(c.sourceGroupId).toBeLessThan(0);
+      expect(c.sourceSubGroupId).toBeLessThan(0);
       expect(c.ingestionRunId).toBe(runA);
     }
-    expect(first[0]!.kmitlGroupId).toBe(first[1]!.kmitlGroupId);
-    expect(first[0]!.kmitlCareerId).not.toBe(first[1]!.kmitlCareerId);
+    expect(first[0]!.sourceGroupId).toBe(first[1]!.sourceGroupId);
+    expect(first[0]!.sourceCareerId).not.toBe(first[1]!.sourceCareerId);
 
     const again = await load([iRow({ share: 20 })], runA);
     expect(again.updated).toBe(1);
-    const second = await prisma.kmitlCareer.findMany({
+    const second = await prisma.labourMarketCareer.findMany({
       where: { groupName: `${PREFIX}Engineer` },
       orderBy: { careerName: 'asc' },
     });
-    expect(second.map((c) => c.kmitlCareerId)).toEqual(first.map((c) => c.kmitlCareerId));
-    const demand = await prisma.kmitlCareerSkillDemand.findFirst({
+    expect(second.map((c) => c.sourceCareerId)).toEqual(first.map((c) => c.sourceCareerId));
+    const demand = await prisma.labourMarketSkillDemand.findFirst({
       where: { skillNameRaw: SKILL_EN },
     });
     expect(demand?.percentage).toBe(20);
@@ -146,7 +146,7 @@ describeScratchDb('career-skill-demand dataset', () => {
       runA,
     );
     expect(result.unresolved).toBe(1);
-    const rows = await prisma.kmitlCareerSkillDemand.findMany({
+    const rows = await prisma.labourMarketSkillDemand.findMany({
       where: { career: { careerName: `${PREFIX}Brazier` } },
     });
     expect(rows.filter((r) => r.skillId === skillId)).toHaveLength(2);
@@ -183,11 +183,11 @@ describeScratchDb('career-skill-demand dataset', () => {
   });
 
   it("clear only deletes this dataset's runs", async () => {
-    const careerRow = await prisma.kmitlCareer.create({
+    const careerRow = await prisma.labourMarketCareer.create({
       data: {
-        kmitlCareerId: -900000001,
-        kmitlGroupId: -900000001,
-        kmitlSubGroupId: -900000001,
+        sourceCareerId: -900000001,
+        sourceGroupId: -900000001,
+        sourceSubGroupId: -900000001,
         groupName: `${PREFIX}Other`,
         subGroupName: 'x',
         careerName: `${PREFIX}Other career`,
@@ -197,8 +197,8 @@ describeScratchDb('career-skill-demand dataset', () => {
     });
     const deleted = await prisma.$transaction((tx) => careerSkillDemandDataset.clear(tx, [runA]));
     expect(deleted).toBeGreaterThan(0);
-    expect(await prisma.kmitlCareer.count({ where: { groupName: `${PREFIX}Engineer` } })).toBe(0);
-    expect(await prisma.kmitlCareerSkillDemand.count({ where: { skillNameRaw: { startsWith: PREFIX } } })).toBe(0);
-    expect(await prisma.kmitlCareer.findUnique({ where: { id: careerRow.id } })).not.toBeNull();
+    expect(await prisma.labourMarketCareer.count({ where: { groupName: `${PREFIX}Engineer` } })).toBe(0);
+    expect(await prisma.labourMarketSkillDemand.count({ where: { skillNameRaw: { startsWith: PREFIX } } })).toBe(0);
+    expect(await prisma.labourMarketCareer.findUnique({ where: { id: careerRow.id } })).not.toBeNull();
   });
 });

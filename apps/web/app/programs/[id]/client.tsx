@@ -2707,7 +2707,7 @@ function SkillsSection({
               >
                 {Math.round(match)}
               </div>
-              <div className="text-xs text-text-tertiary">vs LinkedIn (MHESI, global)</div>
+              <div className="text-xs text-text-tertiary">vs labour-market demand</div>
             </>
           )}
         </Card>
@@ -2789,7 +2789,7 @@ function SkillsSection({
               <DataSourceMark source="jobthai" size={14} />
               JobThai · domestic
             </SegmentedTrigger>
-            <SegmentedTrigger value="linkedin">LinkedIn · global</SegmentedTrigger>
+            <SegmentedTrigger value="linkedin">Labour market</SegmentedTrigger>
           </SegmentedList>
         </Segmented>
       </div>
@@ -2800,7 +2800,7 @@ function SkillsSection({
         <Card padding="md">
           <h4 className="mb-2 text-sm font-semibold">Top labour-market demand</h4>
           <p className="mb-2 text-xs text-text-tertiary">
-            LinkedIn labour-market data (MHESI subscription) ·{' '}
+            Uploaded labour-market demand ·{' '}
             {data.careerFilterCount > 0 ? (
               <span className="text-accent-default">
                 filtered to {data.careerFilterCount} career{data.careerFilterCount === 1 ? '' : 's'} this program targets
@@ -5042,8 +5042,8 @@ const DRIVER_LABEL_LOOKUP: Record<string, string> = {
   average_salary: 'Average graduate salary',
   further_study_rate: 'Further-study rate',
   // Relevance
-  labour_market_alignment: 'Labour-market alignment (LinkedIn · global, 25%)',
-  labour_market_alignment_kmitl: 'Labour-market alignment (LinkedIn · MHESI)',
+  labour_market_alignment: 'Labour-market alignment (labour market, 25%)',
+  labour_market_alignment_kmitl: 'Labour-market alignment (labour market)',
   jobthai_demand_alignment: 'Job-posting demand match (JobThai · domestic, 75%)',
   curriculum_modernity: 'Curriculum modernity (peer review)',
 };
@@ -5138,7 +5138,7 @@ function HealthScoreBreakdown({
                   Average of populated drivers (null drivers excluded). Data completeness ={' '}
                   {Math.round(row.cell.dataCompletenessPct ?? 0)}%.
                   {row.key === 'relevance' &&
-                    ' JobThai (domestic) and LinkedIn (global) demand are weighted 75:25 within their share; when one has no data the other takes it all.'}
+                    ' JobThai (domestic) and labour-market demand are weighted 75:25 within their share; when one has no data the other takes it all.'}
                   {row.key === 'financial' &&
                     ' An external-grant award of up to +10 is added after the average; it never lowers the score.'}
                 </p>
@@ -5227,11 +5227,11 @@ const RAW_KEY_LOOKUP: Record<string, string> = {
   costPerStudent: 'Cost / student',
   fiscalYear: 'Fiscal year',
   // Relevance
-  kmitlAlignmentPct: 'LinkedIn labour-market alignment %',
+  kmitlAlignmentPct: 'Labour-market alignment %',
   // strategic_sector_alignment driver — `targetedCareers` is the
   // count of LinkedIn-via-MHESI career groups this program is
   // mapped to (see health-score.ts).
-  targetedCareers: 'Targeted careers (LinkedIn)',
+  targetedCareers: 'Targeted careers (labour market)',
   // Generic
   lower: 'Lower',
   upper: 'Upper',

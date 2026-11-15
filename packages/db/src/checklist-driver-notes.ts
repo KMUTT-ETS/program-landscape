@@ -4,7 +4,7 @@
 // scorer's own text.
 
 export interface DriverNoteContext {
-  /** Rows in kmitl_career_skill_demands, and how many carry a skill link.
+  /** Rows in labour_market_skill_demands, and how many carry a skill link.
    *  Null when the counts could not be read: no note is guessed then. */
   kmitlRows: number | null;
   kmitlLinked: number | null;
