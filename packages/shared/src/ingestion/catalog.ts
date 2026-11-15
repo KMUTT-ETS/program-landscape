@@ -305,6 +305,8 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'only 0.8% mention a postgraduate qualification and just 41 state one as the ' +
       'minimum, so it is near-blind to 179 of KKU\'s 297 programmes; and the source ' +
       'carries no salary, no employer name and no posting date.',
+    enabled: false,
+    // Switched off on this installation (2026-11-15) — code kept; remove to re-enable.
     mocked: true,
   },
   {
@@ -327,6 +329,8 @@ export const SOURCE_CATALOG: readonly SourceCatalogEntry[] = [
       'itself honestly as this organisation rather than route through a scraping proxy, and must never request ' +
       'those two paths.',
     mocked: true,
+    // Switched off on this installation (2026-11-15) — code kept; remove to re-enable.
+    enabled: false,
   },
   {
     slug: 'jobsdb',
