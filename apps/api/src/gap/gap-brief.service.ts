@@ -97,7 +97,7 @@ const GAP_MAP_COMMON_SOURCES: readonly { id: string; name: string }[] = [
   { id: 'student-cohort-distributions', name: 'Registrar active cohorts (pipeline)' },
   {
     id: 'kmitl-skill-mapping',
-    name: 'LinkedIn labour-market skill growth · subscribed by MHESI (API hosted by KMITL)',
+    name: 'Labour-market skill growth',
   },
   { id: 'trend-signals', name: 'Trends Radar signals' },
 ];

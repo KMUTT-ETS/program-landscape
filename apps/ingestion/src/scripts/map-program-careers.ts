@@ -77,7 +77,7 @@ async function main(): Promise<void> {
     console.log(`  Careers total:              ${result.careersTotal}`);
     console.log(`  Mapped to KMITL:            ${result.kmitlMatched}`);
     console.log(`  Unmapped (need external):   ${result.kmitlUnmatched}`);
-    console.log(`  KMITL career IDs (${result.kmitlCareerIds.length}): ${result.kmitlCareerIds.join(', ')}`);
+    console.log(`  KMITL career IDs (${result.labourMarketCareerIds.length}): ${result.labourMarketCareerIds.join(', ')}`);
     if (result.mappingSummary.length > 0) {
       console.log(`\n  Per-career breakdown:`);
       for (const m of result.mappingSummary) {

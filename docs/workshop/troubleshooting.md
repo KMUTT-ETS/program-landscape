@@ -45,7 +45,7 @@ the left column. If it is not here, show the full message to the facilitator.
 | The pipeline cannot read the course list from your own PDF | The PDF layout is not recognised. | Check it with `pnpm curriculum:check "<file.pdf>"`, or upload the course list instead. |
 | The skills do not appear after the pipeline | The skill names were not matched, or the AI provider was unreachable during phase 2. | Run the two commands below, then the pipeline again. |
 | The overlap section shows shared course codes only, or the log shows "429" while embedding | A free Google key reached its daily embedding limit. | Use a paid key, or run the pipeline again the next day. |
-| The demand match is skipped and labour-market alignment stays empty | The market's skill names are not in your taxonomy. | After `kmitl-skill-mapping`, run `pnpm skills:normalise --source=linkedin --auto-promote` once, then the pipeline again. |
+| The demand match is skipped and labour-market alignment stays empty | The market's skill names are not in your taxonomy. | After uploading Career Skill Demand, run `pnpm skills:normalise --source=labour_market --auto-promote` once, then the pipeline again. |
 | The JobThai driver shows "not applicable" | JobThai is a commercial feed. | Nothing. It is not a failure. |
 
 The two commands for missing skills, with the programme's id from its admin

@@ -107,7 +107,7 @@ describe('generate', () => {
     for (const s of ['มหาวิทยาลัยเทคโนโลยีพระจอมเกล้าธนบุรี', 'Region: Central', 'University Rankings', 'un-wpp', 'openalex-works',
       'Start over', sheetInfo('program-faculty').title, '/admin/data-setup', '/admin/organization', '/admin/data-sources', 'Upload filled template'])
       expect(t).toContain(s);
-    expect(t).toContain('pnpm skills:normalise --source=linkedin --auto-promote');
+    expect(t).toContain('pnpm skills:normalise --source=labour_market --auto-promote');
     expect(t).not.toMatch(/python|\.toml/i);
     expect(t).toContain(`from ${sheetInfo(UPLOAD_ORDER[19]!).title} (20) back to ${sheetInfo(UPLOAD_ORDER[0]!).title} (1)`);
   });

@@ -352,9 +352,9 @@ to supply **regional** figures. Columns: **Region**, **Year**, **Age Group**,
 
 ## Career skill demand
 
-This sheet is the fallback for the KMITL Skill Mapping API, which an adopting
-university usually cannot call: its credentials are issued by KMITL directly
-on request, not self-service. It writes the same tables, so the
+This sheet is how labour-market skill demand is loaded; the KMITL Skill
+Mapping API connector (`kmitl-skill-mapping`) is deprecated. It writes the
+same tables the connector did, so the
 labour-market alignment score, the strategic-sector score and the
 programme-career mapping read it unchanged. Columns: **Career Group**, **Career**,
 **Skill**, **Scope** (`Thailand` or `Global`), **Data Source** (`Job postings`

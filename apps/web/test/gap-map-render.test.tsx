@@ -370,7 +370,7 @@ describe('GapMapSections', () => {
     // A figure averaged over 28 contexts must state that count beside it —
     // a bare "41 %" would read the same as a single-context observation.
     expect(t).toContain('28 contexts');
-    expect(t).toContain('LinkedIn data via MHESI');
+    expect(t).toContain('labour-market data');
   });
 
   it('names every linked programme and never prints an id', () => {

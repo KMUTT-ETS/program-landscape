@@ -50,7 +50,7 @@ vi.mock('../src/index', () => {
       faculty: { findMany: mocks.facultyFindMany, findFirst: mocks.facultyFindFirst },
       department: { findMany: mocks.departmentFindMany },
       program: { findMany: mocks.programFindMany, findUnique: mocks.programFindUnique },
-      kmitlCareerSkillDemand: { findMany: mocks.kmitlDemandFindMany },
+      labourMarketSkillDemand: { findMany: mocks.kmitlDemandFindMany },
       programSkill: { findMany: mocks.programSkillFindMany },
       financialMetric: { findMany: mocks.financialMetricFindMany },
       enrollmentMetric: {
@@ -62,7 +62,7 @@ vi.mock('../src/index', () => {
       programDemandMatch: { findMany: mocks.programDemandMatchFindMany },
       tcasAdmissionStat: { findFirst: mocks.tcasFindFirst, findMany: mocks.tcasFindMany },
       demographicProjection: { findFirst: mocks.demographicFindFirst, findMany: async () => { const y = new Date().getUTCFullYear(); return ['TH', 'Northeast'].flatMap((region) => [y, y + 10].map((year) => ({ source: 'NESDC-PopProj-2010-2040', region, year }))); } },
-      kmitlCareer: { findMany: mocks.kmitlCareerFindMany },
+      labourMarketCareer: { findMany: mocks.kmitlCareerFindMany },
       graduateOutcome: { findFirst: mocks.graduateOutcomeFindFirst },
       programPedagogyAssessment: { findUnique: mocks.programPedagogyAssessmentFindUnique },
       programJobThaiLink: { findMany: mocks.programJobThaiLinkFindMany },
@@ -301,7 +301,7 @@ describe('scoreRelevanceScope — carries every per-programme driver', () => {
       { id: 'prog-1', nameEn: 'A', nameTh: 'ก', facultyId: 'fac-1' },
     ]);
     mocks.programFindUnique.mockImplementation(({ where }: { where: { id: string } }) =>
-      Promise.resolve({ id: where.id, level: 'BACHELOR', nameTh: 'ก', kmitlCareerIds: [] }),
+      Promise.resolve({ id: where.id, level: 'BACHELOR', nameTh: 'ก', labourMarketCareerIds: [] }),
     );
 
     const rows = await computeHealthScores('university', null);
@@ -328,7 +328,7 @@ describe('scoreRelevanceScope — carries every per-programme driver', () => {
       { id: 'prog-2', nameEn: 'B', nameTh: 'ข', facultyId: 'fac-1' },
     ]);
     mocks.programFindUnique.mockImplementation(({ where }: { where: { id: string } }) =>
-      Promise.resolve({ id: where.id, level: 'BACHELOR', nameTh: 'ก', kmitlCareerIds: [] }),
+      Promise.resolve({ id: where.id, level: 'BACHELOR', nameTh: 'ก', labourMarketCareerIds: [] }),
     );
     // 90 for prog-1, 70 for prog-2 → rolled up to 80.
     mocks.programPedagogyAssessmentFindUnique.mockImplementation(
@@ -384,7 +384,7 @@ describe('scoreFinancialScope', () => {
       { id: 'prog-1', nameEn: 'A', nameTh: 'ก', facultyId: 'fac-1' },
     ]);
     mocks.programFindUnique.mockImplementation(({ where }: { where: { id: string } }) =>
-      Promise.resolve({ id: where.id, level: 'BACHELOR', nameTh: 'ก', kmitlCareerIds: [] }),
+      Promise.resolve({ id: where.id, level: 'BACHELOR', nameTh: 'ก', labourMarketCareerIds: [] }),
     );
   });
 
@@ -462,7 +462,7 @@ describe('driver parity between program and scope scorers', () => {
       { id: 'prog-1', nameEn: 'A', nameTh: 'ก', facultyId: 'fac-1' },
     ]);
     mocks.programFindUnique.mockImplementation(({ where }: { where: { id: string } }) =>
-      Promise.resolve({ id: where.id, level: 'BACHELOR', nameTh: 'ก', kmitlCareerIds: [] }),
+      Promise.resolve({ id: where.id, level: 'BACHELOR', nameTh: 'ก', labourMarketCareerIds: [] }),
     );
 
     const facultyRows = await computeHealthScores('university', null);
@@ -507,7 +507,7 @@ describe('external-grant award is not a driver', () => {
       { id: 'prog-1', nameEn: 'A', nameTh: 'ก', facultyId: 'fac-1' },
     ]);
     mocks.programFindUnique.mockImplementation(({ where }: { where: { id: string } }) =>
-      Promise.resolve({ id: where.id, level: 'BACHELOR', nameTh: 'ก', kmitlCareerIds: [] }),
+      Promise.resolve({ id: where.id, level: 'BACHELOR', nameTh: 'ก', labourMarketCareerIds: [] }),
     );
     mocks.programFacultyFindMany.mockResolvedValue([
       { programId: 'prog-1', facultyMember: { id: 's1', rank: 'LECTURER', isActive: true, retirementDate: null } },
@@ -530,7 +530,7 @@ describe('jobthai_demand_alignment', () => {
     mocks.facultyFindMany.mockResolvedValue([{ id: 'fac-1', nameEn: 'Science', nameTh: 'วิทย์' }]);
     mocks.queryMetricByScope.mockResolvedValue([]);
     mocks.programFindMany.mockResolvedValue([{ id: 'prog-1', nameEn: 'A', nameTh: 'ก', facultyId: 'fac-1' }]);
-    mocks.programFindUnique.mockResolvedValue({ id: 'prog-1', level, nameTh: 'ก', kmitlCareerIds: [] });
+    mocks.programFindUnique.mockResolvedValue({ id: 'prog-1', level, nameTh: 'ก', labourMarketCareerIds: [] });
     // Ten occupations, so a skill demanded by one of them is not generic.
     mocks.jobThaiOccupationCount.mockResolvedValue(10);
   }
@@ -750,7 +750,7 @@ describe('TCAS funnel basis (v5.6)', () => {
     mocks.facultyFindMany.mockResolvedValue([{ id: 'fac-1', nameEn: 'S', nameTh: 'ว' }]);
     mocks.queryMetricByScope.mockResolvedValue([]);
     mocks.programFindMany.mockResolvedValue([{ id: 'prog-1', nameEn: 'A', nameTh: 'ก', facultyId: 'fac-1' }]);
-    mocks.programFindUnique.mockResolvedValue({ id: 'prog-1', level: 'BACHELOR', nameTh: 'ก', kmitlCareerIds: [] });
+    mocks.programFindUnique.mockResolvedValue({ id: 'prog-1', level: 'BACHELOR', nameTh: 'ก', labourMarketCareerIds: [] });
     const rows = await computeHealthScores('faculty', 'fac-1');
     return rows[0]!.dimensions.attractiveness.drivers;
   }

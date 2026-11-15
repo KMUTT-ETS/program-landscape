@@ -109,8 +109,7 @@ export default async function DigitalCompetencyPage({
               beside the existing output and changes none of it.
             </p>
             <p>
-              Demand is LinkedIn labour-market data, subscribed by MHESI. KMITL hosts the API and
-              nothing else.
+              Demand is the labour-market skill demand loaded for this installation.
             </p>
           </div>
         </Card>

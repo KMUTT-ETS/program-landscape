@@ -541,8 +541,8 @@ export async function programSetupChecklist(programId: string): Promise<SetupChe
   let kmitlMemo: Promise<DriverNoteContext> | null = null;
   const kmitlContext = (): Promise<DriverNoteContext> => {
     kmitlMemo ??= Promise.all([
-      prisma.kmitlCareerSkillDemand.count(),
-      prisma.kmitlCareerSkillDemand.count({ where: { skillId: { not: null } } }),
+      prisma.labourMarketSkillDemand.count(),
+      prisma.labourMarketSkillDemand.count({ where: { skillId: { not: null } } }),
     ])
       .then(([kmitlRows, kmitlLinked]) => ({ kmitlRows, kmitlLinked }))
       .catch(() => ({ kmitlRows: null, kmitlLinked: null }));

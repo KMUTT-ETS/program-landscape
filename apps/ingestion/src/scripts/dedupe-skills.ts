@@ -66,8 +66,8 @@ const COLLIDING_TABLES = [
 
 /** Unique constraint does NOT include skill_id, so a repoint is always safe. */
 const SAFE_UPDATE_TABLES = [
-  { table: 'kmitl_career_skill_demands', column: 'skill_id' },
-  { table: 'kmitl_skill_growths', column: 'skill_id' },
+  { table: 'labour_market_skill_demands', column: 'skill_id' },
+  { table: 'labour_market_skill_growths', column: 'skill_id' },
   { table: 'external_career_skill_demands', column: 'skill_id' },
   { table: 'skill_aliases', column: 'resolved_skill_id' },
 ] as const;

@@ -31,6 +31,12 @@ interface RawDatasetResult {
   pageSize: number;
 }
 
+const RENAMED_DATASETS: Readonly<Record<string, string>> = {
+  'kmitl-careers': 'labour-market-careers',
+  'kmitl-skill-demands': 'labour-market-skill-demands',
+  'kmitl-skill-growths': 'labour-market-skill-growths',
+};
+
 const DATASET_TITLES: Record<string, string> = {
   // Organisation backbone — importable from a spreadsheet (tier 0).
   faculties: 'Faculties',
@@ -59,9 +65,9 @@ const DATASET_TITLES: Record<string, string> = {
   'faculty-compensation': 'Faculty compensation (aggregate)',
   'staff-salary-by-funding': 'Staff salary by funding',
   'career-skill-demand': 'Career skill demand (uploaded)',
-  'kmitl-careers': 'Labour-market career taxonomy (LinkedIn data, MHESI subscription)',
-  'kmitl-skill-demands': 'Labour-market skill demand — LinkedIn data, subscribed by MHESI',
-  'kmitl-skill-growths': 'Labour-market skill growth — LinkedIn data, subscribed by MHESI',
+  'labour-market-careers': 'Labour-market career taxonomy',
+  'labour-market-skill-demands': 'Labour-market skill demand',
+  'labour-market-skill-growths': 'Labour-market skill growth',
   'research-outputs': 'Research outputs',
   'skill-aliases': 'Skill alias cache',
   'curriculum-pdfs': 'Curriculum PDFs',
@@ -81,6 +87,10 @@ export default async function RawDatasetPage({
   if (!isAdminGrade(user.effectiveRole ?? user.role)) redirect('/no-access');
 
   const { dataset } = await params;
+  // Raw-data pages renamed 2026-11-15 from the retired `kmitl-*` slugs; keep
+  // old bookmarks and links working.
+  const renamed = RENAMED_DATASETS[dataset];
+  if (renamed) redirect(`/admin/data-setup/raw/${renamed}`);
   if (!(dataset in DATASET_TITLES)) notFound();
 
   const sp = await searchParams;

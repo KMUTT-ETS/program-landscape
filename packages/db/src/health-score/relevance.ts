@@ -113,7 +113,7 @@ export async function scoreRelevanceProgram(
   // Demographic resilience: inverted required cohort share at +10y.
   const program = await prisma.program.findUnique({
     where: { id: programId },
-    select: { kmitlCareerIds: true, level: true },
+    select: { labourMarketCareerIds: true, level: true },
   });
   const demo = await computeRequiredShareAt10Y(programId, program?.level ?? 'BACHELOR');
   const demoOutlook = demo.share;
@@ -127,9 +127,9 @@ export async function scoreRelevanceProgram(
   // Strategic-sector alignment: T.strategicSectorScore if any KMITL career
   // maps to a strategic-sector group; T.nonStrategicSectorScore otherwise.
   let sectorValue: number | null = null;
-  if (program && program.kmitlCareerIds.length > 0) {
-    const careers = await prisma.kmitlCareer.findMany({
-      where: { kmitlCareerId: { in: program.kmitlCareerIds }, ...realDataWhere() },
+  if (program && program.labourMarketCareerIds.length > 0) {
+    const careers = await prisma.labourMarketCareer.findMany({
+      where: { sourceCareerId: { in: program.labourMarketCareerIds }, ...realDataWhere() },
       select: { groupName: true },
     });
     const inStrategic = careers.some((c) => STRATEGIC_KMITL_GROUPS.has(c.groupName));
@@ -162,7 +162,7 @@ export async function scoreRelevanceProgram(
     // "kmitl" in any user-visible string — KMITL is the API host, the
     // data origin is LinkedIn (subscribed by MHESI). See
     // memory/feedback_kmitl_data_attribution.md.
-    { label: 'strategic_sector_alignment', value: sectorValue, raw: { targetedCareers: program?.kmitlCareerIds.length ?? 0 } },
+    { label: 'strategic_sector_alignment', value: sectorValue, raw: { targetedCareers: program?.labourMarketCareerIds.length ?? 0 } },
     await jobThaiDemandAlignmentDriver(programId),
     {
       label: 'pedagogical_fit',

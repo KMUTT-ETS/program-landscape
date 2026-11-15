@@ -540,7 +540,7 @@ model Program {
   /// the deep-dive skills section to filter labour-market demand to careers
   /// the program actually targets (instead of generic top-10 across all
   /// careers). Empty array = no mapping yet → demand uses fallback.
-  kmitlCareerIds           Int[]    @default([]) @map("kmitl_career_ids")
+  labourMarketCareerIds           Int[]    @default([]) @map("labour_market_career_ids")
   openingYear              Int?     @map("opening_year")
   openingSemester          Int?     @map("opening_semester")
   curriculumYearBE         Int?     @map("curriculum_year_be")
@@ -1232,8 +1232,8 @@ model Skill {
   jobPostingSkills        JobPostingSkill[]
   skillSectors            SkillSector[]
   peerProgramSkills       PeerProgramSkill[]
-  kmitlCareerSkillDemands KmitlCareerSkillDemand[]
-  kmitlSkillGrowths       KmitlSkillGrowth[]
+  labourMarketSkillDemands LabourMarketSkillDemand[]
+  labourMarketSkillGrowths       LabourMarketSkillGrowth[]
   externalCareerDemands   ExternalCareerSkillDemand[]
   aliases                 SkillAlias[]
   programDemandMatches    ProgramDemandMatch[]
@@ -2198,7 +2198,7 @@ model Job108Announcement {
 }
 
 /// The profession layer — one row per (category, subcategory). 173 from the
-/// 2026-09 drop. JobThai-native rather than mapped onto KmitlCareer,
+/// 2026-09 drop. JobThai-native rather than mapped onto LabourMarketCareer,
 /// because these columns are source-authoritative and 100% populated
 /// whereas a crosswalk onto KMITL's 473 careers would invent precision.
 model JobThaiOccupation {
@@ -3557,9 +3557,9 @@ model IngestionRun {
   researchServiceProjects       ResearchServiceProject[]
   researchServiceProjectMembers ResearchServiceProjectMember[]
   facultyBudgets                FacultyBudget[]
-  kmitlCareers                  KmitlCareer[]
-  kmitlCareerSkillDemands       KmitlCareerSkillDemand[]
-  kmitlSkillGrowths             KmitlSkillGrowth[]
+  labourMarketCareers                  LabourMarketCareer[]
+  labourMarketSkillDemands       LabourMarketSkillDemand[]
+  labourMarketSkillGrowths             LabourMarketSkillGrowth[]
   tcasAdmissionFunnels          TcasAdmissionFunnel[]
   programDemandMatches          ProgramDemandMatch[]
   jobThaiBatches                JobThaiBatch[]
@@ -4257,29 +4257,29 @@ model FacultyBudget {
 // counts, (c) data lineage stays obvious for the Council provenance drawer.
 // ─────────────────────────────────────────────────────────────────────────────
 
-enum KmitlDataScope {
+enum LabourMarketDataScope {
   GLOBAL
   THAILAND
 
-  @@map("kmitl_data_scope")
+  @@map("labour_market_data_scope")
 }
 
-enum KmitlDemandSource {
+enum LabourMarketDemandSource {
   PROFILES
   JOB_POSTINGS
 
-  @@map("kmitl_demand_source")
+  @@map("labour_market_demand_source")
 }
 
 // Taxonomy mirror — captures KMITL's group → sub_group → career hierarchy.
 // `iscoCode` is null on first ingest; analysts hand-map over time so the
 // kmitl careers can roll up into our existing OccupationDemand world if
-// downstream consumers need it. `kmitlCareerId` is the stable upstream id.
-model KmitlCareer {
+// downstream consumers need it. `sourceCareerId` is the stable upstream id.
+model LabourMarketCareer {
   id                 String   @id @default(cuid())
-  kmitlCareerId      Int      @unique @map("kmitl_career_id")
-  kmitlGroupId       Int      @map("kmitl_group_id")
-  kmitlSubGroupId    Int      @map("kmitl_sub_group_id")
+  sourceCareerId      Int      @unique @map("source_career_id")
+  sourceGroupId       Int      @map("source_group_id")
+  sourceSubGroupId    Int      @map("source_sub_group_id")
   groupName          String   @map("group_name")
   subGroupName       String   @map("sub_group_name")
   careerName         String   @map("career_name")
@@ -4290,18 +4290,18 @@ model KmitlCareer {
   updatedAt          DateTime @updatedAt @map("updated_at")
   ingestionRunId     String?  @map("ingestion_run_id")
 
-  skillDemands KmitlCareerSkillDemand[]
+  skillDemands LabourMarketSkillDemand[]
   ingestionRun IngestionRun?            @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
 
-  @@index([kmitlGroupId, kmitlSubGroupId])
+  @@index([sourceGroupId, sourceSubGroupId])
   @@index([ingestionRunId])
-  @@map("kmitl_careers")
+  @@map("labour_market_careers")
 }
 
 // Fact table: per-career, per-skill, per-scope, per-source, latest snapshot.
 // Re-runs overwrite on the unique key so we keep one current row per tuple.
 // Time-series of demand percentages comes from KMITL's own
-// `skills_growth_overview` (→ KmitlSkillGrowth).
+// `skills_growth_overview` (→ LabourMarketSkillGrowth).
 //
 // `skillId` is nullable because KMITL's free-text skill names don't always
 // resolve to our Skill table on first pass; unmatched rows still land with
@@ -4312,14 +4312,14 @@ model KmitlCareer {
 // `metadata` JSONB holds the `industries_overview` + `universities_overview`
 // snippets that share the same parent payload as the skill demand. Promote
 // to dedicated tables if downstream consumers need them.
-model KmitlCareerSkillDemand {
+model LabourMarketSkillDemand {
   id                 String            @id @default(cuid())
   careerId           String            @map("career_id")
-  kmitlCareerId      Int               @map("kmitl_career_id")
+  sourceCareerId      Int               @map("source_career_id")
   skillId            String?           @map("skill_id")
   skillNameRaw       String            @map("skill_name_raw")
-  dataScope          KmitlDataScope    @map("data_scope")
-  dataSource         KmitlDemandSource @map("data_source")
+  dataScope          LabourMarketDataScope    @map("data_scope")
+  dataSource         LabourMarketDemandSource @map("data_source")
   amount             Int               @default(0)
   percentage         Float             @default(0)
   snapshotAt         DateTime          @map("snapshot_at") @db.Date
@@ -4330,31 +4330,31 @@ model KmitlCareerSkillDemand {
   updatedAt          DateTime          @updatedAt @map("updated_at")
   ingestionRunId     String?           @map("ingestion_run_id")
 
-  career       KmitlCareer   @relation(fields: [careerId], references: [id], onDelete: Cascade)
+  career       LabourMarketCareer   @relation(fields: [careerId], references: [id], onDelete: Cascade)
   skill        Skill?        @relation(fields: [skillId], references: [id], onDelete: SetNull)
   ingestionRun IngestionRun? @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
 
-  @@unique([kmitlCareerId, skillNameRaw, dataScope, dataSource])
+  @@unique([sourceCareerId, skillNameRaw, dataScope, dataSource])
   @@index([careerId])
   @@index([skillId])
   @@index([dataScope, dataSource])
   @@index([snapshotAt])
   @@index([ingestionRunId])
-  @@map("kmitl_career_skill_demands")
+  @@map("labour_market_skill_demands")
 }
 
 // Skill growth trend snapshot — captured at multiple context levels:
 // 'group', 'sub_group', or 'career'. Each level stores its own row so the
 // Cockpit + Gap Analyzer can pick the granularity they need without
 // re-deriving from the demand fact table.
-model KmitlSkillGrowth {
+model LabourMarketSkillGrowth {
   id                 String         @id @default(cuid())
   skillId            String?        @map("skill_id")
   skillNameRaw       String         @map("skill_name_raw")
   contextLevel       String         @map("context_level")
   contextId          Int            @map("context_id")
   contextName        String         @map("context_name")
-  dataScope          KmitlDataScope @map("data_scope")
+  dataScope          LabourMarketDataScope @map("data_scope")
   growthPct          Float          @map("growth_pct")
   snapshotAt         DateTime       @map("snapshot_at") @db.Date
   methodologyVersion String         @default("kmitl-skill-mapping.v1") @map("methodology_version")
@@ -4369,7 +4369,7 @@ model KmitlSkillGrowth {
   @@index([skillId])
   @@index([snapshotAt])
   @@index([ingestionRunId])
-  @@map("kmitl_skill_growths")
+  @@map("labour_market_skill_growths")
 }
 
 // ─────────────────────────────────────────────────────────────────────

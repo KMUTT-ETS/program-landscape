@@ -13,6 +13,22 @@ Mock connectors are refused (the run is recorded as `SKIPPED`,
 developers set locally. Sources marked `kkuExample` describe KKU's own systems
 and are of no use to other universities.
 
+### Switching a source off: `enabled: false`
+
+To keep a connector's code but stop it from running on an installation, add
+`enabled: false` to its catalog entry and run `pnpm data-sources:sync --apply`.
+The sync sets the row's `status` to `disabled` and turns its schedule off. The
+scheduler skips it, `/admin/data-sources` refuses **Run now** (HTTP 409), and
+the runner refuses any other trigger, recording a `SKIPPED` run with
+`SOURCE_DISABLED`. The `mocked` column keeps the catalog's value, so rows the
+source loaded before it was switched off stay visible. To switch it back on,
+remove the flag and sync again. The sync restores the status but leaves the
+schedule off; turn the schedule on yourself in the admin page.
+
+Use `deprecated: true` instead when a source has been replaced by another. A
+deprecated source also has its schedule turned off, but the admin page labels
+it `deprecated` rather than `disabled`.
+
 ## Ingestion architecture
 
 The ingestion framework (prompt 03) provides the plumbing. Connectors

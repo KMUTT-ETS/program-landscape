@@ -456,15 +456,17 @@ widened, and a `PROGRAM_USER`'s clamp lands there.
 
 Two independent paths. Neither invents a career→field mapping.
 
-### (a) Rising skills — LinkedIn data via MHESI
+### (a) Rising skills — labour-market skill growth series (where loaded)
 
 The field's occupations → `jobthai_occupation_skills` at ≥ **5 %** posting
-share, generic skills removed → intersected with `kmitl_skill_growths` →
-**top three by growth**, each labelled "LinkedIn data via MHESI".
+share, generic skills removed → intersected with `labour_market_skill_growths` →
+**top three by growth**, each labelled with the source recorded for that table. (The Career Skill Demand
+spreadsheet does not supply growth series; they come only from the deprecated
+`kmitl-skill-mapping` connector's captures.)
 
 Two rules that are defensibility, not convenience:
 
-1. **Newest capture only.** `kmitl_skill_growths` *accumulates* captures: its
+1. **Newest capture only.** `labour_market_skill_growths` *accumulates* captures: its
    unique key is `(contextLevel, contextId, skillNameRaw, dataScope)` with no
    `snapshotAt`, and the raw skill-name string drifts between runs, so an
    older capture's rows are never superseded. On dev the table holds **18,789
@@ -474,7 +476,7 @@ Two rules that are defensibility, not convenience:
    **600 %** when the current capture's figure for the same skill was
    **279.41 %**. A skill absent from the newest capture is stale and is not
    quoted at all.
-2. **Mean across contexts, not max.** A skill appears once per KMITL context
+2. **Mean across contexts, not max.** A skill appears once per capture context
    that demands it. Over the 1,788 skills in the newest capture (measured
    2026-09-19): **median 2** contexts — the middle pair is 2 and 3, so the
    interpolated median is 2.5 — p90 12, max 181. Taking the highest was
@@ -483,17 +485,17 @@ Two rules that are defensibility, not convenience:
    judge it.
 
 > **DATA FINDING, and it is a source problem, not a code problem.** *The
-> newest KMITL capture carries **no Thailand rows at all**.* Of rows with a
+> newest labour-market skill-growth capture carries **no Thailand rows at all**.* Of rows with a
 > resolved skill: 2026-07-20 = 895 Thailand + 5,644 global; **2026-09-14 = 0
 > Thailand + 10,256 global**. Before the newest-capture rule the map reached
 > back into July and labelled **55 of 71** fields "Thailand data" — every one
 > of those Thai figures two months old and presented as current. After it,
 > the label is honest: **0 of 71 Thailand**, everything a global fallback.
 > **This exposure is not confined to the gap map** — anything reading
-> `kmitl_skill_growths` for a Thailand figure has it, including the health
-> score's labour-market driver. Raise with whoever owns the
-> `kmitl-skill-mapping` connector: did the September pull lose the THAILAND
-> scope, or did the upstream API stop returning it?
+> `labour_market_skill_growths` for a Thailand figure has it, including the health
+> score's labour-market driver. The connector that produced the capture, `kmitl-skill-mapping`, is
+> deprecated, so no newer capture is expected: did the September pull lose the
+> THAILAND scope, or did the upstream API stop returning it?
 
 > **OPEN DECISION — a minimum-context floor.** On dev, **598 of 1,788 skills
 > (33 %) in the newest capture appear in exactly one context**, so their
@@ -579,7 +581,7 @@ Confidence, sources, reasoning and a disagreement button are shown; one
   `too-few-postings`** — one of the six, not an empty cell. What it withholds
   is a *reading of the gap*, never the numbers behind it.
 - A pipeline arrow is absent, not flat, when either side is missing.
-- A rising-skill figure absent from the newest KMITL capture is **not shown**
+- A rising-skill figure absent from the newest skill-growth capture is **not shown**
   rather than shown from an older one.
 - The `ConfidenceBadge` on the Council brief is the **model's** self-reported
   confidence in its findings. It says nothing about the data coverage — that
@@ -599,7 +601,7 @@ Confidence, sources, reasoning and a disagreement button are shown; one
 | `student_cohort_distributions` | pipeline | **yes** |
 | `program_jobthai_links` | which programmes a row's occupations already link to | **yes** |
 | `jobthai_occupation_skills` | skills behind a field's occupations | **no — the table has no `ingestion_run_id` column at all** |
-| `kmitl_skill_growths` | rising-skill growth (LinkedIn via MHESI) | **yes** |
+| `labour_market_skill_growths` | rising-skill growth (labour-market skill growth series; deprecated `kmitl-skill-mapping` captures) | **yes** |
 | `trend_signals` | what's coming (signals and initiatives) | no |
 | programme health index (`getProgramScoreIndex`) | the health figure beside each programme in a row | via the health score |
 
@@ -799,12 +801,12 @@ Every item here is genuinely undecided. None is a bug.
 2. **Minimum-context floor on rising skills** (§9a) — show thin figures with
    their context count, as today, or exclude them?
 3. **Duplicate `nameEn` on rename** (§7) — refuse, or warn?
-4. **`kmitl_skill_growths` keeps superseded snapshots** (§9a) — the durable
+4. **`labour_market_skill_growths` keeps superseded snapshots** (§9a) — the durable
    fix is either a unique key including `snapshotAt` plus a retention sweep,
    or a connector that deletes the prior snapshot on a successful run. Owner:
-   whoever owns `kmitl-skill-mapping`. The gap map reads the newest capture
+   whoever owns the deprecated `kmitl-skill-mapping` data. The gap map reads the newest capture
    only and is safe; **other readers of that table are not**.
-5. **The missing THAILAND scope in the newest KMITL capture** (§9a) — a source
+5. **The missing THAILAND scope in the newest skill-growth capture** (§9a) — a source
    question to put to the connector's owner before any Thai growth figure is
    quoted again anywhere in the platform.
 6. **A declined-raw-string ledger** (§7) — until it exists, ~127 abstained
@@ -853,7 +855,7 @@ re-projected health dimensions; the sector, occupation and regional gap lenses
 `regionalDemand = 100`; the three `gap-insights` AI modes; the
 `/gap-analysis/opportunities` and `/gap-analysis/risks` sub-pages.
 
-**Kept:** the per-programme LinkedIn demand-gap helper
+**Kept:** the per-programme labour-market demand-gap helper
 (`computeProgramDemandGaps`, still the AI Analyst's evidence) and the
 digital-competency lens, moved to `/education/digital-competency`.
 

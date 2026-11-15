@@ -1478,11 +1478,11 @@ const tableNodes: TopologyNode[] = [
     details: {
       description:
         '3-table cluster materialised from the LinkedIn-via-MHESI API: 401 careers, ~19k career×skill demand rows (percentage by THAILAND/GLOBAL × PROFILES/JOB_POSTINGS), ~8.5k skill-trend rows. Prisma model names retain the "Kmitl" prefix from the original ingestion-framework slug.',
-      prismaModel: 'KmitlCareer + KmitlCareerSkillDemand + KmitlSkillGrowth',
+      prismaModel: 'LabourMarketCareer + LabourMarketSkillDemand + LabourMarketSkillGrowth',
       relatedTables: [
-        'LinkedIn careers — KmitlCareer (taxonomy)',
-        'LinkedIn skill demand — KmitlCareerSkillDemand (fact)',
-        'LinkedIn skill trend — KmitlSkillGrowth (growth signal)',
+        'LinkedIn careers — LabourMarketCareer (taxonomy)',
+        'LinkedIn skill demand — LabourMarketSkillDemand (fact)',
+        'LinkedIn skill trend — LabourMarketSkillGrowth (growth signal)',
       ],
     },
   },
@@ -1652,7 +1652,7 @@ const tableNodes: TopologyNode[] = [
       relatedTables: [
         'ProgramSkill (program × skill weights)',
         'CourseSkill (course-level → program rollup)',
-        'LinkedIn skill demand — KmitlCareerSkillDemand (demand signal)',
+        'LinkedIn skill demand — LabourMarketSkillDemand (demand signal)',
       ],
     },
   },
@@ -2697,7 +2697,7 @@ const edges: TopologyEdge[] = [
   { from: 'tab.program-job-field', to: 'dash.gap-analyzer' }, // the supply assignments
   { from: 'tab.jobthai-occupations', to: 'dash.gap-analyzer' }, // occupations inside a row + programme links
   { from: 'tab.enrollment-metric', to: 'dash.gap-analyzer' }, // graduates-per-year proxy + pipeline
-  { from: 'tab.kmitl-demand', to: 'dash.gap-analyzer' }, // rising skills (KmitlSkillGrowth, newest capture)
+  { from: 'tab.kmitl-demand', to: 'dash.gap-analyzer' }, // rising skills (LabourMarketSkillGrowth, newest capture)
   { from: 'tab.skill', to: 'dash.gap-analyzer' }, // names for the rising skills
   { from: 'tab.trend-signal', to: 'dash.gap-analyzer' }, // what's coming
   { from: 'tab.program', to: 'dash.gap-analyzer' },

@@ -45,7 +45,7 @@
 | pipeline อ่านรายการรายวิชาจาก PDF ของท่านไม่ได้ | ระบบไม่รู้จักรูปแบบของ PDF | ตรวจสอบด้วย `pnpm curriculum:check "<file.pdf>"` หรืออัปโหลดรายการรายวิชาแทน |
 | ทักษะไม่ปรากฏหลังรัน pipeline | ชื่อทักษะยังจับคู่ไม่ได้ หรือเรียกผู้ให้บริการ AI ไม่ได้ระหว่าง phase 2 | รันสองคำสั่งด้านล่าง แล้วรัน pipeline อีกครั้ง |
 | ส่วน overlap แสดงเฉพาะรหัสวิชาที่ใช้ร่วมกัน หรือ log แสดง "429" ระหว่าง embedding | Google key แบบฟรีถึงขีดจำกัด embedding รายวัน | ใช้ key แบบชำระเงิน หรือรัน pipeline อีกครั้งในวันถัดไป |
-| demand match ถูกข้าม และ labour-market alignment ว่าง | ชื่อทักษะของตลาดยังไม่อยู่ใน taxonomy ของท่าน | หลังรัน `kmitl-skill-mapping` ให้รัน `pnpm skills:normalise --source=linkedin --auto-promote` หนึ่งครั้ง แล้วรัน pipeline อีกครั้ง |
+| demand match ถูกข้าม และ labour-market alignment ว่าง | ชื่อทักษะของตลาดยังไม่อยู่ใน taxonomy ของท่าน | หลังอัปโหลด Career Skill Demand ให้รัน `pnpm skills:normalise --source=labour_market --auto-promote` หนึ่งครั้ง แล้วรัน pipeline อีกครั้ง |
 | JobThai driver แสดง "not applicable" | JobThai เป็นข้อมูลเชิงพาณิชย์ | ไม่ต้องทำอะไร ไม่ใช่ข้อผิดพลาด |
 
 สองคำสั่งสำหรับกรณีทักษะไม่ปรากฏ โดยใช้ id ของหลักสูตรจากหน้าผู้ดูแลระบบ:

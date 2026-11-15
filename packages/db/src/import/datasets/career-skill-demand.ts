@@ -1,30 +1,28 @@
-import type { KmitlDataScope, KmitlDemandSource, Prisma, PrismaClient } from '@prisma/client';
+import type { LabourMarketDataScope, LabourMarketDemandSource, Prisma, PrismaClient } from '@prisma/client';
 
 import type { ImportDataset, ImportLoadContext, ImportLoadResult, ImportRow } from '../types';
 import { buildSkillLookup, resolveSkillId } from '../../skill-lookup';
 
 // Tier 2. Career skill demand: which skills the labour market asks for, per
-// career. It is the fallback for the KMITL Skill Mapping API, which an adopting
-// university usually cannot reach: it writes the same two tables, so the
-// labour-market alignment driver, the strategic-sector driver and the
-// programme-career mapping read it unchanged.
+// career, from any source the institution chooses. It writes the
+// labour-market tables read by the labour-market alignment driver, the
+// strategic-sector driver and the programme-career mapping.
 //
-// KMITL's own ids are positive. An imported career, group and sub-group take
+// The deprecated kmitl-skill-mapping connector wrote positive ids. An imported career, group and sub-group take
 // the next value BELOW the lowest negative id held, so the two can never
 // collide, and a re-upload finds its careers by name and keeps their ids.
 //
-// Unit of `Share of Postings (%)`: the same 0–100 percentage the KMITL API
-// returns (transforms.ts keeps it unconverted) and the readers compare with a
+// Unit of `Share of Postings (%)`: a 0–100 percentage, the unit the readers expect; compare with a
 // threshold of 5 (health-score/tuning.ts linkedInSkillDemandThresholdPct).
 
 const SLUG = 'xlsx-career-skill-demand';
 const NO_SUB_GROUP = 'General';
 
-const SCOPES: Readonly<Record<string, KmitlDataScope>> = {
+const SCOPES: Readonly<Record<string, LabourMarketDataScope>> = {
   Thailand: 'THAILAND',
   Global: 'GLOBAL',
 };
-const SOURCES: Readonly<Record<string, KmitlDemandSource>> = {
+const SOURCES: Readonly<Record<string, LabourMarketDemandSource>> = {
   'Job postings': 'JOB_POSTINGS',
   Profiles: 'PROFILES',
 };
@@ -42,12 +40,12 @@ export const careerSkillDemandDataset: ImportDataset = {
   title: 'Career Skill Demand',
   description:
     'How much of the labour market asks for each skill, per career: one row per career per skill per ' +
-    'scope and data source. The fallback for the KMITL Skill Mapping API. Feeds the labour-market and ' +
+    'scope and data source, from any source your institution chooses. Feeds the labour-market and ' +
     'strategic-sector scores and the programme-career mapping. Upload it after the programme pipeline ' +
     'has built your skills, and again later to resolve more skill names.',
   tier: 2,
   sheetName: 'Career Skill Demand',
-  targetTables: ['kmitl_careers', 'kmitl_career_skill_demands'],
+  targetTables: ['labour_market_careers', 'labour_market_skill_demands'],
   columns: [
     {
       header: 'Career Group',
@@ -139,13 +137,13 @@ export const careerSkillDemandDataset: ImportDataset = {
     const freshnessDate = new Date();
 
     // Careers this dataset owns are exactly the ones with a negative id.
-    const owned = await tx.kmitlCareer.findMany({
-      where: { kmitlCareerId: { lt: 0 } },
+    const owned = await tx.labourMarketCareer.findMany({
+      where: { sourceCareerId: { lt: 0 } },
       select: {
         id: true,
-        kmitlCareerId: true,
-        kmitlGroupId: true,
-        kmitlSubGroupId: true,
+        sourceCareerId: true,
+        sourceGroupId: true,
+        sourceSubGroupId: true,
         groupName: true,
         subGroupName: true,
         careerName: true,
@@ -158,14 +156,14 @@ export const careerSkillDemandDataset: ImportDataset = {
     let lowestGroup = 0;
     let lowestSub = 0;
     for (const c of owned) {
-      groupIds.set(c.groupName, c.kmitlGroupId);
-      subGroupIds.set(`${c.groupName}\u0000${c.subGroupName}`, c.kmitlSubGroupId);
-      lowestCareer = Math.min(lowestCareer, c.kmitlCareerId);
-      lowestGroup = Math.min(lowestGroup, c.kmitlGroupId);
-      lowestSub = Math.min(lowestSub, c.kmitlSubGroupId);
+      groupIds.set(c.groupName, c.sourceGroupId);
+      subGroupIds.set(`${c.groupName}\u0000${c.subGroupName}`, c.sourceSubGroupId);
+      lowestCareer = Math.min(lowestCareer, c.sourceCareerId);
+      lowestGroup = Math.min(lowestGroup, c.sourceGroupId);
+      lowestSub = Math.min(lowestSub, c.sourceSubGroupId);
     }
 
-    const careerRecord = new Map<string, { id: string; kmitlCareerId: number }>();
+    const careerRecord = new Map<string, { id: string; sourceCareerId: number }>();
     for (const row of rows) {
       const group = String(row.careerGroup).trim();
       const sub = subGroupOf(row);
@@ -175,11 +173,11 @@ export const careerSkillDemandDataset: ImportDataset = {
 
       const existing = careers.get(key);
       if (existing) {
-        await tx.kmitlCareer.update({
+        await tx.labourMarketCareer.update({
           where: { id: existing.id },
           data: { freshnessDate, ingestionRunId: ctx.ingestionRunId },
         });
-        careerRecord.set(key, { id: existing.id, kmitlCareerId: existing.kmitlCareerId });
+        careerRecord.set(key, { id: existing.id, sourceCareerId: existing.sourceCareerId });
         continue;
       }
       let groupId = groupIds.get(group);
@@ -193,23 +191,23 @@ export const careerSkillDemandDataset: ImportDataset = {
         subId = --lowestSub;
         subGroupIds.set(subKey, subId);
       }
-      const created = await tx.kmitlCareer.create({
+      const created = await tx.labourMarketCareer.create({
         data: {
-          kmitlCareerId: --lowestCareer,
-          kmitlGroupId: groupId,
-          kmitlSubGroupId: subId,
+          sourceCareerId: --lowestCareer,
+          sourceGroupId: groupId,
+          sourceSubGroupId: subId,
           groupName: group,
           subGroupName: sub,
           careerName: name,
           freshnessDate,
           ingestionRunId: ctx.ingestionRunId,
         },
-        select: { id: true, kmitlCareerId: true },
+        select: { id: true, sourceCareerId: true },
       });
       careerRecord.set(key, created);
     }
 
-    // Skill resolution, exactly as the KMITL connector does it.
+    // Skill resolution: English name, then Thai name, then the alias cache.
     const [skills, aliases] = await Promise.all([
       tx.skill.findMany({ select: { id: true, nameEn: true, nameTh: true } }),
       tx.skillAlias.findMany({
@@ -222,18 +220,18 @@ export const careerSkillDemandDataset: ImportDataset = {
       aliases.map((a) => ({ rawNameLower: a.rawNameLower, resolvedSkillId: a.resolvedSkillId! })),
     );
 
-    const heldDemand = await tx.kmitlCareerSkillDemand.findMany({
-      where: { kmitlCareerId: { in: [...careerRecord.values()].map((c) => c.kmitlCareerId) } },
-      select: { id: true, kmitlCareerId: true, skillNameRaw: true, dataScope: true, dataSource: true },
+    const heldDemand = await tx.labourMarketSkillDemand.findMany({
+      where: { sourceCareerId: { in: [...careerRecord.values()].map((c) => c.sourceCareerId) } },
+      select: { id: true, sourceCareerId: true, skillNameRaw: true, dataScope: true, dataSource: true },
     });
     const held = new Map(
-      heldDemand.map((d) => [`${d.kmitlCareerId}\u0000${d.skillNameRaw}\u0000${d.dataScope}\u0000${d.dataSource}`, d.id]),
+      heldDemand.map((d) => [`${d.sourceCareerId}\u0000${d.skillNameRaw}\u0000${d.dataScope}\u0000${d.dataSource}`, d.id]),
     );
 
     let inserted = 0;
     let updated = 0;
     let unresolved = 0;
-    const toCreate: Prisma.KmitlCareerSkillDemandCreateManyInput[] = [];
+    const toCreate: Prisma.LabourMarketSkillDemandCreateManyInput[] = [];
     for (const row of rows) {
       const career = careerRecord.get(
         careerKey(String(row.careerGroup).trim(), subGroupOf(row), String(row.career).trim()),
@@ -244,9 +242,9 @@ export const careerSkillDemandDataset: ImportDataset = {
       const dataScope = SCOPES[String(row.scope)] ?? 'THAILAND';
       const dataSource = SOURCES[String(row.dataSource)] ?? 'JOB_POSTINGS';
       const percentage = Number(row.share);
-      const heldId = held.get(`${career.kmitlCareerId}\u0000${skillName}\u0000${dataScope}\u0000${dataSource}`);
+      const heldId = held.get(`${career.sourceCareerId}\u0000${skillName}\u0000${dataScope}\u0000${dataSource}`);
       if (heldId) {
-        await tx.kmitlCareerSkillDemand.update({
+        await tx.labourMarketSkillDemand.update({
           where: { id: heldId },
           data: {
             skillId,
@@ -260,7 +258,7 @@ export const careerSkillDemandDataset: ImportDataset = {
       } else {
         toCreate.push({
           careerId: career.id,
-          kmitlCareerId: career.kmitlCareerId,
+          sourceCareerId: career.sourceCareerId,
           skillId,
           skillNameRaw: skillName,
           dataScope,
@@ -273,20 +271,20 @@ export const careerSkillDemandDataset: ImportDataset = {
         inserted += 1;
       }
     }
-    if (toCreate.length > 0) await tx.kmitlCareerSkillDemand.createMany({ data: toCreate });
+    if (toCreate.length > 0) await tx.labourMarketSkillDemand.createMany({ data: toCreate });
     return { inserted, updated, deleted: 0, unresolved };
   },
 
   // Only rows this dataset wrote: the tables also hold the connector's.
   count: (prisma: PrismaClient): Promise<number> =>
-    prisma.kmitlCareerSkillDemand.count({ where: { ingestionRun: { dataSource: { slug: SLUG } } } }),
+    prisma.labourMarketSkillDemand.count({ where: { ingestionRun: { dataSource: { slug: SLUG } } } }),
 
   clear: async (tx, runIds): Promise<number> => {
-    const demand = await tx.kmitlCareerSkillDemand.deleteMany({
+    const demand = await tx.labourMarketSkillDemand.deleteMany({
       where: { ingestionRunId: { in: [...runIds] } },
     });
     // Careers last, and only those with no rows left beneath them.
-    await tx.kmitlCareer.deleteMany({
+    await tx.labourMarketCareer.deleteMany({
       where: { ingestionRunId: { in: [...runIds] }, skillDemands: { none: {} } },
     });
     return demand.count;

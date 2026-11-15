@@ -307,8 +307,8 @@ export async function computeDqSkillLens(args: {
             SUM(d.percentage)::float  AS demand,
             COUNT(DISTINCT d.career_id)::bigint AS careers,
             (ARRAY_AGG(c.career_name ORDER BY d.percentage DESC))[1:3] AS top_careers
-          FROM kmitl_career_skill_demands d
-          JOIN kmitl_careers c ON c.id = d.career_id
+          FROM labour_market_skill_demands d
+          JOIN labour_market_careers c ON c.id = d.career_id
           WHERE d.skill_id = ANY($1::text[])
             AND d.data_source = 'JOB_POSTINGS'
             AND ${realDataSqlUnsafe('d')}
@@ -322,7 +322,7 @@ export async function computeDqSkillLens(args: {
     // of it that resolves to a taxonomy skill. Reporting only the second
     // as "the quadrant" would understate the source and overstate what
     // this platform can join to, in the same sentence.
-    prisma.kmitlCareerSkillDemand.count({
+    prisma.labourMarketSkillDemand.count({
       where: {
         dataScope: 'THAILAND',
         dataSource: 'JOB_POSTINGS',
@@ -330,7 +330,7 @@ export async function computeDqSkillLens(args: {
       },
     }),
 
-    prisma.kmitlCareerSkillDemand.count({
+    prisma.labourMarketSkillDemand.count({
       where: {
         dataScope: 'THAILAND',
         dataSource: 'JOB_POSTINGS',

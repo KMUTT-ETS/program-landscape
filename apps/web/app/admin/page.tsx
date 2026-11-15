@@ -745,7 +745,7 @@ function buildGroups({
       href: '/admin/jobthai',
       label: 'JobThai drops',
       description:
-        'Upload the XLSX job-posting files JobThai sends. Each becomes a batch: postings are parsed, skills matched against the taxonomy, and occupations derived from the job categories. Gives province and industry-sector demand detail the LinkedIn-via-MHESI feed cannot.',
+        'Upload the XLSX job-posting files JobThai sends. Each becomes a batch: postings are parsed, skills matched against the taxonomy, and occupations derived from the job categories. Gives province and industry-sector demand detail that aggregated labour-market demand cannot.',
       icon: <DataSourceMark source="jobthai" size={28} />,
     },
     {

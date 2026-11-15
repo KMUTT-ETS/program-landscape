@@ -67,9 +67,9 @@ interface DataSetupStats {
   };
   dataFeeds: { total: number; live: number; mocked: number };
   laborMarketSkills: {
-    kmitlCareers: number;
-    kmitlSkillDemandRows: number;
-    kmitlSkillGrowthRows: number;
+    labourMarketCareers: number;
+    skillDemandRows: number;
+    skillGrowthRows: number;
   };
   researchOutputs: {
     total: number;
@@ -120,7 +120,7 @@ const EMPTY_STATS: DataSetupStats = {
   studentInfo: { enrollmentMetricRows: 0, programsWithEnrollment: 0, programsWithoutEnrollment: 0 },
   financial: { programMetrics: 0, programsWithFinancial: 0, programsWithoutFinancial: 0, facultyBudgetRows: 0 },
   dataFeeds: { total: 0, live: 0, mocked: 0 },
-  laborMarketSkills: { kmitlCareers: 0, kmitlSkillDemandRows: 0, kmitlSkillGrowthRows: 0 },
+  laborMarketSkills: { labourMarketCareers: 0, skillDemandRows: 0, skillGrowthRows: 0 },
   researchOutputs: { total: 0, matchedToFaculty: 0, unmatched: 0, facultyMembersWithExternalIds: 0 },
 };
 
@@ -398,19 +398,19 @@ export default async function AdminDataSetupPage() {
           <CategoryCard
             tone="glossy"
             icon={<TrendingUp />}
-            title="Labour-market skills demand (KMITL Skill Mapping or the Career Skill Demand spreadsheet)"
-            description="Aggregated skill demand per career — how often each skill is asked for in profiles, job postings and graduate data. Load it through the connector, if your region has one, or the Career Skill Demand spreadsheet. Drives the gap-analyzer's labour-market demand source and the health-score's labour-market-alignment driver."
+            title="Labour-market skills demand (Career Skill Demand spreadsheet)"
+            description="Aggregated skill demand per career — how often each skill is asked for in job postings or profiles, from any source your institution chooses. Load it with the Career Skill Demand spreadsheet. Drives the gap-analyzer's labour-market demand source and the health-score's labour-market-alignment driver."
             primary={{
-              label: `${stats.laborMarketSkills.kmitlSkillDemandRows.toLocaleString()} demand rows`,
-              tone: stats.laborMarketSkills.kmitlSkillDemandRows > 0 ? 'success' : 'neutral',
+              label: `${stats.laborMarketSkills.skillDemandRows.toLocaleString()} demand rows`,
+              tone: stats.laborMarketSkills.skillDemandRows > 0 ? 'success' : 'neutral',
             }}
             secondary={[
-              `${stats.laborMarketSkills.kmitlCareers.toLocaleString()} career taxonomy entries`,
-              `${stats.laborMarketSkills.kmitlSkillGrowthRows.toLocaleString()} skill-growth rows (trend signal)`,
+              `${stats.laborMarketSkills.labourMarketCareers.toLocaleString()} career taxonomy entries`,
+              `${stats.laborMarketSkills.skillGrowthRows.toLocaleString()} skill-growth rows (trend signal)`,
             ]}
-            href="/admin/data-sources/kmitl-skill-mapping"
-            cta="View labour-market data source"
-            rawHref="/admin/data-setup/raw/kmitl-skill-demands"
+            href="/admin/data-setup/raw/career-skill-demand"
+            cta="Upload Career Skill Demand"
+            rawHref="/admin/data-setup/raw/labour-market-skill-demands"
             rawCta="View raw data"
           />
 
@@ -491,9 +491,9 @@ export default async function AdminDataSetupPage() {
             <RawDatasetLink slug="faculty-compensation" label="Faculty compensation (aggregate)" />
             <RawDatasetLink slug="staff-salary-by-funding" label="Staff salary by funding" />
             <RawDatasetLink slug="career-skill-demand" label="Career skill demand (uploaded)" />
-            <RawDatasetLink slug="kmitl-careers" label="Labour-market career taxonomy" />
-            <RawDatasetLink slug="kmitl-skill-demands" label="Skill demand" />
-            <RawDatasetLink slug="kmitl-skill-growths" label="Skill growth" />
+            <RawDatasetLink slug="labour-market-careers" label="Labour-market career taxonomy" />
+            <RawDatasetLink slug="labour-market-skill-demands" label="Skill demand" />
+            <RawDatasetLink slug="labour-market-skill-growths" label="Skill growth" />
             <RawDatasetLink slug="research-outputs" label="Research outputs" />
             <RawDatasetLink slug="skill-aliases" label="Skill alias cache" />
             <RawDatasetLink slug="proposed-skills" label="Proposed skills (review queue)" />

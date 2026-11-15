@@ -54,7 +54,7 @@ async function _computeKmitlProgramAlignmentImpl(): Promise<Map<string, number>>
   for (const quadrant of KMITL_QUADRANT_FALLBACK) {
     const remaining = programIds.filter((id) => !out.has(id));
     if (remaining.length === 0) break;
-    const demandRows = await prisma.kmitlCareerSkillDemand.findMany({
+    const demandRows = await prisma.labourMarketSkillDemand.findMany({
       where: {
         dataScope: quadrant.dataScope,
         dataSource: quadrant.dataSource,

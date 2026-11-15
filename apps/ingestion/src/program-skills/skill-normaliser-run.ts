@@ -26,14 +26,14 @@ export interface CliArgs {
 // ─── Source-specific raw-name fetchers ───────────────────────────────────────
 
 async function fetchUnmatchedLinkedinNames(limit: number | null): Promise<string[]> {
-  // KmitlCareerSkillDemand + KmitlSkillGrowth rows with skill_id IS NULL,
+  // LabourMarketSkillDemand + LabourMarketSkillGrowth rows with skill_id IS NULL,
   // EXCLUDING names already in SkillAlias with a non-PENDING status.
-  const demandNames = await prisma.kmitlCareerSkillDemand.findMany({
+  const demandNames = await prisma.labourMarketSkillDemand.findMany({
     where: { skillId: null },
     select: { skillNameRaw: true },
     distinct: ['skillNameRaw'],
   });
-  const growthNames = await prisma.kmitlSkillGrowth.findMany({
+  const growthNames = await prisma.labourMarketSkillGrowth.findMany({
     where: { skillId: null },
     select: { skillNameRaw: true },
     distinct: ['skillNameRaw'],
@@ -372,8 +372,8 @@ export async function runSkillNormaliser(ai: AiService, args: CliArgs, logFile: 
     if (!args.dryRun && out.matched > 0) {
       console.log('\nRe-linking unmatched LinkedIn rows with newly-resolved aliases…');
       const r = await relinkUsingAliases('linkedin');
-      console.log(`  KmitlCareerSkillDemand: ${r.kmitlDemand} rows updated`);
-      console.log(`  KmitlSkillGrowth:       ${r.kmitlGrowth} rows updated`);
+      console.log(`  LabourMarketSkillDemand: ${r.kmitlDemand} rows updated`);
+      console.log(`  LabourMarketSkillGrowth:       ${r.kmitlGrowth} rows updated`);
     }
   }
   if (args.source === 'program_digest' || args.source === 'all') {

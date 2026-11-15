@@ -15,7 +15,7 @@ export type DemandSourceSlug = typeof DEMAND_SOURCE_LINKEDIN | typeof DEMAND_SOU
 
 /**
  * Data-source slugs whose SUCCEEDED runs may anchor a demand family's rows.
- * The LinkedIn/KMITL family has two feeders into `kmitl_career_skill_demands`:
+ * The LinkedIn/KMITL family has two feeders into `labour_market_skill_demands`:
  * the connector and the spreadsheet import dataset `career-skill-demand`. An
  * install with only the spreadsheet has no `kmitl-skill-mapping` run, and
  * anchoring to that slug alone left every match row unattributed (hidden by

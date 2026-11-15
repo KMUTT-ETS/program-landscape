@@ -168,8 +168,8 @@ describe('genericRoleTokens', () => {
 });
 
 // Provenance gating is structural, same reasoning as gap-map.test.ts's
-// "computeGapMap provenance gating" describe block: `kmitl_skill_growths`
-// DOES carry `ingestion_run_id` (see KmitlSkillGrowth in schema.prisma) and
+// "computeGapMap provenance gating" describe block: `labour_market_skill_growths`
+// DOES carry `ingestion_run_id` (see LabourMarketSkillGrowth in schema.prisma) and
 // must be realDataWhere()-gated, matching how the retired seven-lens analyzer
 // read the same table before v1.9.7. `jobthai_occupation_skills`
 // has no ingestion_run_id column at all, so it genuinely cannot be gated —
@@ -177,8 +177,8 @@ describe('genericRoleTokens', () => {
 // compile against a column that isn't there.
 describe('globalSignalForFields provenance gating', () => {
   const src = readFileSync(path.join(__dirname, '..', 'src', 'gap-map-signals.ts'), 'utf8');
-  it('gates the kmitlSkillGrowth read with realDataWhere()', () => {
-    expect(src).toMatch(/kmitlSkillGrowth\.findMany\(\{\s*where: \{[\s\S]{0,120}?realDataWhere\(\)/);
+  it('gates the labourMarketSkillGrowth read with realDataWhere()', () => {
+    expect(src).toMatch(/labourMarketSkillGrowth\.findMany\(\{\s*where: \{[\s\S]{0,120}?realDataWhere\(\)/);
   });
   it('does NOT gate the jobThaiOccupationSkill read (the table has no ingestion_run_id column)', () => {
     const match = src.match(/jobThaiOccupationSkill\.findMany\(\{[\s\S]{0,300}?\}\),/);

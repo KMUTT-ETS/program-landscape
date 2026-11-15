@@ -324,7 +324,7 @@ export class KmitlSkillMappingConnector extends ApiConnector {
     ];
   }
   async transform(_c: ConnectorContext, raw: RawRecord): Promise<NormalizedRecord[]> {
-    return [{ target: 'kmitl_career_skill_demands', externalId: raw.externalId, payload: raw.data as Record<string, unknown>, freshnessDate: raw.sourceTimestamp }];
+    return [{ target: 'labour_market_skill_demands', externalId: raw.externalId, payload: raw.data as Record<string, unknown>, freshnessDate: raw.sourceTimestamp }];
   }
   async load(_c: ConnectorContext, n: NormalizedRecord[]): Promise<LoadResult> {
     return { recordsFetched: n.length, recordsLoaded: 0, recordsFailed: 0, metadata: { note: 'mocked — load is a no-op' } };

@@ -165,7 +165,7 @@ pipeline ของหลักสูตรสร้างรายวิชา�
 
 ## Career skill demand
 
-แผ่นงานนี้เป็นทางสำรองของ KMITL Skill Mapping API ซึ่งมหาวิทยาลัยที่นำระบบไปใช้มักเรียกใช้ไม่ได้ เพราะ KMITL ออกข้อมูลยืนยันตัวตนเมื่อมีการร้องขอโดยตรง ไม่ใช่แบบบริการตนเอง แผ่นงานนี้เขียนตารางเดียวกัน ดังนั้นคะแนน labour-market alignment คะแนน strategic-sector และการแมปหลักสูตรกับอาชีพจึงอ่านได้โดยไม่ต้องเปลี่ยน คอลัมน์: **Career Group**, **Career**, **Skill**, **Scope** (`Thailand` หรือ `Global`), **Data Source** (`Job postings` หรือ `Profiles`) และ **Share of Postings (%)** (จำเป็นทั้งหมด) และ **Career Sub-group** (ไม่บังคับ เก็บเป็น `General` เมื่อว่าง)
+แผ่นงานนี้คือวิธีโหลดอุปสงค์ทักษะของตลาดแรงงาน connector ของ KMITL Skill Mapping API (`kmitl-skill-mapping`) เลิกใช้แล้ว แผ่นงานนี้เขียนตารางเดียวกับที่ connector เคยเขียน ดังนั้นคะแนน labour-market alignment คะแนน strategic-sector และการแมปหลักสูตรกับอาชีพจึงอ่านได้โดยไม่ต้องเปลี่ยน คอลัมน์: **Career Group**, **Career**, **Skill**, **Scope** (`Thailand` หรือ `Global`), **Data Source** (`Job postings` หรือ `Profiles`) และ **Share of Postings (%)** (จำเป็นทั้งหมด) และ **Career Sub-group** (ไม่บังคับ เก็บเป็น `General` เมื่อว่าง)
 
 - **Share of Postings (%)** เป็นเปอร์เซ็นต์ 0 ถึง 100 (เขียน 12.5 สำหรับ 12.5 %) หน่วยเดียวกับที่ KMITL API ส่งกลับ ทักษะนับว่ามีอุปสงค์เมื่อตั้งแต่ 5 ขึ้นไป ค่าที่เกิน 100 จะถูกปฏิเสธ
 - **Career Group** เฉพาะ `IT`, `Engineer`, `Health Science`, `Smart Farmer`, `New S Curve` และ `Food` ที่นับเป็นสาขายุทธศาสตร์ในคะแนน strategic-sector ชื่ออื่นอนุญาต และให้คะแนนเป็นไม่ใช่สาขายุทธศาสตร์

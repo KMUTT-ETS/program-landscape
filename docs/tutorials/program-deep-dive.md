@@ -79,8 +79,8 @@ When you have these files, upload them as well:
   **External Grants** and **External Grant Team**, **Employer Feedback** and
   **Staff Salary by Funding**.
 - **Population Projections**.
-- **Career Skill Demand**, but only after Step 5 has built the skills, and only
-  if you have no KMITL key (see [Labour-market skills](#labour-market-skills)).
+- **Career Skill Demand**, but only after Step 5 has built the skills (see
+  [Labour-market skills](#labour-market-skills)).
 
 Rules that decide whether a file is accepted are in
 [Importing from spreadsheets](../data-import.md). The three you will meet are:
@@ -106,7 +106,6 @@ Run these.
 |---|---|---|
 | `tcas` | Nothing. It reads the public TCAS files. Run it after Step 2, because it matches programmes by Thai faculty and programme name. | A count of matched programmes. |
 | `un-wpp` | Nothing. It downloads about 68 MB of UN population figures. | A succeeded run with rows loaded. |
-| `kmitl-skill-mapping` | `KMITL_SKILL_MAPPING_CLIENT_ID` and `KMITL_SKILL_MAPPING_SECRET_KEY` in `.env`. | Skill demand loaded. Skip it if you have no key. |
 | `openalex-works` | `OPENALEX_API_KEY` in `.env` (a free key) and the OpenAlex institution ID from Step 1. | Research outputs loaded. |
 | `job-108` | Nothing. Switch it on if you want government job announcements in the demand map. | Job announcements loaded. |
 
@@ -117,24 +116,24 @@ https://openalex.org/settings/api and add it to the environment." Add the key to
 
 ### Labour-market skills
 
-Programmes are compared with the skills employers ask for. There are two ways
-to load them.
-
-1. Run `kmitl-skill-mapping` as above, if you have a key. Then run this once,
-   before the pipeline.
+Programmes are compared with the skills employers ask for. Load them from the
+**Career Skill Demand** spreadsheet at `/admin/data-setup/raw/career-skill-demand`.
+The `kmitl-skill-mapping` connector is deprecated. After the upload, run this
+once.
 
 ```bash
-pnpm skills:normalise --source=linkedin --auto-promote
+pnpm skills:normalise --source=labour_market --auto-promote
 ```
 
-   It adds the market's skill names to your taxonomy, so a programme's skills
-   can match them. It handles the names in batches of 25. On one installation it
-   processed about 5,850 names, which took about an hour and cost roughly
-   USD 1.50. A few names may fail (a brief database or model error); run the
-   same command again and it picks up only those. Without it the demand match is skipped, and the labour-market
-   alignment and demand-match drivers stay empty. The setup checklist says so.
-2. Or upload **Career Skill Demand** at `/admin/data-setup/raw/career-skill-demand`
-   after Step 5 has built the skills.
+It adds the sheet's skill names to your taxonomy and links the uploaded rows
+to them, so a programme's skills can match them. It handles the names in
+batches of 25, at about USD 0.003 a batch. A few names may fail (a brief
+database or model error); run the same command again and it picks up only
+those. Without it the demand match is skipped, and the labour-market alignment
+and demand-match drivers stay empty. The setup checklist says so.
+
+If you upload the sheet after Step 5 has built the skills, names that already
+match are linked on upload; run the command anyway for the rest.
 
 ## Step 4: Attach the curriculum PDF
 

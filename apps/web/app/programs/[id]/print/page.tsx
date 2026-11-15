@@ -667,8 +667,8 @@ const DRIVER_LABELS: Record<string, string> = {
   curriculum_modernity: 'Curriculum modernity',
   skill_resilience_vs_ai: 'Skill resilience vs AI',
   ai_research_intensity: 'AI research intensity',
-  labour_market_alignment: 'Labour-market alignment (LinkedIn · global, 25%)',
-  labour_market_alignment_kmitl: 'Labour-market alignment (LinkedIn · MHESI)',
+  labour_market_alignment: 'Labour-market alignment (labour market, 25%)',
+  labour_market_alignment_kmitl: 'Labour-market alignment (labour market)',
   jobthai_demand_alignment: 'Job-posting demand match (JobThai · domestic, 75%)',
 };
 function driverLabel(label: string): string {
@@ -1877,7 +1877,7 @@ function SkillsBlock({ data }: { data: DeepDiveSkills }) {
   // never shows the slug — only this lookup result, falling back to
   // "Demand-side signal" so unknown slugs degrade gracefully.
   const DEMAND_SOURCE_LABEL: Record<string, string> = {
-    'linkedin-via-mhesi': 'LinkedIn (via MHESI)',
+    'linkedin-via-mhesi': 'Labour-market demand',
   };
   const demandSourceLabel =
     DEMAND_SOURCE_LABEL[data.demandSource] ?? 'Demand-side signal';

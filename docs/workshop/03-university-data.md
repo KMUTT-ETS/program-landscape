@@ -169,17 +169,13 @@ When all uploads are done, open `/admin/data-sources` and run:
 - `tcas`. It matches your programmes by the university's Thai name.
 - `openalex-works`, with a free key, on path A or B. It does not match mock
   staff, who are tokens, not real people.
-- `kmitl-skill-mapping`, only if the facilitator gives you KMITL credentials.
-  It takes about an hour, so start it before the pipeline, then run the
-  command in
-  [Labour-market skills](../tutorials/program-deep-dive.md#labour-market-skills).
 
 If you uploaded a Career Skill Demand file (a mock set has one), link its skill
 names to the skill taxonomy from the repository root. It takes about 13 seconds
 for a mock set's names:
 
 ```bash
-pnpm skills:normalise --source=linkedin --auto-promote
+pnpm skills:normalise --source=labour_market --auto-promote
 ```
 
 Without it, the Setup checklist items "Labour market alignment" and "Demand
@@ -222,8 +218,7 @@ Some items stay red or "not applicable", and that is correct:
 
 - **JobThai** shows "not applicable": it is a commercial feed.
 - **Labour-market** items (demand match, labour-market alignment), unless you
-  uploaded a Career Skill Demand file and ran the skills command, or ran
-  `kmitl-skill-mapping` and its command.
+  uploaded a Career Skill Demand file and ran the skills command.
 - **Research by OpenAlex** on a mock set: the publications come from the
   upload instead.
 

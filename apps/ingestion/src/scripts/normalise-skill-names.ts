@@ -3,9 +3,13 @@
 // Skill-name normaliser — one-shot AI backfill + incremental sync handler.
 //
 // Three operating modes (env-flag-controlled):
-//   --source=linkedin            — process unmatched KmitlCareerSkillDemand /
-//                                  KmitlSkillGrowth rows (LinkedIn data via
-//                                  MHESI/KMITL feed)
+//   --source=labour_market       — process unmatched LabourMarketSkillDemand /
+//                                  LabourMarketSkillGrowth rows: labour-market skill
+//                                  demand from the Career Skill Demand upload
+//                                  (or the deprecated kmitl-skill-mapping
+//                                  connector). `linkedin` is the old name and
+//                                  still works; it is also the internal
+//                                  source tag stored on SkillAlias rows.
 //   --source=program_digest      — process pending PROPOSED_SKILL extractions
 //                                  emitted by the program-digest pipeline
 //   --source=all                 — both, in sequence (default)
@@ -26,8 +30,8 @@
 //      already in SkillAlias with status≠PENDING)
 //   2. Batch them through the AI normaliser prompt
 //   3. Persist decisions to SkillAlias (RESOLVED / NEW_PROPOSED / AMBIGUOUS)
-//   4. Re-link existing rows: KmitlCareerSkillDemand.skill_id +
-//      KmitlSkillGrowth.skill_id get filled in for newly-RESOLVED aliases
+//   4. Re-link existing rows: LabourMarketSkillDemand.skill_id +
+//      LabourMarketSkillGrowth.skill_id get filled in for newly-RESOLVED aliases
 //
 // Idempotency: rows already in SkillAlias with a final status are
 // skipped. Re-run is safe — second pass only processes net-new names.
@@ -69,9 +73,12 @@ function parseArgs(argv: string[]): CliArgs {
     if (arg === '--dry-run') a.dryRun = true;
     else if (arg === '--auto-promote') a.autoPromote = true;
     else if (arg.startsWith('--source=')) {
-      const v = arg.slice('--source='.length);
+      const raw = arg.slice('--source='.length);
+      // `labour_market` is the documented name; `linkedin` is the internal
+      // source tag it maps to, kept as an alias for existing scripts.
+      const v = raw === 'labour_market' ? 'linkedin' : raw;
       if (v !== 'linkedin' && v !== 'program_digest' && v !== 'all') {
-        throw new Error(`Invalid --source: ${v}`);
+        throw new Error(`Invalid --source: ${raw} (use labour_market, program_digest or all)`);
       }
       a.source = v;
     } else if (arg.startsWith('--limit=')) a.limit = Number(arg.slice('--limit='.length));
@@ -87,7 +94,7 @@ async function main(): Promise<void> {
   await loadOrganization();
   const args = parseArgs(process.argv.slice(2));
   console.log('Skill-name normaliser');
-  console.log(`  source=${args.source} limit=${args.limit ?? '∞'} batchSize=${args.batchSize} dryRun=${args.dryRun} autoPromote=${args.autoPromote}`);
+  console.log(`  source=${args.source === 'linkedin' ? 'labour_market' : args.source} limit=${args.limit ?? '∞'} batchSize=${args.batchSize} dryRun=${args.dryRun} autoPromote=${args.autoPromote}`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
   const ai = createIngestionAiService();

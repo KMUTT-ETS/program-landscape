@@ -261,7 +261,7 @@ export default async function ExecutiveLandscapePage({ searchParams }: { searchP
                           { id: 'enrollment_metrics', name: `${org.en} Registry · enrolment metrics` },
                           { id: 'financial_metrics', name: `${org.en} Finance · revenue + cost` },
                           { id: 'graduate_outcomes', name: `${org.en} Alumni · outcomes` },
-                          { id: 'kmitl_demand', name: 'LinkedIn labour-market skill demand · subscribed by MHESI (API hosted by KMITL)' },
+                          { id: 'kmitl_demand', name: 'Labour-market skill demand' },
                         ],
                         methodologyVersion: HEALTH_SCORE_VERSION,
                         scope: provenanceScope,
