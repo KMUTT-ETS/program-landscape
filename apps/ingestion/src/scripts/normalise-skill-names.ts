@@ -16,14 +16,17 @@
 //
 //   --limit=<N>                  — cap names processed this run (default
 //                                  unlimited; useful for cost control)
-//   --batch-size=<N>             — names per LLM call (default 40, max 50)
+//   --batch-size=<N>             — names per LLM call (default 25, max 50)
 //   --dry-run                    — log decisions without writing SkillAlias
 //                                  rows or relinking
 //   --auto-promote               — when AI emits NEW_PROPOSED with
-//                                  confidence ≥0.9, automatically create
-//                                  the new Skill and link it. Otherwise
-//                                  the alias stays NEW_PROPOSED awaiting
-//                                  analyst review.
+//                                  confidence ≥ the auto-promote bar,
+//                                  automatically create the new Skill and
+//                                  link it. Otherwise the alias stays
+//                                  NEW_PROPOSED awaiting analyst review.
+//   --auto-promote-min-confidence=<0..1>
+//                                — the auto-promote bar (default 0.9).
+//                                  Only has an effect with --auto-promote.
 //
 // What it does:
 //   1. Collect unique unmatched raw names per source (excluding names
@@ -64,11 +67,23 @@ function loadDotEnv(envPath: string): void {
 
 import { loadOrganization, prisma } from '@kku/db';
 import { createIngestionAiService } from '../lib/ai-service';
-import { openNormaliserLog, runSkillNormaliser, type CliArgs } from '../program-skills/skill-normaliser-run';
+import {
+  DEFAULT_AUTO_PROMOTE_MIN_CONFIDENCE,
+  openNormaliserLog,
+  runSkillNormaliser,
+  type CliArgs,
+} from '../program-skills/skill-normaliser-run';
 import { withSkillTaxonomyLock } from '../program-skills/taxonomy-lock';
 
 function parseArgs(argv: string[]): CliArgs {
-  const a = { source: 'all', limit: null, batchSize: 25, dryRun: false, autoPromote: false } as CliArgs;
+  const a = {
+    source: 'all',
+    limit: null,
+    batchSize: 25,
+    dryRun: false,
+    autoPromote: false,
+    autoPromoteMinConfidence: DEFAULT_AUTO_PROMOTE_MIN_CONFIDENCE,
+  } as CliArgs;
   for (const arg of argv) {
     if (arg === '--dry-run') a.dryRun = true;
     else if (arg === '--auto-promote') a.autoPromote = true;
@@ -82,7 +97,14 @@ function parseArgs(argv: string[]): CliArgs {
       }
       a.source = v;
     } else if (arg.startsWith('--limit=')) a.limit = Number(arg.slice('--limit='.length));
-    else if (arg.startsWith('--batch-size=')) {
+    else if (arg.startsWith('--auto-promote-min-confidence=')) {
+      const raw = arg.slice('--auto-promote-min-confidence='.length);
+      const v = Number(raw);
+      if (raw.trim() === '' || !Number.isFinite(v) || v < 0 || v > 1) {
+        throw new Error(`Invalid --auto-promote-min-confidence: ${raw} (use a number from 0 to 1)`);
+      }
+      a.autoPromoteMinConfidence = v;
+    } else if (arg.startsWith('--batch-size=')) {
       a.batchSize = Math.min(50, Math.max(1, Number(arg.slice('--batch-size='.length))));
     }
   }
@@ -94,7 +116,7 @@ async function main(): Promise<void> {
   await loadOrganization();
   const args = parseArgs(process.argv.slice(2));
   console.log('Skill-name normaliser');
-  console.log(`  source=${args.source === 'linkedin' ? 'labour_market' : args.source} limit=${args.limit ?? '∞'} batchSize=${args.batchSize} dryRun=${args.dryRun} autoPromote=${args.autoPromote}`);
+  console.log(`  source=${args.source === 'linkedin' ? 'labour_market' : args.source} limit=${args.limit ?? '∞'} batchSize=${args.batchSize} dryRun=${args.dryRun} autoPromote=${args.autoPromote}${args.autoPromote ? ` (min confidence ${args.autoPromoteMinConfidence})` : ''}`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
   const ai = createIngestionAiService();

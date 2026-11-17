@@ -18,9 +18,15 @@ export interface CliArgs {
   batchSize: number;
   dryRun: boolean;
   autoPromote: boolean;
+  /** Minimum NEW_PROPOSED confidence for --auto-promote to create a Skill.
+   *  Defaults to DEFAULT_AUTO_PROMOTE_MIN_CONFIDENCE when omitted. */
+  autoPromoteMinConfidence?: number;
   /** Restrict program_digest names to this programme's own proposals. */
   programId?: string;
 }
+
+/** Default confidence bar for promoting a NEW_PROPOSED decision to a Skill. */
+export const DEFAULT_AUTO_PROMOTE_MIN_CONFIDENCE = 0.9;
 
 
 // ─── Source-specific raw-name fetchers ───────────────────────────────────────
@@ -181,8 +187,10 @@ async function processBatch(
         });
         out.matched++;
       } else if (d.decision === 'NEW_PROPOSED') {
-        // Auto-promote when both --auto-promote AND confidence ≥0.9
-        if (args.autoPromote && d.confidence >= 0.9) {
+        // Auto-promote when both --auto-promote AND confidence meets the bar
+        // (--auto-promote-min-confidence, default 0.9).
+        const minConfidence = args.autoPromoteMinConfidence ?? DEFAULT_AUTO_PROMOTE_MIN_CONFIDENCE;
+        if (args.autoPromote && d.confidence >= minConfidence) {
           // A NEW_PROPOSED decision means the MODEL saw no match. Its
           // candidate list is not the whole taxonomy (candidates are picked as
           // "newest 30", not by similarity — see CLAUDE.md prompt 04), so it
@@ -384,7 +392,7 @@ export async function runSkillNormaliser(ai: AiService, args: CliArgs, logFile: 
 
 /**
  * Promotes earlier NEW_PROPOSED decisions for the given raw names whose
- * recorded confidence meets the auto-promote bar (>= 0.9). A run of
+ * recorded confidence meets the auto-promote bar (default >= 0.9). A run of
  * `skills:normalise` WITHOUT --auto-promote leaves exactly these behind, and
  * the normaliser then skips the names as "already decided", so nothing would
  * ever turn them into skills. Reuses an existing skill by name before
@@ -392,7 +400,7 @@ export async function runSkillNormaliser(ai: AiService, args: CliArgs, logFile: 
  */
 export async function promotePriorProposals(
   rawNames: readonly string[],
-  minConfidence = 0.9,
+  minConfidence = DEFAULT_AUTO_PROMOTE_MIN_CONFIDENCE,
 ): Promise<number> {
   const lowered = [...new Set(rawNames.map((n) => n.trim().toLowerCase()).filter(Boolean))];
   if (lowered.length === 0) return 0;
