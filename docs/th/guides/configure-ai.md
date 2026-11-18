@@ -2,7 +2,7 @@
 
 > **English:** [English version](../../guides/configure-ai.md)
 
-**ผลลัพธ์** ท่านเลือกผู้ให้บริการ AI ใช้งานผ่าน OpenRouter และแก้ prompt ได้ตามแบบที่แพลตฟอร์มกำหนด
+**ผลลัพธ์** ท่านเลือกผู้ให้บริการ AI ใช้งานผ่าน OpenRouter หรือเซิร์ฟเวอร์ที่เข้ากันได้กับ OpenAI ของท่านเอง และแก้ prompt ได้ตามแบบที่แพลตฟอร์มกำหนด
 
 ## ทุกอย่างวิ่งผ่าน `AiService`
 
@@ -14,6 +14,7 @@
 | `anthropic` | Claude — **จำเป็นสำหรับโมดูล AI Analyst** ที่ใช้ tool-use แบบเนทีฟ |
 | `stub` | ค่าตอบแบบกำหนดผลได้แน่นอน ทำงานได้โดยไม่ต้องมี API key มีประโยชน์ตอนพัฒนาบนเครื่องตัวเอง |
 | `openrouter` | โมเดลใดก็ได้ผ่าน API ของ OpenRouter ที่เข้ากันได้กับ OpenAI ส่วน embeddings และการถอยไปใช้ตัวสำรองเมื่อเกิดข้อผิดพลาดชั่วคราวจะไปที่ Google เมื่อตั้ง `GOOGLE_AI_API_KEY` ถ้าไม่มี Google key ระบบจะทำ embedding ด้วย `AI_OPENROUTER_EMBEDDING_MODEL` (โมเดล 1536 มิติ เช่น `openai/text-embedding-3-small`) อ่าน [การใช้งานผ่าน OpenRouter](#การใช้งานผ่าน-openrouter) ก่อนทำ digest กับ PDF ยาว |
+| `openai-compatible` | เซิร์ฟเวอร์ใดก็ได้ที่ใช้โปรโตคอล chat-completions ของ OpenAI ตาม base URL ที่กำหนดเอง เช่น vLLM, LiteLLM, Ollama, AI gateway ของสถาบัน หรือ OpenAI เอง อ่าน [การใช้งานกับเซิร์ฟเวอร์ที่เข้ากันได้กับ OpenAI](#การใช้งานกับเซิร์ฟเวอร์ที่เข้ากันได้กับ-openai) |
 | `intelsphere` | เป็น stub ที่ throw ตอนถูกเรียก จงใจให้ดัง ไม่ใช่ถอยไปใช้อย่างอื่นเงียบ ๆ |
 
 Gemini มี embeddings แต่ Claude ไม่มี ตอนตั้ง `AI_PROVIDER=anthropic` ตัว factory จึงส่งงาน `embed()` ต่อไปให้ Google เองโดยที่ผู้เรียกไม่ต้องรู้ ถ้าใช้ Claude ให้ตั้งคีย์ทั้งสองตัว ส่วน `openrouter` ไม่จำเป็นต้องมี Google key ถ้าไม่มี งาน `embed()` จะไปที่โมเดล OpenRouter ที่ระบุใน `AI_OPENROUTER_EMBEDDING_MODEL` เลือกโมเดล embedding เพียงโมเดลเดียวต่อฐานข้อมูลแล้วใช้ต่อไป เพราะเวกเตอร์จากสองโมเดลเปรียบเทียบกันไม่ได้ การเปลี่ยนโมเดลต้องทำ embedding ใหม่ทั้งหมด
@@ -26,6 +27,27 @@ OpenRouter ใช้งานได้ แต่การทำ digest ทั้
 2. **ตัวสำรองของ Google ล้มเหลวด้วย 429 `RESOURCE_EXHAUSTED`** หลักสูตร 300 หน้ามี input ราว 360k token แต่ key ของ Google แบบฟรีรับได้ 250k ต่อนาที ให้แก้เรื่องหมดเวลา อย่าพึ่งตัวสำรอง
 3. **"no json found" พร้อมคำตอบว่าง** โมเดลแบบ reasoning ใช้โควตา output ทั้งหมดไปกับการคิด ตอนนี้การสกัดข้อมูลแบบมีโครงสร้างขอให้ OpenRouter ใช้การคิดขั้นต่ำ ซึ่งแก้ปัญหาได้บน `z-ai/glm-5.3` (73 วินาที USD 0.08 ต่อ digest)
 4. **HTTP 402 "You requested up to 50000 tokens, but can only afford …"** OpenRouter ตรวจยอดเงินของคุณเทียบกับเพดาน output ที่ *ขอ* ไม่ใช่ที่ใช้จริง ให้เติมเงิน ทั้ง digest และ `skills:normalise` ขอ 50,000
+
+## การใช้งานกับเซิร์ฟเวอร์ที่เข้ากันได้กับ OpenAI
+
+ใช้ `AI_PROVIDER=openai-compatible` เมื่อโฮสต์โมเดลเองหรือเรียกผ่าน gateway ของสถาบัน ตัวนี้ส่งเฉพาะโปรโตคอล OpenAI แบบพื้นฐาน ไม่มีฟิลด์เสริมของ OpenRouter เซิร์ฟเวอร์ที่เข้มงวดจึงรับได้
+
+```bash
+AI_PROVIDER=openai-compatible
+OPENAI_COMPATIBLE_BASE_URL=http://localhost:11434/v1   # the part before /chat/completions
+OPENAI_COMPATIBLE_API_KEY=                              # empty if the server has no auth
+AI_OPENAI_COMPATIBLE_COMPLETION_MODEL=qwen3:32b         # required; sent exactly as written
+AI_OPENAI_COMPATIBLE_EMBEDDING_MODEL=                   # only with no Google key; must return 1536 dimensions
+AI_OPENAI_COMPATIBLE_TIMEOUT_MS=600000                  # long curriculum digests need minutes
+AI_OPENAI_COMPATIBLE_JSON_MODE=                         # set false if the server rejects response_format
+```
+
+รัน `pnpm ai:check-key` เพื่อยืนยันว่าเซิร์ฟเวอร์ตอบได้ สิ่งที่ต่างจาก provider อื่น:
+
+- **การกำหนดโมเดลรายเมธอดในหน้าแอดมินไม่มีผล** หน้า AI settings เลือกจากโมเดล Gemini และ Claude ซึ่งเซิร์ฟเวอร์ของท่านไม่มี ทุกคำขอจึงใช้ `AI_OPENAI_COMPATIBLE_COMPLETION_MODEL`
+- **ค่าใช้จ่ายบันทึกเป็น 0** เว้นแต่เซิร์ฟเวอร์ส่ง `usage.cost` มา จำนวน token ยังบันทึกเสมอ
+- **Embedding และตัวสำรอง** ใช้กฎเดียวกับ OpenRouter คือไปที่ Google ทุกครั้งที่ตั้ง `GOOGLE_AI_API_KEY`
+- **โมเดลต้องรองรับ JSON แบบมีโครงสร้างและ tool call** ทั้ง digest หลักสูตรและ AI Analyst ต้องใช้ โมเดลขนาดเล็กที่รันในเครื่องอาจล้มเหลวในจุดที่โมเดลบนคลาวด์ทำได้
 
 ## prompt คือโค้ดที่กำกับเวอร์ชัน
 

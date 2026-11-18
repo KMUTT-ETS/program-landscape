@@ -14,7 +14,7 @@
 | `NEXTAUTH_SECRET` | Required. Missing → silent auth failure, see Trap 4 |
 | `NEXTAUTH_URL`, `AUTH_TRUST_HOST` | Set to your public URL in production |
 | `ENABLE_LOCAL_AUTH`, `DEV_AUTH_PASSWORD` | Dev sign-in. Hard-fails in production |
-| `AI_PROVIDER` | `google` (default) / `anthropic` / `openrouter` / `stub`. Tool-use (AI Analyst) requires `anthropic` |
+| `AI_PROVIDER` | `google` (default) / `anthropic` / `openrouter` / `openai-compatible` / `stub`. `openai-compatible` also needs `OPENAI_COMPATIBLE_BASE_URL` and `AI_OPENAI_COMPATIBLE_COMPLETION_MODEL` ([details](configure-ai.md#running-on-an-openai-compatible-server)). Tool-use (AI Analyst) requires `anthropic` |
 | `GOOGLE_AI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY` | The key for your provider; `stub` works without any. Embeddings (programme overlap, skill matching) go to Google whenever `GOOGLE_AI_API_KEY` is set. With `anthropic` a Google key is required for them; with `openrouter` and no Google key, set `AI_OPENROUTER_EMBEDDING_MODEL` instead |
 | `CONNECTOR_MODE` | Global default connector mode. Leave at `mocked` initially |
 | *(none — moved)* | Institution identity is set in the app at **/admin/organization** (names, short names, region, contact email, public URL). The Thai name must match the TCAS สถาบัน column exactly; the form links to the TCAS university list (course.mytcas.com/universities) so you can check the spelling. |

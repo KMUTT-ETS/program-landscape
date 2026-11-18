@@ -10,6 +10,7 @@ import { findAiMethodEntry } from '../method-catalog';
 import { GoogleAiService } from './google-ai';
 import { AnthropicAiService } from './anthropic-ai';
 import { OpenrouterAiService } from './openrouter-ai';
+import { OpenAiCompatibleAiService } from './openai-compatible-ai';
 import { IntelSphereAiService } from './intel-sphere-ai';
 import { StubAiService } from './stub-ai';
 import {
@@ -26,6 +27,10 @@ import {
 //                              API. embed() goes to Google when a Google key
 //                              is set (keeps stored vectors in one space);
 //                              Google is also the transient-error secondary.
+//   AI_PROVIDER=openai-compatible — any OpenAI-protocol server at
+//                              OPENAI_COMPATIBLE_BASE_URL (vLLM, LiteLLM,
+//                              Ollama, an institutional gateway). Same
+//                              Google embedding/fallback rules as openrouter.
 //   AI_PROVIDER=intelsphere  — stub; throws on call
 //   AI_PROVIDER=stub         — dev fallback; deterministic placeholders +
 //                              AiInference rows, no external call. Use when
@@ -38,7 +43,13 @@ import {
 // model='text-embedding-004' + provider='google' even on an
 // anthropic-primary install), which is the right audit trail.
 
-export type AiProviderId = 'google' | 'anthropic' | 'openrouter' | 'intelsphere' | 'stub';
+export type AiProviderId =
+  | 'google'
+  | 'anthropic'
+  | 'openrouter'
+  | 'openai-compatible'
+  | 'intelsphere'
+  | 'stub';
 
 export interface AiFactoryConfig {
   recorder: AiInferenceRecorder;
@@ -47,6 +58,9 @@ export interface AiFactoryConfig {
     google?: string;
     anthropic?: string;
     openrouter?: string;
+    /** When omitted, read from OPENAI_COMPATIBLE_BASE_URL / _API_KEY so the
+     *  dozen api services building their own AiService need no change. */
+    openaiCompatible?: { baseUrl: string; apiKey?: string };
     intelSphere?: { url: string; apiKey: string };
   };
   // Optional default model override per provider. Extractors can still
@@ -55,6 +69,7 @@ export interface AiFactoryConfig {
     google?: { completion?: string; embedding?: string };
     anthropic?: { completion?: string };
     openrouter?: { completion?: string; embedding?: string };
+    openaiCompatible?: { completion?: string; embedding?: string };
   };
   /** Runtime per-method-prefix model override resolver. Backed by the
    *  ai_model_overrides table via @kku/db's AiModelOverrideStore.
@@ -84,6 +99,12 @@ export function parseOpenrouterTimeoutMs(raw: string | undefined): number | unde
   return ms > 0 ? ms : undefined;
 }
 
+/** AI_OPENAI_COMPATIBLE_JSON_MODE: only an explicit false/0/no/off turns
+ *  json_object mode off; anything else (including unset) keeps it on. */
+export function parseJsonModeFlag(raw: string | undefined): boolean {
+  return !/^(false|0|no|off)$/i.test(raw?.trim() ?? '');
+}
+
 export function normaliseModels(models: AiFactoryConfig['models']): AiFactoryConfig['models'] {
   if (!models) return undefined;
   return {
@@ -97,6 +118,10 @@ export function normaliseModels(models: AiFactoryConfig['models']): AiFactoryCon
     openrouter: models.openrouter && {
       completion: blankToUndefined(models.openrouter.completion),
       embedding: blankToUndefined(models.openrouter.embedding),
+    },
+    openaiCompatible: models.openaiCompatible && {
+      completion: blankToUndefined(models.openaiCompatible.completion),
+      embedding: blankToUndefined(models.openaiCompatible.embedding),
     },
   };
 }
@@ -200,6 +225,63 @@ export function createAiService(config: AiFactoryConfig): AiService {
       const withEmbeddings = wrapWithEmbeddingFallback(primary, googleSecondary);
       return wrapWithModelInvalidFallback(
         wrapWithTransientFallback(withEmbeddings, googleSecondary),
+      );
+    }
+    case 'openai-compatible': {
+      const conn =
+        apiKeys.openaiCompatible ??
+        (blankToUndefined(process.env.OPENAI_COMPATIBLE_BASE_URL)
+          ? {
+              baseUrl: process.env.OPENAI_COMPATIBLE_BASE_URL!.trim(),
+              apiKey: blankToUndefined(process.env.OPENAI_COMPATIBLE_API_KEY),
+            }
+          : undefined);
+      if (!conn?.baseUrl) {
+        throw new Error('AI_PROVIDER=openai-compatible but no OPENAI_COMPATIBLE_BASE_URL configured');
+      }
+      const completion =
+        models?.openaiCompatible?.completion ??
+        blankToUndefined(process.env.AI_OPENAI_COMPATIBLE_COMPLETION_MODEL);
+      if (!completion) {
+        // No sane default exists: the model list is whatever this server serves.
+        throw new Error(
+          'AI_PROVIDER=openai-compatible but no AI_OPENAI_COMPATIBLE_COMPLETION_MODEL configured',
+        );
+      }
+      const embedding =
+        models?.openaiCompatible?.embedding ??
+        blankToUndefined(process.env.AI_OPENAI_COMPATIBLE_EMBEDDING_MODEL);
+      const primary = new OpenAiCompatibleAiService({
+        baseUrl: conn.baseUrl,
+        apiKey: conn.apiKey,
+        recorder,
+        defaultModel: completion,
+        embeddingModel: embedding,
+        jsonMode: parseJsonModeFlag(process.env.AI_OPENAI_COMPATIBLE_JSON_MODE),
+        timeoutMs: parseOpenrouterTimeoutMs(process.env.AI_OPENAI_COMPATIBLE_TIMEOUT_MS),
+      });
+      const googleSecondary = apiKeys.google
+        ? new GoogleAiService({
+            apiKey: apiKeys.google,
+            recorder,
+            defaultCompletionModel: models?.google?.completion,
+            defaultEmbeddingModel: models?.google?.embedding,
+            modelOverrideResolver,
+          })
+        : undefined;
+      if (!googleSecondary && !embedding) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          '[ai/factory] AI_PROVIDER=openai-compatible without GOOGLE_AI_API_KEY or AI_OPENAI_COMPATIBLE_EMBEDDING_MODEL — embed() calls will fail.',
+        );
+      }
+      // Same embedding rule as openrouter: Google whenever it is available.
+      // No wrapWithModelInvalidFallback: its forced retry uses the method
+      // catalog's Gemini default, which this server doesn't serve — the
+      // retry could only fail and would bury the real error.
+      return wrapWithTransientFallback(
+        wrapWithEmbeddingFallback(primary, googleSecondary),
+        googleSecondary,
       );
     }
     case 'intelsphere': {

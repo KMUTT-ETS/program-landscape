@@ -273,6 +273,14 @@ export class AppController {
           ok: !!this.config.get<string>('OPENROUTER_API_KEY'),
           detail: `provider=openrouter`,
         };
+      case 'openai-compatible':
+        return {
+          name: 'ai',
+          ok:
+            !!this.config.get<string>('OPENAI_COMPATIBLE_BASE_URL') &&
+            !!this.config.get<string>('AI_OPENAI_COMPATIBLE_COMPLETION_MODEL'),
+          detail: `provider=openai-compatible`,
+        };
       case 'intelsphere':
         return {
           name: 'ai',
