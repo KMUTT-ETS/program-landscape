@@ -1,0 +1,256 @@
+# docker-compose.workshop.yml — the whole app in Docker, for workshop
+# participants who do not code.
+#
+#   pnpm workshop:start     # build, set up and start everything (this file)
+#   pnpm workshop:stop      # stop it; the data is kept
+#
+# Unlike docker-compose.yml (infrastructure only — web, api and ingestion
+# run on the host with `pnpm dev`), this file also builds and runs the
+# three app services from their production Dockerfiles. Nothing but Docker
+# and Node is needed on the laptop: no `pnpm install`, no Prisma, no tsx.
+#
+# It is a separate compose project (`program-landscape-workshop`) with its
+# own volumes and no fixed container names, so it never touches a
+# developer's `pnpm dev` stack or its database.
+#
+# Settings come from the repository's `.env` (created by
+# `pnpm workshop:start` if missing); the `x-app-env` block below overrides
+# only what must differ when the app runs inside the Docker network.
+#
+# Ports are bound to 127.0.0.1 only: the first visitor to /setup becomes
+# the administrator, so the app must not be reachable from the room network.
+#
+# The app runs with NODE_ENV=production, so the sign-in cookies are
+# `Secure`. Browsers accept those on http://localhost — use Chrome, Edge
+# or Firefox, and open it as `localhost`, not as 127.0.0.1 or a LAN IP.
+
+name: program-landscape-workshop
+
+x-app-env: &app-env
+  NODE_ENV: production
+  LOG_LEVEL: info
+  # Production refuses ENABLE_LOCAL_AUTH=true (assertLocalAuthSafe). The
+  # administrator claimed at /setup signs in with a stored password hash,
+  # which production allows.
+  ENABLE_LOCAL_AUTH: "false"
+  DATABASE_URL: postgresql://${POSTGRES_USER:-landscape}:${POSTGRES_PASSWORD:-landscape_dev_password}@postgres:5432/${POSTGRES_DB:-program_landscape}
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_URL: redis://redis:6379
+  MINIO_ENDPOINT: http://minio:9000
+  # Signed download links are opened by the browser, which reaches MinIO
+  # through the published port, not by its Docker name.
+  MINIO_PUBLIC_ENDPOINT: http://localhost:${WORKSHOP_MINIO_PORT:-9000}
+  MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:-minio_dev}}
+  MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD:-minio_dev_password}}
+  GOTENBERG_URL: http://gotenberg:3000
+  MARKITDOWN_URL: http://markitdown:8000
+  API_URL: http://api:4000
+  APP_URL: http://localhost:${WORKSHOP_WEB_PORT:-3000}
+  NEXTAUTH_URL: http://localhost:${WORKSHOP_WEB_PORT:-3000}
+  AUTH_TRUST_HOST: "true"
+
+x-amd64: &amd64
+  platforms:
+    - linux/amd64
+
+services:
+  # ── Infrastructure (same images as docker-compose.yml) ────────────────
+  postgres:
+    build:
+      context: ./infra/postgres
+      dockerfile: Dockerfile
+      <<: *amd64
+    image: program-landscape-postgres:workshop
+    restart: unless-stopped
+    shm_size: 1g
+    command: ["postgres", "-c", "max_connections=300", "-c", "shared_buffers=256MB"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-landscape}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-landscape_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-program_landscape}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-landscape} -d ${POSTGRES_DB:-program_landscape}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: cgr.dev/chainguard/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio_dev}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio_dev_password}
+    ports:
+      - "127.0.0.1:${WORKSHOP_MINIO_PORT:-9000}:9000"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  gotenberg:
+    build:
+      context: ./infra/gotenberg
+      dockerfile: Dockerfile
+      <<: *amd64
+    image: program-landscape-gotenberg:workshop
+    restart: unless-stopped
+    command:
+      - "gotenberg"
+      - "--api-timeout=60s"
+      - "--log-level=info"
+      - "--chromium-disable-web-security=false"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  markitdown:
+    build:
+      context: ./infra/markitdown
+      dockerfile: Dockerfile
+      <<: *amd64
+    image: program-landscape-markitdown:workshop
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ── One-shot setup — the container-side `pnpm setup` ──────────────────
+  # Runs on every start; each step is idempotent. The app services wait for
+  # it to exit successfully.
+  migrate:
+    image: program-landscape-api:workshop
+    # Built by the `api` service; never pulled from a registry.
+    pull_policy: never
+    env_file: .env
+    environment:
+      <<: *app-env
+    entrypoint: ""
+    command: ["node", "node_modules/.bin/prisma", "migrate", "deploy", "--schema=packages/db/prisma/schema.prisma"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  first-boot:
+    image: program-landscape-ingestion:workshop
+    # Built by the `ingestion` service; never pulled from a registry.
+    pull_policy: never
+    env_file: .env
+    environment:
+      <<: *app-env
+    entrypoint: ""
+    # Register every data source (all switched off), then buckets + the
+    # generic reference seed.
+    command: ["sh", "-c", "node /app/dist/scripts/sync-data-sources.js --apply && node /app/dist/scripts/first-boot.js"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      minio:
+        condition: service_healthy
+    restart: "no"
+
+  # ── The app ───────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile.prod
+      <<: *amd64
+    image: program-landscape-api:workshop
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      <<: *app-env
+      PORT: "4000"
+    depends_on:
+      first-boot:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      gotenberg:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:4000/api/v1/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  ingestion:
+    build:
+      context: .
+      dockerfile: apps/ingestion/Dockerfile.prod
+      <<: *amd64
+    image: program-landscape-ingestion:workshop
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      <<: *app-env
+    volumes:
+      - ingestion-logs:/app/logs
+    depends_on:
+      first-boot:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      gotenberg:
+        condition: service_healthy
+      markitdown:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile.prod
+      <<: *amd64
+    image: program-landscape-web:workshop
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      <<: *app-env
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      RELEASE_VERSION: workshop
+    ports:
+      - "127.0.0.1:${WORKSHOP_WEB_PORT:-3000}:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3000/api/auth/providers"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+  ingestion-logs:

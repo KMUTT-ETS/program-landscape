@@ -31,6 +31,28 @@ clone the repository, create `.env`, and run the one-time setup. The setup downl
 builds every Docker image, which is the part you do not want to do on the
 workshop network.
 
+### If you do not write code
+
+You can run the whole app in Docker with one command instead. Clone the
+repository (Getting started step 2), skip steps 3 and 4, and run:
+
+```bash
+pnpm workshop:start
+```
+
+It asks for your Gemini key (press Enter to add it later), creates `.env`,
+builds the app and starts it. The first run takes 20 to 40 minutes; later runs
+take a minute or two. When it says the app is running, open
+`http://localhost:3000/setup` in Chrome, Edge or Firefox and create the
+administrator at once. Use `localhost` in the address, not `127.0.0.1`.
+
+- `pnpm workshop:stop` stops it. Your data is kept for the next
+  `pnpm workshop:start`, which is also how you start it on the day.
+- Do not also run `pnpm setup` or `pnpm dev`: this is a separate copy with its
+  own database, and both want port 3000.
+- You can skip the AI coding assistant below; sit with a developer in
+  sessions 2, 4 and 5. Still do the `un-wpp` run in "Start the app once".
+
 ## Get an AI key and check it works
 
 You need a key for the pipeline in session 3. How to get one is in

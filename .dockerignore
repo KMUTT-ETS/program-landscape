@@ -79,6 +79,11 @@ dist/releases
 dist/*.tar.gz
 dist/*.sha256
 
+# Workshop participant data (their own exports, PDFs, mock sets) — never in
+# an image, and adding a file must not invalidate the build cache.
+workshop/
+workshop-mock-out/
+
 # Playwright + Storybook
 **/playwright-report
 **/storybook-static

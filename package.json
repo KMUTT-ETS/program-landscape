@@ -80,6 +80,8 @@
     "outcomes:ingest-xlsx": "tsx apps/ingestion/src/scripts/ingest-employment-surveys-xlsx.ts",
     "outcomes:refresh-derived": "tsx apps/ingestion/src/scripts/refresh-derived.ts",
     "connector:new": "tsx apps/ingestion/src/scripts/connector-new/generate.ts",
+    "workshop:start": "node scripts/workshop-start.mjs start",
+    "workshop:stop": "node scripts/workshop-start.mjs stop",
     "workshop:mock": "tsx apps/ingestion/src/scripts/workshop-mock/generate.ts",
     "workshop:mock-api": "tsx apps/ingestion/src/scripts/workshop-mock-api/server.ts",
     "workshop:check-mock": "pnpm --filter api exec tsx scripts/workshop/check-mock.ts",

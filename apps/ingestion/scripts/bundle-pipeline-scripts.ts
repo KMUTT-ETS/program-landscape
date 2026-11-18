@@ -87,6 +87,9 @@ const TARGETS = [
   // by slug dies, which is how the v1.9.8 rollout stalled on 2026-09-30.
   'sync-data-sources.ts',
   'org-seed-kku.ts',
+  // Buckets + generic reference seed for container-only installs
+  // (docker-compose.workshop.yml runs it after migrate + sync).
+  'first-boot.ts',
   // program-overlap.v1 data prep (PLO table, course descriptions, market
   // profiles, embeddings). Operator-run on prod before the first overlap run.
   'programs-overlap-prep.ts',
