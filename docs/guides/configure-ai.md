@@ -2,7 +2,7 @@
 
 > **ภาษาไทย:** [ฉบับภาษาไทย](../th/guides/configure-ai.md)
 
-**Outcome.** You can choose an AI provider, run on OpenRouter, and change prompts the way the platform expects.
+**Outcome.** You can choose an AI provider, run on OpenRouter or your own OpenAI-compatible server, and change prompts the way the platform expects.
 
 ## Everything routes through `AiService`
 
@@ -14,6 +14,7 @@
 | `anthropic` | Claude — **required for the AI Analyst module**, which uses native tool-use |
 | `stub` | Deterministic placeholders; works with no API key. Useful for local development |
 | `openrouter` | Any model through OpenRouter's OpenAI-compatible API. Embeddings and transient-error fallback go to Google when `GOOGLE_AI_API_KEY` is set; without a Google key, embeddings use `AI_OPENROUTER_EMBEDDING_MODEL` (a 1536-dimension model such as `openai/text-embedding-3-small`). See [Running on OpenRouter](#running-on-openrouter) before digesting long PDFs |
+| `openai-compatible` | Any server speaking the OpenAI chat-completions protocol at a base URL you set: vLLM, LiteLLM, Ollama, an institutional AI gateway, or OpenAI itself. See [Running on an OpenAI-compatible server](#running-on-an-openai-compatible-server) |
 | `intelsphere` | Stub that throws at call time — deliberately loud, not silent fallback |
 
 Gemini has embeddings and Claude does not, so when `AI_PROVIDER=anthropic` the factory transparently delegates `embed()` to Google. Set both keys if you use Claude. With `openrouter`, a Google key is optional: without one, `embed()` goes to the OpenRouter model named in `AI_OPENROUTER_EMBEDDING_MODEL`. Choose one embedding model per database and keep it; vectors from two models cannot be compared, so a switch means re-embedding everything.
@@ -26,6 +27,27 @@ OpenRouter works, but a whole-curriculum digest of a long PDF hits four problems
 2. **The Google fallback then fails with 429 `RESOURCE_EXHAUSTED`.** A 300-page curriculum is about 360k input tokens, and a free-tier Google key allows 250k a minute. Fix the timeout rather than relying on the fallback.
 3. **"no json found" with an empty answer.** A reasoning model spent the whole output budget thinking. Structured extraction now asks OpenRouter for minimal reasoning, which fixed it on `z-ai/glm-5.3` (73 s, USD 0.08 for the digest).
 4. **HTTP 402 "You requested up to 50000 tokens, but can only afford …".** OpenRouter checks your balance against the *requested* output cap, not actual use. Top up; the digest and `skills:normalise` both request 50,000.
+
+## Running on an OpenAI-compatible server
+
+Use `AI_PROVIDER=openai-compatible` for a model you host yourself or reach through your own gateway. It sends only the plain OpenAI protocol, without OpenRouter's extra fields, so strict servers accept it.
+
+```bash
+AI_PROVIDER=openai-compatible
+OPENAI_COMPATIBLE_BASE_URL=http://localhost:11434/v1   # the part before /chat/completions
+OPENAI_COMPATIBLE_API_KEY=                              # empty if the server has no auth
+AI_OPENAI_COMPATIBLE_COMPLETION_MODEL=qwen3:32b         # required; sent exactly as written
+AI_OPENAI_COMPATIBLE_EMBEDDING_MODEL=                   # only with no Google key; must return 1536 dimensions
+AI_OPENAI_COMPATIBLE_TIMEOUT_MS=600000                  # long curriculum digests need minutes
+AI_OPENAI_COMPATIBLE_JSON_MODE=                         # set false if the server rejects response_format
+```
+
+Run `pnpm ai:check-key` to confirm the server answers. Things that differ from the other providers:
+
+- **Admin model overrides do not apply.** The AI settings page picks from Gemini and Claude models, which your server does not serve, so every call uses `AI_OPENAI_COMPATIBLE_COMPLETION_MODEL`.
+- **Cost is recorded as 0** unless the server returns `usage.cost`. Token counts are always recorded.
+- **Embeddings and fallback** follow the OpenRouter rule: Google whenever `GOOGLE_AI_API_KEY` is set.
+- **The model must handle structured JSON and tool calls.** The curriculum digest and the AI Analyst both depend on them, so small local models may fail where hosted ones succeed.
 
 ## Prompts are versioned code
 

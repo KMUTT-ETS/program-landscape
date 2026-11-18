@@ -298,7 +298,7 @@ export class ToolUseNotSupportedError extends Error {
 
 export interface AiService {
   // Stable identifier for the provider — 'google', 'anthropic',
-  // 'openrouter', 'intelsphere'. Used in model routing logs.
+  // 'openrouter', 'openai-compatible', 'intelsphere'. Used in model routing logs.
   readonly providerId: string;
 
   complete(req: CompletionRequest): Promise<CompletionResponse>;

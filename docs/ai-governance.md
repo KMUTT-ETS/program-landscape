@@ -43,7 +43,7 @@ Modules (api + ingestion)
         │
    ┌────┴─────┬─────────────┬────────────────────────┐
    ▼          ▼             ▼                        ▼
- Google    Anthropic    OpenRouter                IntelSphere
+ Google    Anthropic    OpenRouter / OpenAI-compatible   IntelSphere
 (Gemini)   (Claude)     (any vendor/model)       (stub, KKU gateway)
    │          │
    │          └─ embed() falls back to Google
@@ -56,7 +56,7 @@ Config (env):
 
 | Var | Default | Notes |
 |---|---|---|
-| `AI_PROVIDER` | `google` | `google` / `anthropic` / `openrouter` / `intelsphere` |
+| `AI_PROVIDER` | `google` | `google` / `anthropic` / `openrouter` / `openai-compatible` / `intelsphere` / `stub` |
 | `GOOGLE_AI_API_KEY` |  | Required for provider=google; also used for embeddings when provider=anthropic (required) or provider=openrouter (optional) |
 | `ANTHROPIC_API_KEY` |  | Required for provider=anthropic |
 | `OPENROUTER_API_KEY` |  | Required for provider=openrouter |
@@ -67,6 +67,12 @@ Config (env):
 | `AI_OPENROUTER_COMPLETION_MODEL` | `google/gemini-2.5-flash` | OpenRouter `vendor/model` id. Bare `gemini-…` ids (method-catalog defaults, admin overrides) map to `google/<id>` |
 | `AI_OPENROUTER_EMBEDDING_MODEL` |  | Used only when there is no Google key: embeddings go to Google whenever `GOOGLE_AI_API_KEY` is set, because stored vectors must all come from one model. On an OpenRouter-only install, set a model that returns 1536 dimensions (e.g. `openai/text-embedding-3-small`). Switching an existing database to a different embedding model means re-embedding everything |
 | `AI_OPENROUTER_TIMEOUT_MS` | `120000` | Per-request limit in milliseconds. A curriculum digest of a long PDF (300+ pages, ~360k input tokens) needs several minutes and fails at the default; set `600000`. The Google fallback does not rescue it on a free-tier key, which allows 250k input tokens a minute |
+| `OPENAI_COMPATIBLE_BASE_URL` |  | Required for provider=openai-compatible. The part before `/chat/completions`, e.g. `https://gateway.example.ac.th/v1` |
+| `OPENAI_COMPATIBLE_API_KEY` |  | Bearer token for that server; leave empty when it has no auth |
+| `AI_OPENAI_COMPATIBLE_COMPLETION_MODEL` |  | Required for provider=openai-compatible. Sent verbatim; the admin per-method overrides are ignored on this provider because they name Gemini/Claude ids |
+| `AI_OPENAI_COMPATIBLE_EMBEDDING_MODEL` |  | Same rule as `AI_OPENROUTER_EMBEDDING_MODEL`: used only with no Google key, must return 1536 dimensions |
+| `AI_OPENAI_COMPATIBLE_TIMEOUT_MS` | `120000` | Per-request limit in milliseconds |
+| `AI_OPENAI_COMPATIBLE_JSON_MODE` | on | `false` stops sending `response_format: json_object` for servers that reject it |
 | `AI_AUTO_APPROVE_THRESHOLD` | `0` | AiExtraction below this → PENDING_REVIEW. Unset, the code default of 0 auto-approves everything; `.env.prod.example` ships `0.85` |
 
 ### Running on OpenRouter
@@ -226,6 +232,7 @@ that's the signal to invest in the hand-labeled audit.
 | Google / Gemini provider | **Real** | Requires `GOOGLE_AI_API_KEY` |
 | Anthropic / Claude provider | **Real** | Requires `ANTHROPIC_API_KEY`; embedding falls back to Google |
 | OpenRouter provider | **Real** | Requires `OPENROUTER_API_KEY`. OpenAI-compatible chat API: complete, extractStructured (JSON mode), translate, vision, tool use. Cost recorded from OpenRouter's billed figure. Embeddings and transient-error fallback go to Google when its key is set; without one, embeddings use `AI_OPENROUTER_EMBEDDING_MODEL`. No File API: an extraction carrying `fileAttachment` is refused |
+| OpenAI-compatible provider | **Real** | `AI_PROVIDER=openai-compatible`; any OpenAI-protocol server at `OPENAI_COMPATIBLE_BASE_URL`. Shares OpenRouter's engine (`openai-chat-base.ts`) without its vendor extras. Cost recorded only when the server returns `usage.cost`, else 0. No model-invalid retry (the catalog default is a Gemini id the server lacks). Same Google embedding/fallback rules as OpenRouter |
 | IntelSphere (KKU gateway) | **Stubbed** | Needs gateway API contract |
 | Prompt templates | **Real** | 3 templates versioned as code |
 | Skill taxonomy | **Built per install** | A fresh install has none; `pnpm setup` does not seed. `pnpm skills:normalise --auto-promote` builds it from labour-market and curriculum skill names. KKU's ~60 curated skills come only with `pnpm db:seed`, which adopters should not run. See the [Adopter guide](guides/curriculum-pdfs-and-ai-digest.md#building-your-skill-taxonomy) |

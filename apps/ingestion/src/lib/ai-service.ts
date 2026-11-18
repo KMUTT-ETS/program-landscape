@@ -41,6 +41,10 @@ export function createIngestionAiService(): AiService {
         completion: process.env.AI_OPENROUTER_COMPLETION_MODEL,
         embedding: process.env.AI_OPENROUTER_EMBEDDING_MODEL,
       },
+      openaiCompatible: {
+        completion: process.env.AI_OPENAI_COMPATIBLE_COMPLETION_MODEL,
+        embedding: process.env.AI_OPENAI_COMPATIBLE_EMBEDDING_MODEL,
+      },
     },
     modelOverrideResolver: getAiModelOverrideStore(),
   });

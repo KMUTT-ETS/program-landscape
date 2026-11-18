@@ -147,13 +147,15 @@ export class AnalystService implements OnModuleInit {
     return Boolean(this.config.get<string>('ANTHROPIC_API_KEY'));
   }
 
-  /** Google, Anthropic and OpenRouter all support the agent loop: Gemini
-   *  function calling, Anthropic's native tool_use, OpenAI-style tools. */
+  /** Google, Anthropic, OpenRouter and OpenAI-compatible servers all support
+   *  the agent loop: Gemini function calling, Anthropic's native tool_use,
+   *  OpenAI-style tools. */
   private hasToolUseProvider(): boolean {
     return Boolean(
       this.config.get<string>('ANTHROPIC_API_KEY') ||
         this.config.get<string>('GOOGLE_AI_API_KEY') ||
-        this.config.get<string>('OPENROUTER_API_KEY'),
+        this.config.get<string>('OPENROUTER_API_KEY') ||
+        this.config.get<string>('OPENAI_COMPATIBLE_BASE_URL'),
     );
   }
 

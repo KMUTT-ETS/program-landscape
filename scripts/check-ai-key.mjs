@@ -11,6 +11,9 @@
 //               (Google when GOOGLE_AI_API_KEY is set, else AI_OPENROUTER_EMBEDDING_MODEL,
 //               which must return 1536 dimensions)
 //   anthropic   key status, then embeddings through Google
+//   openai-compatible  a completion against OPENAI_COMPATIBLE_BASE_URL, then
+//               embeddings (Google when GOOGLE_AI_API_KEY is set, else
+//               AI_OPENAI_COMPATIBLE_EMBEDDING_MODEL, which must return 1536 dimensions)
 //   stub        fails: stub makes no AI calls, so the pipeline cannot run
 //
 // The key is never printed. It is sent in a header, never in a URL.
@@ -62,7 +65,7 @@ if (!existsSync(envPath)) {
 
 const env = parseEnv(readFileSync(envPath, 'utf8'));
 const get = (k) => (env[k] ?? '').trim();
-const secrets = ['GOOGLE_AI_API_KEY', 'OPENROUTER_API_KEY', 'ANTHROPIC_API_KEY']
+const secrets = ['GOOGLE_AI_API_KEY', 'OPENROUTER_API_KEY', 'ANTHROPIC_API_KEY', 'OPENAI_COMPATIBLE_API_KEY']
   .map(get)
   .filter((v) => v.length >= 8);
 
@@ -204,6 +207,41 @@ async function checkOpenRouterEmbedding(key) {
   else ok(`OpenRouter embeddings answer (model ${model}, ${dims} dimensions)`);
 }
 
+function compatHeaders() {
+  const key = get('OPENAI_COMPATIBLE_API_KEY');
+  return { 'content-type': 'application/json', ...(key ? { authorization: `Bearer ${key}` } : {}) };
+}
+
+async function checkCompatCompletion(baseUrl, model) {
+  const res = await request(`${baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: compatHeaders(),
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: 'Reply with the single word OK.' }],
+      max_tokens: 16,
+    }),
+  });
+  if (res.status === 200) ok(`OpenAI-compatible completion answers (model ${model})`);
+  else fail(`OpenAI-compatible completion failed (model ${model}): ${explain(res)}`);
+}
+
+async function checkCompatEmbedding(baseUrl, model) {
+  const res = await request(`${baseUrl}/embeddings`, {
+    method: 'POST',
+    headers: compatHeaders(),
+    body: JSON.stringify({ model, input: 'curriculum', dimensions: EMBEDDING_DIMENSIONS }),
+  });
+  const dims = res.json?.data?.[0]?.embedding?.length;
+  if (res.status !== 200) fail(`OpenAI-compatible embeddings failed (model ${model}): ${explain(res)}`);
+  else if (dims !== EMBEDDING_DIMENSIONS)
+    fail(
+      `OpenAI-compatible embeddings returned ${dims} dimensions, expected ${EMBEDDING_DIMENSIONS} (model ${model})`,
+      'Pick a model that returns (or can be truncated to) 1536 dimensions.',
+    );
+  else ok(`OpenAI-compatible embeddings answer (model ${model}, ${dims} dimensions)`);
+}
+
 async function checkAnthropic(key) {
   const res = await request('https://api.anthropic.com/v1/models?limit=1', {
     headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
@@ -266,8 +304,33 @@ switch (provider) {
     break;
   }
 
+  case 'openai-compatible': {
+    const baseUrl = get('OPENAI_COMPATIBLE_BASE_URL').replace(/\/+$/, '');
+    const model = get('AI_OPENAI_COMPATIBLE_COMPLETION_MODEL');
+    if (!baseUrl) {
+      fail('AI_PROVIDER=openai-compatible but OPENAI_COMPATIBLE_BASE_URL is empty.', 'e.g. https://gateway.example.ac.th/v1');
+      break;
+    }
+    if (!model) {
+      fail('AI_PROVIDER=openai-compatible but AI_OPENAI_COMPATIBLE_COMPLETION_MODEL is empty.');
+      break;
+    }
+    await checkCompatCompletion(baseUrl, model);
+    const embeddingModel = get('AI_OPENAI_COMPATIBLE_EMBEDDING_MODEL');
+    if (googleKey) await checkGoogleEmbedding(googleKey);
+    else if (embeddingModel) await checkCompatEmbedding(baseUrl, embeddingModel);
+    else
+      fail(
+        'No embeddings configured: with openai-compatible and no GOOGLE_AI_API_KEY, set AI_OPENAI_COMPATIBLE_EMBEDDING_MODEL.',
+        'Use a model that returns 1536 dimensions.',
+      );
+    break;
+  }
+
   default:
-    fail(`AI_PROVIDER=${provider} is not one this check knows (google, openrouter, anthropic, stub).`);
+    fail(
+      `AI_PROVIDER=${provider} is not one this check knows (google, openrouter, openai-compatible, anthropic, stub).`,
+    );
 }
 
 console.log(failed === 0 ? '\nAI key check passed.' : `\nAI key check failed (${failed} problem${failed > 1 ? 's' : ''}).`);

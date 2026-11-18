@@ -56,7 +56,8 @@ export async function generateExpertiseNarrative(
   const hasKey =
     (providerId === 'google' && !!apiKeys.google) ||
     (providerId === 'anthropic' && !!apiKeys.anthropic) ||
-    (providerId === 'openrouter' && !!apiKeys.openrouter);
+    (providerId === 'openrouter' && !!apiKeys.openrouter) ||
+    (providerId === 'openai-compatible' && !!process.env.OPENAI_COMPATIBLE_BASE_URL);
 
   if (!hasKey) {
     return { narrative: placeholderNarrative(input), cacheable: true };
