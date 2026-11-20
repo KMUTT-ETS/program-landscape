@@ -9,7 +9,7 @@
 | ระเบียบวิธี | เอกสาร | ตัว implementation |
 |---|---|---|
 | คะแนนสุขภาพ (`health-score.v5.6`) | `docs/methodologies/health-score.md` | `packages/db/src/health-score/` (ตัวเลขอยู่ใน `tuning.ts`) |
-| สุขภาพและวงจรชีวิตหลักสูตร | เอกสารในระบบ `/docs/methodology` — `apps/web/app/docs/methodology/content-{en,th}.tsx` (สำเนา markdown เดิมยุติการใช้งานแล้ว) | `packages/db/src/health-score/`, `packages/db/src/program-deep-dive.ts` |
+| สุขภาพและวงจรชีวิตหลักสูตร | เอกสารในระบบ `/docs/methodology` — `apps/web/app/docs/methodology/content-{en,th}.tsx` (สำเนา markdown เดิมยุติการใช้งานแล้ว) | `packages/db/src/health-score/`, `packages/db/src/lifecycle/` (ตัวเลขอยู่ใน `tuning.ts`) |
 | การให้คะแนนความเสี่ยง | `risk-scoring.md`, `risk-management.md` | `packages/db/src/risk-scoring.ts` |
 | การพยากรณ์ (`forecasting.v1`) | `forecasting.md` | `packages/shared/src/forecasting/` |
 | เครื่องจำลองสถานการณ์ | `scenario-engine.md` | `packages/shared/src/scenarios/` |
