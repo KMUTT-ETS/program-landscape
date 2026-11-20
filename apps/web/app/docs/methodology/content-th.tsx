@@ -586,7 +586,7 @@ score >= 45                                       → STABLE
           พร้อมแสดงส่วนเพิ่มเติม (รายชื่อบุคลากร ชุดคู่เทียบ การตัดสินใจของสภา)
           หัวข้อนี้บันทึกเฉพาะการคำนวณที่อยู่ใน Deep-Dive
           และยังไม่ได้กำหนดในข้อ 2 (คะแนนสุขภาพ) หรือข้อ 3 (วงจรชีวิต)
-          การติดตั้งอ้างอิง: <Code>packages/db/src/program-deep-dive.ts</Code>
+          การติดตั้งอ้างอิง: <Code>packages/db/src/lifecycle/</Code> (น้ำหนัก ช่วงคะแนน และเกณฑ์ของเกตทั้งหมดอยู่ใน <Code>tuning.ts</Code>)
         </P>
 
         <DocSubsection number="4.1" title="Demand funnel — วงจรชีวิตของ cohort">
@@ -1665,7 +1665,7 @@ score >= 45                                       → STABLE
           <P>ค่าเวอร์ชันของระเบียบวิธีคือ:</P>
           <UL>
             <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v5.6'</Code> (ใน <Code>packages/db/src/health-score/version.ts</Code>)</LI>
-            <LI><Code>LIFECYCLE_VERSION = 'lifecycle.v1.4'</Code> (ใน <Code>packages/db/src/program-deep-dive.ts</Code>)</LI>
+            <LI><Code>LIFECYCLE_VERSION = 'lifecycle.v1.4'</Code> (ใน <Code>packages/db/src/lifecycle/version.ts</Code>)</LI>
           </UL>
           <P>
             ทุกแถวคะแนนที่ระบบผลิตประทับเวอร์ชันที่ผลิตคะแนนนั้น คะแนนในอดีต <Strong>ไม่</Strong>{' '}
@@ -1860,7 +1860,8 @@ score >= 45                                       → STABLE
         <DocSubsection number="12.1" title="ภายใน — ระเบียบวิธีที่เป็นทางการ">
           <UL>
             <LI><Code>packages/db/src/health-score/</Code> การติดตั้งหลักของตัวคำนวณคะแนนห้ามิติ แยกไฟล์ละหนึ่งมิติ เกณฑ์และน้ำหนักอยู่ใน <Code>tuning.ts</Code> ค่าคงที่ <Code>HEALTH_SCORE_VERSION</Code> อยู่ใน <Code>version.ts</Code></LI>
-            <LI><Code>packages/db/src/program-deep-dive.ts</Code> การติดตั้งหลักของ <Code>programLifecycleVerdict</Code> และ <Code>programAiReadiness</Code></LI>
+            <LI><Code>packages/db/src/lifecycle/</Code> การติดตั้งหลักของ <Code>programLifecycleVerdict</Code> เกณฑ์ น้ำหนัก และเกณฑ์ของเกตอยู่ใน <Code>tuning.ts</Code> ค่าคงที่ <Code>LIFECYCLE_VERSION</Code> อยู่ใน <Code>version.ts</Code></LI>
+            <LI><Code>packages/db/src/program-deep-dive.ts</Code> การติดตั้งหลักของ <Code>programAiReadiness</Code></LI>
             <LI><Code>docs/methodologies/health-score.md</Code> บันทึกระเบียบวิธีสำหรับนักพัฒนา ประวัติเวอร์ชันและบันทึกการรีวิว</LI>
             <LI><Code>docs/methodologies/cost-allocation.md</Code> ระเบียบวิธีการจัดสรรต้นทุน (ร่าง v0)</LI>
             <LI><Code>packages/db/src/jobthai-bridge.ts</Code> และ <Code>packages/db/src/jobthai.ts</Code> ลิงก์หลักสูตร–อาชีพ (<Code>JOBTHAI_BRIDGE_VERSION</Code>) และอุปสงค์ JobThai รายหลักสูตรที่ทั้งตัวขับคะแนนสุขภาพและ Deep-Dive อ่าน</LI>
