@@ -1307,58 +1307,13 @@ export async function programAiReadiness(programId: string): Promise<ProgramAiRe
 // type). Re-exporting here would clash, so consumers import the type
 // directly from `@kku/db` via the wildcard re-export of `@prisma/client`.
 
-export interface ProgramLifecycleDriver {
-  label: string;
-  /** Signed contribution to the trajectory score, -25 to +25. */
-  contribution: number;
-  raw: unknown;
-}
+import type {
+  LifecycleGateEffect,
+  ProgramLifecycleDriver,
+  ProgramLifecycleResult,
+} from './lifecycle/types';
+export type { LifecycleGateEffect, ProgramLifecycleDriver, ProgramLifecycleResult };
 
-/** One of the three modifier gates that can downgrade (never upgrade) the
- *  trajectory-score-based verdict (gap #8 closure). The presence of
- *  `gatesApplied[]` entries means the verdict reflects an institutional
- *  position, not just the trajectory math. */
-export interface LifecycleGateEffect {
-  /** Stable identifier — UI + analytics group by this. */
-  name:
-    | 'oldSchoolContentCap'
-    | 'aiReadinessStableCap'
-    | 'aiReadinessFrontierCap'
-    | 'lowLabourMarketAlignmentStableCap'
-    | 'lowLabourMarketAlignmentFrontierCap'
-    | 'lowRevenuePotentialFrontierCap';
-  /** Verdict before this gate fired (the counterfactual at this step). */
-  from: ProgramLifecycleVerdict;
-  /** Verdict after this gate fired. */
-  to: ProgramLifecycleVerdict;
-  /** Council-readable explanation of why this gate caps the verdict. */
-  reason: string;
-}
-
-export interface ProgramLifecycleResult {
-  /** Final verdict after all modifier gates have been applied. This is
-   *  what surfaces on cockpit + Deep-Dive + Council Pack. */
-  verdict: ProgramLifecycleVerdict;
-  /** Counterfactual (gap #8): the verdict produced by trajectory score
-   *  alone, with the 3 modifier gates skipped. Equals `verdict` when no
-   *  gate fired. Surfaces in the lifecycle UI's "if gates were off" view
-   *  so Council readers can see the gate's effect, even though the
-   *  institutional position remains the gated value. */
-  ungatedVerdict: ProgramLifecycleVerdict;
-  /** Trajectory score, 0-100. Derived from weighted sum of drivers. */
-  trajectoryScore: number;
-  /** Drivers ordered by absolute contribution magnitude. */
-  drivers: ProgramLifecycleDriver[];
-  /** Modifier gates that fired (in application order). Empty when the
-   *  trajectory-score-based verdict survived unchanged. */
-  gatesApplied: LifecycleGateEffect[];
-  /** 2-3 sentence rule-based narrative explaining the verdict. When any
-   *  gate fired, mentions the gate's effect explicitly so the reader
-   *  sees both the gated verdict and the counterfactual. */
-  narrative: string;
-  methodologyVersion: string;
-  generatedAt: string;
-}
 
 // v1.1 (2026-05-02) adds AI-readiness as the single heaviest driver
 // (±25). AI is the dominant disruption higher education faces this
