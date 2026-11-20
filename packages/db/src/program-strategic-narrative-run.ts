@@ -20,13 +20,13 @@ import {
   programAiReadiness,
   programDemandFunnel,
   programDemographicOutlook,
-  programLifecycleVerdict,
   programTcasStats,
   programFinancials,
   programOutcomes,
   programTrends,
   programStudentCohorts,
 } from './program-deep-dive';
+import { programLifecycleVerdict } from './lifecycle';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Pre-computes the strategic narrative for one program. Composes EVERY

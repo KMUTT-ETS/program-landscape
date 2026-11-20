@@ -42,6 +42,7 @@ import { DECISION_WORKSPACE_VERSION } from './decisions';
 import { DATA_QUALITY_VERSION } from './data-quality';
 import { JOBTHAI_BRIDGE_VERSION } from './jobthai-bridge';
 import { PROGRAM_OVERLAP_VERSION } from './program-overlap/score';
+import { LIFECYCLE_VERSION } from './lifecycle/version';
 
 // ── Imports from @kku/shared (engines + prompts) ────────────────────────
 import {
@@ -76,29 +77,6 @@ import {
   EXPERTISE_NARRATIVE_VERSION,
   PROGRAM_OVERLAP_RECOMMENDATION_VERSION,
 } from '@kku/shared';
-
-// Lifecycle verdict version is private to program-deep-dive.ts at the
-// moment (not exported). Re-declared here against the methodology doc;
-// the drift test below cross-checks it via a structural assertion in
-// the deep-dive test file.
-//
-// v1.2 (2026-05-12 — gap #8) exposes the gate counterfactual: result
-// now carries `ungatedVerdict` + `gatesApplied[]` alongside the gated
-// `verdict`. No behavioural change to the gated verdict.
-//
-// v1.3 (2026-05-12) rebalances qualitative-vs-quantitative content
-// signals: content_modernity halved (±20 → ±10), new first-class
-// labour_market_alignment driver (±15), plus two new modifier gates
-// (lowLabourMarketAlignmentStable/FrontierCap) mirroring the AI-
-// readiness gate pattern.
-//
-// v1.4 (2026-05-12) bakes revenue-production potential into the
-// verdict: new `revenue_scale` driver (±10, level-aware) + new
-// `lowRevenuePotentialFrontierCap` gate (absolute 3M THB/yr flagship
-// floor). FRONTIER reserved for revenue-substantial programs;
-// boutique-excellence PhDs cap at RISING, reflecting the non-degree
-// HRD shift squeezing post-grad cohorts.
-const LIFECYCLE_VERSION = 'lifecycle.v1.4';
 
 // ── The bundle ──────────────────────────────────────────────────────────
 

@@ -1,6 +1,8 @@
+import { Prisma } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 
 import { computeLifecycle } from '../src/lifecycle/compute';
+import { pickLatestAnnualRevenue } from '../src/lifecycle/load';
 import { baseInputs, healthRow, withAi } from './fixtures/lifecycle-inputs';
 
 describe('computeLifecycle', () => {
@@ -48,5 +50,35 @@ describe('computeLifecycle', () => {
   it('stamps generatedAt from the given clock', () => {
     const now = new Date('2026-11-20T00:00:00Z');
     expect(computeLifecycle(baseInputs(), now).generatedAt).toBe('2026-11-20T00:00:00.000Z');
+  });
+});
+
+describe('pickLatestAnnualRevenue', () => {
+  const row = (tuition: number | null, fiscalYear: number) => ({
+    tuitionRevenue: tuition === null ? null : new Prisma.Decimal(tuition),
+    fiscalYear,
+  });
+
+  it('no rows or a null latest figure is missing data', () => {
+    expect(pickLatestAnnualRevenue([])).toEqual({ thb: null, fiscalYear: null });
+    expect(pickLatestAnnualRevenue([row(null, 2568)])).toEqual({ thb: null, fiscalYear: null });
+  });
+
+  it('a zero figure is data, not missing', () => {
+    expect(pickLatestAnnualRevenue([row(0, 2568)])).toEqual({ thb: 0, fiscalYear: 2568 });
+  });
+
+  it('a latest year under 30% of the prior counts as partial and takes the prior figure', () => {
+    // fiscalYear stays the latest row's year (legacy behaviour, kept).
+    expect(pickLatestAnnualRevenue([row(100, 2568), row(1000, 2567)])).toEqual({ thb: 1000, fiscalYear: 2568 });
+  });
+
+  it('exactly 30% of the prior is not partial', () => {
+    expect(pickLatestAnnualRevenue([row(300, 2568), row(1000, 2567)])).toEqual({ thb: 300, fiscalYear: 2568 });
+  });
+
+  it('a zero or missing prior year is ignored', () => {
+    expect(pickLatestAnnualRevenue([row(100, 2568), row(0, 2567)])).toEqual({ thb: 100, fiscalYear: 2568 });
+    expect(pickLatestAnnualRevenue([row(100, 2568), row(null, 2567)])).toEqual({ thb: 100, fiscalYear: 2568 });
   });
 });
