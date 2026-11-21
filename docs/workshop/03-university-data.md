@@ -49,8 +49,9 @@ programme names and round-3 admission figures come from the public TCAS files
 (downloaded from mytcas.com on first run and cached). Staff are numbered
 tokens such as "Lecturer 001". Every other figure is invented and labelled
 mock. The programmes you brought curriculum PDFs for are always included, and
-their course codes are read from the PDF. List at least one programme with a
-curriculum PDF: without one, the Program Deep-Dive cannot run in full. It is for practice only: never show
+their course codes are read from the PDF. `programmes` may be left out, and then
+every programme is picked from TCAS; but list at least one programme with a
+curriculum PDF if you want the Program Deep-Dive to run in full. It is for practice only: never show
 these figures as real results. There is nothing to install beyond Node and
 pnpm.
 
@@ -83,6 +84,7 @@ pnpm.
 |---|---|
 | `university` | Your university's Thai name, exactly as the TCAS tables spell it. |
 | `region` | One of `Northeast`, `Central`, `North` or `South`, the regions the organisation profile offers. Central covers Bangkok, the East and the West too. Any other value stops the run. |
+| `programmes` | Optional. Leave it out (or write `[]`) to have the generator pick every programme from your TCAS rows, with invented course lists and no PDFs. Fine for practising uploads; for the Program Deep-Dive, list at least one programme with a PDF. |
 | `programmes[].name` | The programme name as written in the PDF. A small spelling difference is fine. |
 | `programmes[].pdf` | Path to the curriculum PDF. Relative paths resolve against the JSON file's folder. At least one programme needs a PDF, or the Program Deep-Dive cannot run in full; for the others it is optional. If given, the file must exist, or the run stops. |
 | `programmes[].level` | `BACHELOR` (default), `MASTER`, `DOCTORAL` or `HIGHER_GRAD_DIPLOMA`. |

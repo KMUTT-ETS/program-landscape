@@ -86,9 +86,11 @@ export function loadInputs(jsonPath: string): Inputs {
         'a university in Bangkok, the East or the West uses Central',
     );
   }
-  const blocks = data.programmes;
-  if (!Array.isArray(blocks) || blocks.length === 0) {
-    throw new InputError(`${name}: add at least one entry to "programmes"`);
+  // `programmes` is optional: without it every programme is picked from the university's
+  // own TCAS rows (no PDFs, invented course lists)
+  const blocks: unknown = data.programmes ?? [];
+  if (!Array.isArray(blocks)) {
+    throw new InputError(`${name}: "programmes" must be a list (or leave it out to pick programmes from TCAS)`);
   }
   const programmes: ProgrammeInput[] = blocks.map((b: unknown, idx: number) => {
     const where = `${name} programmes #${idx + 1}`;
