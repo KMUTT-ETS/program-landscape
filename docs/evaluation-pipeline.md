@@ -25,7 +25,7 @@ A single program carries up to **five** signed verdicts. Each is independently v
 | Axis | Output | Where stamped | Code reference |
 |---|---|---|---|
 | **Health Score** | 0–100 composite + 5 dimension sub-scores + 0–100 `dataCompletenessPct` | `methodologyVersion: 'health-score.v3.4'` on `HealthScoreRow` | `packages/db/src/health-score/` |
-| **Lifecycle Verdict** | `SUNSET` / `STABLE` / `RISING` / `FRONTIER` + 0–100 trajectory + 9 signed drivers + counterfactual (`ungatedVerdict`) | `methodologyVersion: 'lifecycle.v1.2'` on `ProgramLifecycleResult` + persisted to `program_lifecycle_snapshots` | `packages/db/src/program-deep-dive.ts` |
+| **Lifecycle Verdict** | `SUNSET` / `STABLE` / `RISING` / `FRONTIER` + 0–100 trajectory + 9 signed drivers + counterfactual (`ungatedVerdict`) | `methodologyVersion: 'lifecycle.v1.2'` on `ProgramLifecycleResult` + persisted to `program_lifecycle_snapshots` | `packages/db/src/lifecycle/` |
 | **Risk Tier** | `LOW` / `MODERATE` / `HIGH` / `CRITICAL` / `NEEDS_DATA` + L1/L2/L3 drivers + I1/I2 impact + composite | `methodologyVersion: 'risk-scoring.v1.11'` on `RiskAssessment` + `risk-assessment.v2` on AI overlay | `packages/db/src/risk-scoring.ts` + `packages/shared/src/ai/prompts/risk-assessment.ts` |
 | **KKU 5×5 Matrix** | `LOW` / `MODERATE` / `HIGH` / `VERY_HIGH` / `NEEDS_DATA` + `matrixScore` 1–25 (likelihood × impact bins) | Derived from Risk Tier; same methodology stamp | `bin5` + `deriveKkuMatrix` in `risk-scoring.ts` |
 | **BCG Quadrant** | `star` / `cash-cow` / `question` / `dog` / `dead` | `methodologyVersion: 'dashboard-overview.v1'` on cockpit payload | `packages/db/src/dashboard-overview.ts:486-505` |
@@ -146,7 +146,7 @@ Driver `labour_market_alignment` reads `labour_market_skill_demands`. The slug i
 
 ## 3. The Lifecycle Verdict (v1.1)
 
-`packages/db/src/program-deep-dive.ts:1023-1273` · `LIFECYCLE_VERSION = 'lifecycle.v1.1'` · doc: in-app paper `apps/web/app/docs/methodology/content-en.tsx` §3
+`packages/db/src/lifecycle/` (numbers in `tuning.ts`, history in `README.md`) · `LIFECYCLE_VERSION` in `lifecycle/version.ts` · doc: in-app paper `apps/web/app/docs/methodology/content-en.tsx` §3
 
 ### 3.1 Trajectory score
 

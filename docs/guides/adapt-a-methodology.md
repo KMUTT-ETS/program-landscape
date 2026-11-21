@@ -9,7 +9,7 @@ Every score the platform produces is computed by an explicitly-versioned functio
 | Methodology | Doc | Implementation |
 |---|---|---|
 | Health score (`health-score.v5.6`) | `docs/methodologies/health-score.md` | `packages/db/src/health-score/` (numbers in `tuning.ts`) |
-| Programme health + lifecycle | In-app paper `/docs/methodology` — `apps/web/app/docs/methodology/content-{en,th}.tsx` (the old markdown copy is retired) | `packages/db/src/health-score/`, `packages/db/src/program-deep-dive.ts` |
+| Programme health + lifecycle | In-app paper `/docs/methodology` — `apps/web/app/docs/methodology/content-{en,th}.tsx` (the old markdown copy is retired) | `packages/db/src/health-score/`, `packages/db/src/lifecycle/` (numbers in `tuning.ts`) |
 | Risk scoring | `risk-scoring.md`, `risk-management.md` | `packages/db/src/risk-scoring.ts` |
 | Forecasting (`forecasting.v1`) | `forecasting.md` | `packages/shared/src/forecasting/` |
 | Scenario engine | `scenario-engine.md` | `packages/shared/src/scenarios/` |

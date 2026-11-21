@@ -856,7 +856,7 @@ otherwise                                         → SUNSET`}</Pre>
           health score and lifecycle verdict consume, plus several presentation-only sections (faculty
           roster, peer set, Council decisions). This section documents the calculations specific to
           the Deep-Dive — those not already specified in §2 (health score) or §3 (lifecycle).
-          Reference implementation: <Code>packages/db/src/program-deep-dive.ts</Code>.
+          Reference implementation: <Code>packages/db/src/lifecycle/</Code> (every weight, band and gate threshold in <Code>tuning.ts</Code>).
         </P>
 
         <DocSubsection number="4.1" title="Demand funnel — cohort lifecycle">
@@ -2081,7 +2081,7 @@ otherwise                                         → SUNSET`}</Pre>
           <P>The methodology version constants are:</P>
           <UL>
             <LI><Code>HEALTH_SCORE_VERSION = 'health-score.v5.6'</Code> (in <Code>packages/db/src/health-score/version.ts</Code>).</LI>
-            <LI><Code>LIFECYCLE_VERSION = 'lifecycle.v1.4'</Code> (in <Code>packages/db/src/program-deep-dive.ts</Code>).</LI>
+            <LI><Code>LIFECYCLE_VERSION = 'lifecycle.v1.4'</Code> (in <Code>packages/db/src/lifecycle/version.ts</Code>).</LI>
           </UL>
           <P>
             Every score row emitted by the application carries the version that produced it.
@@ -2283,7 +2283,8 @@ otherwise                                         → SUNSET`}</Pre>
         <DocSubsection number="12.1" title="Internal — methodology canon">
           <UL>
             <LI><Code>packages/db/src/health-score/</Code>. Primary implementation of the five-dimension health score scorers, one file per dimension; thresholds and weights in <Code>tuning.ts</Code>, methodology version constant <Code>HEALTH_SCORE_VERSION</Code> in <Code>version.ts</Code>.</LI>
-            <LI><Code>packages/db/src/program-deep-dive.ts</Code>. Primary implementation of <Code>programLifecycleVerdict</Code> and <Code>programAiReadiness</Code>. Methodology version constant <Code>LIFECYCLE_VERSION</Code>.</LI>
+            <LI><Code>packages/db/src/lifecycle/</Code>. Primary implementation of <Code>programLifecycleVerdict</Code>; thresholds, weights and gate limits in <Code>tuning.ts</Code>, methodology version constant <Code>LIFECYCLE_VERSION</Code> in <Code>version.ts</Code>.</LI>
+            <LI><Code>packages/db/src/program-deep-dive.ts</Code>. Primary implementation of <Code>programAiReadiness</Code>.</LI>
             <LI><Code>docs/methodologies/health-score.md</Code>. Internal-facing methodology notes; version history and review log.</LI>
             <LI><Code>docs/methodologies/cost-allocation.md</Code>. Cost-allocation methodology (v0 draft) feeding the Financial dimension.</LI>
             <LI><Code>packages/db/src/jobthai-bridge.ts</Code> and <Code>packages/db/src/jobthai.ts</Code>. Programme–occupation links (<Code>JOBTHAI_BRIDGE_VERSION</Code>) and the per-programme JobThai demand read by both the health driver and the Deep-Dive.</LI>
