@@ -12,6 +12,7 @@ import {
   EmptyState,
   FreshnessBadge,
   FunnelPipeline,
+  HoverTooltip,
   Input,
   ProvenanceButton,
   RadarChartSmall,
@@ -5319,6 +5320,107 @@ function formatRawValue(v: unknown, key?: string): string {
 // Distinct from the older TcasStatsSection (TCAS3 + peer comparison only).
 // ──────────────────────────────────────────────────────────────────────────
 
+// Header tooltips for both funnel tables. Formulas mirror
+// packages/db/src/program-recruitment.ts — keep them in step.
+const FUNNEL_COLUMN_TIPS = {
+  beYear: {
+    label: 'BE year',
+    title: 'Entry year',
+    body: 'Academic year of entry in Buddhist Era (BE), with the calendar year (CE = BE − 543) in brackets.',
+  },
+  status: {
+    label: 'Status',
+    title: 'Status',
+    body: 'Complete once the entry year has closed per the academic-year setting. In-progress years are dimmed, still change as rounds run, and are not used in the health score.',
+  },
+  plan: {
+    label: 'Plan',
+    title: 'Plan',
+    body: 'Annual intake target. Registrar data: the largest plan of each recruitment programme (major / special class), summed. Spreadsheet imports: the Planned Seats of every row, summed.',
+  },
+  allocated: {
+    label: 'Allocated',
+    title: 'Allocated',
+    body: 'Seats offered, summed across rounds. Registrars offer more than the plan to cover no-shows. Spreadsheet imports have no separate figure, so Allocated equals Planned Seats.',
+  },
+  overAlloc: {
+    label: 'Over-alloc',
+    title: 'Over-allocation',
+    body: 'Allocated ÷ Plan — how far offered seats exceed the intake target. Always 1.00× for spreadsheet-imported data.',
+  },
+  applicants: {
+    label: 'Applicants',
+    title: 'Applicants',
+    body: 'Applications, summed across rounds. A person who applies in several rounds counts once per round.',
+  },
+  compRatio: {
+    label: 'Comp. ratio',
+    title: 'Competition ratio',
+    body: 'Applicants ÷ Allocated — applications per offered seat (not per planned seat).',
+  },
+  passed: {
+    label: 'Passed',
+    title: 'Passed',
+    body: "Applicants who passed the round's selection cut.",
+  },
+  sendCh: {
+    label: 'Send CH',
+    title: 'Send CH',
+    body: 'Passed applicants sent to the TCAS Clearinghouse to confirm a place. Spreadsheet imports have no separate figure, so it equals Confirm CH.',
+  },
+  confirmCh: {
+    label: 'Confirm CH',
+    title: 'Confirm CH',
+    body: 'Applicants who confirmed (accepted) the offer in the TCAS Clearinghouse.',
+  },
+  sendReg: {
+    label: 'Send Reg',
+    title: 'Send Reg',
+    body: 'Confirmed applicants forwarded to the registrar to report in. Not collected by the spreadsheet import (shown as —).',
+  },
+  reportedIn: {
+    label: 'Reported in',
+    title: 'Reported in',
+    body: 'Students who actually registered — the real intake.',
+  },
+  vsPlan: {
+    label: 'vs Plan',
+    title: 'vs Plan (fill rate)',
+    body: 'Reported in ÷ Plan. Green ≥ 100 %, amber 85–99 %, red < 85 %.',
+  },
+  round: {
+    label: 'Round',
+    title: 'Round',
+    body: 'TCAS round. Sub-rounds (e.g. 1.1, 1.2) are listed separately.',
+  },
+} as const;
+
+type FunnelColumnKey = keyof typeof FUNNEL_COLUMN_TIPS;
+
+function FunnelTh({ col, align = 'right' }: { col: FunnelColumnKey; align?: 'left' | 'right' }) {
+  const tip = FUNNEL_COLUMN_TIPS[col];
+  return (
+    <th className={`px-4 py-2 ${align === 'left' ? 'text-left' : 'text-right'}`}>
+      <HoverTooltip
+        className="max-w-xs normal-case tracking-normal"
+        content={
+          <div className="text-xs">
+            <div className="font-semibold">{tip.title}</div>
+            <div className="mt-1 text-text-secondary">{tip.body}</div>
+          </div>
+        }
+      >
+        <span
+          tabIndex={0}
+          className="cursor-help border-b border-dotted border-default"
+        >
+          {tip.label}
+        </span>
+      </HoverTooltip>
+    </th>
+  );
+}
+
 function RecruitmentSection({ data }: { data: DeepDiveRecruitment | null }) {
   if (!data || data.byYear.length === 0) {
     return (
@@ -5440,17 +5542,17 @@ function RecruitmentSection({ data }: { data: DeepDiveRecruitment | null }) {
             <table className="w-full text-sm">
               <thead className="bg-surface-1 text-xs uppercase tracking-wide text-text-tertiary">
                 <tr>
-                  <th className="px-4 py-2 text-left">BE year</th>
-                  <th className="px-4 py-2 text-left">Status</th>
-                  <th className="px-4 py-2 text-right">Plan</th>
-                  <th className="px-4 py-2 text-right">Allocated</th>
-                  <th className="px-4 py-2 text-right">Over-alloc</th>
-                  <th className="px-4 py-2 text-right">Applicants</th>
-                  <th className="px-4 py-2 text-right">Comp. ratio</th>
-                  <th className="px-4 py-2 text-right">Passed</th>
-                  <th className="px-4 py-2 text-right">Confirm CH</th>
-                  <th className="px-4 py-2 text-right">Reported in</th>
-                  <th className="px-4 py-2 text-right">vs Plan</th>
+                  <FunnelTh col="beYear" align="left" />
+                  <FunnelTh col="status" align="left" />
+                  <FunnelTh col="plan" />
+                  <FunnelTh col="allocated" />
+                  <FunnelTh col="overAlloc" />
+                  <FunnelTh col="applicants" />
+                  <FunnelTh col="compRatio" />
+                  <FunnelTh col="passed" />
+                  <FunnelTh col="confirmCh" />
+                  <FunnelTh col="reportedIn" />
+                  <FunnelTh col="vsPlan" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle">
@@ -5529,14 +5631,14 @@ function RecruitmentSection({ data }: { data: DeepDiveRecruitment | null }) {
               <table className="w-full text-sm">
                 <thead className="bg-surface-1 text-xs uppercase tracking-wide text-text-tertiary">
                   <tr>
-                    <th className="px-4 py-2 text-left">Round</th>
-                    <th className="px-4 py-2 text-right">Allocated</th>
-                    <th className="px-4 py-2 text-right">Applicants</th>
-                    <th className="px-4 py-2 text-right">Passed</th>
-                    <th className="px-4 py-2 text-right">Send CH</th>
-                    <th className="px-4 py-2 text-right">Confirm CH</th>
-                    <th className="px-4 py-2 text-right">Send Reg</th>
-                    <th className="px-4 py-2 text-right">Reported in</th>
+                    <FunnelTh col="round" align="left" />
+                    <FunnelTh col="allocated" />
+                    <FunnelTh col="applicants" />
+                    <FunnelTh col="passed" />
+                    <FunnelTh col="sendCh" />
+                    <FunnelTh col="confirmCh" />
+                    <FunnelTh col="sendReg" />
+                    <FunnelTh col="reportedIn" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
