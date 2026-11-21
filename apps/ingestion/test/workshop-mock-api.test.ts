@@ -144,6 +144,22 @@ describe('workshop mock API', () => {
     expect((await get('/programmes/NOPE/intake')).status).toBe(404);
   });
 
+  it('serves intake for every programme without a code, paged', async () => {
+    const { rows, pages } = await all('/programmes/intake', 4);
+    expect(pages).toBe(2);
+    expect(rows).toHaveLength(6);
+    expect(rows.map((r) => `${r.programme_code}/${r.year_be}`)).toEqual([
+      'P-A/2567',
+      'P-A/2568',
+      'P-B/2567',
+      'P-B/2568',
+      'P-C/2567',
+      'P-C/2568',
+    ]);
+    expect(rows[0]).toMatchObject({ applied: 100, admitted: 60, enrolled: 50, dropouts: 3 });
+    expect((await get('/programmes/intake?limit=0')).status).toBe(400);
+  });
+
   it("enrolments per section sum to the section's enrolled count", async () => {
     const { rows } = await all('/terms/2568/1/enrolments', 200);
     const counts = new Map<string, number>();

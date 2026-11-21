@@ -120,7 +120,11 @@ export function readmeText(world: World, anchors: readonly Anchor[], notes: read
     'Check that each match below is the programme you meant. If one is wrong, add',
     '"tcas_code": "..." to that entry of "programmes" in your input file and run again.', '',
   );
-  L.push(...anchorLines(world, anchors).map((x) => `  ${x}`));
+  L.push(
+    ...(anchors.length
+      ? anchorLines(world, anchors).map((x) => `  ${x}`)
+      : ['  (none: the input file lists no programmes, so all were picked from your TCAS rows)']),
+  );
   L.push('', '5. Notes from this run', '-'.repeat(22));
   L.push(...(notes.length ? notes.map((n) => `  - ${n}`) : ['  (none)']));
   L.push(

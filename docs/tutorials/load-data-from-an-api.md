@@ -69,6 +69,10 @@ You get one object per year:
               "retained_year2": 0, "graduated_on_time": 0, "graduated_late": 0, "dropouts": 0 } ] }
 ```
 
+To get every programme in one call, leave the code out:
+`/api/v1/programmes/intake`. It returns one row per programme per year, each with a
+`programme_code`, and pages with `next_cursor` like the term routes.
+
 Compare it with the Enrolment template (download it from the dataset's page):
 
 | API field | Template header |

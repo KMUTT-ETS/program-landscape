@@ -17,7 +17,8 @@ Every request needs `Authorization: Bearer <token>`; otherwise 401 `{ "error": "
 | `GET /api/v1/terms`                                             | `{ data: [{ year_be, semester }] }`                                             |
 | `GET /api/v1/terms/:yearBe/:semester/sections?cursor=&limit=`   | class sections (nested `subject`, `hours`, `seats`)                             |
 | `GET /api/v1/terms/:yearBe/:semester/enrolments?cursor=&limit=` | one record per student per section: `student_ref`, `subject_code`, `section_no` |
-| `GET /api/v1/programmes/:code/intake`                           | per-year `applied`, `admitted`, `enrolled`, ...                                 |
+| `GET /api/v1/programmes/intake?cursor=&limit=`                  | every programme: one row per programme per year, with `programme_code`          |
+| `GET /api/v1/programmes/:code/intake`                           | one programme: per-year `applied`, `admitted`, `enrolled`, ...                  |
 
 Paged routes return `next_cursor` (an opaque string, `null` on the last page). `limit` defaults to
 50, maximum 200; anything else is 400 `{ "error": "bad_request" }`.

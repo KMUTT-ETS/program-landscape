@@ -186,11 +186,17 @@ describe('loadInputs (JSON)', () => {
     expect(q.courses).toBe(path.join(path.dirname(f), 'c.csv'));
   });
 
-  it('bad level, bad JSON, missing file, missing programmes', () => {
+  it('programmes may be left out or empty', () => {
+    expect(loadInputs(write({ university: 'u', region: 'Central' })).programmes).toEqual([]);
+    expect(loadInputs(write({ university: 'u', region: 'Central', programmes: [] })).programmes).toEqual([]);
+    expect(loadInputs(write({ university: 'u', region: 'Central', programmes: null })).programmes).toEqual([]);
+  });
+
+  it('bad level, bad JSON, missing file, programmes not a list', () => {
     expect(() => loadInputs(write({ university: 'u', region: 'Central', programmes: [{ name: 'n', faculty: 'f', level: 'x' }] }))).toThrow(InputError);
     expect(() => loadInputs(write('{ nope'))).toThrow(/not valid JSON/);
     expect(() => loadInputs('/nonexistent/i.json')).toThrow(/not found/);
-    expect(() => loadInputs(write({ university: 'u', region: 'Central', programmes: [] }))).toThrow(InputError);
+    expect(() => loadInputs(write({ university: 'u', region: 'Central', programmes: {} }))).toThrow(/must be a list/);
     expect(() => loadInputs(write({ university: 'u', programmes: [{ name: 'n', faculty: 'f' }] }))).toThrow(/region/);
     // East is inside Central in the four-region projection; the message says so.
     expect(() => loadInputs(write({ university: 'u', region: 'East', programmes: [{ name: 'n', faculty: 'f' }] }))).toThrow(

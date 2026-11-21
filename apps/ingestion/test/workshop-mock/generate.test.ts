@@ -53,6 +53,18 @@ describe('generate', () => {
     expect(files(out)).toEqual(first);
   }, 120_000);
 
+  it('runs without "programmes", picking every programme from TCAS', async () => {
+    const input = path.join(tmp, 'no-programmes.json');
+    const { university, region } = JSON.parse(fs.readFileSync(INPUT, 'utf-8')) as { university: string; region: string };
+    fs.writeFileSync(input, JSON.stringify({ university, region }), 'utf-8');
+    const out = path.join(tmp, 'out');
+    const r = await run([input, '--tcas-file', TCAS_ARG, '--out', out]);
+    expect(r.code, r.text).toBe(0);
+    expect(fs.readdirSync(out).filter((f) => f.endsWith('.xlsx'))).toHaveLength(20);
+    expect(r.text).toContain('TCAS matches: none');
+    expect(fs.readFileSync(path.join(out, 'README.txt'), 'utf-8')).toContain('the input file lists no programmes');
+  }, 120_000);
+
   it('copies a --tcas-file into the cache under the download name, then runs offline', async () => {
     const out = path.join(tmp, 'out');
     await run([INPUT, '--tcas-file', TCAS_ARG, '--out', out]);

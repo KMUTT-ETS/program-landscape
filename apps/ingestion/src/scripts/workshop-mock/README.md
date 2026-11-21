@@ -46,7 +46,8 @@ field is explained here.
 - `university` (required): the Thai name exactly as the TCAS files spell it.
 - `region` (required): one of `Northeast`, `Central`, `North` or `South`. Central covers
   Bangkok, the East and the West; any other value stops the run.
-- `programmes` (required): one entry per curriculum PDF.
+- `programmes` (optional): one entry per curriculum PDF. Leave it out (or write `[]`)
+  to have every programme picked from your TCAS rows, with invented course lists.
   - `name` (required): the programme name as written in the PDF (a small spelling
     difference is fine).
   - `pdf`: path to the curriculum PDF. Relative paths resolve against the JSON file's folder.
