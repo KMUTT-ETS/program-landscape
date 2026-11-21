@@ -266,8 +266,12 @@ async function run(argv: readonly string[], base: string): Promise<number> {
     fs.rmSync(manifest, { force: true }); // an online run downloads the full set again
   }
   console.log(`TCAS years loaded: ${[...new Set(rows.map((r) => `${r.entryYearBE}/${r.round}`))].sort().join(', ')}`);
-  console.log('TCAS matches:');
-  for (const line of anchorLines(world, anchors)) console.log(`  ${line}`);
+  if (anchors.length === 0) {
+    console.log('TCAS matches: none (no "programmes" in the input file; all programmes were picked from TCAS)');
+  } else {
+    console.log('TCAS matches:');
+    for (const line of anchorLines(world, anchors)) console.log(`  ${line}`);
+  }
   for (const n of notes) console.log(`note: ${n}`);
   UPLOAD_ORDER.forEach((slug, k) => {
     const sheetRows = built.get(slug) as Row[];
