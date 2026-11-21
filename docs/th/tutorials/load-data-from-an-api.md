@@ -53,6 +53,10 @@ curl -H "Authorization: Bearer $MOCK_TOKEN" \
               "retained_year2": 0, "graduated_on_time": 0, "graduated_late": 0, "dropouts": 0 } ] }
 ```
 
+ถ้าต้องการข้อมูลทุกหลักสูตรในครั้งเดียว ให้ละรหัสออก: `/api/v1/programmes/intake`
+จะได้หนึ่งแถวต่อหลักสูตรต่อปี แต่ละแถวมี `programme_code` และแบ่งหน้าด้วย `next_cursor`
+เหมือน route ของภาคการศึกษา
+
 เทียบกับ template ของ Enrolment (ดาวน์โหลดได้จากหน้าของชุดข้อมูล)
 
 | ฟิลด์ของ API | หัวคอลัมน์ใน template |

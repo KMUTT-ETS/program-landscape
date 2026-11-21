@@ -206,7 +206,31 @@ function toSection(r: ImportRow): Section {
   };
 }
 
-const encodeCursor = (offset: number): string =>
+interface Intake {
+  year_be: number;
+  applied: number;
+  admitted: number;
+  enrolled: number;
+  retained_year2: number;
+  graduated_on_time: number;
+  graduated_late: number;
+  dropouts: number;
+}
+
+function toIntake(r: ImportRow): Intake {
+  return {
+    year_be: num(r.academicYear) + BE_OFFSET,
+    applied: num(r.applications),
+    admitted: num(r.admitted),
+    enrolled: num(r.enrolled),
+    retained_year2: num(r.retainedYear2),
+    graduated_on_time: num(r.graduatedOnTime),
+    graduated_late: num(r.graduatedLate),
+    dropouts: num(r.dropouts),
+  };
+}
+
+const encodeCursor =(offset: number): string =>
   Buffer.from(`c1:${offset * 7919 + 13}`).toString('base64url');
 function decodeCursor(c: string): number | null {
   const m = /^c1:(\d+)$/.exec(Buffer.from(c, 'base64url').toString('utf8'));
@@ -321,21 +345,22 @@ export function buildRoutes(
       if (d === 'enrolments') return paged(res, url, enrolments(yearBe, semester));
     }
 
+    // Every programme at once, paged: one row per programme per year.
+    if (a === 'programmes' && parts.length === 4 && b === 'intake') {
+      const data = [...source.enrollment]
+        .sort(
+          (x, y) =>
+            str(x.programmeCode).localeCompare(str(y.programmeCode)) ||
+            num(x.academicYear) - num(y.academicYear),
+        )
+        .map((r) => ({ programme_code: str(r.programmeCode), ...toIntake(r) }));
+      return paged(res, url, data);
+    }
+
     if (a === 'programmes' && parts.length === 5 && c === 'intake' && b) {
       const rows = source.enrollment.filter((r) => str(r.programmeCode) === b);
       if (rows.length === 0) return send(res, 404, { error: 'not_found' });
-      const data = rows
-        .map((r) => ({
-          year_be: num(r.academicYear) + BE_OFFSET,
-          applied: num(r.applications),
-          admitted: num(r.admitted),
-          enrolled: num(r.enrolled),
-          retained_year2: num(r.retainedYear2),
-          graduated_on_time: num(r.graduatedOnTime),
-          graduated_late: num(r.graduatedLate),
-          dropouts: num(r.dropouts),
-        }))
-        .sort((x, y) => x.year_be - y.year_be);
+      const data = rows.map(toIntake).sort((x, y) => x.year_be - y.year_be);
       return send(res, 200, { data });
     }
     return send(res, 404, { error: 'not_found' });
