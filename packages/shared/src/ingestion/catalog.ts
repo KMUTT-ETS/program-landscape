@@ -976,6 +976,16 @@ export function isSourceEnabled(slug: string): boolean {
   return getCatalogEntry(slug)?.enabled !== false;
 }
 
+/**
+ * The import dataset an upload-only source is filled from, or null when the
+ * source has a connector. `xlsx-<dataset>` sources have no connector: rows
+ * arrive through /admin/data-setup/raw/<dataset> or through an `api-*`
+ * DatasetApiConnector, so "Run now" on them can only fail in the worker.
+ */
+export function uploadDatasetForSource(slug: string): string | null {
+  return slug.startsWith('xlsx-') ? slug.slice('xlsx-'.length) : null;
+}
+
 export function getCatalogEntry(slug: string): SourceCatalogEntry | undefined {
   return SOURCE_CATALOG.find((e) => e.slug === slug);
 }

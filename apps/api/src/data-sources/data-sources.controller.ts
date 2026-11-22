@@ -16,6 +16,7 @@ import {
   RunLogQuerySchema,
   RunLogResponseSchema,
   isSourceEnabled,
+  uploadDatasetForSource,
   type RunLogQuery,
   type RunLogResponse,
   type SessionUser,
@@ -283,6 +284,14 @@ export class DataSourcesController {
     if (!isSourceEnabled(source.slug)) {
       throw new ConflictException(
         `${source.slug} is switched off on this installation (enabled: false in the source catalog).`,
+      );
+    }
+    // Spreadsheet-import sources have no connector — the worker would throw
+    // before writing an IngestionRun, so the run would vanish without trace.
+    const dataset = uploadDatasetForSource(source.slug);
+    if (dataset) {
+      throw new ConflictException(
+        `${source.slug} has no connector to run. Upload the spreadsheet at /admin/data-setup/raw/${dataset}, or run the api-* connector that fills it.`,
       );
     }
     const jobId = await this.queue.enqueueManual(source.slug, user.userId);

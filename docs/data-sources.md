@@ -29,6 +29,15 @@ Use `deprecated: true` instead when a source has been replaced by another. A
 deprecated source also has its schedule turned off, but the admin page labels
 it `deprecated` rather than `disabled`.
 
+### Spreadsheet-import sources: `xlsx-*`
+
+Each import dataset has an `xlsx-<dataset>` source so its rows carry
+provenance. These sources have no connector. Rows arrive through an upload at
+`/admin/data-setup/raw/<dataset>`, or through an `api-*` connector that fills
+the dataset. `/admin/data-sources` therefore shows **Upload** on these rows
+instead of **Run now**, and the API refuses a run request for them with HTTP
+409. To reload one from an API, run its `api-*` connector instead.
+
 ## Ingestion architecture
 
 The ingestion framework (prompt 03) provides the plumbing. Connectors

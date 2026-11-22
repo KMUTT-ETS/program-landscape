@@ -1,8 +1,10 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { uploadDatasetForSource } from '@kku/shared';
 import {
   Badge,
   Button,
@@ -23,7 +25,7 @@ import { DataSourceMark, isMarkedSource } from '@/components/data-source-mark';
 
 // Client-side chrome for the /admin/data-sources page. Three
 // interaction surfaces:
-//   1. Search + per-row "Run now" in the main table
+//   1. Search + per-row "Run now" (or "Upload" for xlsx-*) in the main table
 //   2. Bulk-select + pause/resume in the toolbar
 //   3. Per-row detail drawer showing recent runs + cadence editor
 //
@@ -189,20 +191,36 @@ export function DataSourcesClient({
     {
       id: 'actions',
       header: '',
-      cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <Button
-            size="xs"
-            variant="outline"
-            onClick={(e) => {
-              e.stopPropagation();
-              void onRunNow(row.original.id, row.original.name);
-            }}
-          >
-            Run now
-          </Button>
-        </div>
-      ),
+      cell: ({ row }) => {
+        // Upload-only sources (xlsx-*) have no connector, so "Run now" would
+        // queue a job the worker can only fail. Point at the upload instead.
+        const dataset = uploadDatasetForSource(row.original.slug);
+        return (
+          <div className="flex items-center gap-2">
+            {dataset ? (
+              <Button size="xs" variant="outline" asChild>
+                <Link
+                  href={`/admin/data-setup/raw/${dataset}`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Upload
+                </Link>
+              </Button>
+            ) : (
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void onRunNow(row.original.id, row.original.name);
+                }}
+              >
+                Run now
+              </Button>
+            )}
+          </div>
+        );
+      },
     },
   ];
 
