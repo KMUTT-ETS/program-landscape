@@ -37,6 +37,7 @@ export const BILINGUAL_PAGES: readonly string[] = [
   'tutorials/getting-started.md',
   'tutorials/program-deep-dive.md',
   'tutorials/load-data-from-an-api.md',
+  'tutorials/add-a-health-score-driver.md',
   'data-import.md',
   'workshop/README.md',
   'guides/windows-wsl2.md',

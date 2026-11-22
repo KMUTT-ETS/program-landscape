@@ -71,6 +71,7 @@ export function buildSidebar(docsDir: string): DefaultTheme.SidebarItem[] {
         { text: 'Windows setup (WSL2)', link: '/guides/windows-wsl2' },
         { text: 'Get Program Deep-Dive working', link: '/tutorials/program-deep-dive' },
         { text: 'Load data from an API (practice)', link: '/tutorials/load-data-from-an-api' },
+        { text: 'Add a health-score driver', link: '/tutorials/add-a-health-score-driver' },
         { text: 'Adapt the registrar connector (advanced)', link: '/tutorials/adapt-the-registrar-connector' },
       ],
     },
@@ -182,6 +183,7 @@ export function buildThaiSidebar(_docsDir: string): DefaultTheme.SidebarItem[] {
         { text: 'การติดตั้งบน Windows ด้วย WSL2', link: '/th/guides/windows-wsl2' },
         { text: 'ทำให้ Program Deep-Dive ใช้งานได้', link: '/th/tutorials/program-deep-dive' },
         { text: 'นำเข้าข้อมูลจาก API (ฝึกปฏิบัติ)', link: '/th/tutorials/load-data-from-an-api' },
+        { text: 'เพิ่ม driver ของ health score', link: '/th/tutorials/add-a-health-score-driver' },
       ],
     },
     {
