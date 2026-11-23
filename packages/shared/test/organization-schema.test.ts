@@ -115,8 +115,14 @@ describe('OpenAlex institution id', () => {
     expect(OrganizationIdentityInputSchema.parse(base).openalexInstitutionId).toBeNull();
   });
 
-  it('rejects a malformed OpenAlex id', () => {
-    for (const bad of ['60837268', 'https://openalex.org/I60837268', 'I12x']) {
+  it('accepts ids that do not start with I', () => {
+    for (const ok of ['60837268', 'https://openalex.org/I60837268', 'ror:0057ax056']) {
+      expect(OrganizationIdentityInputSchema.parse({ ...base, openalexInstitutionId: ok }).openalexInstitutionId).toBe(ok);
+    }
+  });
+
+  it('rejects an id with spaces or an overlong id', () => {
+    for (const bad of ['I608 37268', 'I'.repeat(201)]) {
       expect(OrganizationIdentityInputSchema.safeParse({ ...base, openalexInstitutionId: bad }).success).toBe(false);
     }
   });

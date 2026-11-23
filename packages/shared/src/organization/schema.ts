@@ -49,15 +49,23 @@ export const OrganizationIdentityInputSchema = z.object({
   intakeFloorPostgrad: z.coerce.number().int().min(1).max(10_000).default(8),
   /**
    * OpenAlex institution id, e.g. I60837268 — find it at openalex.org by
-   * searching the university. Blank means "not set" (the publications
-   * connector then skips with a reason).
+   * searching the university. Not every id an admin finds has the `I…`
+   * shape, so only the length and the absence of whitespace (it is spliced
+   * into OpenAlex URLs and filters) are checked. Blank means "not set" (the
+   * publications connector then skips with a reason).
    */
   openalexInstitutionId: z
     .string()
     .trim()
     .nullish()
     .transform((v) => (v ? v : null))
-    .pipe(z.string().regex(/^I\d+$/, 'expected an OpenAlex institution id like I60837268').nullable()),
+    .pipe(
+      z
+        .string()
+        .max(200, 'OpenAlex institution id is too long')
+        .regex(/^\S+$/, 'OpenAlex institution id cannot contain spaces')
+        .nullable(),
+    ),
   /** null when creating the first profile; otherwise the version the form was loaded at. */
   expectedVersion: z.number().int().positive().nullable(),
 }).transform(({ regionTh: _ignored, ...rest }) => ({
