@@ -1,12 +1,12 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { can, isAdminGrade, uploadDatasetForSource, type SessionUser } from '@kku/shared';
+import { can, isAdminGrade, type SessionUser } from '@kku/shared';
 import { auth } from '@/lib/auth';
 import { apiFetchSafe } from '@/lib/api-client';
 import { AuthedAppShell } from '@/components/shell/app-shell-server';
 import { AdminBackNav } from '@/components/admin-back-nav';
 import { DiagnosticEmptyState } from '@/components/diagnostic-empty-state';
-import { PageHeader, Section, Badge, Button, FreshnessBadge } from '@kku/ui';
+import { PageHeader, Section, Badge, FreshnessBadge } from '@kku/ui';
 import { ImdUploadWidget } from './imd-upload';
 import { RunNowButton } from './run-now-button';
 import { RunLogDialog } from './run-log-dialog';
@@ -77,7 +77,6 @@ export default async function DataSourceStatsPage({ params }: { params: { slug: 
   }
   const stats = statsRes.data;
 
-  const uploadDataset = uploadDatasetForSource(stats.slug);
   const sr = stats.window.last7d.successRate;
   const healthTone: 'danger' | 'warning' | 'success' | 'neutral' =
     sr === null ? 'neutral' : sr >= 0.9 ? 'success' : sr >= 0.7 ? 'warning' : 'danger';
@@ -97,12 +96,7 @@ export default async function DataSourceStatsPage({ params }: { params: { slug: 
           )
         }
         actions={
-          // Upload-only sources (xlsx-*) have no connector to run.
-          uploadDataset ? (
-            <Button size="sm" variant="outline" asChild>
-              <Link href={`/admin/data-setup/raw/${uploadDataset}`}>Upload spreadsheet</Link>
-            </Button>
-          ) : can(user, 'ingestion:trigger') ? (
+          can(user, 'ingestion:trigger') ? (
             <RunNowButton dataSourceId={stats.id} name={stats.name} />
           ) : undefined
         }
